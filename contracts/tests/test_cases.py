@@ -70,6 +70,14 @@ def fertilite(tmp, fault):
     return h.csv(tmp / "fertilite.csv", header, rows, sep=";")
 
 
+def station_types(tmp, fault):
+    header = ["id", "type", "area_ha", "part_surface", "trophic", "hydric", "bioclim",
+              "n_placettes"]
+    rows = [[1, "type_sec", 19.52, 0.1952, 4.551, -1.379, 0.321, 48],
+            [1 if fault else 2, "type_frais", 29.84, 0.2984, 5.867, -1.472, 0.0, 74]]
+    return h.csv(tmp / "types.csv", header, rows, sep=";")
+
+
 def ifn_placette(tmp, fault):
     x, y = (h.PARIS_Y, h.PARIS_X) if fault else (h.PARIS_X, h.PARIS_Y)
     return h.csv(tmp / "PLACETTE.csv", ["IDP", "CAMPAGNE", "XL", "YL"],
@@ -216,6 +224,7 @@ CASES = {
     "inputs.ser": (ser, r"ser_code"),
     "inputs.station_gradients": (raster("sg.tif", {"bands": 1}, bands=3), r"bande"),
     "inputs.station_type": (raster("st.tif", {"nodata": None}, dtype="uint16"), r"nodata"),
+    "inputs.station_types": (station_types, r"id"),
     "inputs.fertilite": (fertilite, r"n_plots"),
     "inputs.h_pot": (raster("h_pot.tif", {"bigtiff": True}), r"BigTIFF"),
     "inputs.ifn_placette": (ifn_placette, r"emprise"),

@@ -39,8 +39,15 @@ run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
   })
 }
 
+# biomes : types de végétation, carte et rapport (mission 020, R/biomes.R).
 run_biomes <- function(config_path = "config.yml", depends_on = NULL) {
-  run_module("biomes", config_path, depends_on)
+  run_module("biomes", config_path, depends_on, work = function(cfg, config_path) {
+    zone_dir <- prepare_zone_dir(cfg)
+    if (!dir.exists(zone_dir)) {
+      stop(sprintf("dossier de la zone introuvable : %s", zone_dir), call. = FALSE)
+    }
+    biomes_run(zone_dir, cfg)
+  })
 }
 
 run_dynamics <- function(config_path = "config.yml", depends_on = NULL) {

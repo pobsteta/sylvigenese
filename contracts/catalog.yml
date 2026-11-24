@@ -61,6 +61,12 @@ contracts:
     options: {variant: entree, bands: 1}
     paths: [inputs/station_type.tif]
     required: true
+  inputs.station_types:
+    aliases: [station_types]
+    kind: csv
+    schema: tables/inputs/station_types.schema.json
+    paths: [inputs/types.csv]
+    required: true
   inputs.fertilite:
     aliases: [fertilite]
     kind: csv

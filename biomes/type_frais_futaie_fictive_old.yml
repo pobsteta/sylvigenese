@@ -1,0 +1,31 @@
+# TOUT EST SYNTHÉTIQUE : ce type de végétation est inventé pour le jeu fictif (mission 020).
+# Aucune composition, densité ni couvert n'est écologique ni ne vient d'une source ; ne rien
+# en conclure sur une forêt réelle. Marqué provisoire.
+id: type_frais_futaie_fictive_old
+provisoire: true
+condition:
+  station: type_frais
+  typopeuplement: futaie_fictive
+  stade: old
+strates:
+  arboree:
+    composition:
+      "09": 0.6
+      "61": 0.3
+      "62": 0.1
+    tiges_ha: 200
+  arbustive:
+    composition:
+      arbuste_fictif_a: 0.6
+      arbuste_fictif_b: 0.4
+    couvert: 0.25
+  herbacee:
+    composition:
+      herbacee_fictive_a: 0.7
+      herbacee_fictive_b: 0.3
+    couvert: 0.35
+  sol:
+    litiere: litiere_fictive
+    bois_mort_m3_ha: 30
+sources:
+  - "synthetique_jeu_fictif : valeurs inventées pour tester la chaîne, aucune source écologique"
