@@ -22,6 +22,11 @@ _Modèle de carte :_
 
 ## Validé
 
+- [017-prepare-grille](missions/017-prepare-grille.md), [019-prepare-ifn](missions/019-prepare-ifn.md), [021-tests-m1](missions/021-tests-m1.md) · depuis le cycle 1
+  - Homme : `dev` ×2, `testeur` · Mission : vague 1 de M1a · Moyens : jeu fictif, contrats
+- [018-prepare-arbres](missions/018-prepare-arbres.md), [020-biomes](missions/020-biomes.md) · depuis le cycle 1
+  - Homme : `dev` ×2 · Mission : vague 2 de M1a, après 017 · Moyens : grille de 017
+
 ## Planifié
 
 
