@@ -1,2 +1,3 @@
 data/
 bench/**/state_final.f32
+__pycache__/
