@@ -22,6 +22,17 @@ _Modèle de carte :_
 
 ## Validé
 
+- [009-contrats](missions/009-contrats.md) · depuis le cycle 0
+  - Homme : `dev` (opus) · Mission : contrats en trois couches et validateur · Moyens : `contracts/`
+- [010-tests-contrats](missions/010-tests-contrats.md) · depuis le cycle 0
+  - Homme : `testeur` (sonnet) · Mission : tests d'acceptation du validateur · Moyens : `tests/contracts/`
+- [011-table-essences](missions/011-table-essences.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet) · Mission : `contracts/species.csv` · Moyens : dépôts en lecture
+- [016-referentiels-m0](missions/016-referentiels-m0.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet) · Mission : IFN, iTowns, RAF20 · Moyens : sources publiques
+- [012-squelette](missions/012-squelette.md), [013-jeu-fictif](missions/013-jeu-fictif.md), [014-ci](missions/014-ci.md), [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md) · depuis le cycle 0
+  - Homme : `dev` (sonnet) · Mission : squelette, jeu fictif, CI, lecteur GeoTIFF · Moyens : après 009
+
 ## Planifié
 
 

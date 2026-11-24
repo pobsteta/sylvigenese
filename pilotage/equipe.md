@@ -4,13 +4,17 @@
 > tout démarrage. Règle de staffing : un agent par mission qui passe les trois
 > questions, jamais un agent « par principe ».
 
-- **Statut :** proposée (à compléter par `/imperatrice:mission`)
-- **Validée par :** _…_
+- **Statut :** validée pour le jalon M0, par délégation de Pascal (2026-11-24)
+- **Validée par :** Claude (orchestrateur, par délégation de Pascal), journal du 2026-11-24
 
 ## Plafond humain
 
 - **PR ouvertes en même temps, au plus :** 3
-- **Rythme de relecture de Pascal :** _…_
+- **Rythme de relecture de Pascal :** par délégation, c'est l'orchestrateur qui relit, puis le
+  `relecteur`. Pascal relit quand il le veut.
+- **Contrainte de l'environnement :** une seule branche de travail
+  (`claude/youthful-allen-b094t9`), donc une PR par jalon. Les missions travaillent dans des
+  dossiers disjoints et c'est l'orchestrateur qui intègre.
 
 ## Délégation
 
@@ -54,3 +58,11 @@
 
 | Mission | Agent | Modèle | Temps de la main | Les 3 questions | Cycle |
 |---|---|---|---|---|---|
+| [009-contrats](missions/009-contrats.md) | `dev` | opus | prendre | 3 oui | M0 |
+| [010-tests-contrats](missions/010-tests-contrats.md) | `testeur` | sonnet | donner | 3 oui | M0 |
+| [011-table-essences](missions/011-table-essences.md) | `acquereur` | sonnet | donner | 3 oui | M0 |
+| [012-squelette](missions/012-squelette.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [013-jeu-fictif](missions/013-jeu-fictif.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [014-ci](missions/014-ci.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [016-referentiels-m0](missions/016-referentiels-m0.md) | `acquereur` | sonnet | donner | 3 oui | M0 |
