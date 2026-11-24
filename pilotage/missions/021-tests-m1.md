@@ -27,6 +27,7 @@ _Rempli par Pascal seul._
 ## Harnais
 
 - **Peut (périmètre) :** `tests/m1/` (pytest qui lance `make prepare` et `make biomes` sur le jeu fictif, puis contrôle les sorties).
+- **Périmètre étendu aux reprises (accepté par l'orchestrateur, journal du 24/11/2026) :** variantes de zone dans tests/m1/conftest.py.
 - **Câblé :** pas de `main`, pas de « terminé » sans tests verts, journal en ajout seul.
 - **Ne doit pas :** lire `R/prepare_*.R` ou `R/biomes.R` avant d'avoir écrit les tests ; faire un commit git.
 - **Sources autorisées :** docs/spec.md, contracts/README.md, tests/fixtures/zone_fictive/README.md.
@@ -45,7 +46,7 @@ _Rempli par Pascal seul._
 
 ## Terrain
 
-- **Échantillon que Pascal vérifiera :** `make prepare biomes ZONE=zone_fictive`, puis `rapport_biomes.html` ouvert dans un navigateur.
+- **Échantillon que Pascal vérifiera :** `make prepare biomes trees ZONE=zone_fictive`, puis `rapport_prepare.html`, `rapport_biomes.html` et `rapport_arbres.html` ouverts dans un navigateur (étape trees ajoutée par la décision du journal du 24/11/2026).
 
 ## Qui veille, qui tranche
 

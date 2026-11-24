@@ -27,6 +27,7 @@ _Rempli par Pascal seul._
 ## Harnais
 
 - **Peut (périmètre) :** `R/prepare_ifn.R`, `R/ifn_guard.R`, `R/tests/testthat/test-prepare-ifn.R`.
+- **Périmètre étendu aux reprises (accepté par l'orchestrateur, journal du 24/11/2026) :** R/modules.R (run_prepare), paramètre report de prepare_grid, colonne W de tools/fixtures/make_zone_fictive.py et ARBRE.csv, README du jeu fictif.
 - **Câblé :** pas de `main`, pas de « terminé » sans tests verts, journal en ajout seul.
 - **Ne doit pas :** lire `station_gradients.tif` aux placettes IFN ; modifier la garde de sylvostation ; faire un commit git.
 - **Sources autorisées :** docs/spec.md §6, docs/referentiels/ifn-placettes.md, /tmp/claude-0/repos/sylvostation/R/utils.R (lecture seule, garde à reprendre avec citation).
@@ -45,7 +46,7 @@ _Rempli par Pascal seul._
 
 ## Terrain
 
-- **Échantillon que Pascal vérifiera :** `make prepare biomes ZONE=zone_fictive`, puis `rapport_biomes.html` ouvert dans un navigateur.
+- **Échantillon que Pascal vérifiera :** `make prepare biomes trees ZONE=zone_fictive`, puis `rapport_prepare.html`, `rapport_biomes.html` et `rapport_arbres.html` ouverts dans un navigateur (étape trees ajoutée par la décision du journal du 24/11/2026).
 
 ## Qui veille, qui tranche
 

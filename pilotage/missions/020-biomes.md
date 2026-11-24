@@ -27,6 +27,7 @@ _Rempli par Pascal seul._
 ## Harnais
 
 - **Peut (périmètre) :** `R/biomes.R`, `biomes/`, `R/tests/testthat/test-biomes.R`, `contracts/tables/inputs/station_types.schema.json` et son entrée dans `contracts/catalog.yml`, avec ses cas dans `contracts/tests/`.
+- **Périmètre étendu aux reprises (accepté par l'orchestrateur, journal du 24/11/2026) :** R/commun.R, R/prepare_grid.R (déplacement des outils communs), stand_map.
 - **Câblé :** pas de `main`, pas de « terminé » sans tests verts, journal en ajout seul.
 - **Ne doit pas :** présenter le catalogue fictif comme écologique ; faire un commit git.
 - **Sources autorisées :** docs/spec.md §4, §8, §11, contracts/json/biome.schema.json.
@@ -45,7 +46,7 @@ _Rempli par Pascal seul._
 
 ## Terrain
 
-- **Échantillon que Pascal vérifiera :** `make prepare biomes ZONE=zone_fictive`, puis `rapport_biomes.html` ouvert dans un navigateur.
+- **Échantillon que Pascal vérifiera :** `make prepare biomes trees ZONE=zone_fictive`, puis `rapport_prepare.html`, `rapport_biomes.html` et `rapport_arbres.html` ouverts dans un navigateur (étape trees ajoutée par la décision du journal du 24/11/2026).
 
 ## Qui veille, qui tranche
 

@@ -27,6 +27,7 @@ _Rempli par Pascal seul._
 ## Harnais
 
 - **Peut (périmètre) :** `R/prepare_trees.R`, `R/tests/testthat/test-prepare-trees.R`.
+- **Périmètre étendu aux reprises (accepté par l'orchestrateur, journal du 24/11/2026) :** Makefile, _targets.R et R/modules.R (étape trees), contrat trees_init (crown_area) et ses tests, partie paramètres de tools/fixtures/make_zone_fictive.py, R/tests/testthat/test-modules.R.
 - **Câblé :** pas de `main`, pas de « terminé » sans tests verts, journal en ajout seul.
 - **Ne doit pas :** inventer une allométrie : les coefficients viennent de `params/allometry.parquet` ; copier du code de tarif-nemeton ; faire un commit git.
 - **Sources autorisées :** docs/spec.md §4, /home/user/tarif-nemeton/code/etage_b_arbres_lidar.R en lecture seule (méthode à citer, pas à copier), lidR si installable (r-lidar.r-universe.dev).
@@ -45,7 +46,7 @@ _Rempli par Pascal seul._
 
 ## Terrain
 
-- **Échantillon que Pascal vérifiera :** `make prepare biomes ZONE=zone_fictive`, puis `rapport_biomes.html` ouvert dans un navigateur.
+- **Échantillon que Pascal vérifiera :** `make prepare biomes trees ZONE=zone_fictive`, puis `rapport_prepare.html`, `rapport_biomes.html` et `rapport_arbres.html` ouverts dans un navigateur (étape trees ajoutée par la décision du journal du 24/11/2026).
 
 ## Qui veille, qui tranche
 

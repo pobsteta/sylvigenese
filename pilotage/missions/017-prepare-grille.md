@@ -27,6 +27,7 @@ _Rempli par Pascal seul._
 ## Harnais
 
 - **Peut (périmètre) :** `R/prepare_grid.R`, `R/modules.R` (partie prepare), `_targets.R`, `R/tests/testthat/test-prepare-grid.R`, `contracts/tables/inputs/ser.schema.json` et ses tests dans `contracts/tests/` (l'entrée suit la forme brute de l'IGN : L1 à L5 permis en entrée), `tools/fixtures/` et `tests/fixtures/zone_fictive/` (ser.gpkg remis à la forme brute de l'IGN).
+- **Périmètre étendu aux reprises (accepté par l'orchestrateur, journal du 24/11/2026) :** R/commun.R (outils communs), contrats prepare.stand_map* et prepare.ser_categories avec leurs tests.
 - **Câblé :** pas de `main`, pas de « terminé » sans tests verts, journal en ajout seul.
 - **Ne doit pas :** réécrire le validateur au-delà du contrat inputs.ser ; recalculer le MNH ; rééchantillonner le MNH à 50 cm autrement que par agrégation ; faire un commit git.
 - **Sources autorisées :** docs/spec.md §2-§9, contracts/README.md, contracts/geotiff_profile.json, docs/referentiels/entrees-externes.md, tests de la mission 021.
@@ -45,7 +46,7 @@ _Rempli par Pascal seul._
 
 ## Terrain
 
-- **Échantillon que Pascal vérifiera :** `make prepare biomes ZONE=zone_fictive`, puis `rapport_biomes.html` ouvert dans un navigateur.
+- **Échantillon que Pascal vérifiera :** `make prepare biomes trees ZONE=zone_fictive`, puis `rapport_prepare.html`, `rapport_biomes.html` et `rapport_arbres.html` ouverts dans un navigateur (étape trees ajoutée par la décision du journal du 24/11/2026).
 
 ## Qui veille, qui tranche
 
