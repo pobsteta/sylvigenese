@@ -1,0 +1,196 @@
+espar,latin,taxref_cd_ref,taxref_version,nemeton_code,tarif_nemeton_code,groupe,source,ecart
+02,Quercus robur var. robur,116759,18,QURO,Quercus_spec,feuillu,N:2|C:104|K:2|G:2|X:734|T:synth_essences.py:96+bornes_dimensions.csv:3,v13=139596 devenu synonyme en v18 -> CD_REF 116759 (Quercus robur) ; cdref13 écrit 2 sans zéro ; Quercus_spec = 02 + 03
+03,Quercus petraea subsp. petraea,139584,18,QUPE,Quercus_spec,feuillu,N:3|C:107|K:3|G:3|X:697|T:synth_essences.py:96+bornes_dimensions.csv:3,v13=v18=139584 (sous-espèce) ; l'espèce Quercus petraea a aussi un CD_REF 521658 (X:696) non retenu ; cdref13 écrit 3 sans zéro ; Quercus_spec = 02 + 03
+04,Quercus rubra,,,,,feuillu,N:4|C:106|K:4|G:4,v18 non obtenu (TAXREF injoignable) ; v13=116762 ; cdref13 écrit 4 sans zéro ; hors Quercus_spec
+05,Quercus pubescens,,,,,feuillu,N:5|C:102|K:5|G:5,v18 non obtenu (TAXREF injoignable) ; v13=116751 ; cdref13 écrit 5 sans zéro ; hors Quercus_spec
+06,Quercus ilex,,,,,feuillu,N:6|C:101|K:6|G:6,v18 non obtenu (TAXREF injoignable) ; v13=116704 ; cdref13 écrit 6 sans zéro ; hors Quercus_spec
+07,Quercus pyrenaica,,,,,feuillu,N:7|C:109|K:7|G:7,v18 non obtenu (TAXREF injoignable) ; v13=116754 ; cdref13 écrit 7 sans zéro ; hors Quercus_spec
+08P,Quercus crenata,,,,,feuillu,N:8|C:105|K:8|G:8,v18 non obtenu (TAXREF injoignable) ; v13=116677 ; hors Quercus_spec
+08S,Quercus suber,,,,,feuillu,N:9|C:108|K:9|G:9,v18 non obtenu (TAXREF injoignable) ; v13=116774 ; hors Quercus_spec
+09,Fagus sylvatica,97947,18,FASY,Fagus_sylvatica,feuillu,N:10|C:42|K:10|G:10|X:692|T:synth_essences.py:58+bornes_dimensions.csv:2,v13=v18=97947 ; cdref13 écrit 9 sans zéro
+10,Castanea sativa,89304,18,CASA,,feuillu,N:11|C:22|K:11|G:11|X:687,v13=v18=89304
+11,Carpinus betulus,89200,18,CABE,Carpinus_betulus,feuillu,N:12|C:21|K:12|G:12|X:675|T:synth_essences.py:77+bornes_dimensions.csv:7,v13=v18=89200
+12P,Betula pubescens,,,,Betula_spec,feuillu,N:13|C:17|K:13|G:13|T:synth_essences.py:149+bornes_dimensions.csv:6,v18 non obtenu (TAXREF injoignable) ; v13=85904 ; Betula_spec est un code de genre (Betula spp.) : 12P rattaché par la règle de genre
+12V,Betula pendula,85903,18,BEPE,Betula_spec,feuillu,N:14|C:18|K:14|G:14|X:665|T:synth_essences.py:149+bornes_dimensions.csv:6,v13=v18=85903 ; Betula_spec est un code de genre (Betula spp.) : 12V rattaché par la règle de genre
+13B,Alnus incana subsp. incana,,,,,feuillu,N:15|C:14|K:17|G:15,v18 non obtenu (TAXREF injoignable) ; v13=131230
+13C,Alnus cordata,,,,,feuillu,N:16|C:12|K:15|G:16,v18 non obtenu (TAXREF injoignable) ; v13=81567
+13G,Alnus glutinosa,81569,18,ALGL,,feuillu,N:17|C:13|K:16|G:17|X:659,v13=v18=81569
+14,Robinia pseudoacacia,117860,18,,,feuillu,N:18|C:116|K:18|G:18|X:647,v13=v18=117860
+15P,Acer platanoides,79779,18,,,feuillu,N:19|C:8|K:19|G:19|X:2201,v13=v18=79779
+15S,Acer pseudoplatanus,79783,18,ACPS,Acer_pseudoplatanus,feuillu,N:20|C:9|K:20|G:20|X:2209|T:synth_essences.py:131+bornes_dimensions.csv:5,v13=v18=79783
+16,Celtis australis,,,,,feuillu,N:21|C:24|K:21|G:21,v18 non obtenu (TAXREF injoignable) ; v13=89468
+17C,Fraxinus excelsior,98921,18,FREX,Fraxinus_excelsior,feuillu,N:22|C:45|K:22|G:22|X:963|T:synth_essences.py:114+bornes_dimensions.csv:4,v13=v18=98921
+17F,Fraxinus ornus subsp. ornus,,,,,feuillu,N:23|C:46|K:23|G:23,v18 non obtenu (TAXREF injoignable) ; v13=134718
+17O,Fraxinus angustifolia subsp. angustifolia,,,,,feuillu,N:24|C:47|K:24|G:24,v18 non obtenu (TAXREF injoignable) ; v13=134708
+18C,Ulmus minor,,,,,feuillu,N:25|C:149|K:25|G:25,v18 non obtenu (TAXREF injoignable) ; v13=128175
+18D,Ulmus laevis,,,,,feuillu,N:26|C:150|K:26|G:26,v18 non obtenu (TAXREF injoignable) ; v13=128171
+18M,Ulmus glabra f. glabra,,,,,feuillu,N:27|C:151|K:27|G:27,v18 non obtenu (TAXREF injoignable) ; v13=142029
+19,Populus,,,,,feuillu,N:28|C:192|K:28|G:28,v18 non obtenu (TAXREF injoignable) ; v13=196579 (genre) ; nemeton a un code P1 POSP « Populus cultive » (ifn_volume_equations.csv:16) que sa table de correspondance ne relie pas à 19 : non repris ici (rapprochement par le libellé) ; à trancher par Pascal
+20G,Tilia platyphyllos subsp. platyphyllos,141768,18,TIPL,,feuillu,N:29|C:145|K:30|G:29|X:1156,v13=v18=141768 (sous-espèce) ; l'espèce Tilia platyphyllos a aussi un CD_REF 126650 (X:1155) non retenu
+20P,Tilia cordata,,,,,feuillu,N:30|C:143|K:29|G:30,v18 non obtenu (TAXREF injoignable) ; v13=126628
+20X,Tilia x europaea,,,,,feuillu,N:31|C:147|K:148|G:31,v18 non obtenu (TAXREF injoignable) ; v13=161014
+21C,Acer campestre,79734,18,,,feuillu,N:32|C:4|K:31|G:32|X:2178,v13=v18=79734
+21M,Acer monspessulanum,,,,,feuillu,N:33|C:5|K:32|G:33,v18 non obtenu (TAXREF injoignable) ; v13=79763
+21O,Acer opalus subsp. opalus,,,,,feuillu,N:34|C:7|K:33|G:34,v18 non obtenu (TAXREF injoignable) ; v13=130715
+22C,Prunus cerasus,,,,,feuillu,N:35|C:93|K:35|G:35,v18 non obtenu (TAXREF injoignable) ; v13=116054
+22G,Prunus padus var. padus,,,,,feuillu,N:36|C:96|K:36|G:36,v18 non obtenu (TAXREF injoignable) ; v13=139444
+22M,Prunus avium,116043,18,PRAV,,feuillu,N:37|C:90|K:34|G:37|X:1782,v13=v18=116043
+22S,Prunus serotina,,,,,feuillu,N:38|C:97|K:37|G:38,v18 non obtenu (TAXREF injoignable) ; v13=116137
+23A,Prunus dulcis,,,,,feuillu,N:39|C:88|K:42|G:39,v18 non obtenu (TAXREF injoignable) ; v13=116068
+23AB,Sorbus aria,83732,18,,,feuillu,N:40|C:130|K:44|G:40|X:1852,v13=124306 devenu synonyme en v18 -> CD_REF 83732 (Aria edulis X:1829)
+23AF,Sorbus latifolia,,,,,feuillu,N:41|C:134|K:47|G:41,v18 non obtenu (TAXREF injoignable) ; v13=124325
+23AM,Sorbus mougeotii,975567,18,,,feuillu,N:42|C:135|K:48|G:42|X:1930,v13=124329 devenu synonyme en v18 -> CD_REF 975567 (Hedlundia mougeotii X:1925)
+23C,Sorbus domestica,,,,,feuillu,N:43|C:132|K:46|G:43,v18 non obtenu (TAXREF injoignable) ; v13=124319
+23F,Ficus carica,,,,,feuillu,N:44|C:43|K:38|G:44,v18 non obtenu (TAXREF injoignable) ; v13=98653
+23PA,Pyrus spinosa,,,,,feuillu,N:45|C:74|K:39|G:45,v18 non obtenu (TAXREF injoignable) ; v13=116610
+23PC,Pyrus communis subsp. pyraster,139545,18,,,feuillu,N:46|C:75|K:40|G:46|X:1934,v13=v18=139545 (sous-espèce)
+23PD,Prunus domestica,,,,,feuillu,N:47|C:94|K:43|G:47,v18 non obtenu (TAXREF injoignable) ; v13=116067
+23PF,Pyrus cordata,,,,,feuillu,N:48|C:184|K:49|G:48,v18 non obtenu (TAXREF injoignable) ; v13=116576
+23PM,Malus sylvestris,,,,,feuillu,N:49|C:76|K:41|G:49,v18 non obtenu (TAXREF injoignable) ; v13=107217
+23SF,Sorbus legrei,,,,,feuillu,N:50|C:133|K:159|G:50,v18 non obtenu (TAXREF injoignable) ; v13=611482
+23SO,Sorbus aucuparia subsp. aucuparia,141317,18,SOAU,,feuillu,N:51|C:131|K:45|G:51|X:1944,v13=v18=141317 (sous-espèce)
+23SS,Sorbus intermedia,,,,,feuillu,N:52|C:136|K:160|G:52,v18 non obtenu (TAXREF injoignable) ; v13=124362
+24,Populus tremula,115156,18,POTR,,feuillu,N:53|C:87|K:50|G:53|X:1085,v13=v18=115156
+25E3,Salix triandra,,,,,feuillu,N:54|C:126|K:60|G:54,code ARBRE 25E3 (ifn_espar_codes.csv:60 ; nemeton emerge_coefficients.csv:56) ; espar-cdref13 et nemeton ifn_espar_correspondance écrivent 25000 (Excel ?) ; nemeton infradensite_espar.csv:54 classe 25000 en resineux : corrigé en feuillu (Salix) ; v18 non obtenu (TAXREF injoignable) ; v13=120246
+25E5,Salix pentandra,,,,,feuillu,N:55|C:124|K:58|G:55,code ARBRE 25E5 (ifn_espar_codes.csv:58 ; nemeton emerge_coefficients.csv:57) ; espar-cdref13 et nemeton ifn_espar_correspondance écrivent 2500000 (Excel ?) ; nemeton infradensite_espar.csv:55 classe 2500000 en resineux : corrigé en feuillu (Salix) ; v18 non obtenu (TAXREF injoignable) ; v13=120163
+25B,Salix alba,,,,,feuillu,N:56|C:117|K:51|G:56,v18 non obtenu (TAXREF injoignable) ; v13=119915
+25C,Salix cinerea,119991,18,,,feuillu,N:57|C:119|K:53|G:57|X:1113,v13=v18=119991
+25D,Salix eleagnos subsp. eleagnos,,,,,feuillu,N:58|C:122|K:56|G:58,v18 non obtenu (TAXREF injoignable) ; v13=140449
+25FD,Salix daphnoides,,,,,feuillu,N:59|C:120|K:54|G:59,v18 non obtenu (TAXREF injoignable) ; v13=120009
+25FR,Salix fragilis,,,,,feuillu,N:60|C:121|K:55|G:60,v18 non obtenu (TAXREF injoignable) ; v13=120040
+25M,Salix caprea,119977,18,,,feuillu,N:61|C:118|K:52|G:61|X:1094,v13=v18=119977
+25P,Salix pedicellata,,,,,feuillu,N:62|C:123|K:57|G:62,v18 non obtenu (TAXREF injoignable) ; v13=120161
+25R,Salix atrocinerea,,,,,feuillu,N:63|C:185|K:62|G:63,v18 non obtenu (TAXREF injoignable) ; v13=119948
+25V,Salix viminalis,,,,,feuillu,N:64|C:127|K:61|G:64,v18 non obtenu (TAXREF injoignable) ; v13=120260
+25XR,Salix x rubens,,,,,feuillu,N:65|C:125|K:59|G:65,v18 non obtenu (TAXREF injoignable) ; v13=120512
+26E,Platanus x hispanica,,,,,feuillu,N:66|C:81|K:63|G:66,v18 non obtenu (TAXREF injoignable) ; v13=114024
+26OC,Platanus occidentalis,,,,,feuillu,N:67|C:82|K:64|G:67,v18 non obtenu (TAXREF injoignable) ; v13=717428
+26OR,Platanus orientalis,,,,,feuillu,N:68|C:83|K:65|G:68,v18 non obtenu (TAXREF injoignable) ; v13=114028
+27C,Juglans regia,104076,18,,,feuillu,N:69|C:49|K:66|G:69|X:738,v13=v18=104076
+27N,Juglans nigra,,,,,feuillu,N:70|C:176|K:67|G:70,v18 non obtenu (TAXREF injoignable) ; v13=104074
+28,Olea europaea var. sylvestris,,,,,feuillu,N:71|C:60|K:68|G:71,v18 non obtenu (TAXREF injoignable) ; v13=154447
+29AI,Ailanthus altissima,,,,,feuillu,N:72|C:11|K:72|G:72,v18 non obtenu (TAXREF injoignable) ; v13=80824
+29CA,Ceratonia siliqua,,,,,feuillu,N:73|C:25|K:74|G:73,v18 non obtenu (TAXREF injoignable) ; v13=447038
+29CE,Quercus coccinea,,,,,feuillu,N:74|C:100|K:78|G:74,v18 non obtenu (TAXREF injoignable) ; v13=159897 ; hors Quercus_spec
+29CM,Quercus palustris,,,,,feuillu,N:75|C:103|K:79|G:75,v18 non obtenu (TAXREF injoignable) ; v13=116740 ; hors Quercus_spec
+29CT,Catalpa bignonioides,,,,,feuillu,N:76|C:23|K:73|G:76,v18 non obtenu (TAXREF injoignable) ; v13=89323
+29EN,Acer negundo,,,,,feuillu,N:77|C:6|K:70|G:77,v18 non obtenu (TAXREF injoignable) ; v13=79766
+29FA,Fraxinus americana,,,,,feuillu,N:78|C:44|K:76|G:78,v18 non obtenu (TAXREF injoignable) ; v13=98909
+29FI,Casuarina cunninghamiana,,,,,feuillu,N:79|C:186|K:83|G:79,v18 non obtenu (TAXREF injoignable) ; v13=89308
+29LI,Liquidambar styraciflua,,,,,feuillu,N:80|C:177|K:82|G:80,v18 non obtenu (TAXREF injoignable) ; v13=106361
+29MA,Aesculus hippocastanum,,,,,feuillu,N:81|C:10|K:71|G:81,v18 non obtenu (TAXREF injoignable) ; v13=80334
+29MI,Vachellia farnesiana,,,,,feuillu,N:82|C:3|K:69|G:82,v18 non obtenu (TAXREF injoignable) ; v13=128357
+29PL,Diospyros lotus,,,,,feuillu,N:83|C:38|K:75|G:83,v18 non obtenu (TAXREF injoignable) ; v13=95048
+29PT,Paulownia tomentosa,,,,,feuillu,N:84|C:62|K:149|G:84,v18 non obtenu (TAXREF injoignable) ; v13=112560
+29PV,Pistacia vera,,,,,feuillu,N:85|C:80|K:77|G:85,v18 non obtenu (TAXREF injoignable) ; v13=113750
+29TA,Tilia americana,,,,,feuillu,N:86|C:142|K:80|G:86,v18 non obtenu (TAXREF injoignable) ; v13=160932
+29TT,Tilia tomentosa,,,,,feuillu,N:87|C:146|K:81|G:87,v18 non obtenu (TAXREF injoignable) ; v13=126662
+29TX,Tilia x euchlora,,,,,feuillu,N:88|C:144|K:150|G:88,v18 non obtenu (TAXREF injoignable) ; v13=126667
+31,Corylus avellana,92606,18,,,feuillu,N:89|C:31|K:85|G:89|X:684,v13=v18=92606
+32,Ostrya carpinifolia,,,,,feuillu,N:90|C:61|K:86|G:90,v18 non obtenu (TAXREF injoignable) ; v13=111837
+33B,Populus alba,,,,,feuillu,N:91|C:84|K:87|G:91,v18 non obtenu (TAXREF injoignable) ; v13=115110
+33G,Populus x canescens,,,,,feuillu,N:92|C:85|K:88|G:92,v18 non obtenu (TAXREF injoignable) ; v13=115168
+33N,Populus nigra subsp. betulifolia,,,,,feuillu,N:93|C:86|K:89|G:93,v18 non obtenu (TAXREF injoignable) ; v13=139169
+34,Quercus cerris,,,,,feuillu,N:94|C:99|K:90|G:94,v18 non obtenu (TAXREF injoignable) ; v13=116670 ; hors Quercus_spec
+36,Eucalyptus,,,,,feuillu,N:95|C:193|K:91|G:95,v18 non obtenu (TAXREF injoignable) ; v13=192361 (genre)
+37,Alnus alnobetula subsp. alnobetula,,,,,feuillu,N:96|C:15|K:92|G:96,v18 non obtenu (TAXREF injoignable) ; v13=131226
+38AL,Laburnum alpinum,,,,,feuillu,N:97|C:54|K:94|G:97,v18 non obtenu (TAXREF injoignable) ; v13=104715
+38AU,Laburnum anagyroides,,,,,feuillu,N:98|C:53|K:93|G:98,v18 non obtenu (TAXREF injoignable) ; v13=104716
+39,Cornus mas,,,,,feuillu,N:99|C:30|K:95|G:99,v18 non obtenu (TAXREF injoignable) ; v13=92497
+40,Arbutus unedo,,,,,feuillu,N:100|C:16|K:96|G:100,v18 non obtenu (TAXREF injoignable) ; v13=83481
+41,Sorbus torminalis,975515,18,,,feuillu,N:101|C:137|K:97|G:101|X:1960,v13=124346 devenu synonyme en v18 -> CD_REF 975515 (Torminalis glaberrima X:1946)
+42,Liriodendron tulipifera,,,,,feuillu,N:102|C:57|K:98|G:102,v18 non obtenu (TAXREF injoignable) ; v13=106365
+49AA,Crataegus azarolus,,,,,feuillu,N:103|C:32|K:161|G:103,v18 non obtenu (TAXREF injoignable) ; v13=92824
+49AE,Crataegus laevigata,92864,18,,,feuillu,N:104|C:34|K:162|G:104|X:1869,v13=v18=92864
+49AM,Crataegus monogyna,92876,18,,,feuillu,N:105|C:33|K:163|G:105|X:1880,v13=v18=92876
+49BO,Frangula alnus subsp. alnus,,,,,feuillu,N:106|C:113|K:164|G:106,v18 non obtenu (TAXREF injoignable) ; v13=788967
+49BS,Buxus sempervirens,,,,,feuillu,N:107|C:20|K:165|G:107,v18 non obtenu (TAXREF injoignable) ; v13=87143
+49C,Cydonia oblonga,,,,,feuillu,N:108|C:36|K:166|G:108,v18 non obtenu (TAXREF injoignable) ; v13=93734
+49CA,Citrus aurantium,,,,,feuillu,N:109|C:27|K:167|G:109,v18 non obtenu (TAXREF injoignable) ; v13=91803
+49CM,Citrus medica,,,,,feuillu,N:110|C:28|K:168|G:110,v18 non obtenu (TAXREF injoignable) ; v13=91811
+49CN,Citrus reticulata,,,,,feuillu,N:111|C:29|K:169|G:111,v18 non obtenu (TAXREF injoignable) ; v13=91812
+49CS,Cercis siliquastrum,,,,,feuillu,N:112|C:26|K:170|G:112,v18 non obtenu (TAXREF injoignable) ; v13=90234
+49EA,Erica arborea,,,,,feuillu,N:113|C:40|K:186|G:113,v18 non obtenu (TAXREF injoignable) ; v13=96659
+49EV,Euonymus europaeus,609982,18,,,feuillu,N:114|C:41|K:191|G:114|X:487,v13=v18=609982
+49FA,Phillyrea angustifolia,,,,,feuillu,N:115|C:63|K:192|G:115,v18 non obtenu (TAXREF injoignable) ; v13=113142
+49FL,Phillyrea latifolia,,,,,feuillu,N:116|C:64|K:171|G:116,v18 non obtenu (TAXREF injoignable) ; v13=113148
+49IA,Ilex aquifolium,103514,18,,,feuillu,N:117|C:48|K:153|G:117|X:35,v13=v18=103514
+49KK,Diospyros kaki,,,,,feuillu,N:118|C:37|K:172|G:118,v18 non obtenu (TAXREF injoignable) ; v13=95047
+49LN,Laurus nobilis,,,,,feuillu,N:119|C:56|K:173|G:119,v18 non obtenu (TAXREF injoignable) ; v13=105295
+49MB,Morus alba,,,,,feuillu,N:120|C:58|K:154|G:120,v18 non obtenu (TAXREF injoignable) ; v13=108810
+49MC,Broussonetia papyrifera,,,,,feuillu,N:121|C:19|K:155|G:121,v18 non obtenu (TAXREF injoignable) ; v13=86817
+49MN,Morus nigra,,,,,feuillu,N:122|C:59|K:156|G:122,v18 non obtenu (TAXREF injoignable) ; v13=108822
+49OB,Elaeagnus angustifolia,,,,,feuillu,N:123|C:39|K:174|G:123,v18 non obtenu (TAXREF injoignable) ; v13=95831
+49OO,Maclura pomifera,,,,,feuillu,N:124|C:148|K:157|G:124,v18 non obtenu (TAXREF injoignable) ; v13=107130
+49PA,Prunus armeniaca,,,,,feuillu,N:125|C:89|K:175|G:125,v18 non obtenu (TAXREF injoignable) ; v13=116041
+49PB,Prunus brigantina,,,,,feuillu,N:126|C:91|K:193|G:126,v18 non obtenu (TAXREF injoignable) ; v13=116050
+49PC,Prunus cerasifera,,,,,feuillu,N:127|C:92|K:176|G:127,v18 non obtenu (TAXREF injoignable) ; v13=116053
+49PL,Pistacia lentiscus,,,,,feuillu,N:128|C:78|K:194|G:128,v18 non obtenu (TAXREF injoignable) ; v13=113744
+49PM,Prunus mahaleb,,,,,feuillu,N:129|C:95|K:177|G:129,v18 non obtenu (TAXREF injoignable) ; v13=116096
+49PN,Pyrus nivalis,,,,,feuillu,N:130|C:77|K:178|G:130,v18 non obtenu (TAXREF injoignable) ; v13=116594
+49PS,Prunus spinosa,116142,18,,,feuillu,N:131|C:98|K:187|G:131|X:1802,v13=v18=116142
+49PT,Pistacia terebinthus,,,,,feuillu,N:132|C:79|K:195|G:132,v18 non obtenu (TAXREF injoignable) ; v13=113748
+49RA,Rhamnus alaternus,,,,,feuillu,N:133|C:110|K:188|G:133,v18 non obtenu (TAXREF injoignable) ; v13=117526
+49RC,Rhamnus cathartica,,,,,feuillu,N:134|C:112|K:190|G:134,v18 non obtenu (TAXREF injoignable) ; v13=117530
+49RP,Rhamnus alpina,,,,,feuillu,N:135|C:111|K:189|G:135,v18 non obtenu (TAXREF injoignable) ; v13=117528
+49RT,Rhus typhina,,,,,feuillu,N:136|C:114|K:179|G:136,v18 non obtenu (TAXREF injoignable) ; v13=117723
+49SN,Sambucus nigra,120717,18,,,feuillu,N:137|C:128|K:180|G:137|X:530,v13=v18=120717
+49SR,Sambucus racemosa subsp. racemosa,140539,18,,,feuillu,N:138|C:129|K:196|G:138|X:536,v13=v18=140539 (sous-espèce)
+49TA,Tamarix gallica,,,,,feuillu,N:139|C:194|K:181|G:139,v18 non obtenu (TAXREF injoignable) ; v13=125426 ; même taxon et même CD_REF que 49TG : deux codes pour un taxon (libellé « Tamaris de France » les deux fois)
+49TF,Tamarix africana,,,,,feuillu,N:140|C:138|K:182|G:140,v18 non obtenu (TAXREF injoignable) ; v13=125412
+49TG,Tamarix gallica,,,,,feuillu,N:141|C:139|K:183|G:141,v18 non obtenu (TAXREF injoignable) ; v13=125426 ; même taxon et même CD_REF que 49TA : deux codes pour un taxon
+49VV,Rhus vernicifera,,,,,feuillu,N:142|C:115|K:158|G:142,v18 non obtenu (TAXREF injoignable) ; v13=160246
+51,Pinus pinaster subsp. pinaster,,,PIPI,,resineux,N:143|C:70|K:99|G:143,v18 non obtenu (TAXREF injoignable) ; v13=138850
+52,Pinus sylvestris,113703,18,PISY,Pinus_sylvestris,resineux,N:144|C:72|K:100|G:144|X:1241|T:synth_essences.py:233+bornes_dimensions.csv:12,v13=v18=113703
+53CA,Pinus nigra var. calabrica,,,,,resineux,N:145|C:158|K:102|G:145,v18 non obtenu (TAXREF injoignable) ; v13=613561
+53CO,Pinus nigra var. corsicana,,,,,resineux,N:146|C:68|K:101|G:146,v18 non obtenu (TAXREF injoignable) ; v13=613563
+53S,Pinus nigra subsp. salzmannii,,,,,resineux,N:147|C:159|K:103|G:147,v18 non obtenu (TAXREF injoignable) ; v13=138844
+54,Pinus nigra subsp. nigra,,,PINI,,resineux,N:148|C:157|K:104|G:148,v18 non obtenu (TAXREF injoignable) ; v13=138843
+55,Pinus pinea,,,,,resineux,N:149|C:71|K:105|G:149,v18 non obtenu (TAXREF injoignable) ; v13=113690
+56,Pinus strobus,,,,,resineux,N:150|C:73|K:106|G:150,v18 non obtenu (TAXREF injoignable) ; v13=113702
+57A,Pinus halepensis,,,,,resineux,N:151|C:67|K:107|G:151,v18 non obtenu (TAXREF injoignable) ; v13=113665
+57B,Pinus brutia,,,,,resineux,N:152|C:172|K:108|G:152,v18 non obtenu (TAXREF injoignable) ; v13=162292 ; libellé IFN « Pin brutia (ou) eldarica »
+58,Pinus mugo subsp. uncinata,,,,,resineux,N:153|C:69|K:109|G:153,v18 non obtenu (TAXREF injoignable) ; v13=138840
+59,Pinus cembra,,,,,resineux,N:154|C:66|K:110|G:154,v18 non obtenu (TAXREF injoignable) ; v13=113651
+60,Pinus mugo,,,,,resineux,N:155|C:187|K:111|G:155,v18 non obtenu (TAXREF injoignable) ; v13=113682
+61,Abies alba,79319,18,ABAL,Abies_alba,resineux,N:156|C:2|K:112|G:156|X:1212|T:synth_essences.py:184+bornes_dimensions.csv:9,v13=v18=79319
+62,Picea abies subsp. abies,113432,18,PIAB,Picea_abies,resineux,N:157|C:65|K:113|G:157|X:1231|T:synth_essences.py:168+bornes_dimensions.csv:8,v13=138781 (sous-espèce) devenu synonyme en v18 -> CD_REF 113432 (Picea abies)
+63,Larix decidua subsp. decidua,137099,18,LADE,Larix_decidua,resineux,N:158|C:55|K:114|G:158|X:1220|T:synth_essences.py:217+bornes_dimensions.csv:11,v13=v18=137099 (sous-espèce) ; l'espèce Larix decidua a aussi un CD_REF 105042 (X:1219) non retenu
+64,Pseudotsuga menziesii,116216,18,PSME,Pseudotsuga_menziesii,resineux,N:159|C:161|K:115|G:159|X:1221|T:synth_essences.py:201+bornes_dimensions.csv:10,v13=v18=116216
+65,Cedrus atlantica,,,,,resineux,N:160|C:153|K:116|G:160,v18 non obtenu (TAXREF injoignable) ; v13=89452
+66,Cupressus sempervirens,,,,,resineux,N:161|C:35|K:117|G:161,v18 non obtenu (TAXREF injoignable) ; v13=93590
+67,Taxus baccata,125816,18,,,resineux,N:162|C:140|K:118|G:162|X:1206,v13=v18=125816 ; groupe resineux repris de nemeton (If)
+68CA,Cupressus arizonica,,,,,resineux,N:163|C:162|K:123|G:163,v18 non obtenu (TAXREF injoignable) ; v13=93570
+68CB,Cedrus libani var. brevifolia,,,,,resineux,N:164|C:154|K:120|G:164,v18 non obtenu (TAXREF injoignable) ; v13=621117
+68CC,Taxodium distichum,,,,,resineux,N:165|C:181|K:132|G:165,v18 non obtenu (TAXREF injoignable) ; v13=125811
+68CH,Cedrus deodara,,,,,resineux,N:166|C:156|K:121|G:166,v18 non obtenu (TAXREF injoignable) ; v13=89454
+68CJ,Cryptomeria japonica,,,,,resineux,N:167|C:183|K:134|G:167,v18 non obtenu (TAXREF injoignable) ; v13=93471
+68CL,Chamaecyparis lawsoniana,,,,,resineux,N:168|C:170|K:126|G:168,v18 non obtenu (TAXREF injoignable) ; v13=90411
+68CM,Cupressus macrocarpa,,,,,resineux,N:169|C:152|K:119|G:169,v18 non obtenu (TAXREF injoignable) ; v13=93585
+68EO,Picea omorika,,,,,resineux,N:170|C:167|K:124|G:170,v18 non obtenu (TAXREF injoignable) ; v13=113439
+68PC,Pinus contorta,,,,,resineux,N:171|C:178|K:129|G:171,v18 non obtenu (TAXREF injoignable) ; v13=458773
+68PM,Pinus radiata,,,,,resineux,N:172|C:160|K:122|G:172,v18 non obtenu (TAXREF injoignable) ; v13=113696
+68SC,Abies concolor,,,,,resineux,N:173|C:174|K:127|G:173,v18 non obtenu (TAXREF injoignable) ; v13=79327
+68SG,Sequoiadendron giganteum,,,,,resineux,N:174|C:180|K:131|G:174,v18 non obtenu (TAXREF injoignable) ; v13=122788
+68SI,Abies cilicica,,,,,resineux,N:175|C:175|K:128|G:175,v18 non obtenu (TAXREF injoignable) ; v13=717025
+68SV,Sequoia sempervirens,,,,,resineux,N:176|C:179|K:130|G:176,v18 non obtenu (TAXREF injoignable) ; v13=122785
+68TC,Thuja occidentalis,,,,,resineux,N:177|C:141|K:151|G:177,v18 non obtenu (TAXREF injoignable) ; v13=126449
+68TG,Thuja plicata,,,,,resineux,N:178|C:169|K:125|G:178,v18 non obtenu (TAXREF injoignable) ; v13=126451
+68TH,Tsuga heterophylla,,,,,resineux,N:179|C:182|K:133|G:179,v18 non obtenu (TAXREF injoignable) ; v13=127896
+68TS,Tsuga canadensis,,,,,resineux,N:180|C:188|K:152|G:180,v18 non obtenu (TAXREF injoignable) ; v13=159899
+69,Juniperus thurifera,,,,,resineux,N:181|C:52|K:136|G:181,v18 non obtenu (TAXREF injoignable) ; v13=104419
+69JC,Juniperus communis subsp. communis,,,,,resineux,N:182|C:50|K:184|G:182,v18 non obtenu (TAXREF injoignable) ; v13=136969
+69JO,Juniperus oxycedrus subsp. oxycedrus,,,,,resineux,N:183|C:51|K:185|G:183,v18 non obtenu (TAXREF injoignable) ; v13=136979
+70SB,Abies bornmuelleriana,,,,,resineux,N:184|C:173|K:139|G:184,v18 non obtenu (TAXREF injoignable) ; v13=79323
+70SC,Abies cephalonica,,,,,resineux,N:185|C:171|K:138|G:185,v18 non obtenu (TAXREF injoignable) ; v13=79325
+70SE,Abies pinsapo,,,,,resineux,N:186|C:164|K:137|G:186,v18 non obtenu (TAXREF injoignable) ; v13=79349
+71,Abies nordmanniana,,,,,resineux,N:187|C:163|K:140|G:187,v18 non obtenu (TAXREF injoignable) ; v13=79345
+72N,Abies procera,,,,,resineux,N:188|C:190|K:142|G:188,v18 non obtenu (TAXREF injoignable) ; v13=79350
+72V,Abies grandis,,,,,resineux,N:189|C:165|K:141|G:189,v18 non obtenu (TAXREF injoignable) ; v13=79333
+73,Picea sitchensis,,,,,resineux,N:190|C:166|K:143|G:190,v18 non obtenu (TAXREF injoignable) ; v13=113444
+74H,Larix x marschlinsii,,,,,resineux,N:191|C:191|K:145|G:191,v18 non obtenu (TAXREF injoignable) ; v13=105050
+74J,Larix kaempferi,,,,,resineux,N:192|C:168|K:144|G:192,v18 non obtenu (TAXREF injoignable) ; v13=105044
+76,Cedrus libani,,,,,resineux,N:193|C:155|K:146|G:193,v18 non obtenu (TAXREF injoignable) ; v13=89455
+77,Pinus taeda,,,,,resineux,N:194|C:189|K:147|G:194,v18 non obtenu (TAXREF injoignable) ; v13=446381 ; libellé IFN « Pin à l'encens et hybrides »
+29AF,,,,,,feuillu,K:84,code générique IFN « Autre feuillu (espèce ligneuse feuillue sans code espar) » sans taxon ni CD_REF ; absent de espar-cdref13 et de nemeton ifn_espar_correspondance (nemeton le libelle ailleurs : build_ifn_tarifs_schaeffer.R:86) ; groupe lu dans le libellé (absent de infradensite_espar.csv)
+68CE,,,,,,resineux,K:135,code générique IFN « Autre résineux (espèce ligneuse résineuse sans code espar) » sans taxon ni CD_REF ; absent de espar-cdref13 et de nemeton ifn_espar_correspondance (nemeton le libelle ailleurs : build_ifn_tarifs_schaeffer.R:86) ; groupe lu dans le libellé (absent de infradensite_espar.csv)
