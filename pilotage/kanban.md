@@ -24,6 +24,11 @@ _Modèle de carte :_
 
 ## Planifié
 
+- [007-etude-godot-forest-demo](missions/007-etude-godot-forest-demo.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : ce que viewer-massif peut reprendre de godot-forest-demo, et sous quelles licences ; lancée le 2026-11-24
+  - Moyens : clone en lecture seule, pages de licence
+
 
 
 ## Terminé
