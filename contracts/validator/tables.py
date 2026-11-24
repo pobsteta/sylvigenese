@@ -10,7 +10,7 @@ code 2, plutôt que d'être contrôlé à moitié) :
 - contraintes : required, unique, minLength, pattern, enum, minimum, maximum,
   exclusiveMinimum, exclusiveMaximum ;
 - niveau table : fieldsMatch (equal, subset), primaryKey, missingValues ;
-- extensions de sylvigenese : x-extent, x-allow-empty, x-require-one-of,
+- extensions de sylvigenese : x-optional (colonne qui peut manquer), x-extent, x-allow-empty, x-require-one-of,
   x-schema-version, x-geopackage, x-csv.
 
 Règles propres au projet (contracts/README.md) : un nombre NaN ou infini est toujours
@@ -23,7 +23,7 @@ from . import extent
 from .report import Refused, show_value
 
 FIELD_KEYS = {"name", "type", "format", "title", "description", "constraints", "example",
-              "unit", "x-unit"}
+              "unit", "x-unit", "x-optional"}
 CONSTRAINT_KEYS = {"required", "unique", "minLength", "pattern", "enum", "minimum",
                    "maximum", "exclusiveMinimum", "exclusiveMaximum"}
 SCHEMA_KEYS = {"$schema", "fields", "fieldsMatch", "primaryKey", "missingValues", "title",
@@ -58,9 +58,16 @@ def check_schema_supported(schema):
             raise Refused(f"contrat invalide : clé primaire {key} absente des colonnes")
 
 
+def is_text(arrow_type):
+    return (pa.types.is_string(arrow_type) or pa.types.is_large_string(arrow_type)
+            or pa.types.is_string_view(arrow_type))
+
+
 def arrow_type_matches(ts_type, arrow_type):
     if ts_type == "string":
-        return pa.types.is_string(arrow_type) or pa.types.is_large_string(arrow_type)
+        if pa.types.is_dictionary(arrow_type):
+            return is_text(arrow_type.value_type)
+        return is_text(arrow_type)
     if ts_type == "integer":
         return pa.types.is_integer(arrow_type)
     if ts_type == "number":
@@ -75,9 +82,9 @@ def arrow_type_matches(ts_type, arrow_type):
 def check_columns(schema, column_names, findings):
     """Présence des colonnes selon fieldsMatch. Rend les noms des colonnes à contrôler."""
     wanted = [f["name"] for f in schema["fields"]]
-    for name in wanted:
-        if name not in column_names:
-            findings.error(f"colonne obligatoire absente : {name}")
+    for field in schema["fields"]:
+        if field["name"] not in column_names and not field.get("x-optional"):
+            findings.error(f"colonne obligatoire absente : {field['name']}")
     if schema.get("fieldsMatch", "equal") == "equal":
         for name in column_names:
             if name not in wanted:
@@ -124,7 +131,8 @@ def check_field_values(field, column, findings):
     if "enum" in cons:
         allowed = pa.array(cons["enum"], type=column.type)
         inside = pc.is_in(column, value_set=allowed)
-        _report(findings, name, pc.invert(inside), column,
+        outside = pc.and_(pc.invert(inside), pc.is_valid(column))  # NULL : vu par required
+        _report(findings, name, outside, column,
                 "hors de la liste fermée (" + ", ".join(map(str, cons["enum"])) + ")")
     for key, op, word in (("minimum", pc.less, "inférieures au minimum"),
                           ("maximum", pc.greater, "supérieures au maximum"),
@@ -165,6 +173,10 @@ def check_table(schema, table, findings, *, skip=()):
             findings.error(f"colonne {name} : type attendu {TYPE_LABELS[field['type']]} "
                            f"({field['type']}), trouvé {column.type}")
             continue
+        if field["type"] == "string" and not pa.types.is_string(column.type):
+            # dictionnaire de chaînes, string_view, large_string : décodés en chaînes
+            column = pc.cast(column, pa.string())
+            table = table.set_column(table.column_names.index(name), name, column)
         good.append(name)
         check_field_values(field, column, findings)
     if table.num_rows == 0 and not schema.get("x-allow-empty", False):

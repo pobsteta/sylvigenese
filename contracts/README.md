@@ -33,7 +33,7 @@ EPSG), lue avec `sqlite3`, sans GDAL.
 ```
 contracts/validate <contrat> <chemin> [<chemin>...]
 contracts/validate --contract <contrat> <chemin>...
-contracts/validate --zone <dossier>        # tout ce que le catalogue trouve sous <dossier>
+contracts/validate --zone <dossier> [--require-outputs]   # tout le catalogue sous <dossier>
 contracts/validate --list                  # liste des contrats et de leurs noms courts
 options : --grid <grid.tif>  (alignement, variante grille)   --max-errors <N>  (50)
 ```
@@ -43,19 +43,29 @@ Un contrat se désigne par son nom complet (`prepare.trees_init`) ou par son nom
 et en sortie de `prepare`) est refusé, avec les noms complets à choisir.
 
 Un chemin Parquet peut être un fichier ou un dossier (`trees_init/`, `sim/trees/`) : tous
-les `.parquet` qu'il contient sont contrôlés.
+les `.parquet` qu'il contient sont contrôlés. Les colonnes chaîne peuvent être écrites en
+`string`, `large_string`, `string_view` ou dictionnaire de chaînes.
+
+**Partitions `year=AAAA`** (`sim/trees/`, `sim/cells/`) : convention Hive standard (ADR
+0002), comme l'écrit `pyarrow.dataset.write_dataset(partitioning_flavor="hive")`. L'année
+n'est que dans le nom du dossier ; le validateur reconstitue la colonne `year` avant le
+contrôle. **Un fichier qui contient aussi une colonne `year` est refusé** (code 3) : l'année
+aurait deux sources qui pourraient diverger.
 
 **Mode `--zone`** : les entrées sont sous `<dossier>/inputs/`, les sorties directement sous
 `<dossier>/` (BRIEF §4). Pour le jeu fictif : `contracts/validate --zone
 tests/fixtures/zone_fictive`. Les entrées sont obligatoires ; les sorties sont contrôlées
-si elles existent. `grid.tif`, s'il est présent, sert à vérifier l'alignement.
+si elles existent, et deviennent obligatoires avec `--require-outputs` (les entrées
+facultatives, comme `inventaire_video.gpkg`, le restent). `grid.tif`, s'il est présent,
+sert à vérifier l'alignement. Un fichier en écart ou impossible à contrôler n'arrête pas
+le contrôle des suivants.
 
 ### Codes de sortie
 
 | Code | Sens |
 |---|---|
 | 0 | tout est conforme |
-| 2 | le contrôle n'a pas pu se faire : arguments invalides, contrat inconnu ou ambigu, fichier absent (en mode `--zone` : entrée obligatoire absente, comme `h_pot.tif`, spec §3) |
+| 2 | le contrôle n'a pas pu se faire : arguments invalides, contrat inconnu ou ambigu, fichier absent (en mode `--zone` : fichier obligatoire absent, comme `h_pot.tif`, spec §3) ; raster de variante `grille` sans `--grid` (ou, en mode `--zone`, sans `grid.tif` dans la zone) |
 | 3 | au moins un fichier est non conforme, y compris un fichier illisible ou d'un autre format |
 
 En mode `--zone`, un fichier non conforme (3) l'emporte sur une entrée absente (2).
@@ -68,8 +78,15 @@ Messages en français, une ligne par écart sur la sortie d'erreur :
 
 ### Installation
 
-`pip install -r contracts/requirements.txt` (exécution) ; `contracts/requirements-tests.txt`
-pour les tests. Tests : `python3 -m pytest tests/contracts contracts/tests`.
+- `requirements.txt` et `requirements-tests.txt` : dépendances **directes**, versions
+  figées ; on les modifie à la main.
+- `requirements.lock` et `requirements-tests.lock` : **verrous** produits par
+  `uv pip compile --generate-hashes --universal`, toutes dépendances transitives comprises,
+  avec empreintes SHA-256. **La CI installe `pip install --require-hashes -r
+  contracts/requirements-tests.lock`** ; un module qui n'a besoin que du validateur installe
+  `contracts/requirements.lock`.
+
+Tests : `python3 -m pytest tests/contracts contracts/tests`.
 
 ## Règles communes à tous les contrats
 
@@ -83,7 +100,14 @@ pour les tests. Tests : `python3 -m pytest tests/contracts contracts/tests`.
   (**provisoire**, fixée par l'orchestrateur). Des x et y inversés sont signalés comme tels.
 - **Nombres** : NaN et infinis sont toujours refusés.
 - **Tables vides** : refusées, sauf `x-allow-empty: true`.
-- **Clés en double** dans un YAML ou un JSON : refusées (on ne garde pas la dernière).
+- **YAML et JSON** : refusés, avec le code 3, une clé en double (on ne garde pas la
+  dernière), une clé YAML qui n'est pas une chaîne (`02` non quoté est lu en YAML 1.1 comme
+  l'entier 2 : il faut écrire `"02"`), et toute valeur NaN ou infinie (`NaN`, `.nan`,
+  `.inf`).
+- **Valeur nulle** : elle n'est refusée que par `required` ; les autres contraintes
+  (`enum`, `pattern`, bornes) ne s'appliquent qu'aux valeurs présentes.
+- **Colonne facultative** (`x-optional: true`) : elle peut manquer ; si elle est là, ses
+  contraintes s'appliquent.
 - **Contrat hors du sous-ensemble pris en charge** (type, contrainte ou propriété inconnue
   du validateur) : refusé avec le code 2, plutôt que contrôlé à moitié.
 - Aucune valeur écologique dans les schémas : seulement des bornes de définition (une part
@@ -93,13 +117,17 @@ pour les tests. Tests : `python3 -m pytest tests/contracts contracts/tests`.
 
 Tuiles de 256 × 256, PLANARCONFIG=2, Deflate ou aucune compression, PREDICTOR 1 ou 2,
 Float32 ou UInt16, nodata dans la balise 42113, GeoKey 3072 = 2154, BigTIFF refusé.
+Les variantes `complet` et `grille` refusent aussi, comme le lecteur Rust de `simulate`
+(`simulate/src/geotiff.rs`, mission 015) : le pixel « point » (GeoKey 1025 =
+RasterPixelIsPoint), le géoréférencement par matrice (balise 34264) et les bandes de types
+mixtes. Un test compare les deux verdicts sur les fichiers de `simulate/tests/fixtures/`.
 Quatre variantes :
 
 | Variante | Pour | En plus ou en moins |
 |---|---|---|
 | `complet` | contrat `geotiff_profile` | le profil seul |
-| `grille` | sorties de `prepare` et `biomes`, lues par `simulate` | maille de 25 m, alignement exact sur `grid.tif` (`--grid`) |
-| `entree` | `inputs/*.tif` | en-tête, EPSG:2154, nodata, compression ; ni tuilage, ni entrelacement, ni type imposés |
+| `grille` | sorties de `prepare` et `biomes`, lues par `simulate` | maille de 25 m, alignement exact sur `grid.tif` (`--grid` obligatoire, sinon code 2) |
+| `entree` | `inputs/*.tif` | en-tête, EPSG:2154, nodata, compression Deflate, **LZW** ou aucune (terra et GDAL écrivent en LZW par défaut) ; ni tuilage, ni entrelacement, ni type imposés |
 | `cog` | `web/rasters/*.tif` | au moins un aperçu ; entrelacement libre |
 
 L'en-tête est lu en Python pur (`struct`), comme le fera le lecteur Rust de `simulate`.
@@ -116,9 +144,9 @@ contrat de l'orchestrateur, par délégation de Pascal), en `schema_version` 0.1
 | Contrat (fichier) | Colonnes ou clés |
 |---|---|
 | `inputs.lidar_tiles` | `flight_date` (date) ; couche `lidar_tiles` |
-| `inputs.ser` | `ser_code`, `alluvium_flag` (booléen) ; couche `ser` |
+| `inputs.ser` | `ser_code`, `alluvium_code` (chaîne ∈ {`L1`, …, `L5`}, NULL hors alluvions ; une chaîne vide est refusée) ; couche `ser` |
 | `inputs.forest_mask` | couche `forest_mask`, géométrie seule |
-| `inputs.ifn_placette`, `ifn_arbre`, `ifn_flore` | fichiers `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` (colonnes de l'IFN : `IDP`, `XL`, `YL` ; `ESPAR`, `C13`, `HTOT`, `V`, `W` ; `CD_REF`, `ABOND`) |
+| `inputs.ifn_placette`, `ifn_arbre`, `ifn_flore` | fichiers `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` (colonnes de l'IFN : `IDP`, `XL`, `YL` ; `ESPAR`, `C13`, `HTOT`, `V`, `W` (facultative) ; `CD_REF`, `ABOND`). **Les colonnes réelles de l'export IFN seront vérifiées au jalon M1b** (le dictionnaire `metadonnees.csv` n'a pas pu être lu, `docs/referentiels/ifn-placettes.md`) |
 | tables de catégories (`ser.csv`, `station_type.csv`, `site_potential.csv`, `vegetation_map.csv`) | `value`, `name` (pour `site_potential.csv`, `value` est le numéro de bande) |
 | `prepare.trees_init` | listes fermées : `species_source` ∈ {`nemeton`, `vegetation_type`, `inventaire_video`}, `d130_source` ∈ {`tarif_etage_b`, `inventaire_video`, `nemeton`} |
 | `prepare.ifn_plots` (`ifn/plots.parquet`) | `plot_id`, `campaign`, `x`, `y`, `loc_precision_m`, `source`, `ser_code`, `trophic`, `coarse_hydric_700m`, `coarse_bioclim_700m` |
@@ -126,7 +154,7 @@ contrat de l'orchestrateur, par délégation de Pascal), en `schema_version` 0.1
 | `prepare.ifn_flora` (`ifn/flora.parquet`) | `plot_id`, `campaign`, `cd_ref`, `taxref_version`, `abundance` |
 | `prepare.stands` | `stand_id`, `species`, `d130`, `h`, `density_ha`, `age`, `source`, `stand_id_source` |
 | `params/*.parquet` (tarif, allometry, growth, mortality, recruitment, height_curve) | format long : `species`, `species_group` (au moins l'un des deux), `model`, `term`, `value`, `provisoire`, `source` |
-| `simulate.trees` | `status` ∈ {`alive`, `dead`} (les autres colonnes viennent du BRIEF §4) |
+| `simulate.trees` | `status` ∈ {`alive`, `dead`} (les autres colonnes viennent du BRIEF §4 ; `year` est dans le nom du dossier) |
 | `simulate.cells` | `cell_id`, `year`, `species`, `stems_ha`, `basal_area_m2_ha`, `d130_mean`, `seedlings_ha`, `seedling_h_mean` ; `cell_id` = ligne × largeur + colonne dans `grid.tif`, depuis le coin nord-ouest, à partir de 0 |
 | `post.summary` | `cell_id`, `year`, `species`, `volume_m3_ha`, `biomass_t_ha`, `carbon_t_ha`, `provisoire` |
 | `simulate.run` (`sim/run.json`) | `schema_version`, `level`, `seed`, `t0`, `years`, `threads`, `zeroed_values`, `provisional_share` ; facultatifs : `memory_estimate_bytes`, `duration_s`, `config_sha256` |

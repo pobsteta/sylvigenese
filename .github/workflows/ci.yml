@@ -72,13 +72,15 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
           cache-dependency-glob: |
-            contracts/requirements*.txt
+            contracts/requirements*.lock
             python/pyproject.toml
 
       - name: Dépendances Python
         run: |
           uv venv .venv
-          uv pip install --python .venv/bin/python -r contracts/requirements-tests.txt -e "python[test]"
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       # Node : npm ci à partir de package-lock.json, cache npm.

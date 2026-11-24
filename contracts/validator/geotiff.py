@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from . import extent
-from .report import Findings
+from .report import Findings, Refused
 
 CONTRACTS_DIR = Path(__file__).resolve().parent.parent
 TYPE_SIZES = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8,
@@ -27,6 +27,7 @@ TAG = {"width": 256, "height": 257, "bits": 258, "compression": 259, "subfile": 
        "transformation": 34264, "geokeys": 34735, "nodata": 42113}
 GEOKEY_PROJECTED = 3072
 GEOKEY_GEOGRAPHIC = 2048
+GEOKEY_RASTER_TYPE = 1025
 
 
 @lru_cache(maxsize=1)
@@ -142,6 +143,12 @@ def check(path, options, grid_path=None):
     rules = set(variant["checks"])
     if options.get("is_grid"):
         rules.discard("alignment")  # grid.tif est la référence d'alignement
+    if "alignment" in rules and grid_path is None:
+        raise Refused(f"variante {variant_name} : l'alignement sur grid.tif ne peut pas être "
+                      f"contrôlé sans --grid <grid.tif> (en mode --zone : grid.tif absent de "
+                      f"la zone) ; contrôle impossible")
+    if "alignment" in rules and not Path(grid_path).is_file():
+        raise Refused(f"fichier absent : {grid_path} (grille de référence de --grid)")
     try:
         tiff = Tiff(path)
     except (ValueError, struct.error, OSError) as exc:
@@ -151,15 +158,25 @@ def check(path, options, grid_path=None):
         findings.error("BigTIFF refusé par le profil : TIFF classique attendu")
         return [(path, findings)]
     ifd = tiff.ifds[0]
-    check_ifd(ifd, tiff, rules, profile, options, findings)
+    check_ifd(ifd, tiff, rules, profile, variant, options, findings)
     pixel = options.get("pixel_size_m", variant.get("pixel_size_m"))
     ref = georef(ifd)
     if "georef" in rules:
-        if TAG["transformation"] in ifd:
+        # Même règle que le lecteur Rust (simulate/src/geotiff.rs, georeference) : la
+        # matrice 34264 est refusée quand elle tient lieu d'échelle et de point de liaison.
+        if ref is None and TAG["transformation"] in ifd:
             findings.error("géoréférencement par matrice (balise 34264) refusé : "
                            "ModelPixelScale et ModelTiepoint attendus")
         elif ref is None:
             findings.error("géoréférencement absent : balises 33550 et 33922 attendues")
+        elif ref[2] <= 0 or ref[3] <= 0:
+            findings.error(f"taille de pixel nulle ou négative ({ref[2]:g} × {ref[3]:g})")
+            ref = None
+    if "pixel_is_area" in rules:
+        keys = geokeys(ifd) or {}
+        if keys.get(GEOKEY_RASTER_TYPE, 1) != 1:
+            findings.error("pixel « point » (RasterPixelIsPoint, GeoKey 1025 = 2) refusé : "
+                           "seul « surface » (RasterPixelIsArea) est accepté")
     if ref and pixel is not None and (abs(ref[2] - pixel) > 1e-9 or abs(ref[3] - pixel) > 1e-9):
         findings.error(f"maille de {ref[2]:g} × {ref[3]:g} m, {pixel:g} m attendue "
                        f"(résolution de la grille)")
@@ -178,8 +195,9 @@ def check(path, options, grid_path=None):
     return [(path, findings)]
 
 
-def check_ifd(ifd, tiff, rules, profile, options, findings):
+def check_ifd(ifd, tiff, rules, profile, variant, options, findings):
     allowed = profile["allowed"]
+    compressions = variant.get("compression", allowed["compression"])
     if "tiles" in rules:
         tw, th = first(ifd, "tile_width"), first(ifd, "tile_height")
         if tw is None or th is None:
@@ -195,15 +213,23 @@ def check_ifd(ifd, tiff, rules, profile, options, findings):
                            f"{allowed['planar_config']} attendu (bande par bande)")
     if "compression" in rules:
         comp = first(ifd, "compression", 1)
-        if str(comp) not in allowed["compression"]:
+        if str(comp) not in compressions:
             name = profile["known_compressions"].get(str(comp), "inconnue")
             findings.error(f"compression {name} (code {comp}) refusée : "
-                           f"{' ou '.join(sorted(set(allowed['compression'].values())))} attendue")
+                           f"{' ou '.join(sorted(set(compressions.values())))} attendue")
     if "predictor" in rules:
         pred = first(ifd, "predictor", 1)
         if pred not in allowed["predictor"]:
             findings.error(f"PREDICTOR={pred} refusé : prédicteur "
                            f"{' ou '.join(map(str, allowed['predictor']))} attendu")
+    if "uniform_bands" in rules:
+        samples = first(ifd, "samples", 1)
+        for tag, label in ((TAG["bits"], "bits"), (TAG["sample_format"], "format")):
+            values = ifd.get(tag, [])
+            if len(set(values)) > 1:
+                findings.error(f"bandes de types différents refusées ({label} : {values}, "
+                               f"{samples} bandes)")
+                break
     if "sample_type" in rules:
         found = sample_type(ifd, profile)
         wanted = options.get("sample_types", list(profile["sample_types"]))
@@ -240,9 +266,6 @@ def check_ifd(ifd, tiff, rules, profile, options, findings):
 
 def check_alignment(ifd, ref, grid_path, findings):
     """Même origine, même maille, mêmes dimensions que `grid.tif`."""
-    if grid_path is None:
-        findings.warn("alignement sur grid.tif non vérifié : donner --grid <grid.tif>")
-        return
     try:
         grid = Tiff(grid_path)
     except (ValueError, struct.error, OSError) as exc:

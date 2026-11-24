@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 import rasterio
 import yaml
@@ -101,6 +102,13 @@ def parquet(path, columns, types=None):
     table = pa.table({k: pa.array(v, type=types.get(k)) for k, v in columns.items()})
     pq.write_table(table, path)
     return path
+
+
+def hive(root, columns):
+    """Dossier partitionné year=AAAA, convention Hive : year n'est pas dans les fichiers."""
+    ds.write_dataset(pa.table(columns), root, format="parquet", partitioning=["year"],
+                     partitioning_flavor="hive")
+    return Path(root)
 
 
 def csv(path, header, rows, sep=","):

@@ -5,6 +5,7 @@ fichiers de sylvostation et de l'IFN) ; par défaut : virgule, UTF-8, une ligne 
 Les règles propres au projet (NaN refusé, table vide refusée, emprise du Lambert-93)
 s'ajoutent après frictionless, sur les lignes déjà typées.
 """
+import csv
 import math
 import re
 
@@ -43,12 +44,24 @@ CONSTRAINTS_FR = {"required": "obligatoire", "unique": "unique", "minLength": "l
                   "exclusiveMaximum": "maximum exclusif"}
 
 
-def strip_extensions(schema):
-    return {k: v for k, v in schema.items() if not k.startswith("x-")}
+def strip_extensions(schema, header):
+    """Schéma pour frictionless : sans extensions x-, sans les colonnes facultatives
+    (x-optional) absentes de l'en-tête."""
+    plain = {k: v for k, v in schema.items() if not k.startswith("x-")}
+    plain["fields"] = [{k: v for k, v in f.items() if not k.startswith("x-")}
+                       for f in schema["fields"]
+                       if not (f.get("x-optional") and f["name"] not in header)]
+    return plain
+
+
+def read_header(path, delimiter):
+    with open(path, encoding="utf-8", newline="") as f:
+        return next(csv.reader(f, delimiter=delimiter), [])
 
 
 def looks_like_text(path):
-    data = path.read_bytes()[:65536]
+    with open(path, "rb") as f:
+        data = f.read(65536)
     if b"\x00" in data:
         return False
     try:
@@ -85,11 +98,13 @@ def check(path, schema, options):
     from frictionless import Resource  # import tardif : ~0,5 s
 
     dialect = schema.get("x-csv", {})
+    delimiter = dialect.get("delimiter", ",")
     # Ressource déclarée en Data Package v2 : sans cela, frictionless impose la v1 au
     # schéma qu'elle contient (fieldsMatch et exclusiveMinimum seraient refusés).
+    plain = strip_extensions(schema, read_header(path, delimiter))
     resource = Resource({"$schema": DATARESOURCE_V2, "name": "table", "path": path.name,
-                         "format": "csv", "schema": strip_extensions(schema),
-                         "dialect": {"csv": {"delimiter": dialect.get("delimiter", ",")}}},
+                         "format": "csv", "schema": plain,
+                         "dialect": {"csv": {"delimiter": delimiter}}},
                         basepath=str(path.parent))
     report = resource.validate(limit_errors=LIMIT_ERRORS)
     field_types = {f["name"]: f["type"] for f in schema["fields"]}

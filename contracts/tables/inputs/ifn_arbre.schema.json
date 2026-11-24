@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "IFN brut, ARBRE.csv",
-  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises. C13 : circonférence à 1,30 m en mm (docs/referentiels/ifn-placettes.md §2).",
+  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises ; W peut manquer. C13 : circonférence à 1,30 m en mm (docs/referentiels/ifn-placettes.md §2). Colonnes réelles à vérifier au jalon M1b.",
   "x-schema-version": "0.1",
   "x-names-fixed-by": "IFN, données brutes ; sylvostation R/placettes.R:121-123",
   "fieldsMatch": "subset",
@@ -54,11 +54,12 @@
     {
       "name": "W",
       "type": "number",
-      "description": "poids de l'arbre",
+      "description": "poids de l'arbre ; colonne facultative",
       "x-unit": "tiges/ha",
       "constraints": {
         "minimum": 0
-      }
+      },
+      "x-optional": true
     }
   ],
   "x-csv": {

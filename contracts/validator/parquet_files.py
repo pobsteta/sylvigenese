@@ -1,13 +1,16 @@
 """Fichiers Parquet : un fichier, ou un dossier de fichiers, partitionné ou non (spec §9).
 
-Partition `year=AAAA` : le dossier porte l'année, et la colonne `year` du fichier doit
-valoir cette année sur toutes ses lignes.
+Partition `year=AAAA`, convention Hive standard (ADR 0002, précisions du 24/11/2026) :
+l'année n'est que dans le nom du dossier, comme l'écrit
+`pyarrow.dataset.write_dataset(partitioning_flavor="hive")`. Le validateur reconstitue la
+colonne `year` depuis le nom du dossier avant le contrôle. Un fichier qui contient aussi une
+colonne `year` est refusé (choix de la mission 009) : l'année aurait deux sources, qui
+pourraient diverger.
 """
 import re
 from pathlib import Path
 
 import pyarrow as pa
-import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from . import tables
@@ -47,23 +50,23 @@ def check(path, schema, options):
             findings.error(str(exc))
             results.append((file, findings))
             continue
-        good = tables.check_table(schema, table, findings)
         if options.get("partition") == "year":
-            check_partition(file, table, good, findings)
+            table = add_partition_year(file, table, findings)
+        tables.check_table(schema, table, findings)
         results.append((file, findings))
     return results
 
 
-def check_partition(file, table, good, findings):
+def add_partition_year(file, table, findings):
+    """Table complétée par la colonne `year` lue dans le dossier `year=AAAA`."""
     match = PARTITION.match(Path(file).parent.name)
     if not match:
         findings.error(f"partition attendue : le fichier doit être dans un dossier year=AAAA, "
                        f"trouvé {Path(file).parent.name}")
-        return
-    if "year" in good and table.num_rows:
-        year = int(match.group(1))
-        wrong = pc.fill_null(pc.not_equal(table["year"], year), True)
-        n = pc.sum(pc.cast(wrong, pa.int64())).as_py()
-        if n:
-            findings.error(f"colonne year : {n} valeur(s) différente(s) de l'année de la "
-                           f"partition year={year}")
+        return table
+    year = int(match.group(1))
+    if "year" in table.column_names:
+        findings.error("colonne year présente dans le fichier : en convention Hive, l'année "
+                       f"n'est que dans le nom du dossier year={year}")
+        table = table.drop(["year"])
+    return table.append_column("year", pa.array([year] * table.num_rows, type=pa.int64()))

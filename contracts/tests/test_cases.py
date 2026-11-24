@@ -57,9 +57,10 @@ def forest_mask(tmp, fault):
 
 
 def ser(tmp, fault):
-    row = {"ser_code": "B10", "alluvium_flag": 2 if fault else 0}
-    layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_flag", "BOOLEAN")], [row],
-             [(h.PARIS_X, h.PARIS_Y)])
+    rows = [{"ser_code": "B10", "alluvium_code": None},
+            {"ser_code": "L3", "alluvium_code": "L9" if fault else "L3"}]
+    layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_code", "TEXT")], rows,
+             [(h.PARIS_X, h.PARIS_Y)] * 2)
     return h.gpkg(tmp / "ser.gpkg", {"ser": layer})
 
 
@@ -153,14 +154,18 @@ def prepared_stands():
             "stand_id_source": ["A1"]}
 
 
-def partitioned(kind, columns, mutate):
+def partitioned(kind, columns, mutate=None):
+    """Dossier Hive écrit par pyarrow.dataset ; sans `mutate`, le défaut est une colonne
+    year répétée dans le fichier."""
     def build(tmp, fault):
         data = columns()
+        root = tmp / kind
+        if fault and mutate is None:
+            h.parquet(root / "year=2030" / "part-0.parquet", data)
+            return root
         if fault:
             mutate(data)
-        root = tmp / kind
-        h.parquet(root / "year=2030" / "part-0.parquet", data)
-        return root
+        return h.hive(root, data)
     return build
 
 
@@ -209,7 +214,7 @@ CASES = {
     "inputs.dtm": (raster("dtm.tif", {"crs": "EPSG:2056"}, tiled=False), r"EPSG"),
     "inputs.lidar_tiles": (lidar_tiles, r"flight_date"),
     "inputs.forest_mask": (forest_mask, r"EPSG:2154"),
-    "inputs.ser": (ser, r"alluvium_flag"),
+    "inputs.ser": (ser, r"alluvium_code"),
     "inputs.station_gradients": (raster("sg.tif", {"bands": 1}, bands=3), r"bande"),
     "inputs.station_type": (raster("st.tif", {"nodata": None}, dtype="uint16"), r"nodata"),
     "inputs.fertilite": (fertilite, r"n_plots"),
@@ -261,8 +266,7 @@ CASES = {
     "biomes.vegetation_map": (aligned("vegetation_map.tif", dtype="uint16"), r"aligné"),
     "biomes.vegetation_categories": (categories("vegetation_map.csv"), r"name"),
     "config": (duplicate_key_config, r"double"),
-    "simulate.trees": (partitioned("trees", h.sim_trees, setitem("year", [2031, 2031])),
-                       r"year"),
+    "simulate.trees": (partitioned("trees", h.sim_trees), r"colonne year présente"),
     "simulate.cells": (partitioned("cells", h.sim_cells, set_first("species", "02")),
                        r"doublon"),
     "simulate.run": (document("run.json", h.run_json, setitem("provisional_share", 1.5),
@@ -287,8 +291,13 @@ CASES = {
 
 
 def build(name, tmp, fault):
+    """Fichier d'essai, et arguments en plus : --grid pour la variante grille."""
     result = CASES[name][0](tmp, fault)
-    return result if isinstance(result, tuple) else (result, [])
+    path, extra = result if isinstance(result, tuple) else (result, [])
+    options = catalog.get(name).get("options", {})
+    if options.get("variant") == "grille" and not options.get("is_grid") and not extra:
+        extra = ["--grid", str(h.tif(tmp / "reference_grid.tif", dtype="uint16"))]
+    return path, extra
 
 
 def test_every_contract_has_a_case():

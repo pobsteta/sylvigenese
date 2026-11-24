@@ -15,12 +15,17 @@ PROG = "contracts/validate"
 USAGE = f"""usage :
   {PROG} <contrat> <chemin> [<chemin>...]       contrôle des fichiers contre un contrat
   {PROG} --contract <contrat> <chemin>...       même chose
-  {PROG} --zone <dossier>                       tous les fichiers du catalogue sous <dossier>
+  {PROG} --zone <dossier> [--require-outputs]   tous les fichiers du catalogue sous <dossier>
   {PROG} --list                                 liste des contrats
 options :
   --grid <grid.tif>     grille de référence pour l'alignement (variante grille)
   --max-errors <N>      nombre d'écarts affichés par fichier (50 par défaut)
+  --require-outputs     avec --zone : les sorties des modules deviennent obligatoires
 codes de sortie : 0 conforme, 2 contrôle impossible, 3 non conforme"""
+
+
+class UsageError(Refused):
+    """Arguments invalides : code 2, avec l'aide d'utilisation."""
 
 
 class Args:
@@ -30,6 +35,7 @@ class Args:
         self.zone = None
         self.grid = None
         self.list = False
+        self.require_outputs = False
         self.help = False
         self.max_errors = 50
 
@@ -42,13 +48,15 @@ def parse(argv):
 
     def value(option):
         if not rest:
-            raise Refused(f"argument invalide : {option} attend une valeur")
+            raise UsageError(f"argument invalide : {option} attend une valeur")
         return rest.pop(0)
 
     while rest:
         item = rest.pop(0)
         if item in ("-h", "--help", "--aide"):
             args.help = True
+        elif item == "--require-outputs":
+            args.require_outputs = True
         elif item == "--list":
             args.list = True
         elif item == "--contract":
@@ -60,26 +68,28 @@ def parse(argv):
         elif item == "--max-errors":
             text = value(item)
             if not text.isdigit() or int(text) < 1:
-                raise Refused(f"argument invalide : --max-errors attend un entier positif, "
+                raise UsageError(f"argument invalide : --max-errors attend un entier positif, "
                               f"trouvé {text}")
             args.max_errors = int(text)
         elif item.startswith("--"):
-            raise Refused(f"argument invalide : option inconnue {item}")
+            raise UsageError(f"argument invalide : option inconnue {item}")
         else:
             positional.append(item)
     if args.help or args.list:
         return args
     if args.zone is not None:
         if positional or args.contract:
-            raise Refused("argument invalide : --zone ne se combine pas avec un contrat")
+            raise UsageError("argument invalide : --zone ne se combine pas avec un contrat")
         return args
+    if args.require_outputs:
+        raise UsageError("argument invalide : --require-outputs ne s'emploie qu'avec --zone")
     if args.contract is None:
         if not positional:
-            raise Refused("arguments manquants : un contrat et au moins un fichier sont "
+            raise UsageError("arguments manquants : un contrat et au moins un fichier sont "
                           "obligatoires")
         args.contract = positional.pop(0)
     if not positional:
-        raise Refused(f"argument manquant : fichier à contrôler contre le contrat "
+        raise UsageError(f"argument manquant : fichier à contrôler contre le contrat "
                       f"{args.contract}")
     args.paths = [Path(p) for p in positional]
     return args
@@ -141,31 +151,53 @@ def run_contract(args):
     return NONCONFORM if bad else OK
 
 
+def zone_required(name, spec, require_outputs):
+    """Obligatoire en mode --zone : les entrées, et les sorties avec --require-outputs."""
+    if name.startswith("inputs."):
+        return bool(spec.get("required"))
+    return require_outputs or bool(spec.get("required"))
+
+
 def run_zone(args):
+    """Contrôle de toute une zone. Un fichier en écart ou impossible à contrôler n'arrête
+    pas la suite. Code final : 3 s'il y a un fichier non conforme, sinon 2 s'il y a un
+    fichier absent ou impossible à contrôler, sinon 0."""
     zone = args.zone
     if not zone.is_dir():
         raise Refused(f"dossier de zone absent : {zone}")
     grid = zone / "grid.tif"
     grid = grid if grid.is_file() else args.grid
-    bad = checked = 0
+    bad = checked = refused = 0
     missing = []
     for name, spec in catalog.load().items():
         found = []
         for pattern in spec.get("paths", []):
             found.extend(sorted(zone.glob(pattern)))
-        if not found and spec.get("required"):
+        if not found and spec.get("paths") and zone_required(name, spec, args.require_outputs):
             missing.append((name, spec["paths"][0]))
         for path in found:
             checked += 1
-            bad += print_results(name, check_path(name, path, grid), args.max_errors)
+            try:
+                results = check_path(name, path, grid)
+            except Refused as exc:
+                refused += 1
+                print(f"{PROG} : {path} : contrat {name} : {exc}", file=sys.stderr)
+                continue
+            except Exception as exc:  # défaut du validateur : on le dit, on continue
+                refused += 1
+                print(f"{PROG} : {path} : contrat {name} : erreur interne du validateur, "
+                      f"contrôle impossible ({exc.__class__.__name__} : {exc})",
+                      file=sys.stderr)
+                continue
+            bad += print_results(name, results, args.max_errors)
     for name, relative in missing:
         print(f"{PROG} : {zone / relative} : contrat {name} : fichier obligatoire absent",
               file=sys.stderr)
     print(f"zone {zone} : {checked} fichier(s) contrôlé(s), {bad} non conforme(s), "
-          f"{len(missing)} obligatoire(s) absent(s)")
+          f"{refused} impossible(s) à contrôler, {len(missing)} obligatoire(s) absent(s)")
     if bad:
         return NONCONFORM
-    return REFUSED if missing else OK
+    return REFUSED if missing or refused else OK
 
 
 def run_list():
@@ -188,10 +220,12 @@ def main(argv):
         if args.zone is not None:
             return run_zone(args)
         return run_contract(args)
+    except UsageError as exc:
+        print(f"{PROG} : {exc}", file=sys.stderr)
+        print(USAGE, file=sys.stderr)
+        return REFUSED
     except Refused as exc:
         print(f"{PROG} : {exc}", file=sys.stderr)
-        if "argument" in str(exc):
-            print(USAGE, file=sys.stderr)
         return REFUSED
     except Exception as exc:  # défaut du validateur lui-même : jamais un faux verdict
         print(f"{PROG} : erreur interne du validateur, contrôle impossible "

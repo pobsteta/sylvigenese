@@ -190,3 +190,10 @@ def test_le_validateur_accepte_le_jeu(zone):
     res = subprocess.run([sys.executable, str(VALIDATE), "--zone", str(zone)],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_ser_alluvium_code_l3_sur_le_couloir_et_vide_ailleurs(zone):
+    import sqlite3
+    con = sqlite3.connect(zone / "inputs" / "ser.gpkg")
+    rows = con.execute("SELECT ser_code, alluvium_code FROM ser ORDER BY fid").fetchall()
+    assert rows == [("H10", None), ("L3", "L3")]

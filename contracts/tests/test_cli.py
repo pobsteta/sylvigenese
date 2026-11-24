@@ -95,7 +95,7 @@ def test_zone_with_all_inputs_is_conform(tmp_path, capsys):
     zone = write_inputs(tmp_path / "zone_fictive")
     code, out, err = run(capsys, ["--zone", str(zone)])
     assert code == 0, err
-    assert "0 non conforme(s), 0 obligatoire(s) absent(s)" in out
+    assert "0 non conforme(s), 0 impossible(s) à contrôler, 0 obligatoire(s) absent(s)" in out
 
 
 def test_zone_without_h_pot_gives_code_2(tmp_path, capsys):

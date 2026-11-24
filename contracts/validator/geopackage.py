@@ -57,9 +57,14 @@ def check(path, schemas):
         return [(path, findings)]
     try:
         for schema in schemas:
-            check_layer(con, schema, findings)
-    except sqlite3.DatabaseError as exc:
-        findings.error(f"fichier GeoPackage illisible ({exc})")
+            layer = schema["x-geopackage"]["layer"]
+            try:
+                check_layer(con, schema, findings)
+            except sqlite3.DatabaseError as exc:
+                findings.error(f"couche {layer} : lecture SQLite impossible ({exc}) ; tables "
+                               f"gpkg_contents, gpkg_geometry_columns et gpkg_spatial_ref_sys "
+                               f"attendues (GeoPackage 1.x) : réécrire le fichier avec GDAL "
+                               f"(sf::st_write, ogr2ogr)")
     finally:
         con.close()
     return [(path, findings)]
@@ -161,19 +166,20 @@ def check_geometries(con, layer, geom_col, findings):
     rows = con.execute(f'SELECT "{geom_col}" FROM "{layer}" ORDER BY rowid').fetchall()
     for i, (blob,) in enumerate(rows, start=1):
         if blob is None:
-            findings.error(f"entité {i} : géométrie absente")
+            findings.error(f"couche {layer}, entité {i} : géométrie absente")
             return
         try:
             bounds = gpkg_blob_bounds(bytes(blob))
-        except (ValueError, struct.error):
-            findings.error(f"entité {i} : géométrie illisible (en-tête GeoPackage ou WKB)")
+        except (ValueError, struct.error, KeyError, IndexError) as exc:
+            findings.error(f"couche {layer}, entité {i} : géométrie illisible ({exc}) ; "
+                           f"en-tête GeoPackage « GP » suivi d'un WKB ISO attendu")
             return
         if bounds is None:
-            findings.error(f"entité {i} : géométrie vide")
+            findings.error(f"couche {layer}, entité {i} : géométrie vide")
             return
         problem = extent.bounds_problem(*bounds)
         if problem:
-            findings.error(f"entité {i} : {problem}")
+            findings.error(f"couche {layer}, entité {i} : {problem}")
             return
 
 

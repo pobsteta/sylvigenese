@@ -315,9 +315,9 @@ def write_vectors(inputs):
     # SER : H10 (code du référentiel surfaces-ser.csv) et un couloir d'alluvions L3
     write_gpkg(inputs / "ser.gpkg", [dict(
         name="ser", geom_type="POLYGON",
-        columns=[("ser_code", "TEXT"), ("alluvium_flag", "BOOLEAN")],
-        rows=[polygon_row([box_ring(*rect_xy(0, 1000, 0, 1000))], "H10", 0),
-              polygon_row([box_ring(*rect_xy(0, 1000, 420, 520))], "L3", 1)])])
+        columns=[("ser_code", "TEXT"), ("alluvium_code", "TEXT")],
+        rows=[polygon_row([box_ring(*rect_xy(0, 1000, 0, 1000))], "H10", None),
+              polygon_row([box_ring(*rect_xy(0, 1000, 420, 520))], "L3", "L3")])])
 
 
 def d130_from_height(h, espar):
