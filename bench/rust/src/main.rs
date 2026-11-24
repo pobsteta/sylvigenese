@@ -9,7 +9,7 @@ fn main() {
         }
         Err(e) => {
             eprintln!("Erreur : {e}\n\n{}", cli::AIDE);
-            std::process::exit(2);
+            std::process::exit(e.code);
         }
     };
     match sim::run(&cfg) {
@@ -19,7 +19,7 @@ fn main() {
         ),
         Err(e) => {
             eprintln!("Erreur : {e}");
-            std::process::exit(1);
+            std::process::exit(e.code);
         }
     }
 }

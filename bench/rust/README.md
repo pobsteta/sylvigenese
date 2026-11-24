@@ -24,14 +24,19 @@ target/release/bench-sim --n 500 --years 100 --seed 42 --threads 1 --out out-n50
 
 Options : `--n N --years Y --out DIR` (obligatoires), `--seed S` (42), `--threads T` (1),
 `--inject-nan ANNEE` (H[0,0] = NaN au début de cette année : le contrôle doit arrêter),
-`--hmax-zero` (Hmax[0,0] = 0 : refusé avant le premier pas). Code de sortie 1 pour une
-erreur d'exécution ou de contrôle, 2 pour une ligne de commande invalide. Messages en français.
+`--hmax-zero` (Hmax[0,0] = 0 : refusé avant le premier pas). Codes de sortie (SPEC §11 AM3) : 0 succès, 2 entrée refusée (ligne de commande, Hmax, graine,
+`--inject-nan`), 3 contrôle §6.8 échoué, 4 « Mémoire insuffisante » (allocation par
+`try_reserve_exact`), 1 erreur d'écriture. Messages en français. Les entiers (`--n`, `--years`,
+`--threads`, `--seed` dans [0, 2^53), `--inject-nan`) doivent être écrits en chiffres décimaux (AM2).
 
 Sorties : `summary.csv`, `state_final.f32`, `timing.json` (format du §7). Elles ne sont
 écrites qu'à la fin d'une exécution réussie.
 
 ## Choix d'implémentation
 
+- **FFT appariée (AM1)** : deux essences par FFT complexe (réelle = essence 2k, imaginaire =
+  essence 2k+1 ; le noyau est réel, donc la convolution de a+ib vaut K⊛a + i K⊛b), soit 4 FFT
+  2D complexes par an au lieu de 8.
 - **FFT sur toute la grille** (pas de tuiles), remplissage à zéro jusqu'à
   `p >= N + 16`, `p` de la forme 2^a·3^b·5^c (N = 500 donne p = 540). Lignes, transposition,
   lignes. Noyau transformé une seule fois. Convolution linéaire (bord à zéro), pas de tore.
@@ -43,6 +48,9 @@ Sorties : `summary.csv`, `state_final.f32`, `timing.json` (format du §7). Elles
   explicites dans l'aléa seulement ; erreurs par `Result` (type `Erreur`, message français) ;
   plafond de hauteur écrit `if h > hmax` (et non `f32::min`, qui masquerait un NaN).
 - Étapes 4 à 7 traitées essence par essence (L est calculée avant, à l'étape 3) : même résultat.
+
+- **Transposition naïve** conservée (non cache-friendly), signalée : elle coûtera à grand N.
+- `summary.csv` est formaté à l'écriture (`write_s`), pas dans le chronomètre des pas.
 
 ## Ambiguïtés de la spec (non tranchées par l'agent : choix provisoires, à confirmer)
 

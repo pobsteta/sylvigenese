@@ -27,9 +27,13 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Res<Option<Config>> {
         it.next()
             .ok_or_else(|| erreur!("L'option {nom} attend une valeur."))
     }
+    // AM2 : uniquement des chiffres décimaux ; jamais de signe, de fraction ni de troncature.
     fn nombre<T: std::str::FromStr>(s: &str, nom: &str) -> Res<T> {
+        if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(erreur!("Valeur invalide pour {nom} : « {s} » (entier écrit en chiffres décimaux attendu)."));
+        }
         s.parse::<T>()
-            .map_err(|_| erreur!("Valeur invalide pour {nom} : « {s} » (entier positif attendu)."))
+            .map_err(|_| erreur!("Valeur invalide pour {nom} : « {s} » (entier trop grand)."))
     }
 
     while let Some(a) = it.next() {

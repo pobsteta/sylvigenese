@@ -4,7 +4,7 @@
 //! `p >= n + 16` (taille « lisse » 2^a 3^b 5^c), lignes puis colonnes (par
 //! transposition). Résultat = convolution linéaire (bord à zéro), recadrée sur n x n.
 
-use crate::erreur::Res;
+use crate::erreur::{Res, alloue};
 use crate::erreur;
 use rayon::prelude::*;
 use rustfft::num_complex::Complex;
@@ -92,7 +92,10 @@ impl Convolver {
         let fwd = planner.plan_fft_forward(p);
         let inv = planner.plan_fft_inverse(p);
         let zero = C::new(0.0, 0.0);
-        let mut cv = Convolver { n, p, fwd, inv, khat: Vec::new(), a: vec![zero; p * p], b: vec![zero; p * p] };
+        let a = alloue(p * p, zero, "le tampon FFT n° 1")?;
+        let b = alloue(p * p, zero, "le tampon FFT n° 2")?;
+        let khat = alloue(p * p, zero, "le noyau transformé")?;
+        let mut cv = Convolver { n, p, fwd, inv, khat, a, b };
         // Noyau placé à l'origine, indices négatifs repliés (modulo p) ; transformé une fois.
         let r = RADIUS as i64;
         for di in -r..=r {
@@ -103,7 +106,7 @@ impl Convolver {
             }
         }
         cv.forward(p);
-        cv.khat = cv.b.clone();
+        cv.khat.copy_from_slice(&cv.b);
         Ok(cv)
     }
 
@@ -121,14 +124,16 @@ impl Convolver {
         rows_fft(&mut self.b, p, p, &self.fwd);
     }
 
-    /// `out = input ⊛ K` (convolution linéaire, bord à zéro), `input` et `out` en n x n.
-    pub fn convolve(&mut self, input: &[f64], out: &mut [f64]) {
+    /// Convolution appariée (SPEC §11 AM1) : deux champs réels `in_a` et `in_b` sont placés
+    /// en partie réelle et imaginaire d'une seule FFT complexe. Le noyau étant réel,
+    /// la convolution de `a + i b` vaut `K⊛a + i K⊛b` : on lit les deux parties à la sortie.
+    /// Convolution linéaire (bord à zéro), champs et sorties en n x n.
+    pub fn convolve_pair(&mut self, in_a: &[f64], in_b: &[f64], out_a: &mut [f64], out_b: &mut [f64]) {
         let (n, p) = (self.n, self.p);
-        assert_eq!(input.len(), n * n);
-        assert_eq!(out.len(), n * n);
+        assert!(in_a.len() == n * n && in_b.len() == n * n && out_a.len() == n * n && out_b.len() == n * n);
         self.a.par_chunks_mut(p).enumerate().for_each(|(i, row)| {
             for (j, v) in row.iter_mut().enumerate() {
-                *v = if i < n && j < n { C::new(input[i * n + j], 0.0) } else { C::new(0.0, 0.0) };
+                *v = if i < n && j < n { C::new(in_a[i * n + j], in_b[i * n + j]) } else { C::new(0.0, 0.0) };
             }
         });
         self.forward(n);
@@ -139,11 +144,20 @@ impl Convolver {
         rows_fft(&mut self.a, p, n, &self.inv);
         let scale = 1.0 / ((p * p) as f64);
         let a = &self.a;
-        out.par_chunks_mut(n).enumerate().for_each(|(i, row)| {
-            for (j, v) in row.iter_mut().enumerate() {
-                *v = a[i * p + j].re * scale;
+        out_a.par_chunks_mut(n).zip(out_b.par_chunks_mut(n)).enumerate().for_each(|(i, (ra, rb))| {
+            for j in 0..n {
+                let z = a[i * p + j];
+                ra[j] = z.re * scale;
+                rb[j] = z.im * scale;
             }
         });
+    }
+
+    /// Un seul champ (le second est nul) : sert aux tests.
+    pub fn convolve(&mut self, input: &[f64], out: &mut [f64]) {
+        let zeros = vec![0.0; input.len()];
+        let mut poubelle = vec![0.0; input.len()];
+        self.convolve_pair(input, &zeros, out, &mut poubelle);
     }
 }
 
@@ -228,6 +242,23 @@ mod tests {
         }
         // la masse perdue par le bord est > 0 : la somme est < 1
         assert!(out.iter().sum::<f64>() < 1.0);
+    }
+
+    #[test]
+    fn convolution_appariee_egale_deux_convolutions_directes() {
+        let n = 20;
+        let kern = kernel(50.0);
+        let a: Vec<f64> = (0..n * n).map(|c| 500.0 * u(1, 0, c as u64, 0)).collect();
+        let b: Vec<f64> = (0..n * n).map(|c| 300.0 * u(2, 0, c as u64, 1)).collect();
+        let mut cv = Convolver::new(n, &kern).unwrap();
+        let (mut qa, mut qb) = (vec![0.0; n * n], vec![0.0; n * n]);
+        cv.convolve_pair(&a, &b, &mut qa, &mut qb);
+        for (q, x) in [(&qa, &a), (&qb, &b)] {
+            let r = convolve_direct(x, n, &kern);
+            let m = r.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+            let e = q.iter().zip(&r).fold(0.0f64, |m, (a, b)| m.max((a - b).abs()));
+            assert!(e / m < 1e-9, "écart relatif = {}", e / m);
+        }
     }
 
     #[test]

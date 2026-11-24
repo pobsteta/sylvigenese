@@ -5,8 +5,8 @@
 //! qui écrit l'état (voir README, ambiguïté A1).
 
 use crate::conv::{Convolver, kernel};
-use crate::erreur;
-use crate::erreur::Res;
+use crate::erreur::{CODE_CONTROLE, Res, alloue};
+use crate::{erreur, erreur_code};
 use crate::rng::u;
 use rayon::prelude::*;
 use std::fmt::Write as _;
@@ -46,6 +46,9 @@ impl Config {
         if self.n > 1 << 20 {
             return Err(erreur!("--n = {} est déraisonnable (maximum accepté : {}).", self.n, 1 << 20));
         }
+        if self.seed >= 1u64 << 53 {
+            return Err(erreur!("--seed doit être un entier dans [0, 2^53) ; reçu {}.", self.seed));
+        }
         if self.years == 0 {
             return Err(erreur!("--years doit être >= 1."));
         }
@@ -73,12 +76,12 @@ pub struct State {
 /// État initial (spec §3) et refus des entrées invalides (Hmax <= 0 ou non fini).
 pub fn init_state(n: usize, seed: u64, hmax_zero: bool) -> Res<State> {
     let nn = n * n;
-    let mut forest = vec![0u8; nn];
+    let mut forest = alloue(nn, 0u8, "la carte des cellules boisées")?;
     forest.par_iter_mut().enumerate().for_each(|(c, f)| {
         *f = (u(seed, 0, c as u64, 100) < 0.7) as u8;
     });
-    let mut hmax = vec![0f32; S * nn];
-    let mut b = vec![0f32; S * nn];
+    let mut hmax = alloue(S * nn, 0f32, "Hmax")?;
+    let mut b = alloue(S * nn, 0f32, "B")?;
     hmax.par_chunks_mut(nn).zip(b.par_chunks_mut(nn)).enumerate().for_each(|(s, (hm, bb))| {
         for c in 0..nn {
             hm[c] = (10.0 + 30.0 * u(seed, 0, c as u64, 200 + s as u64)) as f32;
@@ -100,21 +103,32 @@ pub fn init_state(n: usize, seed: u64, hmax_zero: bool) -> Res<State> {
             }
         }
     }
-    Ok(State { n, b, d: vec![0f32; S * nn], h: vec![0f32; S * nn], hmax, forest })
+    let d = alloue(S * nn, 0f32, "D")?;
+    let h = alloue(S * nn, 0f32, "H")?;
+    Ok(State { n, b, d, h, hmax, forest })
 }
 
-/// Tampons de travail f64 (n x n).
+/// Tampons de travail f64 (n x n) : deux champs de graines, deux de dispersion, L, Btot.
 pub struct Work {
-    p: Vec<f64>,
-    q: Vec<f64>,
+    pa: Vec<f64>,
+    pb: Vec<f64>,
+    qa: Vec<f64>,
+    qb: Vec<f64>,
     l: Vec<f64>,
     btot: Vec<f64>,
 }
 
 impl Work {
-    pub fn new(n: usize) -> Self {
-        let z = vec![0f64; n * n];
-        Work { p: z.clone(), q: z.clone(), l: z.clone(), btot: z }
+    pub fn new(n: usize) -> Res<Self> {
+        let m = n * n;
+        Ok(Work {
+            pa: alloue(m, 0f64, "le tampon des graines A")?,
+            pb: alloue(m, 0f64, "le tampon des graines B")?,
+            qa: alloue(m, 0f64, "le tampon de dispersion A")?,
+            qb: alloue(m, 0f64, "le tampon de dispersion B")?,
+            l: alloue(m, 0f64, "la lumière L")?,
+            btot: alloue(m, 0f64, "Btot")?,
+        })
     }
 }
 
@@ -152,17 +166,25 @@ impl State {
             });
         }
 
-        for s in 0..S {
+        // Essences regroupées deux par deux dans une FFT complexe (AM1).
+        for s0 in (0..S).step_by(2) {
             // 1. Graines
             {
-                let bs = &self.b[s * nn..(s + 1) * nn];
-                w.p.par_iter_mut().zip(bs.par_iter()).for_each(|(p, &b)| *p = FEC * b as f64);
+                let (b0, b1) = (&self.b[s0 * nn..(s0 + 1) * nn], &self.b[(s0 + 1) * nn..(s0 + 2) * nn]);
+                w.pa.par_iter_mut().zip(b0.par_iter()).for_each(|(p, &b)| *p = FEC * b as f64);
+                w.pb.par_iter_mut().zip(b1.par_iter()).for_each(|(p, &b)| *p = FEC * b as f64);
             }
-            // 2. Dispersion par FFT
-            conv.convolve(&w.p, &mut w.q);
+            // 2. Dispersion par FFT (deux essences par FFT complexe)
+            conv.convolve_pair(&w.pa, &w.pb, &mut w.qa, &mut w.qb);
+            self.update_species(s0, year, seed, &w.qa, &w.l);
+            self.update_species(s0 + 1, year, seed, &w.qb, &w.l);
+        }
+    }
 
-            // 4 à 7, cellule par cellule
-            let (q, l) = (&w.q, &w.l);
+    /// Étapes 4 à 7 pour une essence, cellule par cellule.
+    fn update_species(&mut self, s: usize, year: u64, seed: u64, q: &[f64], l: &[f64]) {
+        let n = self.n;
+        let nn = n * n;
             let hmax = &self.hmax[s * nn..(s + 1) * nn];
             let forest = &self.forest;
             let (ts, rs, ms) = (tol(s), growth(s), mort(s));
@@ -198,7 +220,6 @@ impl State {
                         }
                     }
                 });
-        }
     }
 
     /// 8. Contrôle. Premier défaut dans l'ordre (essence, ligne, colonne, puis B, D, H) :
@@ -229,7 +250,8 @@ impl State {
                 None
             });
             if let Some((i, j, nom, v, r)) = r {
-                return Err(erreur!(
+                return Err(erreur_code!(
+                    CODE_CONTROLE,
                     "Contrôle échoué à l'année {year} : {nom} = {v} ({r}) pour l'essence {s}, cellule {} (ligne {i}, colonne {j}). Arrêt, aucune correction silencieuse.",
                     i * n + j
                 ));
@@ -238,10 +260,10 @@ impl State {
         Ok(())
     }
 
-    /// Une ligne de summary.csv par essence pour l'année `year` (spec §7).
+    /// Les lignes de summary.csv (valeurs, non formatées) pour pour l'année `year` (spec §7).
     /// Réduction déterministe : une somme partielle f64 par ligne de grille (j croissant),
     /// puis somme des lignes dans l'ordre i croissant.
-    pub fn summary_lines(&self, year: u64, out: &mut String) {
+    pub fn summary_rows(&self, year: u64, out: &mut Vec<SummaryRow>) {
         let n = self.n;
         let nn = n * n;
         for s in 0..S {
@@ -269,10 +291,28 @@ impl State {
                 cnt += r.3;
             }
             let mh = if cnt > 0 { sh / cnt as f64 } else { 0.0 };
-            // 17 chiffres significatifs : notation scientifique à 16 décimales
-            let _ = writeln!(out, "{year},{s},{sb:.16e},{sd:.16e},{mh:.16e}");
+            out.push(SummaryRow { year, species: s, sum_b: sb, sum_d: sd, mean_h: mh });
         }
     }
+}
+
+/// Une ligne de summary.csv, gardée en valeurs pendant le calcul ; le formatage se fait à l'écriture.
+#[derive(Debug, Clone, Copy)]
+pub struct SummaryRow {
+    pub year: u64,
+    pub species: usize,
+    pub sum_b: f64,
+    pub sum_d: f64,
+    pub mean_h: f64,
+}
+
+/// Texte de summary.csv : 17 chiffres significatifs (notation scientifique, 16 décimales).
+pub fn format_summary(rows: &[SummaryRow]) -> String {
+    let mut out = String::from("year,species,sum_B,sum_D,mean_H\n");
+    for r in rows {
+        let _ = writeln!(out, "{},{},{:.16e},{:.16e},{:.16e}", r.year, r.species, r.sum_b, r.sum_d, r.mean_h);
+    }
+    out
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -299,10 +339,11 @@ fn run_inner(cfg: &Config) -> Res<Timing> {
     let mut st = init_state(cfg.n, cfg.seed, cfg.hmax_zero)?;
     let kern = kernel(ALPHA);
     let mut conv = Convolver::new(cfg.n, &kern)?;
-    let mut work = Work::new(cfg.n);
+    let mut work = Work::new(cfg.n)?;
     let init_s = t0.elapsed().as_secs_f64();
 
-    let mut summary = String::from("year,species,sum_B,sum_D,mean_H\n");
+    let mut summary: Vec<SummaryRow> = Vec::new();
+    summary.try_reserve_exact(cfg.years as usize * S).map_err(|_| erreur_code!(crate::erreur::CODE_MEMOIRE, "Mémoire insuffisante : impossible d'allouer le résumé ({} lignes).", cfg.years as usize * S))?;
     let t1 = Instant::now();
     for year in 1..=cfg.years {
         if cfg.inject_nan == Some(year) {
@@ -310,7 +351,7 @@ fn run_inner(cfg: &Config) -> Res<Timing> {
         }
         st.step(year, cfg.seed, &mut conv, &mut work);
         st.controle(year)?;
-        st.summary_lines(year, &mut summary);
+        st.summary_rows(year, &mut summary);
     }
     let steps_s = t1.elapsed().as_secs_f64();
     let total_s = t0.elapsed().as_secs_f64();
@@ -318,7 +359,7 @@ fn run_inner(cfg: &Config) -> Res<Timing> {
     let t2 = Instant::now();
     std::fs::create_dir_all(&cfg.out)
         .map_err(|e| erreur!("Impossible de créer le dossier de sortie {} : {e}", cfg.out.display()))?;
-    std::fs::write(cfg.out.join("summary.csv"), summary)?;
+    std::fs::write(cfg.out.join("summary.csv"), format_summary(&summary))?;
     {
         let f = std::fs::File::create(cfg.out.join("state_final.f32"))?;
         let mut w = std::io::BufWriter::with_capacity(1 << 20, f);
