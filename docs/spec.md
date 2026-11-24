@@ -101,10 +101,17 @@
 2. **Hors polygone nemeton** : l'essence vient du type de végétation, avec
    `species_source = vegetation_type`, et la cellule est signalée. La BD Forêt v2 n'est pas
    utilisée, car sylvostation l'a désactivée pour une licence contradictoire.
-3. **Arbres détectés** : détection sur `chm.tif` à 50 cm. Le d130 est donné par la méthode
-   de l'« étage B » de tarif-nemeton (`ln D = a + b ln H`), réécrite dans `prepare` avec
-   citation. Les coefficients viennent de `params/allometry.parquet`. Les colonnes
-   `species_source` et `d130_source` sont remplies.
+3. **Arbres détectés** : détection sur `chm.tif` à 50 cm, puis segmentation des houppiers
+   et surface projetée de chaque houppier (`crown_area`, m²), comme l'étage B de
+   tarif-nemeton (`code/etage_b_arbres_lidar.R`). Le d130 est donné par
+   `ln D = a + b ln H + c ln CPA` (`code/etage_b_allometrie_D.py`), réécrite dans `prepare`
+   avec citation (décision de Pascal du 24/11/2026 : le terme du houppier est réintégré).
+   Les coefficients viennent de `params/allometry.parquet`. Pour une essence sans
+   coefficient `c`, le modèle `ln D = a + b ln H` (calé sur l'IFN,
+   `code/etage_b_allometrie_ifn.py`) s'applique, et `d130_source` le dit ; une essence sans
+   aucun coefficient est une erreur explicite. Réserve de tarif-nemeton : la surface de
+   houppier segmentée dans un MNH aéroporté n'est pas celle mesurée au TLS, d'où le statut
+   provisoire. Les colonnes `species_source` et `d130_source` sont remplies.
 4. **Hauteur** : celle du MNH à la date de vol (`chm_date`, en jours depuis le 1970-01-01),
    avancée jusqu'à `t0` par la courbe de hauteur.
 5. **Polygones `source = synthetic_ml`** : leur hauteur vient déjà du MNH. Le MNH n'est pas
