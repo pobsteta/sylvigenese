@@ -24,10 +24,6 @@ _Modèle de carte :_
 
 ## Planifié
 
-- [006-surfaces-ser](missions/006-surfaces-ser.md) · depuis le cycle 0
-  - Homme : `acquereur` (sonnet)
-  - Mission : surfaces totale et boisée des SER, et la plus grande ; lancée le 2026-11-24
-  - Moyens : sources IGN et IFN, rendu dans docs/referentiels/
 
 - [002-banc-python](missions/002-banc-python.md) · depuis le cycle 0
   - Homme : `dev` (sonnet)
@@ -43,6 +39,11 @@ _Modèle de carte :_
   - Moyens : bench/rust/, cargo test
 
 ## Terminé
+
+- [006-surfaces-ser](missions/006-surfaces-ser.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet), extraction xlsx par l'orchestrateur
+  - Mission : rendue le 2026-11-24 : docs/referentiels/surfaces-ser.{md,csv} ; plus grande SER C20 (29 980 km²)
+  - Moyens : tableaux IGN ts_2021-2025_ser.zip
 
 - [001-moteurs-existants](missions/001-moteurs-existants.md) · depuis le cycle 0
   - Homme : `acquereur` (sonnet)
