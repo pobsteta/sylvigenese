@@ -1,0 +1,81 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Fertilité par essence et type de station (inputs/fertilite.csv, sylvostation)",
+  "description": "Hauteur dominante à l'âge de référence (provisoire chez sylvostation), par essence et par type (docs/referentiels/entrees-externes.md §2). CSV séparé par des points-virgules.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "sylvostation, R/caracterisation.R:91-125",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "species",
+      "type": "string",
+      "description": "essence, telle que l'écrit sylvostation",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "description": "type de station, par son nom",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "n_plots",
+      "type": "integer",
+      "description": "nombre de placettes",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "fertilite_moy",
+      "type": "number",
+      "description": "fertilité moyenne",
+      "x-unit": "m",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "fertilite_med",
+      "type": "number",
+      "description": "fertilité médiane",
+      "x-unit": "m",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "fertilite_sd",
+      "type": "number",
+      "description": "écart type",
+      "x-unit": "m",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "age_ref",
+      "type": "number",
+      "description": "âge de référence",
+      "x-unit": "an",
+      "constraints": {
+        "required": true,
+        "exclusiveMinimum": 0
+      }
+    }
+  ],
+  "primaryKey": [
+    "species",
+    "type"
+  ],
+  "x-csv": {
+    "delimiter": ";"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Peuplements préparés (stands.parquet)",
+  "description": "Attributs des polygones nemeton, aux noms de sylvigenese (species en espar, d130 en cm, h en m).",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "stand_id",
+      "type": "string",
+      "description": "identifiant du polygone",
+      "constraints": {
+        "required": true,
+        "minLength": 1,
+        "unique": true
+      }
+    },
+    {
+      "name": "species",
+      "type": "string",
+      "description": "code espar de l'IFN en chaîne, avec son zéro de tête (spec §8, contracts/species.csv)",
+      "constraints": {
+        "pattern": "[0-9]{2}[A-Z0-9]{0,3}",
+        "required": true
+      }
+    },
+    {
+      "name": "d130",
+      "type": "number",
+      "description": "diamètre moyen à 1,30 m",
+      "x-unit": "cm",
+      "constraints": {
+        "exclusiveMinimum": 0
+      }
+    },
+    {
+      "name": "h",
+      "type": "number",
+      "description": "hauteur",
+      "x-unit": "m",
+      "constraints": {
+        "exclusiveMinimum": 0
+      }
+    },
+    {
+      "name": "density_ha",
+      "type": "number",
+      "description": "densité",
+      "x-unit": "tiges/ha",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "age",
+      "type": "integer",
+      "description": "âge",
+      "x-unit": "an",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "origine de la donnée (inventaire, synthetic_ml, …)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "stand_id_source",
+      "type": "string",
+      "description": "identifiant du polygone dans sa source"
+    }
+  ],
+  "primaryKey": [
+    "stand_id"
+  ]
+}

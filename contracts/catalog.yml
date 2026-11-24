@@ -1,0 +1,286 @@
+# Catalogue des contrats de sylvigenese (spec §2, §3 ; ADR 0002 ; mission 009).
+#
+# Un contrat par fichier échangé. Pour chacun :
+# - kind : parquet, csv, geopackage, yaml, json, geotiff ou glb ;
+# - schema (ou schemas) : le Table Schema ou le JSON Schema, chemin depuis contracts/ ;
+# - options : règles propres au fichier (variante du profil GeoTIFF, partition…) ;
+# - paths : où le trouver sous data/<zone>/ (mode --zone) ; absent = hors d'une zone ;
+# - required : obligatoire en mode --zone (seules les entrées le sont à M0).
+# Les noms courts (aliases) sont ceux des tests d'acceptation de la mission 010.
+schema_version: "0.1"
+
+contracts:
+  # ------------------------------------------------------------ entrées (spec §3)
+  inputs.nemeton_stands:
+    aliases: [nemeton_stands]
+    kind: geopackage
+    schemas: [tables/inputs/nemeton_stands.schema.json]
+    paths: [inputs/nemeton_stands.gpkg]
+    required: true
+  inputs.inventaire_video:
+    aliases: [inventaire_video]
+    kind: geopackage
+    schemas: [tables/inputs/inventaire_video_placettes.schema.json,
+              tables/inputs/inventaire_video_arbres.schema.json]
+    paths: [inputs/inventaire_video.gpkg]
+    required: false
+  inputs.chm:
+    aliases: [chm]
+    kind: geotiff
+    options: {variant: entree, pixel_size_m: 0.5, bands: 1}
+    paths: [inputs/chm.tif]
+    required: true
+  inputs.dtm:
+    kind: geotiff
+    options: {variant: entree, bands: 1}
+    paths: [inputs/dtm.tif]
+    required: true
+  inputs.lidar_tiles:
+    aliases: [lidar_tiles]
+    kind: geopackage
+    schemas: [tables/inputs/lidar_tiles.schema.json]
+    paths: [inputs/lidar_tiles.gpkg]
+    required: true
+  inputs.forest_mask:
+    kind: geopackage
+    schemas: [tables/inputs/forest_mask.schema.json]
+    paths: [inputs/forest_mask.gpkg]
+    required: true
+  inputs.ser:
+    kind: geopackage
+    schemas: [tables/inputs/ser.schema.json]
+    paths: [inputs/ser.gpkg]
+    required: true
+  inputs.station_gradients:
+    kind: geotiff
+    options: {variant: entree, bands: 3}
+    paths: [inputs/station_gradients.tif]
+    required: true
+  inputs.station_type:
+    kind: geotiff
+    options: {variant: entree, bands: 1}
+    paths: [inputs/station_type.tif]
+    required: true
+  inputs.fertilite:
+    aliases: [fertilite]
+    kind: csv
+    schema: tables/inputs/fertilite.schema.json
+    paths: [inputs/fertilite.csv]
+    required: true
+  inputs.h_pot:
+    aliases: [h_pot]
+    kind: geotiff
+    options: {variant: entree}
+    paths: [inputs/h_pot.tif]
+    required: true
+  inputs.ifn_placette:
+    aliases: [ifn_placette]
+    kind: csv
+    schema: tables/inputs/ifn_placette.schema.json
+    paths: [inputs/ifn/PLACETTE.csv]
+    required: true
+  inputs.ifn_arbre:
+    aliases: [ifn_arbre]
+    kind: csv
+    schema: tables/inputs/ifn_arbre.schema.json
+    paths: [inputs/ifn/ARBRE.csv]
+    required: true
+  inputs.ifn_flore:
+    aliases: [ifn_flore]
+    kind: csv
+    schema: tables/inputs/ifn_flore.schema.json
+    paths: [inputs/ifn/FLORE.csv]
+    required: true
+
+  # ------------------------------------------------------------ prepare (spec §2)
+  prepare.grid:
+    aliases: [grid]
+    kind: geotiff
+    options: {variant: grille, sample_types: [UInt16, Float32], bands: 1, is_grid: true}
+    paths: [grid.tif]
+  prepare.dtm:
+    kind: geotiff
+    options: {variant: grille, sample_types: [Float32], bands: 1}
+    paths: [dtm.tif]
+  prepare.forest_mask:
+    kind: geotiff
+    options: {variant: grille, sample_types: [UInt16], bands: 1}
+    paths: [forest_mask.tif]
+  prepare.ser:
+    kind: geotiff
+    options: {variant: grille, sample_types: [UInt16], bands: 1}
+    paths: [ser.tif]
+  prepare.ser_categories:
+    aliases: [ser_categories]
+    kind: csv
+    schema: tables/categories.schema.json
+    paths: [ser.csv]
+  prepare.h0:
+    aliases: [h0]
+    kind: geotiff
+    options: {variant: grille, sample_types: [Float32], bands: 1}
+    paths: [h0.tif]
+  prepare.chm_date:
+    aliases: [chm_date]
+    kind: geotiff
+    options: {variant: grille, sample_types: [UInt16], bands: 1}
+    paths: [chm_date.tif]
+  prepare.station_gradients:
+    kind: geotiff
+    options: {variant: grille, sample_types: [Float32], bands: 3}
+    paths: [station_gradients.tif]
+  prepare.station_type:
+    kind: geotiff
+    options: {variant: grille, sample_types: [UInt16], bands: 1}
+    paths: [station_type.tif]
+  prepare.station_type_categories:
+    aliases: [station_type_categories]
+    kind: csv
+    schema: tables/categories.schema.json
+    paths: [station_type.csv]
+  prepare.site_potential:
+    aliases: [site_potential]
+    kind: geotiff
+    options: {variant: grille, sample_types: [Float32]}
+    paths: [site_potential.tif]
+  prepare.site_potential_bands:
+    aliases: [site_potential_bands]
+    kind: csv
+    schema: tables/categories.schema.json
+    paths: [site_potential.csv]
+  prepare.trees_init:
+    aliases: [trees_init]
+    kind: parquet
+    schema: tables/prepare/trees_init.schema.json
+    paths: [trees_init, trees_init.parquet]
+  prepare.ifn_plots:
+    aliases: [ifn_plots]
+    kind: parquet
+    schema: tables/prepare/ifn_plots.schema.json
+    paths: [ifn/plots.parquet]
+  prepare.ifn_trees:
+    aliases: [ifn_trees]
+    kind: parquet
+    schema: tables/prepare/ifn_trees.schema.json
+    paths: [ifn/trees.parquet]
+  prepare.ifn_flora:
+    aliases: [ifn_flora]
+    kind: parquet
+    schema: tables/prepare/ifn_flora.schema.json
+    paths: [ifn/flora.parquet]
+  prepare.stands:
+    aliases: [stands]
+    kind: parquet
+    schema: tables/prepare/stands.schema.json
+    paths: [stands.parquet]
+
+  # ------------------------------------------------------------ import_tarif, dynamics
+  import_tarif.tarif:
+    aliases: [tarif]
+    kind: parquet
+    schema: tables/params/parameters.schema.json
+    paths: [params/tarif.parquet]
+  import_tarif.allometry:
+    aliases: [allometry]
+    kind: parquet
+    schema: tables/params/parameters.schema.json
+    paths: [params/allometry.parquet]
+  dynamics.growth:
+    aliases: [growth]
+    kind: parquet
+    schema: tables/params/parameters.schema.json
+    paths: [params/growth.parquet]
+  dynamics.mortality:
+    aliases: [mortality]
+    kind: parquet
+    schema: tables/params/parameters.schema.json
+    paths: [params/mortality.parquet]
+  dynamics.recruitment:
+    aliases: [recruitment]
+    kind: parquet
+    schema: tables/params/parameters.schema.json
+    paths: [params/recruitment.parquet]
+  dynamics.height_curve:
+    aliases: [height_curve]
+    kind: parquet
+    schema: tables/params/parameters.schema.json
+    paths: [params/height_curve.parquet]
+
+  # ------------------------------------------------------------ biomes
+  biomes.biome:
+    aliases: [biome]
+    kind: yaml
+    schema: json/biome.schema.json
+    paths: [biomes/*.yml]
+  biomes.vegetation_map:
+    aliases: [vegetation_map]
+    kind: geotiff
+    options: {variant: grille, sample_types: [UInt16], bands: 1}
+    paths: [vegetation_map.tif]
+  biomes.vegetation_categories:
+    aliases: [vegetation_categories]
+    kind: csv
+    schema: tables/categories.schema.json
+    paths: [vegetation_map.csv]
+
+  # ------------------------------------------------------------ simulate, post
+  config:
+    kind: yaml
+    schema: json/config.schema.json
+  simulate.trees:
+    aliases: [sim_trees]
+    kind: parquet
+    schema: tables/sim/trees.schema.json
+    options: {partition: year}
+    paths: [sim/trees]
+  simulate.cells:
+    aliases: [sim_cells]
+    kind: parquet
+    schema: tables/sim/cells.schema.json
+    options: {partition: year}
+    paths: [sim/cells]
+  simulate.run:
+    aliases: [run]
+    kind: json
+    schema: json/run.schema.json
+    paths: [sim/run.json]
+  post.summary:
+    aliases: [summary]
+    kind: parquet
+    schema: tables/sim/summary.schema.json
+    paths: [sim/summary.parquet]
+
+  # ------------------------------------------------------------ assets
+  assets.tree_model:
+    aliases: [tree_model]
+    kind: glb
+    options: {name_rule: species_stage}
+    paths: [assets/trees/*.glb]
+  assets.tileset:
+    aliases: [tileset]
+    kind: json
+    schema: json/tileset.schema.json
+    paths: [tiles/*/tileset.json]
+  assets.cell_sheet:
+    aliases: [cell_sheet]
+    kind: json
+    schema: json/cell_sheet.schema.json
+    paths: [web/cells/*.json]
+  assets.web_raster:
+    aliases: [web_raster]
+    kind: geotiff
+    options: {variant: cog}
+    paths: [web/rasters/*.tif]
+  assets.massif_block:
+    aliases: [massif_block]
+    kind: json
+    schema: json/massif_block.schema.json
+    paths: [massif/*.json]
+
+  # ------------------------------------------------------------ référentiels du dépôt
+  species:
+    kind: csv
+    schema: tables/species.schema.json
+  geotiff_profile:
+    kind: geotiff
+    options: {variant: complet}

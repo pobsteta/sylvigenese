@@ -1,0 +1,7 @@
+# Dépendances du validateur contracts/validate (mission 009), versions figées.
+# Exécution :
+pyarrow==26.0.1
+frictionless==5.21.0
+jsonschema==4.26.0
+referencing==0.37.0
+PyYAML==6.0.3

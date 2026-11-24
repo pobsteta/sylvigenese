@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:run",
+  "title": "sim/run.json (simulate)",
+  "description": "Compte rendu d'une exécution : graine, horizon, valeurs mises à zéro (spec §6) et part des paramètres provisoires (spec §10).",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["schema_version", "level", "seed", "t0", "years", "threads", "zeroed_values", "provisional_share"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "level": {"enum": ["massif", "ser"]},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "t0": {"type": "integer"},
+    "years": {"type": "integer", "minimum": 1},
+    "threads": {"type": "integer", "minimum": 1},
+    "zeroed_values": {"description": "nombre de valeurs |Q| < 1e-9 × max(Q) mises à zéro (spec §6)", "type": "integer", "minimum": 0},
+    "provisional_share": {"description": "part des paramètres utilisés marqués provisoires, de 0 à 1 (spec §10)", "type": "number", "minimum": 0, "maximum": 1},
+    "memory_estimate_bytes": {"description": "mémoire estimée avant le premier pas (spec §6)", "type": "integer", "minimum": 0},
+    "duration_s": {"type": "number", "minimum": 0},
+    "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

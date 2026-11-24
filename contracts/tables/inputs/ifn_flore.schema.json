@@ -1,0 +1,39 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "IFN brut, FLORE.csv",
+  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "IFN, données brutes ; sylvostation R/pipeline_reel.R:1149-1158",
+  "fieldsMatch": "subset",
+  "fields": [
+    {
+      "name": "IDP",
+      "type": "string",
+      "description": "identifiant de placette IFN",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "CD_REF",
+      "type": "integer",
+      "description": "taxon TAXREF (v13 dans l'IFN)",
+      "constraints": {
+        "required": true,
+        "minimum": 1
+      }
+    },
+    {
+      "name": "ABOND",
+      "type": "number",
+      "description": "abondance",
+      "constraints": {
+        "minimum": 0
+      }
+    }
+  ],
+  "x-csv": {
+    "delimiter": ";"
+  }
+}

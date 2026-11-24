@@ -1,0 +1,23 @@
+{
+  "name": "sylvigenese-viewer-web",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Vue web de sylvigenese (TypeScript, iTowns). Squelette de la mission 012 : lit config.yml et appelle le validateur.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
+  }
+}

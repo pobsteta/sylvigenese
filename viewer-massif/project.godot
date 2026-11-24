@@ -1,0 +1,10 @@
+; Projet Godot 4.6 de viewer-massif (ADR 0003) : squelette vide de la mission 012.
+; Non ouvert ni exécuté : Godot n'est pas installé dans l'environnement de la mission.
+; Étape visée plus tard : consultation immersive du massif (lit massif/ et assets/trees/).
+
+config_version=5
+
+[application]
+
+config/name="sylvigenese viewer-massif"
+config/features=PackedStringArray("4.6")

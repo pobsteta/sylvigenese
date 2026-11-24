@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:enum:stage",
+  "title": "Stade d'un peuplement ou d'un arbre (spec §8)",
+  "description": "Quatre stades tirés de la position de la hauteur observée sur la courbe de hauteur (BRIEF §6, conséquence 3 ; BRIEF §9 : quatre stades par essence). Les quatre noms sont fixés par la mission 009 ; les seuils qui les séparent ne sont pas dans ce contrat.",
+  "x-schema-version": "0.1",
+  "provisoire": true,
+  "type": "string",
+  "enum": ["young", "pole", "mature", "old"]
+}

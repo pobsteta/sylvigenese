@@ -1,0 +1,23 @@
+# Réglages d'une exécution de sylvigenese (spec §1, §2, §6, §7, §9 ; ADR 0001).
+# Conforme à contracts/json/config.schema.json : une clé inconnue est refusée.
+# Vérifier : python3 contracts/validate config config.yml
+
+schema_version: 1
+zone: zone_fictive        # données sous data/<zone>/ ; jeu d'essai : tests/fixtures/zone_fictive
+crs: EPSG:2154
+grid:
+  resolution_m: 25        # ADR 0001
+management: none          # aucune gestion sylvicole en v1 (spec §6)
+
+# Facultatif : chemins hors dépôt, à renseigner sur la machine qui les a.
+# external:
+#   tarif_nemeton_dir: /chemin/vers/tarif-nemeton   # lu par import_tarif seul
+#   raf20_grid: /chemin/vers/RAF20.gtx
+
+# Facultatif : réglages de simulate (spec §1, §6).
+# simulate:
+#   level: massif
+#   seed: 42
+#   t0: 2026
+#   years: 100
+#   threads: 4

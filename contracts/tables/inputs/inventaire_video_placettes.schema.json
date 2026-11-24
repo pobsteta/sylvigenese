@@ -1,0 +1,45 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Inventaire vidéo nemeton, couche placettes (schéma nemeton 1.7.0)",
+  "description": "Colonnes utilisées par sylvigenese ; les autres colonnes du schéma nemeton sont admises (docs/referentiels/entrees-externes.csv, lignes 14).",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "nemeton, inst/inventaire_video/inventaire_video.schema.json 1.7.0",
+  "fieldsMatch": "subset",
+  "fields": [
+    {
+      "name": "plot_id",
+      "type": "string",
+      "description": "identifiant de placette",
+      "constraints": {
+        "required": true,
+        "minLength": 1,
+        "unique": true
+      }
+    },
+    {
+      "name": "rayon_m",
+      "type": "number",
+      "description": "rayon de la placette",
+      "x-unit": "m",
+      "constraints": {
+        "exclusiveMinimum": 0
+      }
+    },
+    {
+      "name": "seuil_diam_cm",
+      "type": "number",
+      "description": "seuil de précomptage",
+      "x-unit": "cm",
+      "constraints": {
+        "minimum": 0
+      }
+    }
+  ],
+  "x-geopackage": {
+    "layer": "placettes",
+    "geometry_types": [
+      "POINT"
+    ],
+    "srs_epsg": 2154
+  }
+}

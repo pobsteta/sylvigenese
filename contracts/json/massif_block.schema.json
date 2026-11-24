@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:massif_block",
+  "title": "Bloc de la vue massif (massif/<bloc>.json, assets)",
+  "description": "Arbres d'un bloc pour viewer-massif. L'origine est en EPSG:2154 et en altitude NGF-IGN69 ; les positions des arbres sont en mètres, relatives à l'origine (x vers l'est, y vers le nord, z vers le haut) (spec §9).",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["schema_version", "block_id", "year", "crs", "vertical_datum", "origin", "trees"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "block_id": {"type": "string", "minLength": 1},
+    "year": {"type": "integer"},
+    "crs": {"const": "EPSG:2154"},
+    "vertical_datum": {"const": "NGF-IGN69"},
+    "origin": {
+      "type": "object", "x-lambert93": true,
+      "required": ["x", "y", "z"], "additionalProperties": false,
+      "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+    },
+    "trees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tree_id", "species", "stage", "x", "y", "z", "h", "d130", "hcb", "cw"],
+        "additionalProperties": false,
+        "properties": {
+          "tree_id": {"type": "string", "minLength": 1},
+          "species": {"type": "string", "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"},
+          "stage": {"$ref": "urn:sylvigenese:enum:stage"},
+          "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
+          "h": {"type": "number", "exclusiveMinimum": 0},
+          "d130": {"type": "number", "exclusiveMinimum": 0},
+          "hcb": {"type": "number", "minimum": 0},
+          "cw": {"type": "number", "minimum": 0}
+        }
+      }
+    }
+  }
+}

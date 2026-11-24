@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "geotiff_profile.schema.json",
+  "title": "Schéma du profil GeoTIFF de sylvigenese",
+  "type": "object",
+  "required": [
+    "x-schema-version",
+    "allowed",
+    "sample_types",
+    "known_compressions",
+    "variants"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "x-schema-version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "allowed": {
+      "type": "object",
+      "required": [
+        "tile_size",
+        "planar_config",
+        "compression",
+        "predictor",
+        "epsg",
+        "bigtiff"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tile_size": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 16
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "planar_config": {
+          "enum": [
+            1,
+            2
+          ]
+        },
+        "compression": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "predictor": {
+          "type": "array",
+          "items": {
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "epsg": {
+          "type": "integer"
+        },
+        "bigtiff": {
+          "type": "boolean"
+        }
+      }
+    },
+    "sample_types": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
+    "known_compressions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "variants": {
+      "type": "object",
+      "required": [
+        "complet",
+        "grille",
+        "entree",
+        "cog"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "integrity",
+                "georef",
+                "crs",
+                "nodata",
+                "compression",
+                "predictor",
+                "sample_type",
+                "tiles",
+                "planar",
+                "extent",
+                "alignment",
+                "overviews",
+                "pixel_is_area",
+                "uniform_bands",
+                "band_tags",
+                "sparse_tiles"
+              ]
+            }
+          },
+          "pixel_size_m": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "compression": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "compressions admises par cette variante, à la place de allowed.compression"
+          }
+        }
+      }
+    }
+  }
+}

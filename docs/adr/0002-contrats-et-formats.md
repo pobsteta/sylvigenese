@@ -39,6 +39,14 @@ nomenclatures.
 - pour la 3D, i3dm et b3dm (dépréciés par 3D Tiles 1.1) ou glTF instancié (retenu, avec repli
   i3dm).
 
+## Précisions du 24/11/2026 (relecture de la mission 009)
+
+- **Partitions Parquet** : convention Hive standard. L'année n'est que dans le nom du dossier
+  `year=AAAA`. Elle n'est pas répétée comme colonne du fichier, et la relecture la reconstitue.
+- **Entrées externes** (variante `entree` du profil GeoTIFF) : LZW admis en plus de Deflate,
+  parce que terra et GDAL écrivent en LZW par défaut. Entre modules, seuls Deflate ou aucune
+  compression sont admis.
+
 ## Le crible FRANCE
 
 | Lettre | Réponse | Ce que ça coûte | Prêts à payer ? |

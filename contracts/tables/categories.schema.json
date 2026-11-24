@@ -1,0 +1,31 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Table de correspondance d'un raster catégoriel ou à bandes",
+  "description": "Valeur du raster (ou numéro de bande) et nom de la catégorie : une catégorie est codée par son nom, jamais par un indice qui dépend de l'ordre (spec §8). Sert à ser.csv, station_type.csv, site_potential.csv et vegetation_map.csv.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "value",
+      "type": "integer",
+      "description": "valeur entière du raster (UInt16), ou numéro de bande à partir de 1",
+      "constraints": {
+        "required": true,
+        "unique": true,
+        "minimum": 0,
+        "maximum": 65535
+      }
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "nom de la catégorie (ou de la famille d'essences pour site_potential)",
+      "constraints": {
+        "required": true,
+        "minLength": 1,
+        "unique": true
+      }
+    }
+  ]
+}

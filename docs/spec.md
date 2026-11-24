@@ -75,7 +75,7 @@
 | `dtm.tif` | MNT LiDAR HD, ou RGE ALTI | altitude NGF-IGN69 |
 | `lidar_tiles.gpkg` | IGN | une dalle par entité, avec sa date de vol |
 | `forest_mask.gpkg` | définition de la forêt par l'IFN | masque forestier |
-| `ser.gpkg` | IGN, sylvoécorégions et alluvions | code de SER ; drapeau alluvions L1 à L5 |
+| `ser.gpkg` | IGN, sylvoécorégions et alluvions | `ser_code`, code de la SER sous-jacente (jamais L1 à L5) ; `alluvium_code` ∈ {L1 … L5} sur les alluvions, NULL ailleurs |
 | `station_gradients.tif`, `station_type.tif`, `fertilite.csv` | sylvostation | `trophic`, `hydric`, `bioclim` (Tichý 2023) ; type de station ; H0 à 50 ans par essence et par type |
 | `h_pot.tif` | typopeuplement | plafond par famille d'essences. **S'il manque : erreur, code 2.** |
 | `ifn/` (brut) | IFN, données brutes | ajustement de `dynamics` ; coordonnées floutées à environ 700 m |
@@ -162,7 +162,8 @@
   - le MNH à 50 cm n'est **jamais** rééchantillonné : `prepare` l'agrège en `h0.tif`.
 - **Zone tampon** de la largeur du noyau de dispersion. Ses cellules sont sources de graines
   seulement, et le bord est absorbant.
-- **Alluvions** : rattachées à la SER sous-jacente, avec un drapeau.
+- **Alluvions** : rattachées à la SER sous-jacente (`ser_code`), et repérées par `alluvium_code`.
+- **YAML** : le contrat refuse les écritures qui se lisent différemment en YAML 1.1 et en YAML 1.2 (entiers à zéro de tête, `yes`, `no`, `on`, `off`, `y`, `n`), pour que tous les modules lisent la même valeur.
 
 ## 8. Nomenclatures
 

@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 0 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 1 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -22,17 +22,6 @@ _Modèle de carte :_
 
 ## Validé
 
-- [009-contrats](missions/009-contrats.md) · depuis le cycle 0
-  - Homme : `dev` (opus) · Mission : contrats en trois couches et validateur · Moyens : `contracts/`
-- [010-tests-contrats](missions/010-tests-contrats.md) · depuis le cycle 0
-  - Homme : `testeur` (sonnet) · Mission : tests d'acceptation du validateur · Moyens : `tests/contracts/`
-- [011-table-essences](missions/011-table-essences.md) · depuis le cycle 0
-  - Homme : `acquereur` (sonnet) · Mission : `contracts/species.csv` · Moyens : dépôts en lecture
-- [016-referentiels-m0](missions/016-referentiels-m0.md) · depuis le cycle 0
-  - Homme : `acquereur` (sonnet) · Mission : IFN, iTowns, RAF20 · Moyens : sources publiques
-- [012-squelette](missions/012-squelette.md), [013-jeu-fictif](missions/013-jeu-fictif.md), [014-ci](missions/014-ci.md), [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md) · depuis le cycle 0
-  - Homme : `dev` (sonnet) · Mission : squelette, jeu fictif, CI, lecteur GeoTIFF · Moyens : après 009
-
 ## Planifié
 
 
@@ -40,6 +29,11 @@ _Modèle de carte :_
 
 
 ## Terminé
+
+- [009-contrats](missions/009-contrats.md), [010-tests-contrats](missions/010-tests-contrats.md), [011-table-essences](missions/011-table-essences.md), [012-squelette](missions/012-squelette.md), [013-jeu-fictif](missions/013-jeu-fictif.md), [014-ci](missions/014-ci.md), [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md), [016-referentiels-m0](missions/016-referentiels-m0.md) · depuis le cycle 1
+  - Homme : `dev` ×5, `testeur`, `acquereur` ×2, relues par `relecteur`
+  - Mission : jalon M0a rempli le 2026-11-24 (CI verte à f1246ca, test-command vert, 410 tests pytest)
+  - Moyens : PR pobsteta/sylvigenese#3
 
 - [008-contrats-entrees](missions/008-contrats-entrees.md) · depuis le cycle 0
   - Homme : `acquereur` (sonnet)
@@ -90,3 +84,5 @@ l'inscrit avec ce qu'elle nous apprend._
 - bilan du AAAA-MM-JJ · livraison · pour qui · ce qu'elle apporte de plus que la précédente
 - bilan du AAAA-MM-JJ · mauvaise nouvelle : … · pour qui · ce qu'elle nous apprend
 ```
+
+- cycle 1 · livraison : jalon M0 (contrats et validateur, squelette des modules, jeu d'essai fictif, lecteur GeoTIFF Rust, CI) · pour Pascal · `make validate ZONE=<zone>` dit tout de suite si ses propres sorties nemeton, sylvostation et typopeuplement entrent dans la chaîne, ce que rien ne permettait avant

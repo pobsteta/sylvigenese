@@ -1,0 +1,119 @@
+{
+  "x-schema-version": "0.1",
+  "description": "Profil fermé des GeoTIFF échangés entre modules (docs/spec.md §9, ADR 0002). Les codes de balises sont ceux de TIFF 6.0 et de GeoTIFF 1.1 (OGC 19-008r4). Les variantes complet et grille refusent aussi, comme le lecteur Rust de simulate (simulate/src/geotiff.rs, mission 015) : le pixel « point » (GeoKey 1025 = RasterPixelIsPoint), le géoréférencement par matrice (balise 34264, règle georef) les bandes de types mixtes, un nombre de valeurs des balises 258 et 339 différent du nombre de bandes, et les tuiles creuses (début et taille nuls).",
+  "allowed": {
+    "tile_size": [
+      256,
+      256
+    ],
+    "planar_config": 2,
+    "compression": {
+      "1": "aucune",
+      "8": "Deflate",
+      "32946": "Deflate"
+    },
+    "predictor": [
+      1,
+      2
+    ],
+    "epsg": 2154,
+    "bigtiff": false
+  },
+  "sample_types": {
+    "Float32": [
+      32,
+      3
+    ],
+    "UInt16": [
+      16,
+      1
+    ]
+  },
+  "known_compressions": {
+    "1": "aucune",
+    "5": "LZW",
+    "6": "JPEG (ancien)",
+    "7": "JPEG",
+    "8": "Deflate",
+    "32773": "PackBits",
+    "32946": "Deflate",
+    "34887": "LERC",
+    "34925": "LZMA",
+    "50000": "ZSTD",
+    "50001": "WEBP"
+  },
+  "variants": {
+    "complet": {
+      "description": "Profil complet de la spec §9, sans alignement ni maille imposée (contrat geotiff_profile).",
+      "checks": [
+        "integrity",
+        "georef",
+        "pixel_is_area",
+        "crs",
+        "nodata",
+        "compression",
+        "predictor",
+        "band_tags",
+        "uniform_bands",
+        "sample_type",
+        "tiles",
+        "sparse_tiles",
+        "planar",
+        "extent"
+      ]
+    },
+    "grille": {
+      "description": "Profil complet, maille de la grille de simulation et alignement exact sur grid.tif (même origine, maille et dimensions). C'est ce que lit simulate.",
+      "checks": [
+        "integrity",
+        "georef",
+        "pixel_is_area",
+        "crs",
+        "nodata",
+        "compression",
+        "predictor",
+        "band_tags",
+        "uniform_bands",
+        "sample_type",
+        "tiles",
+        "sparse_tiles",
+        "planar",
+        "extent",
+        "alignment"
+      ],
+      "pixel_size_m": 25
+    },
+    "entree": {
+      "description": "Entrées externes (inputs/) : en-tête lisible, EPSG:2154, nodata déclaré, ni BigTIFF ni compression hors profil ; LZW admis en plus, car terra et GDAL l'écrivent par défaut (ADR 0002, précisions du 24/11/2026). Tuilage, entrelacement et type ne sont pas imposés : prepare relit ces fichiers avec terra puis écrit des fichiers au profil grille.",
+      "checks": [
+        "integrity",
+        "georef",
+        "crs",
+        "nodata",
+        "compression",
+        "extent"
+      ],
+      "compression": {
+        "1": "aucune",
+        "5": "LZW",
+        "8": "Deflate",
+        "32946": "Deflate"
+      }
+    },
+    "cog": {
+      "description": "Rasters web (web/rasters/*.tif) : profil complet sans entrelacement imposé, plus au moins un aperçu (Cloud Optimized GeoTIFF).",
+      "checks": [
+        "integrity",
+        "georef",
+        "crs",
+        "nodata",
+        "compression",
+        "predictor",
+        "sample_type",
+        "tiles",
+        "extent",
+        "overviews"
+      ]
+    }
+  }
+}
