@@ -29,8 +29,11 @@
   - les arbitrages du brief et de la critique du contradicteur ;
   - la spec et les ADR ;
   - l'équipe et les missions ;
-  - la relecture et la fusion des PR vers `main`, qui déclenche la release automatique du
-    dépôt (BRIEF §11).
+  - la relecture des PR.
+
+  Correction du 2026-11-24 (journal) : la **fusion vers `main` reste à Pascal**. Elle
+  déclenche une release publique automatique, ce qui touche l'extérieur (skill `boucle`,
+  étape 5).
 - **Jusqu'à :** la v1, c'est-à-dire les jalons M0 à M6 du BRIEF §11 remplis, ou le premier
   retour de Pascal qui la reprend ou la restreint.
 - **Réservé à Pascal :**
