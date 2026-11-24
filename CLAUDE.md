@@ -1,8 +1,8 @@
 # sylvigenese — consignes de l'orchestrateur
 
-sylvigenese est _une chaîne de cinq modules (R, GAMA, Python, iTowns, Godot) qui simule et
-donne à voir la construction d'une forêt dans le temps, de la sylvoécorégion jusqu'à la
-plante du sous-bois_ (proposition reprise de `docs/BRIEF.md` §1, à confirmer par Pascal).
+sylvigenese est une chaîne de modules (R, Rust, Python, iTowns, Godot) qui part des sorties
+de nemeton pour simuler et donner à voir un futur envisageable des peuplements forestiers,
+de la sylvoécorégion jusqu'à la plante du sous-bois (brief retenu par Pascal le 24/11/2026).
 Il est développé par une équipe d'agents IA selon **la méthode de l'Impératrice** de
 Pascal Obstétar, apportée par le plugin `imperatrice` (méthode : skill `imperatrice:methode`).
 
@@ -64,7 +64,7 @@ Reprises de `docs/BRIEF.md` §0, §4 et §6 (source : Pascal Obstétar, brief du
   dans `rapport_hauteur.html`, jamais corrigée.
 - **Signaler plutôt que deviner** : erreur explicite ou ligne de rapport, jamais de valeur
   par défaut silencieuse.
-- **Coordonnées** : EPSG:2154 ; grille commune de 10 à 25 m fixée dans `config.yml` ;
+- **Coordonnées** : EPSG:2154 ; grille SER à 25 m (ADR 0001), fixée dans `config.yml` ;
   données sous `data/<zone>/`, hors dépôt (seuls les jeux d'essai réduits sont versionnés).
 - **Rejouable** depuis `config.yml` sur le massif test en moins de 30 minutes sur un portable.
 - **Langue** : code et noms de variables en anglais ; documentation et messages
@@ -73,7 +73,7 @@ Reprises de `docs/BRIEF.md` §0, §4 et §6 (source : Pascal Obstétar, brief du
 ## Règles techniques communes
 
 - **Pas de code sans tests.** Commande de tests : `.claude/test-command`
-  (`testthat` pour R, `pytest` pour Python, scénario GAMA de non-régression, bout en bout
+  (`testthat` pour R, `pytest` pour Python, `cargo test` pour Rust, bout en bout
   sur le jeu fictif — BRIEF §13).
 - **Formats ouverts, logiciels libres** de préférence (test du successeur). Licence GPL-3.
 - **Jamais de push direct sur `main`.** Tout passe par une PR.

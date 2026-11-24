@@ -58,3 +58,4 @@
 2026-11-24 · Pascal · brief · question 4 bis : la licence annuelle NDunes 3D coûte 100 € par an (source : Pascal).
 2026-11-24 · Pascal · brief · question 5 retenue telle que proposée : hors périmètre v1 = arbre par arbre à l'échelle SER, scénarios climatiques, sylviculture interactive, rendu photoréaliste, plateforme multi-utilisateurs et intégration à nemetonshiny. Pascal demande de regarder le projet « godot forest » pour l'implémentation Godot.
 2026-11-24 · Pascal · 007-etude-godot-forest-demo · décidé : le projet Godot de référence est GamesNotDeveloped/godot-forest-demo (CC-BY-4.0, Godot 4.6, commit 623212f) ; mission d'étude lancée (acquereur) pour viewer-massif.
+2026-11-24 · Pascal · brief · question 6 retenue (contraintes). Claude (orchestrateur) : brief rédigé dans docs/BRIEF.md (section « Le brief, tel que Pascal l'a retenu »), §3, §8, §12, §13 et CLAUDE.md mis à jour pour suivre l'ADR 0001 (GAMA → Rust, grille 25 m) ; relecture de Pascal demandée.
