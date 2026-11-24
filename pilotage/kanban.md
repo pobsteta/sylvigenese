@@ -24,12 +24,25 @@ _Modèle de carte :_
 
 ## Planifié
 
-- [001-moteurs-existants](missions/001-moteurs-existants.md) · depuis le cycle 0
-  - Homme : `acquereur` (sonnet)
-  - Mission : établir ce que TreeMig, LANDIS-II et iLand permettent de réutiliser, pour l'ADR 0001 ; lancée le 2026-11-24
-  - Moyens : recherche web sourcée, CQQCOQP, rendu dans docs/referentiels/
+- [002-banc-python](missions/002-banc-python.md) · depuis le cycle 0
+  - Homme : `dev` (sonnet)
+  - Mission : implémenter bench/SPEC.md en Python (numpy, numba) ; lancée le 2026-11-24
+  - Moyens : bench/python/, pytest
+- [003-banc-r](missions/003-banc-r.md) · depuis le cycle 0
+  - Homme : `dev` (sonnet)
+  - Mission : implémenter bench/SPEC.md en R (base, Rcpp) ; lancée le 2026-11-24
+  - Moyens : bench/r/, testthat
+- [004-banc-rust](missions/004-banc-rust.md) · depuis le cycle 0
+  - Homme : `dev` (sonnet)
+  - Mission : implémenter bench/SPEC.md en Rust ; lancée le 2026-11-24
+  - Moyens : bench/rust/, cargo test
 
 ## Terminé
+
+- [001-moteurs-existants](missions/001-moteurs-existants.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : rendue le 2026-11-24 : docs/referentiels/moteurs-existants.{md,csv} ; points non vérifiés (hôtes bloqués)
+  - Moyens : recherche web sourcée
 
 ## Abandonné
 
