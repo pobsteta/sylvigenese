@@ -42,7 +42,8 @@
 
 | Module | Langage | Entrées | Sorties |
 |---|---|---|---|
-| `prepare` | R (package + `targets`) | `inputs/` (§3) | `grid.tif`, `dtm.tif`, `forest_mask.tif`, `ser.tif` (+ `.csv`), `h0.tif`, `chm_date.tif`, `station_gradients.tif`, `station_type.tif` (+ `.csv`), `site_potential.tif` (+ `.csv`), `trees_init/`, `ifn/`, `stands.parquet` |
+| `prepare` | R (package + `targets`) | `inputs/` (§3) | `grid.tif`, `dtm.tif`, `forest_mask.tif`, `ser.tif` (+ `.csv`), `h0.tif`, `chm_date.tif`, `station_gradients.tif`, `station_type.tif` (+ `.csv`), `site_potential.tif` (+ `.csv`), `stand_map.tif` (+ `.csv`), `ifn/`, `stands.parquet` |
+| `prepare`, étape `trees` | R | sorties de `prepare`, `vegetation_map.tif` (+ `.csv`), `params/allometry.parquet` | `trees_init/`, `rapport_arbres.html` |
 | `import_tarif` | Python | dossier de tarif-nemeton, `external.tarif_nemeton_dir` dans `config.yml` | `params/tarif.parquet`, `params/allometry.parquet` |
 | `biomes` | R + YAML | sorties de `prepare`, `biomes/*.yml` | `vegetation_map.tif` (+ `.csv`), `rapport_biomes.html` |
 | `dynamics` | R (`mgcv`) | `ifn/` | `params/{growth,mortality,recruitment,height_curve}.parquet`, `rapport_dynamics.html` |
@@ -53,7 +54,12 @@
 | `viewer-massif` | Godot 4.6.x, GDScript | `massif/`, `assets/trees/` | application |
 
 **Règles :**
-- Aucun module n'importe le code d'un autre.
+- Aucun module n'importe le code d'un autre. Les outils transverses sans logique métier
+  (`R/config.R`, `R/validateur.R`, `R/commun.R` : rapports HTML, lecture en EPSG:2154,
+  écriture des grilles et des tables de catégories) sont communs à tous les modules R.
+- L'étape `trees` appartient à `prepare` mais tourne après `biomes`, dont elle lit la carte
+  des types de végétation pour les arbres hors polygone (§4.2). Ordre : `prepare` → `biomes`
+  → `trees` (décision de l'orchestrateur, par délégation, du 24/11/2026).
 - **Contrats** (ADR 0002), en trois couches :
   - Table Schema (Frictionless, version figée) pour le Parquet et le CSV ;
   - JSON Schema pour le YAML et le JSON, avec les schémas officiels de CesiumGS pour
@@ -75,7 +81,7 @@
 | `dtm.tif` | MNT LiDAR HD, ou RGE ALTI | altitude NGF-IGN69 |
 | `lidar_tiles.gpkg` | IGN | une dalle par entité, avec sa date de vol |
 | `forest_mask.gpkg` | définition de la forêt par l'IFN | masque forestier |
-| `ser.gpkg` | IGN, sylvoécorégions et alluvions, sous la forme brute | `ser_code`, code de SER tel que publié par l'IGN, **L1 à L5 compris** pour les alluvions. C'est `prepare` qui produit la SER sous-jacente (`ser.tif` et sa table : `ser_code` jamais L1 à L5, `alluvium_code` ∈ {L1 … L5} ou NULL), §7 |
+| `ser.gpkg` | IGN, sylvoécorégions et alluvions, sous la forme brute | `ser_code`, code de SER tel que publié par l'IGN, **L1 à L5 compris** pour les alluvions. C'est `prepare` qui produit la SER sous-jacente (`ser.tif` et sa table : `ser_code` jamais L1 à L5, `alluvium_code` ∈ {L1 … L5} ou NULL ; une valeur de `ser.tif` par couple distinct, de sorte que chaque cellule garde son origine), §7 |
 | `station_gradients.tif`, `station_type.tif`, `fertilite.csv` | sylvostation | `trophic`, `hydric`, `bioclim` (Tichý 2023) ; type de station ; H0 à 50 ans par essence et par type |
 | `h_pot.tif` | typopeuplement | plafond par famille d'essences. **S'il manque : erreur, code 2.** |
 | `ifn/` (brut) | IFN, données brutes | ajustement de `dynamics` ; coordonnées floutées à environ 700 m |
