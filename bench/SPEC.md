@@ -178,3 +178,33 @@ langages. Elles ont été fixées par l'orchestrateur, qui a écrit la spec du b
   avant le premier pas.
 - **P9, plafond de hauteur.** Dans l'étape 5, n'utiliser aucune fonction `min` qui
   masquerait un NaN : écrire `si H > Hmax alors H = Hmax`.
+
+## 11. Amendements adoptés par Pascal le 24/11/2026 (relecture croisée)
+
+- **AM1, FFT réelle ou appariée.** Chaque implémentation exploite le fait que les données
+  sont réelles. Deux façons sont admises :
+  - une FFT réelle (`rfft` et `irfft`) ;
+  - deux essences regroupées dans une seule FFT complexe, l'une en partie réelle et l'autre
+    en partie imaginaire.
+
+  Une FFT complexe par essence sur des données réelles n'est plus admise. La FFT reste
+  calculée sur toute la grille, avec le remplissage du §6.2.
+- **AM2, domaine de la graine.** `--seed` est un entier écrit en chiffres décimaux, dans
+  [0, 2^53). Toute autre valeur est refusée : négative, fractionnaire, trop grande, ou non
+  numérique. De même, `--n`, `--years`, `--threads` et `--inject-nan` doivent être des
+  entiers écrits en chiffres. Une valeur qui n'en est pas un est refusée, jamais tronquée ni
+  ignorée.
+- **AM3, codes de sortie communs.** Les trois langages utilisent les mêmes codes, chacun
+  avec un message en français :
+  - `0` : succès ;
+  - `2` : entrée refusée (ligne de commande, `Hmax`, graine, `--inject-nan`) ;
+  - `3` : contrôle du §6.8 échoué ;
+  - `4` : mémoire insuffisante. Ce cas est intercepté : `MemoryError` en Python, échec
+    d'allocation en R, `try_reserve_exact` en Rust. Le message commence par « Mémoire
+    insuffisante » et donne la taille demandée si elle est connue.
+- **AM4, résumé de référence partagé.** `bench/reference/summary_n16_y30_seed42.csv`
+  (`N = 16`, `Y = 30`, `seed = 42`) contient au moins un recrutement : `sum_B` augmente à
+  partir de l'année 20. La suite de tests de chaque langage le compare à son propre
+  résultat, pour chaque variante, avec un écart relatif maximal de 1e-9.
+- **Reporté à l'ADR du moteur** (sans amendement du banc) : une valeur `Q` légèrement
+  négative par arrondi FFT. Avec les données du banc, ce cas ne peut pas se produire.
