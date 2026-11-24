@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:tileset",
+  "title": "tiles/<year>/tileset.json (assets)",
+  "description": "Schéma officiel de 3D Tiles 1.1 (CesiumGS, copié dans json/vendor/3d-tiles-1.1), plus la version 1.1 imposée par la spec §9.",
+  "x-schema-version": "0.1",
+  "allOf": [
+    {"$ref": "tileset.schema.json"},
+    {
+      "type": "object",
+      "required": ["asset"],
+      "properties": {"asset": {"type": "object", "required": ["version"], "properties": {"version": {"const": "1.1"}}}}
+    }
+  ]
+}

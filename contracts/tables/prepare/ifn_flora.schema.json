@@ -1,0 +1,58 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Flore IFN préparée (ifn/flora.parquet)",
+  "description": "Un taxon par ligne et par placette.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "plot_id",
+      "type": "string",
+      "description": "identifiant de placette (IDP)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "campaign",
+      "type": "integer",
+      "description": "année de la campagne",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "cd_ref",
+      "type": "integer",
+      "description": "taxon TAXREF",
+      "constraints": {
+        "required": true,
+        "minimum": 1
+      }
+    },
+    {
+      "name": "taxref_version",
+      "type": "string",
+      "description": "version de TAXREF du CD_REF",
+      "constraints": {
+        "required": true,
+        "pattern": "[0-9]+"
+      }
+    },
+    {
+      "name": "abundance",
+      "type": "number",
+      "description": "abondance (ABOND)",
+      "constraints": {
+        "minimum": 0
+      }
+    }
+  ],
+  "primaryKey": [
+    "plot_id",
+    "campaign",
+    "cd_ref"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:config",
+  "title": "config.yml de sylvigenese",
+  "description": "Réglages d'une exécution (spec §1, §2, §6, §7, §9 ; ADR 0001). Une clé inconnue est refusée : une faute de frappe ne passe pas en silence.",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["schema_version", "zone", "crs", "grid", "management"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"description": "version du format de config.yml", "const": 1},
+    "zone": {"description": "nom de la zone : les données sont sous data/<zone>/", "type": "string", "pattern": "^[a-z0-9_]+$"},
+    "crs": {"description": "système de coordonnées unique (spec §7)", "const": "EPSG:2154"},
+    "grid": {
+      "type": "object",
+      "required": ["resolution_m"],
+      "additionalProperties": false,
+      "properties": {
+        "resolution_m": {"description": "maille de la grille de simulation, 25 m (ADR 0001 ; contracts/geotiff_profile.json, variante grille)", "const": 25}
+      }
+    },
+    "management": {"description": "gestion sylvicole : aucune en v1 (spec §6)", "const": "none"},
+    "external": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tarif_nemeton_dir": {"description": "dossier de tarif-nemeton, hors dépôt, lu par import_tarif seul (spec §3)", "type": "string", "minLength": 1},
+        "raf20_grid": {"description": "chemin de la grille RAF20 de conversion d'altitude (spec §9)", "type": "string", "minLength": 1}
+      }
+    },
+    "simulate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": {"description": "niveau de simulation (spec §1)", "enum": ["massif", "ser"]},
+        "seed": {"description": "graine du générateur à compteur (spec §6 ; bench/SPEC.md AM2)", "type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "t0": {"description": "année de départ", "type": "integer"},
+        "years": {"description": "horizon en années (défaut du BRIEF §8 : 100)", "type": "integer", "minimum": 1},
+        "threads": {"description": "nombre de fils", "type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

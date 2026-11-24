@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:biome",
+  "title": "Un biome du catalogue (biomes/*.yml)",
+  "description": "Structure du BRIEF §5 : ce qui pousse, strate par strate, pour une combinaison type de station × type de peuplement × stade. Les clés reprennent celles du BRIEF, en français, pour que le catalogue reste lisible par un forestier. Les essences de la strate arborée sont en code espar (spec §8). Aucune valeur écologique dans ce schéma : seulement des bornes de définition (une part est entre 0 et 1).",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["id", "provisoire", "condition", "strates", "sources"],
+  "additionalProperties": false,
+  "$defs": {
+    "share": {"type": "number", "minimum": 0, "maximum": 1},
+    "composition_free": {
+      "type": "object", "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+      "additionalProperties": {"$ref": "#/$defs/share"}
+    }
+  },
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "provisoire": {"type": "boolean"},
+    "condition": {
+      "type": "object",
+      "required": ["station", "typopeuplement", "stade"],
+      "additionalProperties": false,
+      "properties": {
+        "station": {"description": "nom du type de station (station_type.csv)", "type": "string", "minLength": 1},
+        "typopeuplement": {"description": "nom du type de peuplement", "type": "string", "minLength": 1},
+        "stade": {"$ref": "urn:sylvigenese:enum:stage"}
+      }
+    },
+    "strates": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "arboree": {
+          "type": "object", "required": ["composition"], "additionalProperties": false,
+          "properties": {
+            "composition": {
+              "type": "object", "minProperties": 1,
+              "propertyNames": {"pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"},
+              "additionalProperties": {"$ref": "#/$defs/share"}
+            },
+            "tiges_ha": {"type": "number", "minimum": 0}
+          }
+        },
+        "arbustive": {
+          "type": "object", "required": ["composition"], "additionalProperties": false,
+          "properties": {
+            "composition": {"$ref": "#/$defs/composition_free"},
+            "couvert": {"$ref": "#/$defs/share"}
+          }
+        },
+        "herbacee": {
+          "type": "object", "required": ["composition"], "additionalProperties": false,
+          "properties": {
+            "composition": {"$ref": "#/$defs/composition_free"},
+            "couvert": {"$ref": "#/$defs/share"}
+          }
+        },
+        "sol": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "litiere": {"type": "string", "minLength": 1},
+            "bois_mort_m3_ha": {"type": "number", "minimum": 0}
+          }
+        }
+      }
+    },
+    "sources": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  }
+}

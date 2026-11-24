@@ -1,0 +1,35 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Sylvoécorégions (inputs/ser.gpkg, couche ser)",
+  "description": "Code de SER et drapeau des alluvions L1 à L5 (spec §3, §7).",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "fieldsMatch": "subset",
+  "fields": [
+    {
+      "name": "ser_code",
+      "type": "string",
+      "description": "code de la sylvoécorégion (IGN)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "alluvium_flag",
+      "type": "boolean",
+      "description": "vrai pour une SER d'alluvions (L1 à L5)",
+      "constraints": {
+        "required": true
+      }
+    }
+  ],
+  "x-geopackage": {
+    "layer": "ser",
+    "geometry_types": [
+      "POLYGON",
+      "MULTIPOLYGON"
+    ],
+    "srs_epsg": 2154
+  }
+}

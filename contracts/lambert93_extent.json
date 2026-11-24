@@ -1,0 +1,11 @@
+{
+  "x-schema-version": "0.1",
+  "description": "Emprise admise pour toute coordonnée en EPSG:2154 (Lambert-93), x vers l'est, y vers le nord, en mètres. Elle sert à refuser des x et y inversés ou un autre système de coordonnées.",
+  "crs": "EPSG:2154",
+  "x_min": 100000,
+  "x_max": 1300000,
+  "y_min": 6000000,
+  "y_max": 7200000,
+  "provisoire": true,
+  "source": "orchestrateur, par délégation de Pascal, mission 009 (24/11/2026)"
+}

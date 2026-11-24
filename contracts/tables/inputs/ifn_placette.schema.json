@@ -1,0 +1,44 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "IFN brut, PLACETTE.csv",
+  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises. Coordonnées floutées (environ 700 m), Lambert-93.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "IFN, données brutes ; sylvostation R/placettes.R:109-112",
+  "fieldsMatch": "subset",
+  "fields": [
+    {
+      "name": "IDP",
+      "type": "string",
+      "description": "identifiant de placette IFN",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "XL",
+      "type": "number",
+      "description": "x Lambert-93 (est)",
+      "x-unit": "m",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "YL",
+      "type": "number",
+      "description": "y Lambert-93 (nord)",
+      "x-unit": "m",
+      "constraints": {
+        "required": true
+      }
+    }
+  ],
+  "x-extent": {
+    "x": "XL",
+    "y": "YL"
+  },
+  "x-csv": {
+    "delimiter": ";"
+  }
+}

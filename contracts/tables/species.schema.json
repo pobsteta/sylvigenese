@@ -1,0 +1,77 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Table des essences (contracts/species.csv, mission 011)",
+  "description": "espar en chaîne avec zéro de tête, nom latin, CD_REF TAXREF v18, codes nemeton et tarif-nemeton (spec §8 ; docs/referentiels/species.md).",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 011",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "espar",
+      "type": "string",
+      "description": "code espar de l'IFN en chaîne, avec son zéro de tête (spec §8, contracts/species.csv)",
+      "constraints": {
+        "required": true,
+        "unique": true,
+        "pattern": "[0-9]{2}[A-Z0-9]{0,3}"
+      }
+    },
+    {
+      "name": "latin",
+      "type": "string",
+      "description": "nom latin (vide pour les codes génériques)"
+    },
+    {
+      "name": "taxref_cd_ref",
+      "type": "integer",
+      "description": "CD_REF TAXREF ; vide si non obtenu",
+      "constraints": {
+        "minimum": 1
+      }
+    },
+    {
+      "name": "taxref_version",
+      "type": "string",
+      "description": "version de TAXREF du CD_REF",
+      "constraints": {
+        "pattern": "[0-9]+"
+      }
+    },
+    {
+      "name": "nemeton_code",
+      "type": "string",
+      "description": "code P1 de nemeton"
+    },
+    {
+      "name": "tarif_nemeton_code",
+      "type": "string",
+      "description": "code Genre_espece de tarif-nemeton"
+    },
+    {
+      "name": "groupe",
+      "type": "string",
+      "description": "famille d'essences",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "sources de la ligne",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "ecart",
+      "type": "string",
+      "description": "écarts entre sources"
+    }
+  ],
+  "primaryKey": [
+    "espar"
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Placettes IFN préparées (ifn/plots.parquet)",
+  "description": "Une ligne par placette et par campagne. Coordonnées floutées : jamais croisées avec un raster fin (garde IFN, spec §6).",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "plot_id",
+      "type": "string",
+      "description": "identifiant de placette (IDP)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "campaign",
+      "type": "integer",
+      "description": "année de la campagne",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "x",
+      "type": "number",
+      "description": "x Lambert-93 floutée (est)",
+      "x-unit": "m",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "y",
+      "type": "number",
+      "description": "y Lambert-93 floutée (nord)",
+      "x-unit": "m",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "loc_precision_m",
+      "type": "number",
+      "description": "précision de localisation du point (garde IFN)",
+      "x-unit": "m",
+      "constraints": {
+        "required": true,
+        "exclusiveMinimum": 0
+      }
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "origine du point (ifn)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "ser_code",
+      "type": "string",
+      "description": "code de la sylvoécorégion"
+    },
+    {
+      "name": "trophic",
+      "type": "number",
+      "description": "gradient trophique tiré de la flore de la placette (sylvostation)"
+    },
+    {
+      "name": "coarse_hydric_700m",
+      "type": "number",
+      "description": "gradient hydrique moyen dans un disque de 700 m"
+    },
+    {
+      "name": "coarse_bioclim_700m",
+      "type": "number",
+      "description": "gradient bioclimatique moyen dans un disque de 700 m"
+    }
+  ],
+  "primaryKey": [
+    "plot_id",
+    "campaign"
+  ],
+  "x-extent": {
+    "x": "x",
+    "y": "y"
+  }
+}

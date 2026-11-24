@@ -1,0 +1,5 @@
+# Tests unitaires de contracts/tests et tests d'acceptation de tests/contracts (en plus de requirements.txt).
+-r requirements.txt
+pytest==9.1.1
+numpy==2.5.3
+rasterio==1.5.2

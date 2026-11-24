@@ -1,0 +1,26 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Dalles LiDAR HD (inputs/lidar_tiles.gpkg, couche lidar_tiles)",
+  "description": "Une dalle par entité, avec sa date de vol (spec §3). Les autres colonnes de l'IGN sont admises.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "fieldsMatch": "subset",
+  "fields": [
+    {
+      "name": "flight_date",
+      "type": "date",
+      "description": "date du vol de la dalle",
+      "constraints": {
+        "required": true
+      }
+    }
+  ],
+  "x-geopackage": {
+    "layer": "lidar_tiles",
+    "geometry_types": [
+      "POLYGON",
+      "MULTIPOLYGON"
+    ],
+    "srs_epsg": 2154
+  }
+}
