@@ -22,9 +22,53 @@ _Modèle de carte :_
 
 ## Validé
 
+- [009-contrats](missions/009-contrats.md) · depuis le cycle 0
+  - Homme : `dev` (opus) · Mission : contrats en trois couches et validateur · Moyens : `contracts/`
+- [010-tests-contrats](missions/010-tests-contrats.md) · depuis le cycle 0
+  - Homme : `testeur` (sonnet) · Mission : tests d'acceptation du validateur · Moyens : `tests/contracts/`
+- [011-table-essences](missions/011-table-essences.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet) · Mission : `contracts/species.csv` · Moyens : dépôts en lecture
+- [016-referentiels-m0](missions/016-referentiels-m0.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet) · Mission : IFN, iTowns, RAF20 · Moyens : sources publiques
+- [012-squelette](missions/012-squelette.md), [013-jeu-fictif](missions/013-jeu-fictif.md), [014-ci](missions/014-ci.md), [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md) · depuis le cycle 0
+  - Homme : `dev` (sonnet) · Mission : squelette, jeu fictif, CI, lecteur GeoTIFF · Moyens : après 009
+
 ## Planifié
 
+
+
+
+
 ## Terminé
+
+- [008-contrats-entrees](missions/008-contrats-entrees.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : rendue le 2026-11-24 : docs/referentiels/entrees-externes.{md,csv} ; 13 questions, tranchées par délégation sauf la licence de tarif-nemeton
+  - Moyens : clones en lecture seule
+
+- [007-etude-godot-forest-demo](missions/007-etude-godot-forest-demo.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : rendue le 2026-11-24 : docs/referentiels/godot-forest-demo.{md,-licences.csv} ; fil du forum et page FSF non lus (réseau)
+  - Moyens : clone en lecture seule
+
+- [002-banc-python](missions/002-banc-python.md), [003-banc-r](missions/003-banc-r.md), [004-banc-rust](missions/004-banc-rust.md) · depuis le cycle 0
+  - Homme : `dev` (sonnet) ×3, relecture croisée `relecteur`
+  - Mission : rendues et reprises le 2026-11-24 (AM1 à AM4)
+  - Moyens : bench/{python,r,rust}/
+- [005-banc-mesures](missions/005-banc-mesures.md) · depuis le cycle 0
+  - Homme : `analyste` (sonnet)
+  - Mission : rendue le 2026-11-24, préliminaire (conteneur 4 cœurs, 16 Go) : bench/results/RESULTATS.md ; script portable pour le PC de Pascal
+  - Moyens : bench/results/run_bench.sh
+
+- [006-surfaces-ser](missions/006-surfaces-ser.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet), extraction xlsx par l'orchestrateur
+  - Mission : rendue le 2026-11-24 : docs/referentiels/surfaces-ser.{md,csv} ; plus grande SER C20 (29 980 km²)
+  - Moyens : tableaux IGN ts_2021-2025_ser.zip
+
+- [001-moteurs-existants](missions/001-moteurs-existants.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : rendue le 2026-11-24 : docs/referentiels/moteurs-existants.{md,csv} ; points non vérifiés (hôtes bloqués)
+  - Moyens : recherche web sourcée
 
 ## Abandonné
 

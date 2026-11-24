@@ -4,24 +4,45 @@
 > tout démarrage. Règle de staffing : un agent par mission qui passe les trois
 > questions, jamais un agent « par principe ».
 
-- **Statut :** proposée
-- **Validée par :** _…_
+- **Statut :** validée pour le jalon M0, par délégation de Pascal (2026-11-24)
+- **Validée par :** Claude (orchestrateur, par délégation de Pascal), journal du 2026-11-24
 
 ## Plafond humain
 
 - **PR ouvertes en même temps, au plus :** 3
-- **Rythme de relecture de Pascal :** _…_
+- **Rythme de relecture de Pascal :** par délégation, c'est l'orchestrateur qui relit, puis le
+  `relecteur`. Pascal relit quand il le veut.
+- **Contrainte de l'environnement :** une seule branche de travail
+  (`claude/youthful-allen-b094t9`), donc une PR par jalon. Les missions travaillent dans des
+  dossiers disjoints et c'est l'orchestrateur qui intègre.
 
 ## Délégation
 
 > Ce que Pascal demande à l'orchestrateur de trancher à sa place (skill `methode`,
-> « La délégation »). Vide : aucune délégation, Pascal tranche tout.
+> « La délégation »).
 
-- **Portée :** _aucune_
-- **Jusqu'à :** _…_
-- **Réservé à Pascal :** _…_ (toujours, même si rien n'est écrit : sa réponse d'abord ;
-  rendre la main ; ce qui touche l'extérieur et ne se défait pas)
-- **Inscrite au journal le :** _…_
+- **Parole de Pascal (24/11/2026), recopiée mot pour mot :** « Je valide tes choix et
+  choisis ce qu'il y a de mieux jusqu'à obtenir une première version de la plateforme à ma
+  place ».
+- **Portée :** toutes les décisions nécessaires pour obtenir une première version (v1) de
+  sylvigenese, telle que la décrit `docs/BRIEF.md` :
+  - les arbitrages du brief et de la critique du contradicteur ;
+  - la spec et les ADR ;
+  - l'équipe et les missions ;
+  - la relecture des PR.
+
+  Correction du 2026-11-24 (journal) : la **fusion vers `main` reste à Pascal**. Elle
+  déclenche une release publique automatique, ce qui touche l'extérieur (skill `boucle`,
+  étape 5).
+- **Jusqu'à :** la v1, c'est-à-dire les jalons M0 à M6 du BRIEF §11 remplis, ou le premier
+  retour de Pascal qui la reprend ou la restreint.
+- **Réservé à Pascal :**
+  - sa réponse d'abord ;
+  - rendre la main ;
+  - ce qui touche l'extérieur et ne se défait pas : publication hors du dépôt, contact avec
+    des tiers, dépense, partage, élargissement du réseau ou des accès de l'environnement ;
+  - le lancement du banc sur son PC.
+- **Inscrite au journal le :** 2026-11-24.
 
 ## Le vivier (catalogue, pas une équipe)
 
@@ -40,3 +61,11 @@
 
 | Mission | Agent | Modèle | Temps de la main | Les 3 questions | Cycle |
 |---|---|---|---|---|---|
+| [009-contrats](missions/009-contrats.md) | `dev` | opus | prendre | 3 oui | M0 |
+| [010-tests-contrats](missions/010-tests-contrats.md) | `testeur` | sonnet | donner | 3 oui | M0 |
+| [011-table-essences](missions/011-table-essences.md) | `acquereur` | sonnet | donner | 3 oui | M0 |
+| [012-squelette](missions/012-squelette.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [013-jeu-fictif](missions/013-jeu-fictif.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [014-ci](missions/014-ci.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md) | `dev` | sonnet | donner | 3 oui | M0 |
+| [016-referentiels-m0](missions/016-referentiels-m0.md) | `acquereur` | sonnet | donner | 3 oui | M0 |

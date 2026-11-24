@@ -1,0 +1,1 @@
+{"lang": "rust", "n": 500, "years": 100, "threads": 1, "init_s": 0.056977576, "step_mean_s": 0.11987784287, "total_s": 12.044764796, "write_s": 0.036941074}

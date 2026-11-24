@@ -1,0 +1,11 @@
+variant,test,exit_code,message
+rust,"--inject-nan 5",1,"Erreur : Contrôle échoué à l'année 5 : H = NaN (NaN) pour l'essence 0; cellule 0 (ligne 0; colonne 0). Arrêt; aucune correction silencieuse. "
+rust,"--hmax-zero",1,"Erreur : Entrée invalide : Hmax doit être strictement positif et fini; or Hmax = 0 (essence 0; cellule 0; ligne 0; colonne 0). Simulation refusée avant le premier pas. "
+py-numpy,"--inject-nan 5",3,"Arrêt au contrôle : valeur invalide de H (nan) à l'année 5; cellule 0 (ligne 0; colonne 0); essence 0. Aucune correction n'est faite. "
+py-numpy,"--hmax-zero",2,"Entrée refusée avant le premier pas : Hmax doit être fini et strictement positif ; valeur 0.0 à la cellule 0 (ligne 0; colonne 0); essence 0. "
+py-numba,"--inject-nan 5",3,"[py-numba] compilation/chargement du cache : 0.17 s (hors init_s) Arrêt au contrôle : valeur invalide de H (nan) à l'année 5; cellule 0 (ligne 0; colonne 0); essence 0. Aucune correction n'est faite. "
+py-numba,"--hmax-zero",2,"[py-numba] compilation/chargement du cache : 0.20 s (hors init_s) Entrée refusée avant le premier pas : Hmax doit être fini et strictement positif ; valeur 0.0 à la cellule 0 (ligne 0; colonne 0); essence 0. "
+r-base,"--inject-nan 5",1,"Contrôle échoué : H[essence 0; cellule 0 (ligne 0; colonne 0)] vaut NaN; année 5. Arrêt. "
+r-base,"--hmax-zero",1,"Entrée invalide : Hmax doit être strictement positif ; Hmax = 0 pour l'essence 0; cellule 0 (ligne 0; colonne 0). Arrêt avant le premier pas. "
+r-rcpp,"--inject-nan 5",1,"Contrôle échoué : H[essence 0; cellule 0 (ligne 0; colonne 0)] vaut NaN; année 5. Arrêt. "
+r-rcpp,"--hmax-zero",1,"Entrée invalide : Hmax doit être strictement positif ; Hmax = 0 pour l'essence 0; cellule 0 (ligne 0; colonne 0). Arrêt avant le premier pas. "

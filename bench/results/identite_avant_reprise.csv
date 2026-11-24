@@ -1,0 +1,9 @@
+variant,n,years,state_final_1v4,summary_1v4
+rust,500,100,identique,identique
+py-numpy,500,100,identique,identique
+py-numba,500,100,identique,identique
+r-base,500,100,identique,identique
+r-rcpp,500,100,identique,identique
+rust,1000,100,identique,identique
+py-numpy,1000,100,identique,identique
+py-numba,1000,100,identique,identique

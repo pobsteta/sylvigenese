@@ -2,6 +2,54 @@
 
 Version du 24 novembre 2026. Auteur : Pascal Obstétar. Ce document est le cahier des charges du dépôt. Il s'adresse à la personne ou à l'agent de code qui implémente.
 
+## Ma réponse d'abord (fiche n° 15)
+
+> « J'attends de ce projet une plateforme de simulation de croissance des peuplements forestiers au vu des éléments de sortie du projet nemeton. sommieR est le passé, nemeton le présent, sylvigenese un futur envisageable »
+>
+> — Pascal, le 24 novembre 2026, dit avant toute proposition de Claude, recopié mot pour mot.
+
+## Le brief, tel que Pascal l'a retenu (méthode de l'Impératrice, 24/11/2026)
+
+> Chaque ligne vient d'une réponse de Pascal du 24/11/2026, inscrite au journal
+> (`pilotage/journal.md`). Le cahier des charges détaillé suit à partir du §0. Il a été mis à
+> jour le même jour pour suivre l'ADR 0001 (§3, §8, §12, §13).
+
+- **Le problème.** sommieR décrit le passé, nemeton le présent. Personne ne montre, de façon
+  chiffrée et visible, ce qu'un peuplement peut devenir. sylvigenese est « un futur
+  envisageable ».
+- **Pour qui.** D'abord Pascal et les utilisateurs de nemeton. Ensuite les gestionnaires et
+  les aménagistes forestiers.
+- **Coût complet aujourd'hui.**
+  - Une licence annuelle NDunes 3D, à 100 € par an (source : Pascal).
+  - Le temps passé à construire une scène : inconnu.
+  - Aucune trajectoire chiffrée d'un peuplement n'est possible aujourd'hui.
+  - *Bénéfice* : sylvigenese remplace la part « donner à voir » de NDunes 3D par une chaîne
+    libre.
+- **Ce que fait sylvigenese, en v1.** C'est une chaîne de modules reliés par des fichiers.
+  - Elle part des sorties de **nemeton, qui sont l'entrée principale** (l'état présent du
+    peuplement).
+  - Elle les complète par sylvostation et typopeuplement (station, plafond de hauteur), par
+    l'IFN (ajustement des modèles) et par le LiDAR HD (hauteur actuelle).
+  - Elle simule la croissance des peuplements année par année.
+  - Elle la donne à voir sur le web (iTowns) et en vue immersive (Godot).
+- **Ce qu'il ne fait pas, en v1 :**
+  - l'arbre par arbre à l'échelle d'une SER ;
+  - les scénarios climatiques ;
+  - la sylviculture interactive ;
+  - le rendu photoréaliste ;
+  - la plateforme multi-utilisateurs et l'intégration à `nemetonshiny`.
+- **Valeur sacrifiée en v1 :** la v1 ne sert pas une décision d'aménagement. Elle montre une
+  évolution libre, sans gestion (`management: none`). Cela suit le hors-périmètre retenu, qui
+  exclut la sylviculture (arbitrage par délégation, I2).
+- **Contraintes :**
+  - GPL-3, formats ouverts, logiciels libres ;
+  - IFN flouté, jamais croisé avec un raster fin ;
+  - rien d'écologique inventé ;
+  - EPSG:2154, grille SER à 25 m ;
+  - massif test rejouable en moins de 30 min ;
+  - 100 ans d'une SER en 5 jours au plus, dans 31 Go, sur le PC de Pascal (i7-4940MX) ;
+  - `simulate` en Rust, avec la règle de lisibilité (ADR 0001).
+
 ## 0. Consignes à lire avant de coder
 
 1. **Avancer jalon par jalon** (section 11). Ne pas commencer un jalon tant que les critères d'acceptation du précédent ne sont pas remplis.
@@ -36,7 +84,7 @@ Hors périmètre de la version 1 : simulation arbre par arbre à l'échelle d'un
 ## 3. Architecture
 
 ```
- R : prepare ──► R : biomes ──► GAMA : simulate ──► Python : assets/tiles ──► viewers
+ R : prepare ──► R : biomes ──► Rust : simulate ──► Python : assets/tiles ──► viewers
  (stations,      (catalogue,     (arbres, cohortes,   (glTF, 3D Tiles)         (web iTowns,
   IFN, lidR)      carte)          régénération)                                 Godot massif)
         └────────► R : dynamics (modèles IFN) ──────────┘
@@ -47,7 +95,7 @@ Hors périmètre de la version 1 : simulation arbre par arbre à l'échelle d'un
 | `prepare` | emprise, grille, gradients, arbres détectés, tables IFN | R (package + `targets`) | continuité avec `nemeton`, `sylvostation`, `lasR`, `lidR` |
 | `biomes` | catalogue de biomes et carte d'affectation | R + YAML | le catalogue doit rester lisible par un forestier |
 | `dynamics` | modèles d'accroissement, mortalité, recrutement | R (`mgcv` ou `glmmTMB`) | ajustement statistique |
-| `simulate` | dynamique annuelle | GAML, GAMA en mode headless | description par agents, lecture SIG native |
+| `simulate` | dynamique annuelle | Rust, exécutable autonome | rapidité, mémoire maîtrisée, robustesse (ADR 0001, banc d'essai du 24/11/2026) |
 | `assets` | bibliothèque d'arbres 3D et tuiles | Python | le générateur `synth_arbres.py` existe déjà |
 | `viewer-web` | globe, SER vers France | TypeScript, iTowns | bibliothèque libre portée par l'IGN, 3D Tiles |
 | `viewer-massif` | vue immersive jusqu'à la plante | GDScript, Godot 4 | prototype existant (`nemeton3d_exemple`) |
@@ -151,13 +199,13 @@ Sous 7,5 cm de diamètre, pas d'individus : des cohortes par cellule et par esse
 
 Pression du gibier et fréquence des fructifications sont des paramètres de scénario (faible, moyenne, forte), pas des constantes. Vérifier ce que le module de régénération de `nemeton` (`regen_engines.R`) peut fournir comme état initial.
 
-## 8. Simulation (GAMA)
+## 8. Simulation (Rust, ADR 0001)
 
 - Espèces d'agents : `tree`, `cell` (cohortes et régénération), `stand` (agrégation par biome).
 - Pas de temps annuel, horizon paramétrable (défaut 100 ans), graine aléatoire fixée et enregistrée.
 - Lancement sans interface depuis la ligne de commande ; un script unique `run_simulation` prend `config.yml` et écrit `sim/`.
-- Le modèle GAML ne contient aucun coefficient en dur : tout vient de `params/`.
-- Repli prévu : si GAMA ne tient pas la charge au niveau SER, le niveau cohortes est réécrit en R ou en Python sur les mêmes contrats.
+- Le moteur ne contient aucun coefficient en dur : tout vient de `params/`.
+- Cible (ADR 0001) : 100 ans de la plus grande SER (C20, environ 48 millions de cellules à 25 m) en 5 jours au plus, dans 31 Go, sur le PC de Pascal. iLand, LANDIS-II et TreeMig servent de références de validation.
 
 ## 9. Arbres 3D et tuiles
 
@@ -175,15 +223,22 @@ Passage de l'un à l'autre : un lien depuis la vue web ouvre la vue massif aux m
 
 ## 11. Jalons
 
-| Jalon | Livrable | Critère d'acceptation |
-|---|---|---|
-| M0 | squelette du dépôt, contrats, jeu d'essai fictif | les validateurs passent sur le jeu fictif ; intégration continue verte |
-| M1 | `prepare` et `biomes` sur un massif test | carte des biomes sans cellule orpheline non signalée |
-| M2 | `dynamics` | rapport de validation par essence ; coefficients exportés |
-| M3 | `simulate` niveau massif, 100 ans | surface terrière et nombre de tiges dans les plages observées par l'IFN pour la SER |
-| M4 | `viewer-web` sur le massif | navigation fluide avec 100 000 arbres affichés |
-| M5 | niveau SER en cohortes, régénération | une SER complète simulée ; recrutement cohérent avec l'IFN |
-| M6 | `assets` et `viewer-massif` | arbres du générateur visibles dans les deux vues |
+> Mis à jour le 24/11/2026, d'après la critique du brief (`docs/critique-brief-contradicteur.md`,
+> B3 à B5), par délégation de Pascal. Chaque jalon a deux parties :
+> - **a** : code et tests sur le jeu fictif, faits par les agents ;
+> - **b** : acceptation sur données réelles, qui demande Pascal (données, réseau, son PC).
+>
+> Les seuils chiffrés sont dans `docs/spec.md`.
+
+| Jalon | Livrable | Critère a (jeu fictif) | Critère b (réel, avec Pascal) |
+|---|---|---|---|
+| M0 | squelette, contrats (entrées externes comprises), jeu d'essai fictif, CI | les validateurs passent sur le jeu fictif ; CI verte | — |
+| M1 | `prepare` et `biomes` | carte des types de végétation sans cellule orpheline non signalée | idem sur le massif test réel |
+| M2 | `dynamics` | ajustement et rapport par essence sur données IFN réduites | validation croisée par blocs sur la SER pilote, meilleure qu'un modèle nul |
+| M3 | `simulate` niveau massif, 100 ans, recrutement IFN direct | tests de non-régression, identité entre fils, contrôles | validation à 5 ans et plausibilité à 100 ans (quantiles IFN 5-95 %) |
+| M4 | `assets` minimal (glTF génériques) et `viewer-web` sur le massif | 100 000 instances affichées, images par seconde mesurées par script | sur la machine et le navigateur de Pascal |
+| M5 | niveau SER en cohortes, régénération | une SER fictive simulée ; recrutement calé sur le modèle IFN | SER pilote complète ; recrutement dans l'intervalle de confiance IFN |
+| M6 | arbres du générateur et `viewer-massif` | arbres du générateur dans les deux vues (sans GPU : export et tests) | sur le PC de Pascal |
 
 ## 12. Arborescence
 
@@ -194,7 +249,7 @@ sylvigenese/
   R/                  package R : prepare, biomes, dynamics
   _targets.R          pipeline
   biomes/             catalogue YAML versionné
-  gama/               modèles GAML et script de lancement
+  simulate/           moteur Rust (exécutable autonome)
   assets/             Python : générateur glTF, tuiles
   viewer-web/         TypeScript, iTowns
   viewer-massif/      projet Godot 4
@@ -204,9 +259,9 @@ sylvigenese/
 
 ## 13. Qualité et licence
 
-- Licence GPL-3, cohérente avec `lidR`, `lasR` et GAMA.
-- Tests : `testthat` (R), `pytest` (Python), un scénario GAMA de non-régression, test de bout en bout sur le jeu fictif.
-- Versions des outils figées dans le README (R, GAMA, Python, Node, Godot).
+- Licence GPL-3, cohérente avec `lidR`, `lasR` et iLand.
+- Tests : `testthat` (R), `pytest` (Python), `cargo test` (Rust), un scénario de non-régression du moteur, test de bout en bout sur le jeu fictif.
+- Versions des outils figées dans le README (R, Rust, Python, Node, Godot).
 - Données volumineuses hors dépôt ; seuls les jeux d'essai réduits sont versionnés.
 
 ## 14. Questions ouvertes
