@@ -23,8 +23,13 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 
 ## État
 
-Jalon en cours : **M0** (squelette du dépôt, contrats, jeu d'essai fictif), pas encore
-commencé : le brief et la spec attendent la validation de Pascal (`/imperatrice:brief`).
+- **M0** (squelette du dépôt, contrats, validateur, jeu d'essai fictif, CI) : livré.
+- **M1a** (module `prepare` sur le jeu fictif : grille SER à 25 m, placettes IFN sous garde de
+  précision, peuplements, carte des biomes, arbres initiaux) : en relecture finale,
+  [pull request n° 4](https://github.com/pobsteta/sylvigenese/pull/4).
+- Suivant : **M1b** (données réelles du massif test, catalogue des biomes sourcé).
+
+L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).
 
 ## Versions des outils
 
@@ -38,7 +43,7 @@ Figées au jalon M0 (mission 012) :
 | Node | 22.23.5, npm 10.9.9, TypeScript 7.0.2 |
 | Godot | 4.6 (projet déclaré, pas encore installé dans la CI) |
 
-`targets` et `arrow` (R) restent à installer depuis CRAN.
+En CI, les paquets R (`testthat`, `yaml`, `terra`, `sf`, `targets`, `arrow`) viennent de r2u.
 
 ---
 
