@@ -46,8 +46,8 @@ jobs:
         uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
 
       # terra : sans lui, deux tests pytest sont sautés (test_real_files, test_review_rules).
-      - name: Paquets R (testthat, yaml, terra)
-        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra"))'
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets"))'
 
       # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
       # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
@@ -55,7 +55,7 @@ jobs:
         run: |
           {
             echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
-            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra")) cat(p, as.character(packageVersion(p)), "\n")'
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets")) cat(p, as.character(packageVersion(p)), "\n")'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Rust : chaîne figée par rustup, cache du registre et de la compilation.

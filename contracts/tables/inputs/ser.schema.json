@@ -1,33 +1,19 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
-  "title": "Sylvoécorégions (inputs/ser.gpkg, couche ser)",
-  "description": "Code de SER et code des alluvions L1 à L5, vide (NULL) hors alluvions (spec §3, §7). Les alluvions sont rattachées à la SER sous-jacente : ser_code n'est jamais L1 à L5, le code d'alluvions va dans alluvium_code. Une chaîne vide est refusée : on écrit NULL.",
+  "title": "Sylvoécorégions (inputs/ser.gpkg, couche ser), forme brute de l'IGN",
+  "description": "Code de SER tel que publié par l'IGN (spec §3). Les alluvions y forment leurs propres SER, L1 à L5 : ils sont permis en entrée. C'est `prepare` qui leur attribue la SER sous-jacente (voisine de plus longue frontière, spec §7) ; la règle « ser_code jamais L1 à L5 » vaut pour la sortie `prepare.ser`, pas pour cette entrée.",
   "x-schema-version": "0.1",
-  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "x-names-fixed-by": "mission 009, forme brute rétablie par la mission 017 (orchestrateur, par délégation de Pascal, journal du 24/11/2026)",
   "fieldsMatch": "subset",
   "fields": [
     {
       "name": "ser_code",
       "type": "string",
-      "description": "code de la sylvoécorégion sous-jacente (IGN), jamais L1 à L5 : le code d'alluvions va dans alluvium_code",
+      "description": "code de SER de l'IGN : A11 à K13 (86 SER) ou L1 à L5 (alluvions récentes), docs/referentiels/surfaces-ser.csv",
       "constraints": {
         "required": true,
         "minLength": 1,
-        "pattern": "[^L].*|L|L[^1-5].*|L[1-5].+"
-      }
-    },
-    {
-      "name": "alluvium_code",
-      "type": "string",
-      "description": "code d'alluvions L1 à L5 ; NULL hors alluvions",
-      "constraints": {
-        "enum": [
-          "L1",
-          "L2",
-          "L3",
-          "L4",
-          "L5"
-        ]
+        "pattern": "[A-K][0-9]{2}|L[1-5]"
       }
     }
   ],

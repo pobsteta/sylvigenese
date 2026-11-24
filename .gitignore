@@ -2,3 +2,8 @@ data/
 bench/**/state_final.f32
 __pycache__/
 .claude/worktrees/
+# Sorties des modules sur le jeu fictif (régénérées par make) ; seules les entrées sont versionnées.
+tests/fixtures/zone_fictive/*
+!tests/fixtures/zone_fictive/inputs/
+!tests/fixtures/zone_fictive/params/
+!tests/fixtures/zone_fictive/README.md

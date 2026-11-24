@@ -77,8 +77,11 @@ def test_ligne_de_commande_rejoue_le_jeu_versionne(zone, tmp_path):
     out = tmp_path / "cli"
     subprocess.run([sys.executable, str(HERE.parent / "make_zone_fictive.py"), "--out", str(out)],
                    check=True, capture_output=True)
-    attendu = {k: v for k, v in checksums(versionne).items() if k != "README.md"}
-    assert checksums(out) == attendu
+    # Les sorties de `make prepare` (grid.tif, ser.csv, rapport_prepare.html...) atterrissent
+    # sous la zone : on ne compare que les fichiers que le générateur écrit (les entrées).
+    genere = checksums(out)
+    present = {k: v for k, v in checksums(versionne).items() if k in genere}
+    assert present == genere
 
 
 # ------------------------------------------------------------------ mailles et profil
@@ -192,8 +195,10 @@ def test_le_validateur_accepte_le_jeu(zone):
     assert res.returncode == 0, res.stdout + res.stderr
 
 
-def test_ser_code_toujours_h10_et_alluvium_code_l3_sur_le_couloir(zone):
+def test_ser_forme_brute_ign_h10_et_un_polygone_l3(zone):
     import sqlite3
     con = sqlite3.connect(zone / "inputs" / "ser.gpkg")
-    rows = con.execute("SELECT ser_code, alluvium_code FROM ser ORDER BY fid").fetchall()
-    assert rows == [("H10", None), ("H10", "L3"), ("H10", None)]
+    cols = [r[1] for r in con.execute("PRAGMA table_info(ser)")]
+    assert "alluvium_code" not in cols
+    rows = con.execute("SELECT ser_code FROM ser ORDER BY fid").fetchall()
+    assert rows == [("H10",), ("L3",), ("H10",)]

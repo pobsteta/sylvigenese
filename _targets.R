@@ -1,5 +1,6 @@
 # Pipeline R de sylvigenese : prepare -> biomes, prepare -> dynamics (spec §2).
 # Squelette (mission 012) : chaque cible lit config.yml et appelle le validateur.
+# `prepare` construit en plus la grille de 25 m et ses rasters (mission 017, R/prepare_grid.R).
 # Lancer : Rscript -e 'targets::tar_make()'   (nécessite le paquet R `targets`)
 
 library(targets)

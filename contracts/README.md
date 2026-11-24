@@ -162,7 +162,7 @@ contrat de l'orchestrateur, par délégation de Pascal), en `schema_version` 0.1
 | Contrat (fichier) | Colonnes ou clés |
 |---|---|
 | `inputs.lidar_tiles` | `flight_date` (date) ; couche `lidar_tiles` |
-| `inputs.ser` | `ser_code` (SER sous-jacente, jamais `L1` à `L5`), `alluvium_code` (chaîne ∈ {`L1`, …, `L5`}, NULL hors alluvions ; une chaîne vide est refusée) ; couche `ser` |
+| `inputs.ser` | `ser_code` tel que publié par l'IGN, `L1` à `L5` compris pour les alluvions (motif `[A-K][0-9]{2}\|L[1-5]`) ; couche `ser`. La SER sous-jacente des alluvions est calculée par `prepare` (spec §7) : `prepare.ser` n'a jamais `L1` à `L5` |
 | `inputs.forest_mask` | couche `forest_mask`, géométrie seule |
 | `inputs.ifn_placette`, `ifn_arbre`, `ifn_flore` | fichiers `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` (colonnes de l'IFN : `IDP`, `XL`, `YL` ; `ESPAR`, `C13`, `HTOT`, `V`, `W` (facultative) ; `CD_REF`, `ABOND`). **Les colonnes réelles de l'export IFN seront vérifiées au jalon M1b** (le dictionnaire `metadonnees.csv` n'a pas pu être lu, `docs/referentiels/ifn-placettes.md`) |
 | tables de catégories (`ser.csv`, `station_type.csv`, `site_potential.csv`, `vegetation_map.csv`) | `value`, `name` (pour `site_potential.csv`, `value` est le numéro de bande) |

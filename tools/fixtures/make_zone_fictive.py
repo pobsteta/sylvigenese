@@ -312,14 +312,15 @@ def write_vectors(inputs):
     write_gpkg(inputs / "forest_mask.gpkg", [dict(
         name="forest_mask", geom_type="POLYGON", columns=[],
         rows=[polygon_row([outer, hole])])])
-    # SER : H10 partout (code du référentiel surfaces-ser.csv, spec §3 et §7) ; le couloir
-    # d'alluvions garde ser_code H10 et porte alluvium_code L3. Trois polygones sans recouvrement.
+    # SER, forme brute de l'IGN (spec §3) : H10 (code du référentiel surfaces-ser.csv) et un
+    # couloir d'alluvions qui est une SER à part, L3. `prepare` lui attribue la SER voisine de
+    # plus longue frontière (ici H10, des deux côtés ; spec §7). Trois polygones sans recouvrement.
     write_gpkg(inputs / "ser.gpkg", [dict(
         name="ser", geom_type="POLYGON",
-        columns=[("ser_code", "TEXT"), ("alluvium_code", "TEXT")],
-        rows=[polygon_row([box_ring(*rect_xy(0, 1000, 0, 420))], "H10", None),
-              polygon_row([box_ring(*rect_xy(0, 1000, 420, 520))], "H10", "L3"),
-              polygon_row([box_ring(*rect_xy(0, 1000, 520, 1000))], "H10", None)])])
+        columns=[("ser_code", "TEXT")],
+        rows=[polygon_row([box_ring(*rect_xy(0, 1000, 0, 420))], "H10"),
+              polygon_row([box_ring(*rect_xy(0, 1000, 420, 520))], "L3"),
+              polygon_row([box_ring(*rect_xy(0, 1000, 520, 1000))], "H10")])])
 
 
 def d130_from_height(h, espar):
