@@ -46,7 +46,7 @@ Carré de 1 000 m de côté, EPSG:2154 : coin sud-ouest (700 000 ; 6 500 000), c
 | `inputs/inventaire_video.gpkg` | `inputs.inventaire_video` | 3 placettes de 15 m dans S04 (code libre `chene_sessile`) |
 | `inputs/lidar_tiles.gpkg` | `inputs.lidar_tiles` | 4 dalles de 500 m, deux dates de vol (2021-08-03, 2022-06-21) |
 | `inputs/forest_mask.gpkg` | `inputs.forest_mask` | massif moins la trouée |
-| `inputs/ser.gpkg` | `inputs.ser` | `H10` et un couloir d'alluvions `L3` (`alluvium_flag`) |
+| `inputs/ser.gpkg` | `inputs.ser` | `ser_code = H10` partout ; `alluvium_code = L3` sur un couloir, NULL ailleurs (3 polygones sans recouvrement) |
 | `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` | `inputs.ifn_*` | 40 placettes ; `C13` en mm ; coordonnées floutées (écart ≤ 700 m) |
 | `params/tarif.parquet`, `params/allometry.parquet` | `import_tarif.*` | format long, `provisoire: true` |
 

@@ -192,8 +192,8 @@ def test_le_validateur_accepte_le_jeu(zone):
     assert res.returncode == 0, res.stdout + res.stderr
 
 
-def test_ser_alluvium_code_l3_sur_le_couloir_et_vide_ailleurs(zone):
+def test_ser_code_toujours_h10_et_alluvium_code_l3_sur_le_couloir(zone):
     import sqlite3
     con = sqlite3.connect(zone / "inputs" / "ser.gpkg")
     rows = con.execute("SELECT ser_code, alluvium_code FROM ser ORDER BY fid").fetchall()
-    assert rows == [("H10", None), ("L3", "L3")]
+    assert rows == [("H10", None), ("H10", "L3"), ("H10", None)]

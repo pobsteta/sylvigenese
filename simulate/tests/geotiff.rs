@@ -278,3 +278,58 @@ fn constantes_conformes_au_profil() {
     lus.sort();
     assert_eq!(codes, lus);
 }
+
+// --- Refus qui vont au-delà de la lettre du profil (relecture 1/3) ------------------------
+
+#[test]
+fn refus_pixel_point() {
+    assert!(refuse("refus_pixel_point.tif").contains("RasterPixelIsPoint"));
+}
+
+#[test]
+fn refus_georeferencement_par_matrice() {
+    assert!(refuse("refus_matrice_34264.tif").contains("34264"));
+}
+
+#[test]
+fn refus_types_de_bandes_differents() {
+    assert!(refuse("refus_types_mixtes.tif").contains("types différents"));
+}
+
+/// Position de l'entrée de la balise dans le premier IFD (fichier petit boutiste).
+fn position_entree(octets: &[u8], balise: u16) -> usize {
+    let debut = u32::from_le_bytes([octets[4], octets[5], octets[6], octets[7]]) as usize;
+    let nombre = u16::from_le_bytes([octets[debut], octets[debut + 1]]) as usize;
+    for i in 0..nombre {
+        let p = debut + 2 + 12 * i;
+        if u16::from_le_bytes([octets[p], octets[p + 1]]) == balise {
+            return p;
+        }
+    }
+    panic!("balise {balise} absente du fichier d'essai");
+}
+
+/// Une tuile creuse (début et taille à 0) a son propre message, et non « corrompu ».
+#[test]
+fn refus_tuile_creuse() {
+    let mut octets = std::fs::read(fixtures().join("rasterio_uint16_predictor2.tif")).unwrap();
+    for balise in [324u16, 325u16] {
+        let p = position_entree(&octets, balise);
+        let tableau = u32::from_le_bytes([octets[p + 8], octets[p + 9], octets[p + 10], octets[p + 11]]) as usize;
+        octets[tableau..tableau + 4].copy_from_slice(&0u32.to_le_bytes());
+    }
+    let erreur = geotiff::lire_octets(&octets).unwrap_err();
+    assert_eq!(erreur.code, 2);
+    assert!(erreur.message.contains("tuile absente (fichier creux)"), "{}", erreur.message);
+}
+
+/// Le nombre de valeurs de la balise 258 doit être celui des bandes.
+#[test]
+fn refus_bits_et_bandes_incoherents() {
+    let mut octets = std::fs::read(fixtures().join("rasterio_float32_deflate.tif")).unwrap();
+    let p = position_entree(&octets, 258);
+    octets[p + 4..p + 8].copy_from_slice(&1u32.to_le_bytes()); // une seule valeur pour 2 bandes
+    let erreur = geotiff::lire_octets(&octets).unwrap_err();
+    assert_eq!(erreur.code, 2);
+    assert!(erreur.message.contains("balise 258"), "{}", erreur.message);
+}

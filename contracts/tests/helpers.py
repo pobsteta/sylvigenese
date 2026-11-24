@@ -117,9 +117,23 @@ def csv(path, header, rows, sep=","):
     return Path(path)
 
 
+class QuotingDumper(yaml.SafeDumper):
+    """PyYAML écrit `09` sans guillemets (chaîne en YAML 1.1, entier en YAML 1.2) : on
+    quote toute chaîne que le contrat jugerait ambiguë."""
+
+
+def _quote_ambiguous(dumper, text):
+    from validator.json_docs import ambiguity
+    style = '"' if ambiguity(text) else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", text, style=style)
+
+
+QuotingDumper.add_representer(str, _quote_ambiguous)
+
+
 def write_yaml(path, data):
-    Path(path).write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
-                          encoding="utf-8")
+    text = yaml.dump(data, Dumper=QuotingDumper, sort_keys=False, allow_unicode=True)
+    Path(path).write_text(text, encoding="utf-8")
     return Path(path)
 
 

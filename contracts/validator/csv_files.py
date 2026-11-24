@@ -71,6 +71,16 @@ def looks_like_text(path):
     return True
 
 
+NON_FINITE = {"nan", "inf", "infinity"}
+
+
+def is_non_finite(cell):
+    """Vrai pour une cellule NaN ou infinie, écrite en texte ou déjà lue en nombre."""
+    if isinstance(cell, float):
+        return not math.isfinite(cell)
+    return isinstance(cell, str) and cell.strip().lstrip("+-").lower() in NON_FINITE
+
+
 def translate(error, field_types):
     """Message français d'une erreur frictionless."""
     template = MESSAGES.get(error.type)
@@ -84,6 +94,10 @@ def translate(error, field_types):
         return f"erreur de table ({error.type}) : {note}"
     cell = getattr(error, "cell", None)
     labels = getattr(error, "label", None)
+    if error.type in ("type-error", "constraint-error") and is_non_finite(cell):
+        return (f"colonne {getattr(error, 'field_name', '?')} : valeur NaN ou infinie refusée "
+                f"({show_value(cell)} à la ligne {getattr(error, 'row_number', '?')} du "
+                f"fichier ; nombre fini attendu)")
     return template.format(field=getattr(error, "field_name", "?"),
                            row=getattr(error, "row_number", "?"),
                            cell=show_value(cell if cell is not None else labels),
@@ -130,7 +144,7 @@ def check_rows(resource, schema, findings):
                 value = row.get(name)
                 if value is not None and not math.isfinite(float(value)):
                     findings.error(f"colonne {name} : valeur {show_value(str(value))} à la ligne "
-                                   f"{line} du fichier NaN ou infinie, refusée")
+                                   f"{line} du fichier : valeur NaN ou infinie refusée")
                     return
             if xy:
                 x, y = row.get(xy["x"]), row.get(xy["y"])

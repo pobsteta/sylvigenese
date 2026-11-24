@@ -1,5 +1,7 @@
 //! Lecture de `config.yml` (spec §1, §2, §6 ; ADR 0001).
 //!
+//! Étape du BRIEF codée ici : aucune étape métier (squelette) ; BRIEF §13 (config.yml rejouable).
+//!
 //! Ne contrôle pas les clés : c'est le rôle du validateur
 //! (`contracts/json/config.schema.json`). Seules les clés lues par `simulate` sont déclarées.
 

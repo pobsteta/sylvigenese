@@ -15,10 +15,10 @@ concurrency:
 
 env:
   # Chaînes d'outils figées (mission 014). Python : python/pyproject.toml (>= 3.13) ;
-  # Node : viewer-web/package.json (>= 22.18) ; R : testthat et yaml (DESCRIPTION).
+  # Node : viewer-web/package.json (>= 22.18) ; R : testthat, yaml et terra, binaires r2u (CRAN du jour, voir le résumé).
   RUST_VERSION: "1.97.0"
-  PYTHON_VERSION: "3.13"
-  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.13.18"
+  NODE_VERSION: "22.23.5"
   GODOT_VERSION: "4.6-stable"
   PLAYWRIGHT_VERSION: "1.65.1"
 
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
@@ -43,10 +43,20 @@ jobs:
 
       # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
       - name: R (r2u)
-        uses: eddelbuettel/github-actions/r2u-setup@master
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
 
-      - name: Paquets R (testthat, yaml)
-        run: Rscript -e 'install.packages(c("testthat", "yaml"))'
+      # terra : sans lui, deux tests pytest sont sautés (test_real_files, test_review_rules).
+      - name: Paquets R (testthat, yaml, terra)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra"))'
+
+      # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
+      # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
+      - name: Versions de R et des paquets (résumé)
+        run: |
+          {
+            echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra")) cat(p, as.character(packageVersion(p)), "\n")'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Rust : chaîne figée par rustup, cache du registre et de la compilation.
       - name: Rust (rustup)
@@ -56,7 +66,7 @@ jobs:
           rustc --version
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -67,7 +77,7 @@ jobs:
 
       # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
       - name: Python (uv)
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
@@ -85,7 +95,7 @@ jobs:
 
       # Node : npm ci à partir de package-lock.json, cache npm.
       - name: Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -100,6 +110,7 @@ jobs:
         working-directory: viewer-web
 
       # Une seule source de la commande de tests : .claude/test-command (une ligne).
+      # Elle échoue si pytest saute un test (-rs et contrôle de la ligne de résumé).
       - name: Tests du projet (.claude/test-command)
         run: bash -euo pipefail -c "$(cat .claude/test-command)"
 
@@ -117,7 +128,7 @@ jobs:
     continue-on-error: true
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Installer Godot
         run: |
@@ -130,7 +141,7 @@ jobs:
           V=$("$D/Godot_v${GODOT_VERSION}_linux.x86_64" --headless --version)
           echo "Godot : $V" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 

@@ -104,6 +104,13 @@ Tests : `python3 -m pytest tests/contracts contracts/tests`.
   dernière), une clé YAML qui n'est pas une chaîne (`02` non quoté est lu en YAML 1.1 comme
   l'entier 2 : il faut écrire `"02"`), et toute valeur NaN ou infinie (`NaN`, `.nan`,
   `.inf`).
+- **YAML 1.1 contre YAML 1.2** : PyYAML et R lisent le YAML 1.1, TypeScript le YAML 1.2.
+  Tout scalaire non quoté qui se lirait différemment est refusé (code 3) : entier à zéro
+  de tête (`010`, `0o10`), nombre sexagésimal (`1:30`), booléen YAML 1.1 autre que
+  `true` ou `false` (`yes`, `no`, `on`, `off`, `y`, `n`, en toute casse). Le message dit
+  quoi écrire. **Attention pour les modules qui écrivent du YAML** : `yaml.safe_dump`
+  écrit la chaîne `"09"` sans guillemets ; il faut quoter ces chaînes (voir
+  `QuotingDumper` dans `tests/helpers.py`).
 - **Valeur nulle** : elle n'est refusée que par `required` ; les autres contraintes
   (`enum`, `pattern`, bornes) ne s'appliquent qu'aux valeurs présentes.
 - **Colonne facultative** (`x-optional: true`) : elle peut manquer ; si elle est là, ses

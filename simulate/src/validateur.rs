@@ -1,5 +1,7 @@
 //! Appel du validateur des contrats en sous-processus (spec §2, ADR 0002).
 //!
+//! Étape du BRIEF codée ici : aucune étape métier (squelette) ; BRIEF §4 (contrats validés en fin de module).
+//!
 //! Aucun import du code du validateur : c'est un passage par fichiers.
 
 use std::path::{Path, PathBuf};

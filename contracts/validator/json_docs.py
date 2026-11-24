@@ -9,6 +9,7 @@ et `y` en EPSG:2154 ; le point doit tomber dans l'emprise (`extent.py`).
 """
 import json
 import math
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -25,15 +26,59 @@ JSON_DIR = CONTRACTS_DIR / "json"
 
 
 class RefusedKey(yaml.constructor.ConstructorError):
-    """Clé YAML refusée par le contrat (en double, ou qui n'est pas une chaîne)."""
+    """Clé ou valeur YAML refusée par le contrat (clé en double, clé qui n'est pas une
+    chaîne, scalaire ambigu entre YAML 1.1 et 1.2)."""
+
+
+# Scalaires non quotés lus différemment en YAML 1.1 (PyYAML, R) et en YAML 1.2
+# (TypeScript) : refusés, avec ce qu'il faut écrire à la place (décision de l'orchestrateur,
+# relecture 2/3 de la mission 009).
+LEADING_ZERO = re.compile(r"^[-+]?0[0-9_]+$|^0o[0-7_]+$")
+SEXAGESIMAL = re.compile(r"^[-+]?[0-9][0-9_]*(:[0-5]?[0-9])+(\.[0-9_]*)?$")
+YAML11_BOOLEANS = {"yes", "no", "on", "off", "y", "n"}
+
+
+def ambiguity(text):
+    """Message si un scalaire non quoté se lit différemment en YAML 1.1 et 1.2."""
+    if LEADING_ZERO.match(text):
+        return (f"entier à zéro de tête {text} : octal en YAML 1.1, décimal ou chaîne en "
+                f"YAML 1.2 ; écrire le nombre sans zéro de tête, ou « \"{text}\" » "
+                f"entre guillemets pour une chaîne (code espar)")
+    if SEXAGESIMAL.match(text):
+        return (f"nombre sexagésimal {text} : nombre en YAML 1.1, chaîne en YAML 1.2 ; "
+                f"écrire la valeur en nombre décimal, ou « \"{text}\" » entre guillemets")
+    if text.lower() in YAML11_BOOLEANS:
+        return (f"booléen YAML 1.1 {text} : booléen pour les uns, chaîne pour les autres ; "
+                f"écrire true ou false, ou « \"{text}\" » entre guillemets pour une chaîne")
+    return None
 
 
 class StrictKeyLoader(yaml.SafeLoader):
-    """Chargeur YAML qui refuse une clé en double et une clé qui n'est pas une chaîne.
+    """Chargeur YAML strict : refuse une clé en double, une clé qui n'est pas une chaîne,
+    et tout scalaire non quoté ambigu entre YAML 1.1 et YAML 1.2.
 
     En YAML 1.1, une clé non quotée `02` est lue comme l'entier 2 et `9` comme 9 : le
-    zéro de tête d'un code espar serait perdu en silence (spec §8).
+    zéro de tête d'un code espar serait perdu en silence (spec §8). `seed: 010` est lu 8
+    en YAML 1.1 et 10 en YAML 1.2 ; `provisoire: yes` est vrai pour l'un, une chaîne pour
+    l'autre.
     """
+
+    def construct_document(self, node):
+        self.refuse_ambiguous(node)
+        return super().construct_document(node)
+
+    def refuse_ambiguous(self, node):
+        if isinstance(node, yaml.ScalarNode):
+            problem = ambiguity(node.value) if node.style is None else None
+            if problem:
+                raise RefusedKey(None, None, f"valeur ambiguë, {problem}", node.start_mark)
+        elif isinstance(node, yaml.SequenceNode):
+            for child in node.value:
+                self.refuse_ambiguous(child)
+        elif isinstance(node, yaml.MappingNode):
+            for key, value in node.value:
+                self.refuse_ambiguous(key)
+                self.refuse_ambiguous(value)
 
     def construct_mapping(self, node, deep=False):
         seen = set()

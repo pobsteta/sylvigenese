@@ -389,6 +389,14 @@ impl<'a> Fichier<'a> {
 
         let bits = self.entiers(T_BITS)?.unwrap_or_default();
         let formats = self.entiers(T_FORMAT)?.unwrap_or_else(|| vec![1; nb_bandes]);
+        if bits.len() != nb_bandes || formats.len() != nb_bandes {
+            return Err(refus(format!(
+                "{nb_bandes} bande(s) mais {} valeur(s) de bits (balise 258) et {} de format \
+                 (balise 339) : fichier incohérent",
+                bits.len(),
+                formats.len()
+            )));
+        }
         let flottant = match (bits.first(), formats.first()) {
             (Some(32), Some(3)) => true,
             (Some(16), Some(1)) => false,
@@ -527,6 +535,9 @@ impl<'a> Fichier<'a> {
 
         // PLANARCONFIG=2 : toutes les tuiles de la bande 0, puis celles de la bande 1, etc.
         for (indice, (debut, taille)) in debuts.iter().zip(tailles.iter()).enumerate() {
+            if *debut == 0 && *taille == 0 {
+                return Err(refus("tuile absente (fichier creux) : refusé".to_string()));
+            }
             let brut = self.tranche(*debut as usize, *taille as usize)?;
             let valeurs = decoder_tuile(brut, entete)?;
             let bande = indice / par_bande;

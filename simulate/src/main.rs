@@ -1,5 +1,7 @@
 //! Exécutable `simulate` (ADR 0001).
 //!
+//! Étape du BRIEF codée ici : aucune étape métier (squelette) ; le moteur (BRIEF §6 et §8) viendra plus tard.
+//!
 //! Usage : `simulate [--config <chemin>]` (par défaut `config.yml`).
 //! Code de sortie : 0 (tout va bien) ou 2 (impossible, message sur stderr).
 
