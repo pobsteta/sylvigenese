@@ -27,7 +27,7 @@ run_module <- function(name, config_path = "config.yml", depends_on = NULL, work
 }
 
 # prepare : grille et rasters alignés (mission 017, R/prepare_grid.R). Les tables IFN
-# (019) et les arbres (018) s'ajoutent à `work` dans leurs missions.
+# (019) et les peuplements (018) s'ajoutent à `work` dans leurs missions.
 run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
   run_module("prepare", config_path, depends_on, work = function(cfg, config_path) {
     zone_dir <- prepare_zone_dir(cfg)
@@ -36,6 +36,7 @@ run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
     }
     prepare_grid(zone_dir, cfg)
     prepare_ifn(zone_dir)
+    prepare_stands(zone_dir, cfg)
   })
 }
 
@@ -47,6 +48,18 @@ run_biomes <- function(config_path = "config.yml", depends_on = NULL) {
       stop(sprintf("dossier de la zone introuvable : %s", zone_dir), call. = FALSE)
     }
     biomes_run(zone_dir, cfg)
+  })
+}
+
+# trees : arbres détectés, trees_init/ (mission 018, R/prepare_trees.R). Après biomes :
+# l'essence hors polygone vient de vegetation_map ; sans elle, erreur (code 2).
+run_trees <- function(config_path = "config.yml", depends_on = NULL) {
+  run_module("trees", config_path, depends_on, work = function(cfg, config_path) {
+    zone_dir <- prepare_zone_dir(cfg)
+    if (!dir.exists(zone_dir)) {
+      stop(sprintf("dossier de la zone introuvable : %s", zone_dir), call. = FALSE)
+    }
+    prepare_trees(zone_dir, cfg)
   })
 }
 
