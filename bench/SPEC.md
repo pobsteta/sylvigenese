@@ -151,3 +151,30 @@ Sur la même machine, pour chaque variante et chaque `N`, avec `T = 1` et `T = 4
 du temps moyen d'un pas (c'est dit comme une extrapolation). Une variante qui dépasse la
 mémoire de la machine est notée « hors mémoire » à cette taille : c'est un résultat, pas
 un échec du banc.
+
+## 10. Précisions du 24/11/2026 (questions remontées par la mission 004)
+
+Ces précisions sont techniques. Elles ne changent pas l'algorithme et s'appliquent aux trois
+langages. Elles ont été fixées par l'orchestrateur, qui a écrit la spec du banc.
+
+- **P1, arrondi en f32.** L'état est arrondi en f32 à la fin de **chaque** étape numérotée
+  qui l'écrit (4, 5, 6 et 7). Une étape lit donc toujours l'état f32 laissé par la précédente.
+- **P2, blocs de réduction.** Un bloc est **une ligne de grille**. Pour chaque ligne `i`,
+  dans l'ordre `j = 0 … N-1`, on calcule la somme en f64. Puis on additionne les sommes de
+  lignes dans l'ordre `i = 0 … N-1`. Pour `mean_H`, on fait de même avec la somme des `H`
+  et le nombre de cellules où `D > 0`.
+- **P3, années écrites.** `summary.csv` contient les années 1 à Y seulement. L'année 0
+  n'est pas écrite.
+- **P4, format des nombres.** La notation scientifique à 16 décimales :
+  `4.3830746056849882e5` (Rust `{:.16e}`). En Python ou en R, `%.16e` (format C) donne
+  `4.3830746056849882e+05` : c'est accepté, car la comparaison se fait sur la valeur lue.
+- **P5, temps.** `total_s` = init + pas, hors écriture. `step_mean_s` = temps des pas
+  (contrôle et résumé compris) divisé par Y.
+- **P6, contrôle.** On suit la lettre du §6.8 : NaN, valeur négative, ou `D > Dmax`.
+  Un `--inject-nan` dont l'année sort de 1 … Y est refusé.
+- **P7, cellule nommée.** C'est le premier défaut trouvé dans l'ordre : essence, ligne,
+  colonne, puis B, D, H.
+- **P8, plafond invalide.** Tout `Hmax ≤ 0` ou non fini est refusé après l'initialisation et
+  avant le premier pas.
+- **P9, plafond de hauteur.** Dans l'étape 5, n'utiliser aucune fonction `min` qui
+  masquerait un NaN : écrire `si H > Hmax alors H = Hmax`.
