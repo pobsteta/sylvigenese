@@ -9,9 +9,10 @@
 # Règles (docs/referentiels/ifn-placettes.md, IMOT 2025 p. 61 et 71) :
 #  - `C13` est une circonférence en millimètres : d130 (cm) = C13 / (10 pi) ;
 #  - les placettes ont des cercles emboîtés, choisis par classe de dimension :
-#      C13 de 235 à moins de 705 mm   -> cercle de 6 m
-#      C13 de 705 à moins de 1175 mm  -> cercle de 9 m
-#      C13 de 1175 mm et plus         -> cercle de 15 m
+#      d130 de 7,5 (C13 235 mm) à moins de 22,5 cm  -> cercle de 6 m
+#      d130 de 22,5 à moins de 37,5 cm               -> cercle de 9 m
+#      d130 de 37,5 cm et plus                       -> cercle de 15 m
+#    les seuils portent sur le d130 calculé (22,5 pi = 706,86 mm ; 37,5 pi = 1178,1 mm)
 #    le poids d'un arbre (tiges/ha) est 10000 / (pi R^2), soit 88,4 ; 39,3 ; 14,1 ;
 #  - les coordonnées sont floutées (700 m) : les placettes sont marquées par `mark_ifn()` de
 #    la garde (R/ifn_guard.R) et ne sont croisées avec aucun raster fin. Ce module n'ouvre
@@ -33,10 +34,11 @@ ifn_d130_cm <- function(c13_mm) c13_mm / (10 * pi)
 #' Rayon du cercle de placette (m) selon C13 (mm) ; NA sous le seuil de 235 mm
 #' (arbre non recensable) ou si C13 est NA.
 ifn_circle_radius_m <- function(c13_mm) {
+  d <- ifn_d130_cm(c13_mm)          # seuils pris sur le d130 calcule (22,5 et 37,5 cm)
   r <- rep(NA_real_, length(c13_mm))
   r[!is.na(c13_mm) & c13_mm >= 235] <- 6
-  r[!is.na(c13_mm) & c13_mm >= 705] <- 9
-  r[!is.na(c13_mm) & c13_mm >= 1175] <- 15
+  r[!is.na(c13_mm) & d >= 22.5] <- 9
+  r[!is.na(c13_mm) & d >= 37.5] <- 15
   r
 }
 

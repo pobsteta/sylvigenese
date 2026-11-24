@@ -15,9 +15,9 @@ test_that("d130 = C13 / (10 pi), C13 en mm : 1175 mm donne 37,4 cm", {
 })
 
 test_that("le cercle se choisit par classe de dimension (IMOT 2025 p. 61), bornes comprises", {
-  # 235 inclus, 705 exclu du 6 m, 1175 exclu du 9 m
-  expect_equal(ifn_circle_radius_m(c(234, 235, 704, 705, 1174, 1175, 3000)),
-               c(NA, 6, 6, 9, 9, 15, 15))
+  # seuils sur le d130 : 22,5 cm = 706,86 mm ; 37,5 cm = 1178,10 mm ; 705 et 1175 mm restent en dessous
+  expect_equal(ifn_circle_radius_m(c(234, 235, 705, 706, 707, 1175, 1178, 1179, 3000)),
+               c(NA, 6, 6, 6, 9, 9, 9, 15, 15))
   expect_true(is.na(ifn_circle_radius_m(NA_real_)))
 })
 
@@ -27,15 +27,11 @@ test_that("le poids est l'inverse de la surface du cercle : 88,4 ; 39,3 ; 14,1 t
   expect_equal(round(ifn_weight_ha(c(400, 800, 1500)), 1), c(88.4, 39.3, 14.1))
 })
 
-test_that("jeu fictif : poids calcules = W du fichier, sauf C13 pile sur une borne de classe", {
-  # Le fichier fictif (tools/fixtures) range 705 et 1175 mm dans la classe inferieure (borne
-  # haute incluse) ; le referentiel IMOT p. 61 dit « 705 exclu », « 1175 exclu » : nous suivons
-  # le referentiel. Ecart signale a l'orchestrateur (generateur de la mission 017).
+test_that("jeu fictif : poids calcules = W du fichier, y compris C13 = 705 et 1175 mm", {
   arbre <- brut("ARBRE.csv", c("CAMPAGNE", "IDP", "ESPAR", "C13"))
   c13 <- as.numeric(arbre$C13)
-  ecart <- abs(ifn_weight_ha(c13) - as.numeric(arbre$W)) > 0.005
-  expect_equal(sum(ecart), 2)
-  expect_true(all(c13[ecart] %in% c(705, 1175)))
+  expect_true(all(abs(ifn_weight_ha(c13) - as.numeric(arbre$W)) <= 0.005))
+  expect_true(all(c(705, 1175) %in% c13))
 })
 
 test_that("ifn_tables sur le jeu fictif : colonnes, effectifs, clés", {
