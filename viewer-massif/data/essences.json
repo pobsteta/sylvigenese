@@ -1,0 +1,21 @@
+{
+  "_note": "Valeurs FICTIVES inspirees des indicateurs d'Ellenberg (F humidite, R reaction, T temperature, L lumiere). A remplacer par les sorties nemeton / sylvostation / typopeuplement.",
+  "essences": [
+    {"nom": "Chêne sessile", "F": 5.0, "R": 4.5, "T": 6.0, "tolF": 1.6, "tolR": 2.5, "tolT": 1.2, "hmax": 35, "k": 0.022, "houppier": 0.42, "longev": 250, "forme": "feuillu", "couleur": "#5f8f3a", "tronc": "#4a3a2a"},
+    {"nom": "Hêtre", "F": 5.0, "R": 5.5, "T": 5.0, "tolF": 1.2, "tolR": 2.5, "tolT": 1.0, "hmax": 38, "k": 0.024, "houppier": 0.4, "longev": 220, "forme": "feuillu", "couleur": "#3f7d3a", "tronc": "#8a8a84"},
+    {"nom": "Sapin pectiné", "F": 5.5, "R": 5.0, "T": 4.2, "tolF": 1.4, "tolR": 2.5, "tolT": 0.9, "hmax": 45, "k": 0.022, "houppier": 0.24, "longev": 250, "forme": "conifere", "couleur": "#1f4d3a", "tronc": "#6a6258"},
+    {"nom": "Épicéa", "F": 6.0, "R": 4.0, "T": 3.5, "tolF": 1.8, "tolR": 2.2, "tolT": 0.9, "hmax": 45, "k": 0.028, "houppier": 0.22, "longev": 160, "forme": "conifere", "couleur": "#2a5a48", "tronc": "#5a4030"},
+    {"nom": "Pin sylvestre", "F": 3.0, "R": 3.5, "T": 5.0, "tolF": 1.5, "tolR": 2.5, "tolT": 1.8, "hmax": 30, "k": 0.032, "houppier": 0.26, "longev": 180, "forme": "conifere", "couleur": "#5a7d5a", "tronc": "#a8603a"},
+    {"nom": "Aulne glutineux", "F": 8.5, "R": 6.0, "T": 5.5, "tolF": 1.0, "tolR": 2.5, "tolT": 1.5, "hmax": 25, "k": 0.05, "houppier": 0.34, "longev": 90, "forme": "feuillu", "couleur": "#4f9a5a", "tronc": "#3a3028"},
+    {"nom": "Frêne", "F": 7.0, "R": 7.0, "T": 5.5, "tolF": 1.2, "tolR": 1.6, "tolT": 1.3, "hmax": 35, "k": 0.035, "houppier": 0.38, "longev": 180, "forme": "feuillu", "couleur": "#7fae4a", "tronc": "#7a7468"}
+  ],
+  "herbacees": [
+    {"nom": "Myrtille", "F": 5.0, "R": 2.0, "L": 5.0, "tolF": 1.8, "tolR": 1.3, "tolL": 2.0, "h": 0.35, "brins": 9, "largeur": 0.03, "port": 0.5, "couleur": "#3d6b3a", "fleur": "#3b4a8a", "folioles": 5},
+    {"nom": "Canche flexueuse", "F": 4.0, "R": 2.5, "L": 6.0, "tolF": 2.0, "tolR": 1.5, "tolL": 2.0, "h": 0.4, "brins": 16, "largeur": 0.012, "port": 0.6, "couleur": "#8aa24a", "folioles": 0},
+    {"nom": "Fougère aigle", "F": 5.0, "R": 3.0, "L": 6.0, "tolF": 2.0, "tolR": 1.6, "tolL": 2.0, "h": 1.1, "brins": 6, "largeur": 0.16, "port": 0.8, "couleur": "#4c8a3a", "folioles": 9},
+    {"nom": "Aspérule odorante", "F": 5.0, "R": 6.0, "L": 2.5, "tolF": 1.3, "tolR": 1.5, "tolL": 1.5, "h": 0.2, "brins": 8, "largeur": 0.04, "port": 0.9, "couleur": "#4fa04f", "fleur": "#ffffff", "folioles": 3},
+    {"nom": "Mercuriale pérenne", "F": 5.5, "R": 7.5, "L": 2.5, "tolF": 1.5, "tolR": 1.2, "tolL": 1.5, "h": 0.3, "brins": 7, "largeur": 0.06, "port": 0.6, "couleur": "#2f7a3a", "folioles": 4},
+    {"nom": "Molinie bleue", "F": 7.5, "R": 3.5, "L": 7.0, "tolF": 1.3, "tolR": 2.0, "tolL": 2.0, "h": 0.8, "brins": 20, "largeur": 0.015, "port": 0.45, "couleur": "#9ab05a", "folioles": 0},
+    {"nom": "Reine-des-prés", "F": 8.5, "R": 6.0, "L": 7.0, "tolF": 1.0, "tolR": 2.0, "tolL": 2.0, "h": 1.2, "brins": 7, "largeur": 0.1, "port": 0.35, "couleur": "#4a8f45", "fleur": "#f4efd8", "folioles": 4}
+  ]
+}

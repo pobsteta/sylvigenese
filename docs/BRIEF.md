@@ -189,7 +189,8 @@ Passage de l'un à l'autre : un lien depuis la vue web ouvre la vue massif aux m
 
 ```
 sylvigenese/
-  BRIEF.md   README.md   LICENSE   config.yml
+  README.md   LICENSE   config.yml
+  docs/               BRIEF.md, architecture.md
   contracts/          schémas et validateurs
   R/                  package R : prepare, biomes, dynamics
   _targets.R          pipeline
