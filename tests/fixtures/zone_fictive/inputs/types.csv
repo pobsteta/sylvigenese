@@ -1,0 +1,5 @@
+id;type;area_ha;part_surface;trophic;hydric;bioclim;n_placettes
+1;type_sec;19.52;0.1952;4.551;-1.379;0.321;48
+2;type_frais;29.84;0.2984;5.867;-1.472;0.000;74
+3;type_humide;37.00;0.3700;4.231;-0.510;-0.067;92
+4;type_riche;13.64;0.1364;5.608;-0.535;-0.046;34
