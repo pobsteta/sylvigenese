@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tester la décision de release
+        run: .github/scripts/test-release-necessaire.sh
+
+      - name: Tester le calcul de version calendaire
+        run: .github/scripts/test-version-calendaire.sh
+
+      # Les tests des modules (testthat, pytest, scénario GAMA, bout en bout sur le jeu fictif)
+      # s'ajoutent ici au fil des jalons (BRIEF §13), via .claude/test-command.
+      - name: Tests du projet (.claude/test-command)
+        run: |
+          if [ -x .claude/test-command ]; then
+            .claude/test-command
+          else
+            echo "Pas encore de .claude/test-command : stack à trancher (/brief)." >> "$GITHUB_STEP_SUMMARY"
+          fi

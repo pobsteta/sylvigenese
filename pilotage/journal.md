@@ -23,3 +23,4 @@
 > `AAAA-MM-JJ · Claude (orchestrateur, par délégation) · mission · décidé : … · pourquoi : … · ce que Pascal peut défaire : …`
 
 2026-11-24 · Claude (orchestrateur) · — · méthode installée (plugin imperatrice 1.0.0, identique au dépôt pobsteta/methode-imperatrice cloné en lecture) : CLAUDE.md, pilotage/ (equipe, kanban, journal, missions/), docs/adr/. Brief existant gardé tel quel (docs/BRIEF.md), pas de docs/brief.md en doublon. Reste à remplir : « ma réponse d'abord » de Pascal, validation brief et spec (/brief), équipe (/mission), .claude/test-command (stack à trancher), questions ouvertes BRIEF §14.
+2026-11-24 · Claude (orchestrateur) · — · à la demande de Pascal : README avec badges (modèle marculus), CI et release automatiques en version calendaire vAAAA.MM.N (scripts repris de marculus, filtre adapté : tests/ ne compte pas), LICENSE GPL-3. Tests des scripts verts en local. Pas encore de .claude/test-command.
