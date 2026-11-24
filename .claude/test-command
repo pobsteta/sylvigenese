@@ -1,0 +1,1 @@
+make test && python3 -m pytest -q -p no:cacheprovider tests/contracts contracts/tests tools/fixtures/tests python && make validate ZONE=zone_fictive

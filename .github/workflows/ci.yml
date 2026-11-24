@@ -1,4 +1,5 @@
 name: CI
+# Le nom « CI » est lu par release.yml (workflow_run) : ne pas le changer.
 
 on:
   push:
@@ -12,26 +13,131 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Chaînes d'outils figées (mission 014). Python : python/pyproject.toml (>= 3.13) ;
+  # Node : viewer-web/package.json (>= 22.18) ; R : testthat et yaml (DESCRIPTION).
+  RUST_VERSION: "1.97.0"
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "22"
+  GODOT_VERSION: "4.6-stable"
+  PLAYWRIGHT_VERSION: "1.65.1"
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Noter l'heure de départ
+        run: echo "CI_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      # Scripts de release : à préserver (release.yml s'appuie sur eux).
       - name: Tester la décision de release
         run: .github/scripts/test-release-necessaire.sh
 
       - name: Tester le calcul de version calendaire
         run: .github/scripts/test-version-calendaire.sh
 
-      # Les tests des modules (testthat, pytest, scénario GAMA, bout en bout sur le jeu fictif)
-      # s'ajoutent ici au fil des jalons (BRIEF §13), via .claude/test-command.
-      - name: Tests du projet (.claude/test-command)
+      # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@master
+
+      - name: Paquets R (testthat, yaml)
+        run: Rscript -e 'install.packages(c("testthat", "yaml"))'
+
+      # Rust : chaîne figée par rustup, cache du registre et de la compilation.
+      - name: Rust (rustup)
         run: |
-          if [ -x .claude/test-command ]; then
-            .claude/test-command
-          else
-            echo "Pas encore de .claude/test-command : stack à trancher (/brief)." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc --version
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            simulate/target
+          key: cargo-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('simulate/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.txt
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          uv pip install --python .venv/bin/python -r contracts/requirements-tests.txt -e "python[test]"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Node : npm ci à partir de package-lock.json, cache npm.
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: viewer-web/package-lock.json
+
+      - name: Dépendances Node
+        run: npm ci
+        working-directory: viewer-web
+
+      - name: Typage de la vue web
+        run: npm run typecheck
+        working-directory: viewer-web
+
+      # Une seule source de la commande de tests : .claude/test-command (une ligne).
+      - name: Tests du projet (.claude/test-command)
+        run: bash -euo pipefail -c "$(cat .claude/test-command)"
+
+      - name: Durée de la CI
+        if: always()
+        run: |
+          S=$(( $(date +%s) - CI_START ))
+          echo "### Durée du job « test » : $((S / 60)) min $((S % 60)) s (${S} s)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Objectif du brief : parcours rejouable en moins de 30 min sur un portable." >> "$GITHUB_STEP_SUMMARY"
+
+  # Vérifie seulement que Godot 4.6 et Playwright s'installent (spec §11, M0).
+  # Non bloquant : un échec ici ne fait pas échouer la CI, donc ne bloque pas la release.
+  outils-optionnels:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Godot
+        run: |
+          set -euo pipefail
+          URL="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          D="$RUNNER_TEMP/godot"; mkdir -p "$D"
+          curl -fsSL -o "$D/godot.zip" "$URL"
+          unzip -q "$D/godot.zip" -d "$D"
+          chmod +x "$D/Godot_v${GODOT_VERSION}_linux.x86_64"
+          V=$("$D/Godot_v${GODOT_VERSION}_linux.x86_64" --headless --version)
+          echo "Godot : $V" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Installer Playwright (Chromium)
+        run: |
+          set -euo pipefail
+          D="$RUNNER_TEMP/playwright"; mkdir -p "$D"
+          cd "$D"
+          npm init -y >/dev/null
+          npm install "playwright@${PLAYWRIGHT_VERSION}"
+          npx playwright install --with-deps chromium
+          echo "Playwright ${PLAYWRIGHT_VERSION} : installé" >> "$GITHUB_STEP_SUMMARY"
