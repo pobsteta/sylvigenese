@@ -1,7 +1,7 @@
 # ADR 0001 — langage du moteur de simulation (`simulate`)
 
 - **Date :** 2026-11-24
-- **Statut :** acceptée en partie par Pascal le 2026-11-24 (langage, résolution, option G) ; point I4 encore ouvert
+- **Statut :** acceptée par Pascal le 2026-11-24
 - **Proposée par :** Claude (orchestrateur), à la demande de Pascal
 - **Tranchée par :** Pascal, le 2026-11-24 (langage Rust, grille SER à 25 m)
 
@@ -17,6 +17,12 @@ de 3,8). Le banc sur le PC de Pascal reste à faire, pour confirmer ces chiffres
 **Option G (Pascal, 24/11/2026) :** iLand, LANDIS-II et TreeMig servent de **références de
 validation**. On ne réutilise pas leur code ; on compare leurs sorties aux nôtres sur un même
 peuplement, au moment de M3 ou de M5. Source : `docs/referentiels/moteurs-existants.md`.
+
+**Relecture du Rust (I4, Pascal, 24/11/2026) :** une règle de lisibilité, inscrite dans
+`CLAUDE.md` et vérifiée par le `relecteur` à chaque PR. Pas de macros maison ni de génériques
+avancés dans le cœur. Une documentation en français en tête de chaque module, qui renvoie à
+l'étape du BRIEF qu'il code. Chaque PR porte un résumé en français, jugeable sans lire le Rust :
+ce qui change dans les résultats, et les tests qui le prouvent.
 
 *Proposition initiale, conservée pour la trace :*
 

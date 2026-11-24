@@ -77,3 +77,10 @@ Reprises de `docs/BRIEF.md` §0, §4 et §6 (source : Pascal Obstétar, brief du
   sur le jeu fictif — BRIEF §13).
 - **Formats ouverts, logiciels libres** de préférence (test du successeur). Licence GPL-3.
 - **Jamais de push direct sur `main`.** Tout passe par une PR.
+- **Lisibilité du Rust** (ADR 0001, décision de Pascal du 24/11/2026). Le `relecteur` la
+  vérifie à chaque PR :
+  - pas de macros maison ni de génériques avancés dans le cœur de `simulate` ;
+  - une documentation en français en tête de chaque module, qui renvoie à l'étape du BRIEF
+    qu'il code ;
+  - chaque PR porte un résumé en français que Pascal peut juger sans lire le Rust : ce qui
+    change dans les résultats, et les tests qui le prouvent.
