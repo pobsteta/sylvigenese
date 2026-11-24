@@ -483,3 +483,20 @@ test_that("une entrée refusée, même non lue par la grille (nemeton_stands), n
   expect_error(suppressMessages(prepare_grid(z, config_fictive())), "inputs.nemeton_stands")
   expect_equal(setdiff(list.files(z), "inputs"), character(0))
 })
+
+test_that("sous LC_ALL=C, un é du rapport sort en octets C3 A9, pas en texte <c3><a9>", {
+  sortie <- tempfile(fileext = ".html")
+  script <- tempfile(fileext = ".R")
+  writeLines(c(
+    sprintf("source(%s)", deparse(file.path(racine, "R", "prepare_grid.R"))),
+    "e <- rawToChar(as.raw(c(0xc3, 0xa9)))  # un é en UTF-8, chaîne non marquée comme en locale C",
+    "rap <- new_report()",
+    "suppressMessages(report_add(rap, 'Grille', paste0('cellule ', e)))",
+    sprintf("write_prepare_report(rap, %s)", deparse(sortie))), script)
+  status <- system2(file.path(R.home("bin"), "Rscript"), script, env = "LC_ALL=C",
+                    stdout = FALSE, stderr = FALSE)
+  expect_equal(status, 0L)
+  octets <- readBin(sortie, "raw", file.size(sortie))
+  expect_true(any(octets[-length(octets)] == as.raw(0xc3) & octets[-1] == as.raw(0xa9)))
+  expect_false(grepl("<c3>", rawToChar(octets), fixed = TRUE))
+})

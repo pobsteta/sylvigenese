@@ -81,9 +81,12 @@ write_prepare_report <- function(report, path) {
             "<head><meta charset=\"utf-8\"><title>Rapport de prepare</title></head>",
             "<body>", "<h1>Rapport de prepare : grille, SER, rasters</h1>", body,
             "</body>", "</html>")
+  # Pas d'enc2utf8 : en locale C il transcrirait les octets UTF-8 en texte « <c3><a9> ».
+  # Les chaînes de ce fichier sont déjà de l'UTF-8 ; on les marque et on écrit les octets tels quels.
+  Encoding(html) <- "UTF-8"
   con <- file(path, open = "wb")
   on.exit(close(con))
-  writeLines(enc2utf8(html), con, useBytes = TRUE)
+  writeLines(html, con, useBytes = TRUE)
   invisible(path)
 }
 

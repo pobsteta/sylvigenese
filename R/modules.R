@@ -35,6 +35,7 @@ run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
       stop(sprintf("dossier de la zone introuvable : %s", zone_dir), call. = FALSE)
     }
     prepare_grid(zone_dir, cfg)
+    prepare_ifn(zone_dir)
   })
 }
 
