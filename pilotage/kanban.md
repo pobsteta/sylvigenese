@@ -24,6 +24,11 @@ _Modèle de carte :_
 
 ## Planifié
 
+- [008-contrats-entrees](missions/008-contrats-entrees.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : sorties réelles de nemeton, sylvostation, typopeuplement, tarif-nemeton ; lancée le 2026-11-24
+  - Moyens : clones en lecture seule
+
 
 
 

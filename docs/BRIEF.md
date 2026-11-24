@@ -19,8 +19,12 @@ Version du 24 novembre 2026. Auteur : Pascal Obstétar. Ce document est le cahie
   envisageable ».
 - **Pour qui.** D'abord Pascal et les utilisateurs de nemeton. Ensuite les gestionnaires et
   les aménagistes forestiers.
-- **Coût complet aujourd'hui.** Une licence annuelle NDunes 3D, 100 € par an (source :
-  Pascal). sylvigenese la remplace par une chaîne libre.
+- **Coût complet aujourd'hui.**
+  - Une licence annuelle NDunes 3D, à 100 € par an (source : Pascal).
+  - Le temps passé à construire une scène : inconnu.
+  - Aucune trajectoire chiffrée d'un peuplement n'est possible aujourd'hui.
+  - *Bénéfice* : sylvigenese remplace la part « donner à voir » de NDunes 3D par une chaîne
+    libre.
 - **Ce que fait sylvigenese, en v1.** C'est une chaîne de modules reliés par des fichiers.
   - Elle part des sorties de **nemeton, qui sont l'entrée principale** (l'état présent du
     peuplement).
@@ -34,6 +38,9 @@ Version du 24 novembre 2026. Auteur : Pascal Obstétar. Ce document est le cahie
   - la sylviculture interactive ;
   - le rendu photoréaliste ;
   - la plateforme multi-utilisateurs et l'intégration à `nemetonshiny`.
+- **Valeur sacrifiée en v1 :** la v1 ne sert pas une décision d'aménagement. Elle montre une
+  évolution libre, sans gestion (`management: none`). Cela suit le hors-périmètre retenu, qui
+  exclut la sylviculture (arbitrage par délégation, I2).
 - **Contraintes :**
   - GPL-3, formats ouverts, logiciels libres ;
   - IFN flouté, jamais croisé avec un raster fin ;
@@ -216,15 +223,22 @@ Passage de l'un à l'autre : un lien depuis la vue web ouvre la vue massif aux m
 
 ## 11. Jalons
 
-| Jalon | Livrable | Critère d'acceptation |
-|---|---|---|
-| M0 | squelette du dépôt, contrats, jeu d'essai fictif | les validateurs passent sur le jeu fictif ; intégration continue verte |
-| M1 | `prepare` et `biomes` sur un massif test | carte des biomes sans cellule orpheline non signalée |
-| M2 | `dynamics` | rapport de validation par essence ; coefficients exportés |
-| M3 | `simulate` niveau massif, 100 ans | surface terrière et nombre de tiges dans les plages observées par l'IFN pour la SER |
-| M4 | `viewer-web` sur le massif | navigation fluide avec 100 000 arbres affichés |
-| M5 | niveau SER en cohortes, régénération | une SER complète simulée ; recrutement cohérent avec l'IFN |
-| M6 | `assets` et `viewer-massif` | arbres du générateur visibles dans les deux vues |
+> Mis à jour le 24/11/2026, d'après la critique du brief (`docs/critique-brief-contradicteur.md`,
+> B3 à B5), par délégation de Pascal. Chaque jalon a deux parties :
+> - **a** : code et tests sur le jeu fictif, faits par les agents ;
+> - **b** : acceptation sur données réelles, qui demande Pascal (données, réseau, son PC).
+>
+> Les seuils chiffrés sont dans `docs/spec.md`.
+
+| Jalon | Livrable | Critère a (jeu fictif) | Critère b (réel, avec Pascal) |
+|---|---|---|---|
+| M0 | squelette, contrats (entrées externes comprises), jeu d'essai fictif, CI | les validateurs passent sur le jeu fictif ; CI verte | — |
+| M1 | `prepare` et `biomes` | carte des types de végétation sans cellule orpheline non signalée | idem sur le massif test réel |
+| M2 | `dynamics` | ajustement et rapport par essence sur données IFN réduites | validation croisée par blocs sur la SER pilote, meilleure qu'un modèle nul |
+| M3 | `simulate` niveau massif, 100 ans, recrutement IFN direct | tests de non-régression, identité entre fils, contrôles | validation à 5 ans et plausibilité à 100 ans (quantiles IFN 5-95 %) |
+| M4 | `assets` minimal (glTF génériques) et `viewer-web` sur le massif | 100 000 instances affichées, images par seconde mesurées par script | sur la machine et le navigateur de Pascal |
+| M5 | niveau SER en cohortes, régénération | une SER fictive simulée ; recrutement calé sur le modèle IFN | SER pilote complète ; recrutement dans l'intervalle de confiance IFN |
+| M6 | arbres du générateur et `viewer-massif` | arbres du générateur dans les deux vues (sans GPU : export et tests) | sur le PC de Pascal |
 
 ## 12. Arborescence
 
