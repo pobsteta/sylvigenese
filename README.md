@@ -25,8 +25,9 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 
 - **M0** (squelette du dépôt, contrats, validateur, jeu d'essai fictif, CI) : livré.
 - **M1a** (module `prepare` sur le jeu fictif : grille SER à 25 m, placettes IFN sous garde de
-  précision, peuplements, carte des biomes, arbres initiaux) : en relecture finale,
-  [pull request n° 4](https://github.com/pobsteta/sylvigenese/pull/4).
+  précision, peuplements, carte des biomes, arbres initiaux avec leur houppier) : rempli
+  sur le jeu fictif, [pull request n° 4](https://github.com/pobsteta/sylvigenese/pull/4)
+  soumise à Pascal.
 - Suivant : **M1b** (données réelles du massif test, catalogue des biomes sourcé).
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).
