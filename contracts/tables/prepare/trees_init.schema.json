@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Arbres détectés (trees_init/, prepare)",
-  "description": "Arbres détectés sur le MNH à 50 cm ; d130 par la méthode de l'étage B de tarif-nemeton (spec §4 ; BRIEF §4). x et y en EPSG:2154.",
+  "description": "Arbres détectés sur le MNH à 50 cm, avec la surface projetée de leur houppier (crown_area) ; d130 par la méthode de l'étage B de tarif-nemeton : ln D = a + b ln H + c ln CPA, ou ln D = a + b ln H pour une essence sans coefficient c (spec §4.3 ; BRIEF §4). x et y en EPSG:2154.",
   "x-schema-version": "0.1",
   "x-names-fixed-by": "BRIEF §4 et spec §4 ; listes fermées : orchestrateur (mission 009)",
   "fieldsMatch": "equal",
@@ -64,6 +64,16 @@
       }
     },
     {
+      "name": "crown_area",
+      "type": "number",
+      "description": "surface projetée du houppier segmenté sur le MNH à 50 cm (CPA de l'étage B de tarif-nemeton), PROVISOIRE : un houppier segmenté dans un MNH aéroporté n'est pas celui mesuré au TLS (spec §4.3). Obligatoire pour tout arbre ; l'usage de l'inventaire vidéo, qui n'en a pas, reste à décider en M1b",
+      "x-unit": "m2",
+      "constraints": {
+        "required": true,
+        "exclusiveMinimum": 0
+      }
+    },
+    {
       "name": "species_source",
       "type": "string",
       "description": "origine de l'essence",
@@ -79,11 +89,12 @@
     {
       "name": "d130_source",
       "type": "string",
-      "description": "origine du d130",
+      "description": "origine du d130 : tarif_etage_b = ln D = a + b ln H + c ln CPA (essence avec les coefficients a, b et c) ; tarif_etage_b_ifn = ln D = a + b ln H (essence sans coefficient c, variante calée sur l'IFN) ; une essence sans aucun coefficient n'a pas de ligne (erreur de prepare)",
       "constraints": {
         "required": true,
         "enum": [
           "tarif_etage_b",
+          "tarif_etage_b_ifn",
           "inventaire_video",
           "nemeton"
         ]

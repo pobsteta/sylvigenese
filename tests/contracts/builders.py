@@ -241,6 +241,7 @@ def good_trees():
         "species": ["09", "02", "09"],
         "d130": [28.0, 35.5, 41.2],
         "h": [22.1, 25.4, 27.0],
+        "crown_area": [14.5, 22.0, 31.25],
         "species_source": ["vegetation_type"] * n,
         "d130_source": ["tarif_etage_b"] * n,
     }

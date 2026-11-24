@@ -82,8 +82,11 @@ TYPES = ["type_sec", "type_frais", "type_humide", "type_riche"]
 CHENE_VIDEO = "chene_sessile"     # code libre nemeton cité dans entrees-externes.csv
 
 # Paramètres synthétiques (provisoire: true, source synthetique_jeu_fictif).
-ALLOMETRY = {"09": (0.10, 1.12), "61": (0.15, 1.10), "62": (0.20, 1.08),
-             "03": (0.05, 1.14), "64": (0.12, 1.10)}      # ln D = a + b ln H (étage B)
+# Étage B : ln D = a + b ln H + c ln CPA (D en cm, H en m, CPA = surface projetée du houppier en
+# m², spec §4.3). Les trois coefficients de chaque essence sont SYNTHÉTIQUES et provisoires :
+# ils ne viennent d'aucune source écologique, seulement de quoi exercer le code.
+ALLOMETRY = {"09": (0.10, 1.12, 0.20), "61": (0.15, 1.10, 0.17), "62": (0.20, 1.08, 0.15),
+             "03": (0.05, 1.14, 0.22), "64": (0.12, 1.10, 0.18)}
 TARIF = {"09": (4.0e-5, 1.90, 1.00), "61": (4.2e-5, 1.88, 1.00), "62": (4.5e-5, 1.86, 1.02),
          "03": (3.8e-5, 1.92, 1.00), "64": (4.1e-5, 1.89, 1.01)}   # V = a D^b H^c
 
@@ -324,8 +327,9 @@ def write_vectors(inputs):
 
 
 def d130_from_height(h, espar):
-    """Étage B synthétique : ln D = a + b ln H (spec §4.3), coefficients de ALLOMETRY."""
-    a, b = ALLOMETRY[espar]
+    """Étage B synthétique sans houppier : ln D = a + b ln H, coefficients a et b de ALLOMETRY
+    (le d130 de l'inventaire vidéo fictif ; le terme c ln CPA n'y a pas de surface de houppier)."""
+    a, b, _c = ALLOMETRY[espar]
     return math.exp(a + b * math.log(h))
 
 
@@ -378,7 +382,7 @@ def ifn_true_positions(seed, n_plots=40):
 
 def write_ifn(inputs, seed):
     """IFN brut fictif : 40 placettes, coordonnées floutées (disque de 700 m), C13 en mm,
-    poids selon le cercle de la classe de dimension (docs/referentiels/ifn-placettes.md)."""
+    poids selon le cercle de la classe de C13 en mm (docs/referentiels/ifn-placettes.md)."""
     n_plots, blur_m = 40, 700.0
     # CD_REF : ceux de contracts/species.csv (taxref_cd_ref non vides)
     taxa = [97947, 79319, 113432, 116216, 89304, 125816, 116759, 139584]
@@ -401,9 +405,12 @@ def write_ifn(inputs, seed):
             h = 1.3 + 32.0 * (1.0 - math.exp(-0.045 * d)) ** 1.1 * \
                 (0.9 + 0.2 * float(u(seed, S_IFN_TREE, k, 3)))
             vol = 0.45 * math.pi / 4.0 * (d / 100.0) ** 2 * h        # coefficient de forme fictif
-            radius = 6.0 if d < 22.5 else (9.0 if d < 37.5 else 15.0)
+            c13 = int(round(math.pi * d * 10))   # circonférence en mm, la grandeur mesurée
+            # cercle selon C13 en mm (IMOT 2025 p. 61, tableau DIMESS) : < 705 : 6 m ;
+            # 705 à < 1175 : 9 m ; 1175 et plus : 15 m
+            radius = 6.0 if c13 < 705 else (9.0 if c13 < 1175 else 15.0)
             weight = 10000.0 / (math.pi * radius ** 2)
-            tree_lines.append(f"{camp};{idp};{sp};{int(round(math.pi * d * 10))};{h:.1f};"
+            tree_lines.append(f"{camp};{idp};{sp};{c13};{h:.1f};"
                               f"{vol:.4f};{weight:.2f}")
         seen = set()
         for j in range(4 + int(5 * float(u(seed, S_IFN_FLORA, p, 0)))):
@@ -431,7 +438,7 @@ def write_params(zone):
 
     (zone / "params").mkdir(parents=True, exist_ok=True)
     pq.write_table(table("tarif_dbh_h", TARIF, ("a", "b", "c")), zone / "params" / "tarif.parquet")
-    pq.write_table(table("etage_b", ALLOMETRY, ("a", "b")), zone / "params" / "allometry.parquet")
+    pq.write_table(table("etage_b", ALLOMETRY, ("a", "b", "c")), zone / "params" / "allometry.parquet")
 
 
 def generate(out_dir, seed=42):

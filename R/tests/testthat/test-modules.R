@@ -48,10 +48,23 @@ test_that("chaque module rend 0 si le validateur dit 0", {
 
 test_that("chaque module rend 2 si le validateur refuse la config", {
   avec_validateur(faux_validateur(3), {
-    for (f in list(run_prepare, run_biomes, run_dynamics)) {
+    for (f in list(run_prepare, run_biomes, run_trees, run_dynamics)) {
       expect_equal(suppressMessages(f(copie_config())), 2L)
     }
   })
+})
+
+test_that("trees rend 2 si le dossier de la zone est introuvable, sans rien écrire", {
+  config <- copie_config()
+  texte <- readLines(config, encoding = "UTF-8")
+  writeLines(sub("^zone: zone_fictive", "zone: zone_absente", texte), config)
+  msgs <- character()
+  avec_validateur(faux_validateur(0), {
+    status <- withCallingHandlers(run_trees(config),
+      message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") })
+  })
+  expect_equal(status, 2L)
+  expect_match(paste(msgs, collapse = "\n"), "introuvable")
 })
 
 test_that("rend 2 si le validateur est absent", {

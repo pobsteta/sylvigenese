@@ -48,7 +48,7 @@ Carré de 1 000 m de côté, EPSG:2154 : coin sud-ouest (700 000 ; 6 500 000), c
 | `inputs/forest_mask.gpkg` | `inputs.forest_mask` | massif moins la trouée |
 | `inputs/ser.gpkg` | `inputs.ser` | forme brute de l'IGN : `ser_code` seul ; `H10` sur deux polygones, `L3` (alluvions) sur un couloir de 100 m entre eux (3 polygones sans recouvrement) |
 | `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` | `inputs.ifn_*` | 40 placettes ; `C13` en mm ; coordonnées floutées (écart ≤ 700 m) |
-| `params/tarif.parquet`, `params/allometry.parquet` | `import_tarif.*` | format long, `provisoire: true` |
+| `params/tarif.parquet`, `params/allometry.parquet` | `import_tarif.*` | format long, `provisoire: true` ; `allometry` porte les termes a, b et c (houppier), tous fictifs |
 
 Les `CD_REF` de `FLORE.csv` sont ceux de `contracts/species.csv` (arbres), faute de table de
 flore ; ils sont en v18 alors que l'IFN réel est en v13.
