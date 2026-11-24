@@ -1,0 +1,26 @@
+variant,test,exit_code,attendu,conforme,message
+rust,inject-nan,3,3,oui,"Erreur : Contrôle échoué à l'année 5 : H = NaN (NaN) pour l'essence 0, cellule 0 (ligne 0, colonne 0). Arrêt, aucune correction silencieuse."
+rust,hmax-zero,2,2,oui,"Erreur : Entrée invalide : Hmax doit être strictement positif et fini, or Hmax = 0 (essence 0, cellule 0, ligne 0, colonne 0). Simulation refusée avant le premier pas."
+rust,seed -1,2,2,oui,Erreur : Valeur invalide pour --seed : « -1 » (entier écrit en chiffres décimaux attendu). Usage : bench-sim --n N --years Y --out DIR [--seed S] [--threads T] [--inject-nan ANNEE] [--hmax-zero] --n N            côté de la grille (N x N cellules de 25 m) --years Y        nombre d'années simulées (>=
+rust,seed 1.5,2,2,oui,Erreur : Valeur invalide pour --seed : « 1.5 » (entier écrit en chiffres décimaux attendu). Usage : bench-sim --n N --years Y --out DIR [--seed S] [--threads T] [--inject-nan ANNEE] [--hmax-zero] --n N            côté de la grille (N x N cellules de 25 m) --years Y        nombre d'années simulées (>
+rust,seed 2^53,2,2,oui,"Erreur : --seed doit être un entier dans [0, 2^53) ; reçu 9007199254740992. Usage : bench-sim --n N --years Y --out DIR [--seed S] [--threads T] [--inject-nan ANNEE] [--hmax-zero] --n N            côté de la grille (N x N cellules de 25 m) --years Y        nombre d'années simulées (>= 1) --seed S   "
+py-numpy,inject-nan,3,3,oui,"Arrêt au contrôle : valeur invalide de H (nan) à l'année 5, cellule 0 (ligne 0, colonne 0), essence 0. Aucune correction n'est faite."
+py-numpy,hmax-zero,2,2,oui,"Entrée refusée avant le premier pas : Hmax doit être fini et strictement positif ; valeur 0.0 à la cellule 0 (ligne 0, colonne 0), essence 0."
+py-numpy,seed -1,2,2,oui,Erreur : --seed doit être un entier écrit en chiffres (reçu « -1 »).
+py-numpy,seed 1.5,2,2,oui,Erreur : --seed doit être un entier écrit en chiffres (reçu « 1.5 »).
+py-numpy,seed 2^53,2,2,oui,"Erreur : --seed doit être dans [0, 2^53) (reçu 9007199254740992)."
+py-numba,inject-nan,3,3,oui,"Arrêt au contrôle : valeur invalide de H (nan) à l'année 5, cellule 0 (ligne 0, colonne 0), essence 0. Aucune correction n'est faite."
+py-numba,hmax-zero,2,2,oui,"Entrée refusée avant le premier pas : Hmax doit être fini et strictement positif ; valeur 0.0 à la cellule 0 (ligne 0, colonne 0), essence 0."
+py-numba,seed -1,2,2,oui,Erreur : --seed doit être un entier écrit en chiffres (reçu « -1 »).
+py-numba,seed 1.5,2,2,oui,Erreur : --seed doit être un entier écrit en chiffres (reçu « 1.5 »).
+py-numba,seed 2^53,2,2,oui,"Erreur : --seed doit être dans [0, 2^53) (reçu 9007199254740992)."
+r-base,inject-nan,3,3,oui,"Contrôle échoué : H[essence 0, cellule 0 (ligne 0, colonne 0)] vaut NaN, année 5. Arrêt."
+r-base,hmax-zero,2,2,oui,"Entrée invalide : Hmax doit être strictement positif ; Hmax = 0 pour l'essence 0, cellule 0 (ligne 0, colonne 0). Arrêt avant le premier pas."
+r-base,seed -1,2,2,oui,Valeur refusée pour --seed : « -1 » n'est pas un entier écrit en chiffres décimaux.
+r-base,seed 1.5,2,2,oui,Valeur refusée pour --seed : « 1.5 » n'est pas un entier écrit en chiffres décimaux.
+r-base,seed 2^53,2,2,oui,"Valeur refusée pour --seed : 9007199254740992 est hors de l'intervalle [0, 9007199254740991]."
+r-rcpp,inject-nan,3,3,oui,"Contrôle échoué : H[essence 0, cellule 0 (ligne 0, colonne 0)] vaut NaN, année 5. Arrêt."
+r-rcpp,hmax-zero,2,2,oui,"Entrée invalide : Hmax doit être strictement positif ; Hmax = 0 pour l'essence 0, cellule 0 (ligne 0, colonne 0). Arrêt avant le premier pas."
+r-rcpp,seed -1,2,2,oui,Valeur refusée pour --seed : « -1 » n'est pas un entier écrit en chiffres décimaux.
+r-rcpp,seed 1.5,2,2,oui,Valeur refusée pour --seed : « 1.5 » n'est pas un entier écrit en chiffres décimaux.
+r-rcpp,seed 2^53,2,2,oui,"Valeur refusée pour --seed : 9007199254740992 est hors de l'intervalle [0, 9007199254740991]."

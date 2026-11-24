@@ -25,20 +25,17 @@ _Modèle de carte :_
 ## Planifié
 
 
-- [002-banc-python](missions/002-banc-python.md) · depuis le cycle 0
-  - Homme : `dev` (sonnet)
-  - Mission : implémenter bench/SPEC.md en Python (numpy, numba) ; lancée le 2026-11-24
-  - Moyens : bench/python/, pytest
-- [003-banc-r](missions/003-banc-r.md) · depuis le cycle 0
-  - Homme : `dev` (sonnet)
-  - Mission : implémenter bench/SPEC.md en R (base, Rcpp) ; lancée le 2026-11-24
-  - Moyens : bench/r/, testthat
-- [004-banc-rust](missions/004-banc-rust.md) · depuis le cycle 0
-  - Homme : `dev` (sonnet)
-  - Mission : implémenter bench/SPEC.md en Rust ; lancée le 2026-11-24
-  - Moyens : bench/rust/, cargo test
 
 ## Terminé
+
+- [002-banc-python](missions/002-banc-python.md), [003-banc-r](missions/003-banc-r.md), [004-banc-rust](missions/004-banc-rust.md) · depuis le cycle 0
+  - Homme : `dev` (sonnet) ×3, relecture croisée `relecteur`
+  - Mission : rendues et reprises le 2026-11-24 (AM1 à AM4)
+  - Moyens : bench/{python,r,rust}/
+- [005-banc-mesures](missions/005-banc-mesures.md) · depuis le cycle 0
+  - Homme : `analyste` (sonnet)
+  - Mission : rendue le 2026-11-24, préliminaire (conteneur 4 cœurs, 16 Go) : bench/results/RESULTATS.md ; script portable pour le PC de Pascal
+  - Moyens : bench/results/run_bench.sh
 
 - [006-surfaces-ser](missions/006-surfaces-ser.md) · depuis le cycle 0
   - Homme : `acquereur` (sonnet), extraction xlsx par l'orchestrateur

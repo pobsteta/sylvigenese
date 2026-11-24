@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-24T12:54:54",
+  "cores_nproc": 4,
+  "cores_physiques": 4,
+  "mem_total_mb": 16087,
+  "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "kernel": "6.18.44-fc-v819",
+  "os": "Ubuntu 24.04.5 LTS",
+  "python": "Python 3.13.18",
+  "R": "R version 4.3.3 (2024-02-29) -- \"Angel Food Cake\"",
+  "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "gxx": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "threads_tested": [
+    1,
+    4
+  ]
+}
