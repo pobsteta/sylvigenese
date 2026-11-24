@@ -24,14 +24,15 @@ _Modèle de carte :_
 
 ## Planifié
 
-- [007-etude-godot-forest-demo](missions/007-etude-godot-forest-demo.md) · depuis le cycle 0
-  - Homme : `acquereur` (sonnet)
-  - Mission : ce que viewer-massif peut reprendre de godot-forest-demo, et sous quelles licences ; lancée le 2026-11-24
-  - Moyens : clone en lecture seule, pages de licence
 
 
 
 ## Terminé
+
+- [007-etude-godot-forest-demo](missions/007-etude-godot-forest-demo.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : rendue le 2026-11-24 : docs/referentiels/godot-forest-demo.{md,-licences.csv} ; fil du forum et page FSF non lus (réseau)
+  - Moyens : clone en lecture seule
 
 - [002-banc-python](missions/002-banc-python.md), [003-banc-r](missions/003-banc-r.md), [004-banc-rust](missions/004-banc-rust.md) · depuis le cycle 0
   - Homme : `dev` (sonnet) ×3, relecture croisée `relecteur`
