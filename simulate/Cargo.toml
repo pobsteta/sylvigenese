@@ -1,0 +1,14 @@
+[package]
+name = "simulate"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.97"
+description = "Moteur de simulation de sylvigenese (ADR 0001). Squelette : lit config.yml et appelle le validateur."
+license = "GPL-3.0-only"
+
+# simulate/ est sa propre racine d'espace cargo.
+[workspace]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_norway = "0.9"
