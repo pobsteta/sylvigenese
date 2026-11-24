@@ -56,3 +56,4 @@
 2026-11-24 · Pascal · brief · question 3 retenue : nemeton est l'entrée principale (état présent du peuplement, point de départ de la simulation) ; sylvostation, typopeuplement, IFN et LiDAR HD sont des compléments (station et plafond de hauteur, ajustement des modèles, hauteur actuelle).
 2026-11-24 · Pascal · brief · question 4 : le coût complet aujourd'hui est celui d'une licence annuelle NDunes 3D (montant et source à préciser par Pascal).
 2026-11-24 · Pascal · brief · question 4 bis : la licence annuelle NDunes 3D coûte 100 € par an (source : Pascal).
+2026-11-24 · Pascal · brief · question 5 retenue telle que proposée : hors périmètre v1 = arbre par arbre à l'échelle SER, scénarios climatiques, sylviculture interactive, rendu photoréaliste, plateforme multi-utilisateurs et intégration à nemetonshiny. Pascal demande de regarder le projet « godot forest » pour l'implémentation Godot.
