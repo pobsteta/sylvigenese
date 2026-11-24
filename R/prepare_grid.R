@@ -373,10 +373,17 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
     inputs.dtm = inp("dtm.tif"), inputs.chm = inp("chm.tif"),
     inputs.lidar_tiles = inp("lidar_tiles.gpkg"),
     inputs.station_gradients = inp("station_gradients.tif"),
-    inputs.station_type = inp("station_type.tif"), inputs.h_pot = inp("h_pot.tif"))
-  for (k in seq_along(inputs)) {
-    check_input_file(inputs[[k]])
-    if (validate) validate_file(names(inputs)[k], inputs[[k]], what = "entrée")
+    inputs.station_type = inp("station_type.tif"), inputs.h_pot = inp("h_pot.tif"),
+    inputs.nemeton_stands = inp("nemeton_stands.gpkg"))
+  # Toutes les entrées sont contrôlées AVANT la première écriture : une entrée refusée
+  # ne laisse aucune sortie à moitié produite. nemeton_stands.gpkg n'est lu que par 018, mais
+  # il est contrôlé ici, à l'entrée du module (spec §2). L'inventaire vidéo est facultatif.
+  for (k in seq_along(inputs)) check_input_file(inputs[[k]])
+  if (file.exists(inp("inventaire_video.gpkg"))) {
+    inputs$inputs.inventaire_video <- inp("inventaire_video.gpkg")
+  }
+  if (validate) {
+    for (k in seq_along(inputs)) validate_file(names(inputs)[k], inputs[[k]], what = "entrée")
   }
 
   # -- grille : emprise du masque forestier, arrondie vers l'extérieur

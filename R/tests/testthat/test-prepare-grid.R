@@ -470,3 +470,16 @@ test_that("une grille sur une autre zone que le jeu fictif se lit sous data/<zon
                file.path(Sys.getenv("SYLVIGENESE_ROOT", "."), "data", "massif_test"))
   expect_error(prepare_zone_dir(list()), "zone")
 })
+
+test_that("une entrée refusée, même non lue par la grille (nemeton_stands), n'écrit aucune sortie", {
+  z <- copie_zone()
+  # faux validateur : refuse seulement le contrat inputs.nemeton_stands
+  faux <- tempfile(fileext = ".py")
+  writeLines(c("import sys", "sys.exit(3 if 'inputs.nemeton_stands' in sys.argv else 0)"), faux)
+  ancien <- Sys.getenv("SYLVIGENESE_VALIDATE", unset = NA)
+  Sys.setenv(SYLVIGENESE_VALIDATE = faux)
+  on.exit(if (is.na(ancien)) Sys.unsetenv("SYLVIGENESE_VALIDATE")
+          else Sys.setenv(SYLVIGENESE_VALIDATE = ancien), add = TRUE)
+  expect_error(suppressMessages(prepare_grid(z, config_fictive())), "inputs.nemeton_stands")
+  expect_equal(setdiff(list.files(z), "inputs"), character(0))
+})
