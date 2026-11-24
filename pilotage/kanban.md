@@ -24,6 +24,11 @@ _Modèle de carte :_
 
 ## Planifié
 
+- [001-moteurs-existants](missions/001-moteurs-existants.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : établir ce que TreeMig, LANDIS-II et iLand permettent de réutiliser, pour l'ADR 0001 ; lancée le 2026-11-24
+  - Moyens : recherche web sourcée, CQQCOQP, rendu dans docs/referentiels/
+
 ## Terminé
 
 ## Abandonné
