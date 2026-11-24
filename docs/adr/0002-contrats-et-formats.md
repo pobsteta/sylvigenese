@@ -1,20 +1,24 @@
 # ADR 0002 — contrats de fichiers et formats d'échange
 
 - **Date :** 2026-11-24
-- **Statut :** acceptée par délégation de Pascal (`pilotage/equipe.md`), après critique du
-  `contradicteur`
+- **Statut :** acceptée par délégation de Pascal (`pilotage/equipe.md`), après la critique du
+  `contradicteur` du 24/11/2026 (`docs/critique-spec-contradicteur.md`)
 - **Proposée par :** Claude (orchestrateur)
 - **Tranchée par :** Claude (orchestrateur, par délégation de Pascal)
 
 ## La décision en une phrase
 
-Les modules se parlent par des fichiers ouverts :
-- GeoTIFF au profil fermé, en EPSG:2154 sur la grille de 25 m ;
-- Parquet partitionné par année ;
-- glTF 2.0 et 3D Tiles 1.1.
+Les modules se parlent par des fichiers ouverts : GeoTIFF au profil fermé (EPSG:2154,
+grille de 25 m), Parquet partitionné par année, GeoPackage pour les entrées vectorielles,
+YAML et JSON, glTF 2.0, et 3D Tiles 1.1 (ou i3dm en repli).
 
-Chaque fichier est décrit par un schéma Frictionless versionné dans `contracts/`. Le détail est
-dans `docs/spec.md` §2, §3 et §9.
+Ils sont décrits en trois couches dans `contracts/` :
+- Table Schema (Frictionless) pour les tables ;
+- JSON Schema pour le YAML et le JSON ;
+- un profil GeoTIFF pour les rasters.
+
+Un seul validateur en ligne de commande les contrôle. Le détail est dans `docs/spec.md` §2, §3
+et §9.
 
 ## Contexte
 
@@ -39,7 +43,7 @@ nomenclatures.
 
 | Lettre | Réponse | Ce que ça coûte | Prêts à payer ? |
 |---|---|---|---|
-| **F**rugale | Deux formats tabulaires et raster, déjà lus par R, Python et Rust | Un profil à faire respecter par les validateurs | oui |
+| **F**rugale | Sept formats ouverts, tous déjà lus par R, Python et Rust ou par les vues ; un seul validateur | Un profil à faire respecter par les validateurs | oui |
 | **R**esponsable | Chaque module valide ses sorties ; `prepare` valide les entrées externes | Un validateur par contrat | oui |
 | **A**nticiper | Le `schema_version` permet de faire évoluer les contrats ; repli i3dm si l'instanciation glTF n'est pas prise en charge | Un essai au début de M4 | oui |
 | **N**ovateur | Zarr et NetCDF ont été envisagés | — | — |

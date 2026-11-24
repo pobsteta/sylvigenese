@@ -7,12 +7,14 @@
 
 ## La décision en une phrase
 
-`viewer-massif` est un projet Godot 4 neuf, sous GPL-3. Il reprend de `godot-forest-demo`
-(commit `623212f`) deux mécanismes, en citant leur auteur :
-- l'herbe générée autour de la caméra ;
-- le découpage des arbres en blocs MultiMesh avec imposteurs.
+`viewer-massif` est un projet Godot **4.6.x** neuf, sous GPL-3, avec GUT pour les tests,
+versions figées. De `godot-forest-demo` (commit `623212f`) :
+- il reprend avec attribution l'herbe autour de la caméra (`TerrainPatch3D.gd`, CC BY 4.0) ;
+- il réécrit seulement **d'après l'idée** le découpage des arbres en blocs MultiMesh avec
+  imposteurs, en chargement par blocs. L'addon `gnd_biomes` déclare « OpenAI » comme auteur,
+  une question juridique ouverte, et il génère tout dans le fil principal.
 
-Il ne reprend ni les modèles Sketchfab, ni la musique, ni UniPlayer, ni les effets de ciel.
+Rien n'a été mesuré : ces mécanismes ne sont pas « éprouvés ».
 
 ## Contexte
 
@@ -29,7 +31,7 @@ repère de Godot et l'échelle de chaque arbre. Le projet n'a aucun test. Plusie
 
 | Lettre | Réponse | Ce que ça coûte | Prêts à payer ? |
 |---|---|---|---|
-| **F**rugale | On ne reprend que deux mécanismes éprouvés | On réécrit le reste | oui |
+| **F**rugale | On ne reprend qu'un mécanisme (l'herbe) et une idée (les blocs) | On réécrit le reste, sans mesure de performance préalable | oui |
 | **R**esponsable | `afficheur` et `dev` ; tests GUT sans interface | Godot à installer dans la CI | oui |
 | **A**nticiper | Aucune licence douteuse n'entre dans le dépôt | — | oui |
 | **N**ovateur | Les trois voies ont été étudiées | — | — |
