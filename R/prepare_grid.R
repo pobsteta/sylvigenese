@@ -4,7 +4,11 @@
 #   grid.tif              la grille (spec §7) : UInt16, 1 partout ; elle seule définit l'emprise
 #   dtm.tif               MNT sur la grille (Float32)
 #   forest_mask.tif       1 = forêt, 0 = hors forêt (UInt16)
-#   ser.tif + ser.csv     SER sous-jacente (UInt16) ; L1 à L5 n'y figurent jamais
+#   ser.tif + ser.csv     SER sous-jacente (UInt16), une valeur par couple distinct
+#                         (ser_code, alluvium_code) ; ser.csv : value, name (= ser_code, jamais
+#                         L1 à L5), alluvium_code (L1 à L5, ou vide hors alluvions)
+#   stand_map.tif + .csv  polygone nemeton de chaque cellule (UInt16, nodata hors polygone) et
+#                         sa table (value, name = stand_id) ; c'est ce que lit biomes
 #   h0.tif                H0 = percentile 95 du MNH à 50 cm par cellule (Float32), PROVISOIRE
 #   chm_date.tif          date de vol du MNH, en jours depuis le 1970-01-01 (UInt16)
 #   station_gradients.tif trophic, hydric, bioclim (3 bandes Float32)
@@ -22,19 +26,18 @@
 #  - alluvions : un polygone L1 à L5 de l'entrée brute de l'IGN reçoit la SER voisine qui
 #    partage avec lui la plus longue frontière (décision de Pascal du 24/11/2026) ; chaque
 #    attribution est une ligne du rapport ;
+#  - recouvrements : si deux polygones d'une même couche (SER, peuplements nemeton, dalles
+#    LiDAR) se recouvrent, la PLUS PETITE valeur l'emporte (règle indépendante de l'ordre du
+#    fichier) et le rapport dit combien de cellules et quels polygones ;
 #  - signaler plutôt que deviner : une cellule sans valeur reste sans valeur (nodata) et
 #    figure au rapport ; aucune valeur par défaut.
+#
+# Les outils communs (rapport, lecture en EPSG:2154, écriture des grilles, validation) sont dans
+# R/commun.R, commun à tous les modules R (spec §2).
 #
 # Non fait ici (à dire) : la zone tampon de la largeur du noyau de dispersion (spec §7), dont
 # la largeur n'est pas dans config.yml ; la grille s'arrête à l'emprise du masque forestier.
 
-# Profil GeoTIFF des contrats (contracts/README.md, « Profil GeoTIFF ») : sans ces options,
-# GDAL écrit PLANARCONFIG=1 et le validateur refuse le fichier.
-GRID_GDAL_OPTIONS <- c("INTERLEAVE=BAND", "TILED=YES", "BLOCKXSIZE=256", "BLOCKYSIZE=256",
-                       "COMPRESS=DEFLATE")
-GRID_NODATA_UINT16 <- 65535
-GRID_NODATA_FLOAT <- -9999
-GRID_CRS <- "EPSG:2154"
 # H0 : percentile 95 du MNH (PROVISOIRE, spec §5).
 H0_PROBABILITY <- 0.95
 # Tolérances (m) pour mesurer une frontière commune entre polygones de la couche IGN : on
@@ -49,63 +52,14 @@ BILINEAR_MIN_RATIO <- 0.5
 
 # ------------------------------------------------------------------ rapport de prepare
 
-new_report <- function() {
-  e <- new.env(parent = emptyenv())
-  e$entries <- list()
-  e
-}
-
-#' Ajoute une ligne au rapport et la dit sur la sortie de message.
-report_add <- function(report, section, text) {
-  report$entries[[length(report$entries) + 1L]] <- list(section = section, text = text)
-  message(sprintf("[prepare] %s : %s", section, text))
-  invisible(report)
-}
-
-html_escape <- function(x) {
-  x <- gsub("&", "&amp;", x, fixed = TRUE)
-  x <- gsub("<", "&lt;", x, fixed = TRUE)
-  gsub(">", "&gt;", x, fixed = TRUE)
-}
-
 #' Écrit rapport_prepare.html (UTF-8), les lignes groupées par section.
 write_prepare_report <- function(report, path) {
-  sections <- unique(vapply(report$entries, function(e) e$section, character(1)))
-  body <- character()
-  for (s in sections) {
-    lines <- vapply(Filter(function(e) identical(e$section, s), report$entries),
-                    function(e) sprintf("<li>%s</li>", html_escape(e$text)), character(1))
-    body <- c(body, sprintf("<h2>%s</h2>", html_escape(s)), "<ul>", lines, "</ul>")
-  }
-  html <- c("<!DOCTYPE html>", "<html lang=\"fr\">",
-            "<head><meta charset=\"utf-8\"><title>Rapport de prepare</title></head>",
-            "<body>", "<h1>Rapport de prepare : grille, SER, rasters</h1>", body,
-            "</body>", "</html>")
-  # Pas d'enc2utf8 : en locale C il transcrirait les octets UTF-8 en texte « <c3><a9> ».
-  # Les chaînes de ce fichier sont déjà de l'UTF-8 ; on les marque et on écrit les octets tels quels.
-  Encoding(html) <- "UTF-8"
-  con <- file(path, open = "wb")
-  on.exit(close(con))
-  writeLines(html, con, useBytes = TRUE)
-  invisible(path)
+  write_html_report(report, path, "Rapport de prepare",
+                    "Rapport de prepare : grille, SER, rasters")
 }
 
-# ------------------------------------------------------------------ zone et grille
+# ------------------------------------------------------------------ grille
 
-#' Dossier d'une zone : le jeu fictif est versionné sous tests/fixtures, les autres zones
-#' sous data/<zone> (comme le Makefile). La racine du dépôt vient de SYLVIGENESE_ROOT, sinon
-#' du dossier courant.
-prepare_zone_dir <- function(cfg) {
-  if (is.null(cfg$zone) || !nzchar(cfg$zone)) {
-    stop("config.yml : `zone` manquante", call. = FALSE)
-  }
-  root <- Sys.getenv("SYLVIGENESE_ROOT", unset = ".")
-  if (identical(cfg$zone, "zone_fictive")) {
-    file.path(root, "tests", "fixtures", "zone_fictive")
-  } else {
-    file.path(root, "data", cfg$zone)
-  }
-}
 
 #' Grille vide : multiples de `res` en x et en y, emprise arrondie vers l'extérieur.
 #' `bbox` : c(xmin, ymin, xmax, ymax), EPSG:2154, x vers l'est, y vers le nord, en mètres.
@@ -119,38 +73,6 @@ grid_template <- function(bbox, res, crs = GRID_CRS) {
   ymax <- ceiling((bbox[4] - eps) / res) * res
   terra::rast(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax,
               resolution = res, crs = crs)
-}
-
-# ------------------------------------------------------------------ lecture des entrées
-
-check_input_file <- function(path) {
-  if (!file.exists(path)) {
-    stop(sprintf("entrée absente : %s", path), call. = FALSE)
-  }
-  invisible(path)
-}
-
-#' Lit une couche vectorielle, exige EPSG:2154 et corrige les géométries invalides.
-read_layer_2154 <- function(path, layer) {
-  check_input_file(path)
-  x <- sf::st_read(path, layer = layer, quiet = TRUE)
-  if (is.na(sf::st_crs(x)$epsg) || sf::st_crs(x)$epsg != 2154) {
-    stop(sprintf("%s (couche %s) n'est pas en EPSG:2154", path, layer), call. = FALSE)
-  }
-  if (nrow(x) == 0L) {
-    stop(sprintf("%s (couche %s) est vide", path, layer), call. = FALSE)
-  }
-  sf::st_make_valid(x)
-}
-
-read_raster_2154 <- function(path) {
-  check_input_file(path)
-  r <- terra::rast(path)
-  epsg <- terra::crs(r, describe = TRUE)$code
-  if (is.na(epsg) || epsg != "2154") {
-    stop(sprintf("%s n'est pas en EPSG:2154", path), call. = FALSE)
-  }
-  r
 }
 
 # ------------------------------------------------------------------ alluvions : SER sous-jacente
@@ -234,7 +156,7 @@ report_alluvium_attributions <- function(report, attributions) {
       txt <- paste0(txt, sprintf(" (suivante : %s, %.0f m)", a$runner_up, a$runner_up_m))
     }
     if (!is.na(a$tolerance_m) && a$tolerance_m > 0.01) {
-      txt <- paste0(txt, sprintf(" ; arêtes non confondues, mesurée avec une tolérance de %g m", a$tolerance_m))
+      txt <- paste0(txt, sprintf(" ; arêtes non confondues, mesurée avec une tolérance de %s m", fr_num(a$tolerance_m)))
     }
     if (isTRUE(a$tie)) {
       txt <- paste0(txt, " ; ÉGALITÉ de frontière, SER retenue : première dans l'ordre alphabétique des codes")
@@ -246,14 +168,6 @@ report_alluvium_attributions <- function(report, attributions) {
 
 # ------------------------------------------------------------------ rasterisation et rééchantillonnage
 
-#' Rasterise des polygones sur `tmpl` d'après le centre des cellules (terra, touches = FALSE).
-#' `values` : un nombre par polygone ; NA hors polygone. En cas de recouvrement, le dernier
-#' polygone du fichier l'emporte.
-rasterize_polygons <- function(polys, values, tmpl) {
-  v <- terra::vect(sf::st_sf(value = values, geometry = sf::st_geometry(polys)))
-  terra::rasterize(v, tmpl, field = "value", touches = FALSE)
-}
-
 #' Entrée continue -> grille. Bilinéaire si la maille source est proche de celle de la grille
 #' (20 m, 26,6 m, spec §7) ; moyenne si la source est plus fine d'au moins deux fois (MNT de 1
 #' ou 5 m), dit au rapport.
@@ -261,15 +175,16 @@ resample_continuous <- function(r, tmpl, report, label) {
   ratio <- terra::res(r)[1] / terra::res(tmpl)[1]
   method <- if (ratio >= BILINEAR_MIN_RATIO) "bilinear" else "average"
   report_add(report, "Rééchantillonnage", sprintf(
-    "%s : maille %.4g m vers %.4g m, méthode %s", label, terra::res(r)[1],
-    terra::res(tmpl)[1], if (method == "bilinear") "bilinéaire" else "moyenne (source plus fine que la grille)"))
+    "%s : maille %s m vers %s m, méthode %s", label, fr_num(terra::res(r)[1]),
+    fr_num(terra::res(tmpl)[1]), if (method == "bilinear") "bilinéaire" else "moyenne (source plus fine que la grille)"))
   terra::resample(r, tmpl, method = method)
 }
 
 #' Entrée catégorielle -> grille : mode (spec §7).
 resample_categorical <- function(r, tmpl, report, label) {
   report_add(report, "Rééchantillonnage", sprintf(
-    "%s : maille %.4g m vers %.4g m, méthode mode", label, terra::res(r)[1], terra::res(tmpl)[1]))
+    "%s : maille %s m vers %s m, méthode mode", label, fr_num(terra::res(r)[1]),
+    fr_num(terra::res(tmpl)[1])))
   terra::resample(r, tmpl, method = "mode")
 }
 
@@ -307,24 +222,6 @@ aggregate_h0 <- function(chm, tmpl, probability = H0_PROBABILITY) {
   h0
 }
 
-#' Écrit un raster au profil des contrats : tuiles de 256, Deflate, entrelacement par bande,
-#' nodata déclaré.
-write_grid_raster <- function(r, path, datatype = c("INT2U", "FLT4S"), names = NULL) {
-  datatype <- match.arg(datatype)
-  nodata <- if (datatype == "INT2U") GRID_NODATA_UINT16 else GRID_NODATA_FLOAT
-  if (!is.null(names)) names(r) <- names
-  terra::writeRaster(r, path, overwrite = TRUE, datatype = datatype, NAflag = nodata,
-                     gdal = GRID_GDAL_OPTIONS)
-  invisible(path)
-}
-
-write_categories <- function(values, names, path) {
-  tab <- data.frame(value = as.integer(values), name = as.character(names),
-                    stringsAsFactors = FALSE)
-  utils::write.csv(tab, path, row.names = FALSE, fileEncoding = "UTF-8", quote = TRUE)
-  invisible(tab)
-}
-
 #' Nombre de cellules sans valeur parmi les cellules de forêt et au total, au rapport.
 report_missing <- function(report, r, forest, label, how) {
   na <- is.na(terra::values(r, mat = FALSE))
@@ -339,18 +236,110 @@ report_missing <- function(report, r, forest, label, how) {
   invisible(c(total = n_na, forest = n_forest_na))
 }
 
-# ------------------------------------------------------------------ validation par fichier
+# ------------------------------------------------------------------ SER : un code par couple
 
-#' Fait valider un fichier par contracts/validate (sous-processus) ; arrête avec le motif
-#' sinon. `grid` : chemin de grid.tif pour la variante grille.
-validate_file <- function(contract, path, grid = NULL, what = "sortie") {
-  args <- c(contract, if (!is.null(grid)) c("--grid", grid), path)
-  status <- call_validator(args)
-  if (!identical(status, 0L)) {
-    stop(sprintf("%s refusée par le validateur (contrat %s, code %s) : %s",
-                 what, contract, status, path), call. = FALSE)
+#' Valeur de ser.tif de chaque polygone : une valeur par couple distinct (ser_code,
+#' alluvium_code), de sorte que chaque cellule garde son origine d'alluvions (spec §3, §7).
+#' `ser` : objet sf passé par resolve_alluvium_ser (`ser_code` = SER sous-jacente, NA sans
+#' voisine ; `ser_code_igns` = code brut de l'IGN). Rend une liste :
+#'   table  data.frame (value, name, alluvium_code) trié par SER puis par alluvions ; `name` est
+#'          le ser_code, jamais L1 à L5 ; alluvium_code NA hors alluvions
+#'   value  la valeur de chaque polygone (NA si la SER sous-jacente n'est pas attribuée)
+ser_value_table <- function(ser) {
+  code <- as.character(ser$ser_code)
+  raw <- as.character(ser$ser_code_igns)
+  alluvium <- ifelse(raw %in% ALLUVIUM_CODES, raw, NA_character_)
+  keep <- !is.na(code)
+  couples <- unique(data.frame(name = code[keep], alluvium_code = alluvium[keep],
+                               stringsAsFactors = FALSE))
+  couples <- couples[order(couples$name, couples$alluvium_code, na.last = FALSE,
+                           method = "radix"), , drop = FALSE]
+  rownames(couples) <- NULL
+  if (any(couples$name %in% ALLUVIUM_CODES)) {
+    stop("erreur interne : un code d'alluvions L1 à L5 reste comme SER dans ser.tif", call. = FALSE)
   }
-  invisible(TRUE)
+  couples <- data.frame(value = seq_len(nrow(couples)), couples, stringsAsFactors = FALSE)
+  sep <- "\r"
+  key_table <- paste(couples$name, couples$alluvium_code, sep = sep)
+  key_poly <- paste(code, alluvium, sep = sep)
+  value <- couples$value[match(key_poly, key_table)]
+  value[!keep] <- NA_integer_
+  list(table = couples, value = value)
+}
+
+# ------------------------------------------------------------------ recouvrements de polygones
+
+#' Recouvrements entre les polygones d'une couche : une ligne par paire dont l'intersection a
+#' une surface. `labels` : nom de chaque polygone pour le rapport ; `values` : leur valeur dans
+#' le raster ; `tmpl` : la grille. Rend une liste : pairs (a, b, area_m2, cells, same_value) et
+#' `cells`, le nombre de cellules (centre dans le polygone) qui reçoivent plusieurs polygones.
+polygon_overlaps <- function(polys, labels, values, tmpl) {
+  n <- nrow(polys)
+  pairs <- data.frame(a = character(), b = character(), area_m2 = numeric(),
+                      cells = integer(), same_value = logical(), stringsAsFactors = FALSE)
+  if (n < 2L) return(list(pairs = pairs, cells = 0L))
+  geom <- sf::st_geometry(polys)
+  rel <- sf::st_relate(geom, geom, pattern = "2********", sparse = TRUE)
+  rows <- list()
+  for (i in seq_len(n)) {
+    for (j in rel[[i]]) {
+      if (j <= i) next
+      inter <- suppressWarnings(sf::st_collection_extract(
+        suppressWarnings(sf::st_intersection(geom[i], geom[j])), "POLYGON"))
+      area <- sum(as.numeric(sf::st_area(inter)))
+      if (length(inter) == 0L || !is.finite(area) || area <= 0) next
+      cells <- terra::rasterize(terra::vect(sf::st_sf(value = 1, geometry = inter)), tmpl,
+                                field = "value", fun = "sum", touches = FALSE)
+      rows[[length(rows) + 1L]] <- data.frame(
+        a = labels[i], b = labels[j], area_m2 = area,
+        cells = sum(!is.na(terra::values(cells, mat = FALSE))),
+        same_value = identical(values[i], values[j]), stringsAsFactors = FALSE)
+    }
+  }
+  if (length(rows) == 0L) return(list(pairs = pairs, cells = 0L))
+  pairs <- do.call(rbind, rows)
+  count <- terra::rasterize(terra::vect(sf::st_sf(value = 1, geometry = geom)), tmpl,
+                            field = "value", fun = "sum", touches = FALSE)
+  list(pairs = pairs, cells = sum(terra::values(count, mat = FALSE) > 1, na.rm = TRUE))
+}
+
+#' Dit au rapport les recouvrements d'une couche : combien de cellules, quels polygones, et
+#' quelle valeur l'emporte. Sans recouvrement, le dit aussi.
+report_polygon_overlaps <- function(report, polys, labels, values, tmpl, what) {
+  section <- "Recouvrements de polygones"
+  ov <- polygon_overlaps(polys, labels, values, tmpl)
+  if (nrow(ov$pairs) == 0L) {
+    return(report_add(report, section, sprintf("%s : aucun recouvrement entre polygones", what)))
+  }
+  report_add(report, section, sprintf(
+    "%s : %d cellule(s) reçoivent plusieurs polygones ; en cas de recouvrement la plus petite valeur du raster l'emporte (règle indépendante de l'ordre du fichier)",
+    what, ov$cells))
+  for (k in seq_len(nrow(ov$pairs))) {
+    p <- ov$pairs[k, ]
+    report_add(report, section, sprintf(
+      "%s : %s et %s se recouvrent sur %s m² (%d cellule(s)) ; %s",
+      what, p$a, p$b, fr_num(round(p$area_m2, 1), 1), p$cells,
+      if (p$same_value) "même valeur, sans effet sur le raster" else "valeurs différentes, la plus petite l'emporte"))
+  }
+  invisible(report)
+}
+
+# ------------------------------------------------------------------ stand_map : polygone nemeton par cellule
+
+#' Valeur de stand_map.tif de chaque polygone nemeton : le rang de son `stand_id` dans l'ordre
+#' des identifiants (tri par octets, indépendant de la locale et de l'ordre du fichier). Arrête
+#' si un `stand_id` manque ou se répète : la table de correspondance serait ambiguë.
+stand_map_values <- function(stand_id) {
+  ids <- as.character(stand_id)
+  if (anyNA(ids) || any(!nzchar(ids))) {
+    stop("nemeton_stands.gpkg : stand_id manquant", call. = FALSE)
+  }
+  if (anyDuplicated(ids) > 0L) {
+    stop(sprintf("nemeton_stands.gpkg : stand_id en double (%s) : stand_map.csv serait ambigu",
+                 paste(unique(ids[duplicated(ids)]), collapse = ", ")), call. = FALSE)
+  }
+  sorted <- ids[order(ids, method = "radix")]
+  list(value = match(ids, sorted), names = sorted)
 }
 
 # ------------------------------------------------------------------ le module
@@ -377,10 +366,11 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
     inputs.lidar_tiles = inp("lidar_tiles.gpkg"),
     inputs.station_gradients = inp("station_gradients.tif"),
     inputs.station_type = inp("station_type.tif"), inputs.h_pot = inp("h_pot.tif"),
+    inputs.station_types = inp("types.csv"),
     inputs.nemeton_stands = inp("nemeton_stands.gpkg"))
   # Toutes les entrées sont contrôlées AVANT la première écriture : une entrée refusée
-  # ne laisse aucune sortie à moitié produite. nemeton_stands.gpkg n'est lu que par 018, mais
-  # il est contrôlé ici, à l'entrée du module (spec §2). L'inventaire vidéo est facultatif.
+  # ne laisse aucune sortie à moitié produite. types.csv (légende de station_type.tif) est
+  # validé ici avant tout usage. L'inventaire vidéo est facultatif.
   for (k in seq_along(inputs)) check_input_file(inputs[[k]])
   if (file.exists(inp("inventaire_video.gpkg"))) {
     inputs$inputs.inventaire_video <- inp("inventaire_video.gpkg")
@@ -393,9 +383,10 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
   mask_sf <- read_layer_2154(inputs$inputs.forest_mask, "forest_mask")
   tmpl <- grid_template(sf::st_bbox(mask_sf), res)
   report_add(report, "Grille", sprintf(
-    "%d colonnes x %d lignes de %g m, x de %.1f à %.1f, y de %.1f à %.1f (EPSG:2154, coin nord-ouest %.1f ; %.1f)",
-    terra::ncol(tmpl), terra::nrow(tmpl), res, terra::xmin(tmpl), terra::xmax(tmpl),
-    terra::ymin(tmpl), terra::ymax(tmpl), terra::xmin(tmpl), terra::ymax(tmpl)))
+    "%d colonnes x %d lignes de %s m, x de %s à %s, y de %s à %s (EPSG:2154, coin nord-ouest %s ; %s)",
+    terra::ncol(tmpl), terra::nrow(tmpl), fr_num(res), fr_num(terra::xmin(tmpl), 1),
+    fr_num(terra::xmax(tmpl), 1), fr_num(terra::ymin(tmpl), 1), fr_num(terra::ymax(tmpl), 1),
+    fr_num(terra::xmin(tmpl), 1), fr_num(terra::ymax(tmpl), 1)))
   report_add(report, "Grille", "zone tampon de dispersion non ajoutée : sa largeur n'est pas fixée dans config.yml (spec §7)")
   written <- character()
   grid_path <- out("grid.tif")
@@ -423,24 +414,26 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
   res_ser <- resolve_alluvium_ser(ser_raw)
   report_alluvium_attributions(report, res_ser$attributions)
   ser <- res_ser$ser
-  codes <- sort(unique(stats::na.omit(as.character(ser$ser_code))))
-  if (any(codes %in% ALLUVIUM_CODES)) {
-    stop("erreur interne : un code d'alluvions L1 à L5 reste dans ser.tif", call. = FALSE)
-  }
-  ser_value <- match(as.character(ser$ser_code), codes)
-  has_code <- !is.na(ser_value)
-  ser_r <- rasterize_polygons(ser[has_code, ], ser_value[has_code], tmpl)
+  ser_values <- ser_value_table(ser)
+  has_code <- !is.na(ser_values$value)
+  report_polygon_overlaps(report, ser, sprintf("polygone %d (%s)", seq_len(nrow(ser)), ser$ser_code_igns),
+                          ser_values$value, tmpl, "ser.gpkg")
+  ser_r <- rasterize_polygons(ser[has_code, ], ser_values$value[has_code], tmpl)
   report_missing(report, ser_r, forest, "ser.tif", "aucune SER devinée")
   write_grid_raster(ser_r, out("ser.tif"), "INT2U")
-  write_categories(seq_along(codes), codes, out("ser.csv"))
+  write_categories(ser_values$table$value, ser_values$table$name, out("ser.csv"),
+                   extra = list(alluvium_code = ser_values$table$alluvium_code))
+  report_add(report, "SER", sprintf(
+    "ser.tif : %d valeur(s), une par couple distinct (SER, alluvions) ; %d d'entre elles portent un code d'alluvions (ser.csv, colonne alluvium_code)",
+    nrow(ser_values$table), sum(!is.na(ser_values$table$alluvium_code))))
   written <- c(written, out("ser.tif"), out("ser.csv"))
 
   # -- MNH : H0 (percentile 95, PROVISOIRE) ; le MNH n'est pas rééchantillonné
   chm <- read_raster_2154(inputs$inputs.chm)
   h0 <- aggregate_h0(chm, tmpl)
   report_add(report, "H0", sprintf(
-    "h0.tif : percentile %g du MNH de %g m sur chaque cellule de %g m (agrégation, sans rééchantillonnage) ; PROVISOIRE, à remplacer par le h_dom de typopeuplement (spec §5)",
-    100 * H0_PROBABILITY, terra::res(chm)[1], res))
+    "h0.tif : percentile %s du MNH de %s m sur chaque cellule de %s m (agrégation, sans rééchantillonnage) ; PROVISOIRE, à remplacer par le h_dom de typopeuplement (spec §5)",
+    fr_num(100 * H0_PROBABILITY), fr_num(terra::res(chm)[1]), fr_num(res)))
   report_missing(report, h0, forest, "h0.tif", "aucune hauteur devinée")
   write_grid_raster(h0, out("h0.tif"), "FLT4S")
   written <- c(written, out("h0.tif"))
@@ -452,6 +445,8 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
     stop("lidar_tiles.gpkg : flight_date illisible ou hors de la plage d'un UInt16 (jours depuis le 1970-01-01)",
          call. = FALSE)
   }
+  report_polygon_overlaps(report, tiles, sprintf("dalle %d", seq_len(nrow(tiles))), days, tmpl,
+                          "lidar_tiles.gpkg")
   chm_date <- rasterize_polygons(tiles, days, tmpl)
   report_missing(report, chm_date, forest, "chm_date.tif", "aucune date devinée")
   write_grid_raster(chm_date, out("chm_date.tif"), "INT2U")
@@ -474,7 +469,7 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
   # -- type de station (catégoriel, légende de types.csv de sylvostation)
   legend_path <- inp("types.csv")
   check_input_file(legend_path)
-  legend <- utils::read.csv2(legend_path, stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+  legend <- utils::read.csv(legend_path, sep = ";", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
   if (!all(c("id", "type") %in% names(legend))) {
     stop("types.csv : colonnes id et type attendues", call. = FALSE)
   }
@@ -505,6 +500,18 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
   write_categories(seq_along(families), families, out("site_potential.csv"))
   written <- c(written, out("site_potential.tif"), out("site_potential.csv"))
 
+  # -- polygones nemeton : stand_map (ce que lit biomes, spec §4.1, §4.2)
+  stands_sf <- read_layer_2154(inputs$inputs.nemeton_stands, "stands")
+  if (!"stand_id" %in% names(stands_sf)) stop("nemeton_stands.gpkg : colonne stand_id absente", call. = FALSE)
+  sm <- stand_map_values(stands_sf$stand_id)
+  report_polygon_overlaps(report, stands_sf, as.character(stands_sf$stand_id), sm$value, tmpl,
+                          "nemeton_stands.gpkg")
+  stand_r <- rasterize_polygons(stands_sf, sm$value, tmpl)
+  report_missing(report, stand_r, forest, "stand_map.tif", "hors de tout polygone nemeton (spec §4.2, traité par biomes)")
+  write_grid_raster(stand_r, out("stand_map.tif"), "INT2U")
+  write_categories(seq_along(sm$names), sm$names, out("stand_map.csv"))
+  written <- c(written, out("stand_map.tif"), out("stand_map.csv"))
+
   # -- rapport, puis validation des sorties (spec §2 : chaque module valide ses sorties)
   report_path <- out("rapport_prepare.html")
   write_prepare_report(report, report_path)
@@ -515,12 +522,13 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
                    h0.tif = "prepare.h0", chm_date.tif = "prepare.chm_date",
                    station_gradients.tif = "prepare.station_gradients",
                    station_type.tif = "prepare.station_type",
-                   site_potential.tif = "prepare.site_potential")
+                   site_potential.tif = "prepare.site_potential", stand_map.tif = "prepare.stand_map")
     for (f in names(contracts)) {
       validate_file(contracts[[f]], out(f), grid = if (f == "grid.tif") NULL else grid_path)
     }
     tables <- c(ser.csv = "prepare.ser_categories", station_type.csv = "prepare.station_type_categories",
-                site_potential.csv = "prepare.site_potential_bands")
+                site_potential.csv = "prepare.site_potential_bands",
+                stand_map.csv = "prepare.stand_map_categories")
     for (f in names(tables)) validate_file(tables[[f]], out(f))
   }
   invisible(written)

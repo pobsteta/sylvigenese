@@ -5,6 +5,7 @@
 
 library(targets)
 
+# Tout R/*.R : les outils communs (commun.R, config.R, validateur.R, spec §2) et les modules.
 for (f in list.files("R", pattern = "[.]R$", full.names = TRUE)) source(f)
 
 list(

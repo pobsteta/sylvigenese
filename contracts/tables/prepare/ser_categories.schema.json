@@ -1,0 +1,39 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Table de ser.tif : une valeur par couple (SER sous-jacente, alluvions)",
+  "description": "ser.tif prend une valeur par couple distinct (ser_code, alluvium_code), de sorte que chaque cellule garde son origine d'alluvions (spec §3, §7). `name` est la SER sous-jacente (ser_code), jamais L1 à L5 ; `alluvium_code` vaut L1 à L5 pour une cellule d'alluvions, et reste vide sinon. `name` n'est donc pas unique : la même SER peut porter plusieurs valeurs, une sans alluvions et une par code d'alluvions qui lui a été rattaché. Les autres tables de catégories restent (value, name) : tables/categories.schema.json.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "orchestrateur, par délégation de Pascal, journal du 24/11/2026 (aller-retour 2/3 de 017)",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "value",
+      "type": "integer",
+      "description": "valeur entière de ser.tif (UInt16)",
+      "constraints": {
+        "required": true,
+        "unique": true,
+        "minimum": 0,
+        "maximum": 65534
+      }
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "SER sous-jacente (ser_code) : A11 à K13, jamais L1 à L5 ; plusieurs lignes peuvent la porter",
+      "constraints": {
+        "required": true,
+        "minLength": 1,
+        "pattern": "[A-K][0-9]{2}"
+      }
+    },
+    {
+      "name": "alluvium_code",
+      "type": "string",
+      "description": "code d'alluvions de l'IGN (L1 à L5) rattachées à cette SER ; vide hors alluvions",
+      "constraints": {
+        "pattern": "L[1-5]"
+      }
+    }
+  ]
+}

@@ -166,7 +166,8 @@ contrat de l'orchestrateur, par délégation de Pascal), en `schema_version` 0.1
 | `inputs.forest_mask` | couche `forest_mask`, géométrie seule |
 | `inputs.station_types` | légende `inputs/types.csv` de sylvostation, séparée par `;` : `id` (valeur de `station_type.tif`), `type` (nom), `area_ha`, `part_surface`, `trophic`, `hydric`, `bioclim`, `n_placettes` |
 | `inputs.ifn_placette`, `ifn_arbre`, `ifn_flore` | fichiers `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` (colonnes de l'IFN : `IDP`, `XL`, `YL` ; `ESPAR`, `C13`, `HTOT`, `V`, `W` (facultative) ; `CD_REF`, `ABOND`). **Les colonnes réelles de l'export IFN seront vérifiées au jalon M1b** (le dictionnaire `metadonnees.csv` n'a pas pu être lu, `docs/referentiels/ifn-placettes.md`) |
-| tables de catégories (`ser.csv`, `station_type.csv`, `site_potential.csv`, `vegetation_map.csv`) | `value`, `name` (pour `site_potential.csv`, `value` est le numéro de bande) |
+| tables de catégories (`station_type.csv`, `site_potential.csv`, `stand_map.csv`, `vegetation_map.csv`) | `value`, `name` (pour `site_potential.csv`, `value` est le numéro de bande ; pour `stand_map.csv`, `name` est le `stand_id`) |
+| `ser.csv` | `value`, `name` (la SER sous-jacente, jamais L1 à L5, non unique), `alluvium_code` (L1 à L5, vide hors alluvions) : une valeur de `ser.tif` par couple distinct |
 | `prepare.trees_init` | listes fermées : `species_source` ∈ {`nemeton`, `vegetation_type`, `inventaire_video`}, `d130_source` ∈ {`tarif_etage_b`, `inventaire_video`, `nemeton`} |
 | `prepare.ifn_plots` (`ifn/plots.parquet`) | `plot_id`, `campaign`, `x`, `y`, `loc_precision_m`, `source`, `ser_code`, `trophic`, `coarse_hydric_700m`, `coarse_bioclim_700m` |
 | `prepare.ifn_trees` (`ifn/trees.parquet`) | `plot_id`, `campaign`, `tree_id`, `species`, `d130`, `h`, `weight_ha` |

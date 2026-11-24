@@ -32,9 +32,15 @@ raster_essai <- function(valeurs) {
   r
 }
 
-# Zone d'essai : prepare est remplacé par des rasters écrits à la main.
+STANDS_ESSAI_TYPES <- list(stand_id = "string", species = "string", d130 = "float64", h = "float64",
+                           density_ha = "float64", age = "int32", source = "string",
+                           stand_id_source = "string")
+
+# Zone d'essai : prepare est remplacé par des fichiers écrits à la main, aux formats de ses
+# sorties (rasters, stand_map + .csv, stands.parquet). Il n'y a PAS de dossier inputs/ : biomes
+# ne doit rien y lire.
 zone_essai <- function() {
-  z <- tempfile("zone_"); dir.create(file.path(z, "inputs"), recursive = TRUE)
+  z <- tempfile("zone_"); dir.create(z)
   uint <- function(v, nom) write_grid_raster(raster_essai(v), file.path(z, nom), "INT2U")
   uint(rep(1L, 24), "grid.tif")
   forest <- rep(1L, 24); forest[6] <- 0L                    # (ligne 0, colonne 5) : trouée
@@ -50,12 +56,14 @@ zone_essai <- function() {
   write_grid_raster(raster_essai(rep(30, 24)), file.path(z, "site_potential.tif"), "FLT4S",
                     names = "h_pot_m")
   write_categories(1L, "h_pot_m", file.path(z, "site_potential.csv"))
-  box <- function(x0, x1) sf::st_polygon(list(matrix(
-    c(x0, BY1 - 100, x1, BY1 - 100, x1, BY1, x0, BY1, x0, BY1 - 100), ncol = 2, byrow = TRUE)))
-  stands <- sf::st_sf(stand_id = c("S01", "S02"), species_espar = c("09", "61"),
-                      source = c("inventaire", "synthetic_ml"),
-                      geometry = sf::st_sfc(box(BX0, BX0 + 75), box(BX0 + 75, BX0 + 125), crs = 2154))
-  sf::st_write(stands, file.path(z, "inputs", "nemeton_stands.gpkg"), layer = "stands", quiet = TRUE)
+  # polygones nemeton : S01 = colonnes 0 à 2 (x 0-75), S02 = colonnes 3 et 4 (x 75-125), colonne 5 hors polygone
+  uint(rep(c(1L, 1L, 1L, 2L, 2L, NA), 4), "stand_map.tif")
+  write_categories(1:2, c("S01", "S02"), file.path(z, "stand_map.csv"))
+  write_parquet_tbl(data.frame(stand_id = c("S01", "S02"), species = c("09", "61"),
+                               d130 = c(30, 30), h = c(25, 25), density_ha = c(300, 300),
+                               age = c(60L, 60L), source = c("inventaire", "synthetic_ml"),
+                               stand_id_source = c("a", "b"), stringsAsFactors = FALSE),
+                    file.path(z, "stands.parquet"), STANDS_ESSAI_TYPES)
   z
 }
 
@@ -166,6 +174,8 @@ test_that("biomes_run : le rapport dit hors polygone, mono-essence et synthetic_
   rapport <- lire_rapport(z)
   # colonne 5 hors polygone : 3 cellules forestières (lignes 1 à 3 ; (0,5) est la trouée)
   attendu(rapport, "3 cellules forestières hors polygone nemeton", fixed = TRUE)
+  # elles sont signalées une à une (spec §4.2) : (1,5), (2,5), (3,5) -> cell_id 11, 17, 23
+  attendu(rapport, "cell_id [^:]*des cellules signalées : 11, 17, 23")
   attendu(rapport, "polygone S01 : mono-essence")
   attendu(rapport, "polygone S02 : mono-essence")
   attendu(rapport, "polygone S02 : source synthetic_ml")
@@ -215,6 +225,135 @@ test_that("biomes_run : sorties validées par le vrai validateur", {
                                              "rapport_biomes.html")))))
 })
 
+# ------------------------------------------------------------------ stand_map, stands.parquet, rapport
+
+test_that("biomes ne lit rien sous inputs/ : la zone d'essai n'en a pas, et tout passe", {
+  z <- zone_essai()
+  expect_false(dir.exists(file.path(z, "inputs")))
+  expect_error(suppressMessages(biomes_run(z, config_essai(), catalogue_essai(), validate = FALSE)), NA)
+  expect_false(dir.exists(file.path(z, "inputs")))
+})
+
+test_that("biomes : sans stand_map ou sans stands.parquet, erreur claire ; stand_id inconnu refusé", {
+  z <- zone_essai(); unlink(file.path(z, "stand_map.csv"))
+  expect_error(suppressMessages(biomes_run(z, config_essai(), catalogue_essai(), validate = FALSE)),
+               "stand_map.csv absent")
+  z <- zone_essai(); unlink(file.path(z, "stands.parquet"))
+  expect_error(suppressMessages(biomes_run(z, config_essai(), catalogue_essai(), validate = FALSE)),
+               "stands.parquet absent")
+  z <- zone_essai()
+  write_categories(1:2, c("S01", "S99"), file.path(z, "stand_map.csv"))
+  expect_error(suppressMessages(biomes_run(z, config_essai(), catalogue_essai(), validate = FALSE)),
+               "S99")
+})
+
+test_that("biomes_stands : le polygone de chaque cellule vient de stand_map, essence et source de stands.parquet", {
+  z <- zone_essai()
+  grid <- terra::rast(file.path(z, "grid.tif"))
+  st <- biomes_stands(z, grid)
+  expect_equal(st$table$stand_id, c("S01", "S02"))
+  expect_equal(st$table$species, c("09", "61"))                 # zéro de tête gardé
+  expect_equal(st$rank, rep(c(1L, 1L, 1L, 2L, 2L, NA), 4))
+  # le centre de (ligne 0, colonne 3) est dans S02 : x vers l'est d'abord, y vers le nord
+  cell <- terra::cellFromXY(grid, cbind(BX0 + 3.5 * 25, BY1 - 0.5 * 25))
+  expect_equal(st$table$stand_id[st$rank[cell]], "S02")
+})
+
+test_that("cellules forestières hors polygone : cell_id, x et y des centres (x est, y nord)", {
+  z <- zone_essai()
+  grid <- terra::rast(file.path(z, "grid.tif"))
+  forest <- rep(TRUE, 24); forest[6] <- FALSE
+  out <- outside_polygon_cells(grid, forest, biomes_stands(z, grid)$rank)
+  expect_equal(out$cell_id, c(11, 17, 23))
+  # cell_id 11 = ligne 1, colonne 5 : centre à 5,5 mailles de l'ouest et 1,5 maille du nord
+  expect_equal(c(out$x[1], out$y[1]), c(BX0 + 5.5 * 25, BY1 - 1.5 * 25))
+  expect_equal(terra::cellFromXY(grid, cbind(out$x, out$y)) - 1, out$cell_id)
+})
+
+test_that("au-delà du seuil, les cell_id hors polygone vont dans un CSV joint, sinon dans le rapport", {
+  expect_equal(BIOMES_MAX_LISTED_CELLS, 50L)
+  assign("BIOMES_MAX_LISTED_CELLS", 2L, envir = globalenv())
+  on.exit(assign("BIOMES_MAX_LISTED_CELLS", 50L, envir = globalenv()), add = TRUE)
+  z <- zone_essai()
+  suppressMessages(biomes_run(z, config_essai(), catalogue_essai(), validate = FALSE))
+  csv <- file.path(z, "rapport_biomes_hors_polygone.csv")
+  expect_true(file.exists(csv))
+  tab <- utils::read.csv(csv)
+  expect_equal(names(tab), c("cell_id", "x", "y"))
+  expect_equal(tab$cell_id, c(11, 17, 23))
+  expect_equal(c(tab$x[1], tab$y[1]), c(BX0 + 5.5 * 25, BY1 - 1.5 * 25))
+  rapport <- lire_rapport(z)
+  attendu(rapport, "des 2 premières des 3 cellules signalées : 11, 17 ;")
+  attendu(rapport, "rapport_biomes_hors_polygone.csv", fixed = TRUE)
+  expect_false(grepl("11, 17, 23", rapport, fixed = TRUE))
+  # le seuil relevé : plus de CSV, et celui d'une exécution précédente disparaît
+  assign("BIOMES_MAX_LISTED_CELLS", 50L, envir = globalenv())
+  suppressMessages(biomes_run(z, config_essai(), catalogue_essai(), validate = FALSE))
+  expect_false(file.exists(csv))
+  attendu(lire_rapport(z), "des cellules signalées : 11, 17, 23")
+})
+
+test_that("le rapport écrit les décimales à la française et rappelle que H0 est provisoire", {
+  z <- zone_essai()
+  suppressMessages(biomes_run(z, config_essai(), catalogue_essai(), validate = FALSE))
+  rapport <- lire_rapport(z)
+  attendu(rapport, "seuils provisoires \\(0,25 ; 0,6 ; 0,9\\)")
+  expect_false(grepl("0.25", rapport, fixed = TRUE))
+  expect_false(grepl("0.6", rapport, fixed = TRUE))
+  attendu(rapport, "H0 \\(h0.tif\\) est PROVISOIRE : percentile 95 du MNH")
+  attendu(rapport, "h_dom de typopeuplement")
+})
+
+# ------------------------------------------------------------------ outils communs
+
+# Fonctions définies au premier niveau d'un fichier R : noms des `nom <- function`.
+fonctions_definies <- function(fichier) {
+  exprs <- parse(fichier, keep.source = FALSE)
+  noms <- vapply(exprs, function(e) {
+    if (is.call(e) && identical(e[[1]], as.name("<-")) && is.call(e[[3]]) &&
+        identical(e[[3]][[1]], as.name("function"))) as.character(e[[2]]) else NA_character_
+  }, character(1))
+  noms[!is.na(noms)]
+}
+
+# Noms utilisés dans un fichier R (appelés ou passés en argument).
+symboles_utilises <- function(fichier) {
+  pd <- utils::getParseData(parse(fichier, keep.source = TRUE))
+  unique(pd$text[pd$token %in% c("SYMBOL_FUNCTION_CALL", "SYMBOL", "SYMBOL_FUNCTION")])
+}
+
+test_that("biomes.R et prepare_trees.R n'appellent aucune fonction définie dans prepare_grid.R", {
+  definies <- fonctions_definies(file.path(racine_bio, "R", "prepare_grid.R"))
+  expect_gt(length(definies), 5L)
+  for (f in c("biomes.R", "prepare_trees.R", "prepare_ifn.R")) {
+    pris <- intersect(definies, symboles_utilises(file.path(racine_bio, "R", f)))
+    expect_equal(pris, character(0), info = sprintf("%s appelle %s", f, paste(pris, collapse = ", ")))
+  }
+})
+
+test_that("les outils communs sont dans commun.R, et aucune fonction n'est définie dans deux fichiers", {
+  commun <- fonctions_definies(file.path(racine_bio, "R", "commun.R"))
+  for (nom in c("new_report", "report_add", "html_escape", "write_html_report", "read_layer_2154",
+                "read_raster_2154", "rasterize_polygons", "write_grid_raster", "write_categories",
+                "validate_file", "prepare_zone_dir", "check_input_file")) {
+    expect_true(nom %in% commun, info = nom)
+  }
+  grille <- fonctions_definies(file.path(racine_bio, "R", "prepare_grid.R"))
+  expect_equal(intersect(commun, grille), character(0))
+  tous <- unlist(lapply(list.files(file.path(racine_bio, "R"), pattern = "[.]R$", full.names = TRUE),
+                        fonctions_definies))
+  expect_equal(unique(tous[duplicated(tous)]), character(0))
+})
+
+test_that("commun.R se charge seul : il ne dépend d'aucun module", {
+  pris <- character()
+  for (f in c("prepare_grid.R", "biomes.R", "prepare_trees.R", "prepare_ifn.R")) {
+    pris <- c(pris, intersect(fonctions_definies(file.path(racine_bio, "R", f)),
+                              symboles_utilises(file.path(racine_bio, "R", "commun.R"))))
+  }
+  expect_equal(pris, character(0))
+})
+
 test_that("run_biomes : le jeu fictif ne laisse aucune cellule forestière sans type non signalée", {
   # Autonome : une racine temporaire reçoit les entrées du jeu fictif et le catalogue ; prepare
   # y tourne d'abord (vrai validateur), puis biomes. Le dépôt n'est pas touché.
@@ -240,4 +379,10 @@ test_that("run_biomes : le jeu fictif ne laisse aucune cellule forestière sans 
   expect_equal(sp, 0L)
   expect_equal(s, 0L)
   attendu(lire_rapport(zone), "0 cellule forestière sans type de végétation", fixed = TRUE)
+  # 176 cellules forestières hors polygone nemeton : 50 dans le rapport, toutes dans le CSV joint
+  attendu(lire_rapport(zone), "des 50 premières des 176 cellules signalées")
+  tab <- utils::read.csv(file.path(zone, "rapport_biomes_hors_polygone.csv"))
+  expect_equal(nrow(tab), 176L)
+  expect_equal(tab$cell_id[1], 814)   # ligne 20, colonne 14 : x 700362,5 ; y 6500487,5 (forêt sans polygone)
+  expect_equal(c(tab$x[1], tab$y[1]), c(700362.5, 6500487.5))
 })

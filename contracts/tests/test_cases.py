@@ -103,6 +103,15 @@ def categories(name):
     return build
 
 
+def ser_categories(tmp, fault):
+    """ser.csv : une valeur par couple (SER, alluvions) ; le même `name` peut se répéter.
+    Fautif : une alluvion L3 prise pour une SER (jamais L1 à L5 dans `name`)."""
+    rows = [[1, "H10", ""], [2, "H10", "L3"], [3, "B21", ""]]
+    if fault:
+        rows[1][1] = "L3"
+    return h.csv(tmp / "ser.csv", ["value", "name", "alluvium_code"], rows)
+
+
 def raster(name, fault_kwargs, **good):
     def build(tmp, fault):
         kwargs = dict(good)
@@ -236,7 +245,7 @@ CASES = {
                             r"Float32"),
     "prepare.ser": (raster("ser.tif", {"interleave": "pixel"}, dtype="uint16"),
                     r"PLANARCONFIG"),
-    "prepare.ser_categories": (categories("ser.csv"), r"name"),
+    "prepare.ser_categories": (ser_categories, r"name"),
     "prepare.h0": (raster("h0.tif", {"block": 512}), r"tuiles"),
     "prepare.chm_date": (raster("chm_date.tif", {"dtype": "float32"}, dtype="uint16"),
                          r"type de valeur"),
@@ -245,6 +254,8 @@ CASES = {
     "prepare.station_type_categories": (categories("station_type.csv"), r"name"),
     "prepare.site_potential": (raster("sp.tif", {"crs": "EPSG:3857"}, bands=2), r"EPSG"),
     "prepare.site_potential_bands": (categories("site_potential.csv"), r"name"),
+    "prepare.stand_map": (aligned("stand_map.tif", dtype="uint16"), r"aligné"),
+    "prepare.stand_map_categories": (categories("stand_map.csv"), r"name"),
     "prepare.trees_init": (trees_init_dir, r"species_source"),
     "prepare.ifn_plots": (table("plots.parquet", ifn_plots, set_first("loc_precision_m", 0.0)),
                           r"loc_precision_m"),

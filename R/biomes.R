@@ -1,10 +1,13 @@
 # biomes : types de végétation, carte et rapport (spec §4, §8, §11 ; mission 020).
 #
 # Lit les sorties de prepare sous <zone>/ (grille, forest_mask, station_type, h0,
-# site_potential) et le catalogue du dépôt biomes/*.yml ; écrit sous <zone>/ :
+# site_potential, stand_map.tif + .csv, stands.parquet) et le catalogue du dépôt biomes/*.yml ;
+# n'ouvre aucune entrée de inputs/. Écrit sous <zone>/ :
 #   vegetation_map.tif + vegetation_map.csv   type de végétation par cellule (UInt16) et sa
 #                                             légende (valeur, nom) ; le nom est l'`id` du biome
 #   rapport_biomes.html                       ce que biomes a attribué, ou laissé vide
+#   rapport_biomes_hors_polygone.csv          (seulement s'il y a plus de 50 cellules forestières
+#                                             hors polygone) la liste complète : cell_id, x, y
 #
 # Un type de végétation = une combinaison station × type de peuplement × stade (BRIEF §5),
 # celle de `condition` dans le catalogue.
@@ -22,9 +25,14 @@
 #  - les cellules non forestières (trouée) n'ont pas de type et ne sont pas signalées comme
 #    orphelines (spec §11, M1a) ;
 #  - le rapport dit aussi les polygones nemeton mono-essence (spec §4.1), les cellules
-#    forestières hors polygone (spec §4.2) et les polygones en synthetic_ml (spec §4.5).
+#    forestières hors polygone (spec §4.2 : « la cellule est signalée », donc leurs cell_id :
+#    la liste complète, ou les 50 premiers et un CSV joint si elles sont plus nombreuses) et
+#    les polygones en synthetic_ml (spec §4.5) ;
+#  - les polygones nemeton viennent de stand_map.tif (+ .csv, name = stand_id) et de
+#    stands.parquet (species, source), écrits par prepare ; biomes ne lit pas inputs/.
 #
-# Dépend de R/prepare_grid.R (rapport, rasters, validation), chargé avant ce fichier.
+# Dépend de R/commun.R (outils communs à tous les modules R, spec §2), et d'aucun fichier d'un
+# autre module.
 
 # Stades (énumération `stage`, contracts/json/enums/stage.json), du plus jeune au plus âgé.
 BIOMES_STAGES <- c("young", "pole", "mature", "old")
@@ -35,6 +43,8 @@ BIOMES_STAGE_BREAKS <- c(0.25, 0.60, 0.90)
 BIOMES_TYPOPEUPLEMENT <- "futaie_fictive"
 # Source des polygones nemeton dont le MNH est déjà compté (spec §4.5).
 BIOMES_SYNTHETIC_ML <- "synthetic_ml"
+# Au-delà de ce nombre, les cell_id des cellules hors polygone vont dans un CSV joint.
+BIOMES_MAX_LISTED_CELLS <- 50L
 
 # ------------------------------------------------------------------ le catalogue
 
@@ -105,33 +115,9 @@ assign_biomes <- function(station, stage, forest, catalog, typopeuplement = BIOM
 
 # ------------------------------------------------------------------ rapport
 
-#' Ajoute une ligne au rapport de biomes et la dit sur la sortie de message.
-biomes_report_add <- function(report, section, text) {
-  report$entries[[length(report$entries) + 1L]] <- list(section = section, text = text)
-  message(sprintf("[biomes] %s : %s", section, text))
-  invisible(report)
-}
-
 #' Écrit rapport_biomes.html (UTF-8), les lignes groupées par section.
 write_biomes_report <- function(report, path) {
-  sections <- unique(vapply(report$entries, function(e) e$section, character(1)))
-  body <- character()
-  for (s in sections) {
-    lines <- vapply(Filter(function(e) identical(e$section, s), report$entries),
-                    function(e) sprintf("<li>%s</li>", html_escape(e$text)), character(1))
-    body <- c(body, sprintf("<h2>%s</h2>", html_escape(s)), "<ul>", lines, "</ul>")
-  }
-  html <- c("<!DOCTYPE html>", "<html lang=\"fr\">",
-            "<head><meta charset=\"utf-8\"><title>Rapport de biomes</title></head>",
-            "<body>", "<h1>Rapport de biomes : types de végétation</h1>", body,
-            "</body>", "</html>")
-  con <- file(path, open = "wb")
-  on.exit(close(con))
-  # Les sources R sont en UTF-8 : on le déclare avant d'écrire. enc2utf8() seul, en locale C,
-  # remplacerait chaque octet accentué par un texte « <c3><a9> » (constaté sur rapport_prepare.html).
-  Encoding(html) <- "UTF-8"
-  writeLines(html, con, useBytes = TRUE)
-  invisible(path)
+  write_html_report(report, path, "Rapport de biomes", "Rapport de biomes : types de végétation")
 }
 
 # ------------------------------------------------------------------ le module
@@ -174,37 +160,65 @@ biomes_ceiling <- function(zone_dir, grid) {
   terra::values(hp, mat = FALSE)
 }
 
-#' Polygones nemeton : rend, par cellule, le rang du polygone qui la contient (NA hors
-#' polygone), et la table des polygones (stand_id, species_espar, source).
+#' Polygones nemeton, d'après les sorties de prepare : rend, par cellule, le rang du polygone
+#' qui la contient dans la table `table` (NA hors polygone), et cette table (stand_id, species,
+#' source, lue dans stands.parquet). stand_map.csv donne le stand_id de chaque valeur de
+#' stand_map.tif ; un stand_id absent de stands.parquet est une erreur.
 biomes_stands <- function(zone_dir, grid) {
-  path <- file.path(zone_dir, "inputs", "nemeton_stands.gpkg")
-  stands <- read_layer_2154(path, "stands")
-  rank <- terra::values(rasterize_polygons(stands, seq_len(nrow(stands)), grid), mat = FALSE)
-  list(rank = as.integer(rank),
-       table = data.frame(stand_id = as.character(stands$stand_id),
-                          species = as.character(stands$species_espar),
-                          source = as.character(stands$source), stringsAsFactors = FALSE))
+  csv <- file.path(zone_dir, "stand_map.csv")
+  if (!file.exists(csv)) stop(sprintf("stand_map.csv absent : lancer prepare d'abord (%s)", csv), call. = FALSE)
+  pq <- file.path(zone_dir, "stands.parquet")
+  if (!file.exists(pq)) stop(sprintf("stands.parquet absent : lancer prepare d'abord (%s)", pq), call. = FALSE)
+  value <- terra::values(biomes_read_grid_raster(zone_dir, "stand_map.tif", grid), mat = FALSE)
+  cats <- utils::read.csv(csv, stringsAsFactors = FALSE, encoding = "UTF-8", colClasses = c(name = "character"))
+  stands <- read_parquet_tbl(pq)
+  table <- data.frame(stand_id = as.character(stands$stand_id), species = as.character(stands$species),
+                      source = as.character(stands$source), stringsAsFactors = FALSE)
+  missing_ids <- setdiff(cats$name, table$stand_id)
+  if (length(missing_ids) > 0L) {
+    stop(sprintf("stand_map.csv : stand_id absent(s) de stands.parquet : %s",
+                 paste(missing_ids, collapse = ", ")), call. = FALSE)
+  }
+  unknown <- setdiff(unique(value[!is.na(value)]), cats$value)
+  if (length(unknown) > 0L) {
+    stop(sprintf("stand_map.tif : valeur(s) %s absente(s) de stand_map.csv",
+                 paste(unknown, collapse = ", ")), call. = FALSE)
+  }
+  rank <- match(cats$name[match(value, cats$value)], table$stand_id)
+  list(rank = as.integer(rank), table = table)
+}
+
+#' Cellules forestières hors polygone nemeton (spec §4.2) : data.frame (cell_id, x, y), x vers
+#' l'est et y vers le nord, au centre de la cellule, en EPSG:2154. cell_id = ligne × largeur +
+#' colonne depuis 0 au coin nord-ouest, comme ailleurs dans ce module.
+outside_polygon_cells <- function(grid, forest, stand_rank) {
+  cells <- which(forest & is.na(stand_rank))
+  xy <- if (length(cells) > 0L) terra::xyFromCell(grid, cells) else matrix(numeric(), 0L, 2L)
+  data.frame(cell_id = cells - 1L, x = xy[, 1], y = xy[, 2])
 }
 
 #' Remplit rapport_biomes.html : catalogue, cellules sans type, hors polygone, mono-essence,
 #' synthetic_ml, répartition.
 report_biomes <- function(report, catalog, assign, forest, stand_rank, stands, ncol_grid,
-                          station_legend) {
+                          station_legend, outside = NULL, outside_csv = NULL) {
   # -- catalogue
-  biomes_report_add(report, "Catalogue", sprintf(
+  report_add(report, "Catalogue", sprintf(
     "%d types de végétation au catalogue, tous marqués provisoire : valeurs SYNTHÉTIQUES du jeu fictif, aucune n'est écologique",
     nrow(catalog)))
-  biomes_report_add(report, "Catalogue", sprintf(
+  report_add(report, "Catalogue", sprintf(
     "type de peuplement : une seule valeur provisoire (%s), faute d'entrée typopeuplement ; stades tirés du rapport H0 / h_pot avec des seuils provisoires (%s), sans source",
-    BIOMES_TYPOPEUPLEMENT, paste(BIOMES_STAGE_BREAKS, collapse = " ; ")))
+    BIOMES_TYPOPEUPLEMENT, paste(fr_num(BIOMES_STAGE_BREAKS), collapse = " ; ")))
+  report_add(report, "Catalogue", sprintf(
+    "H0 (h0.tif) est PROVISOIRE : percentile %s du MNH sur la cellule, à remplacer par le h_dom de typopeuplement (spec §5) ; les stades, donc les types de végétation, en dépendent",
+    fr_num(100 * H0_PROBABILITY)))
   unknown <- setdiff(unique(catalog$station), station_legend$name)
   if (length(unknown) > 0L) {
-    biomes_report_add(report, "Catalogue", sprintf(
+    report_add(report, "Catalogue", sprintf(
       "station(s) du catalogue absente(s) de station_type.csv : %s", paste(unknown, collapse = ", ")))
   }
   no_biome <- setdiff(station_legend$name, catalog$station)
   if (length(no_biome) > 0L) {
-    biomes_report_add(report, "Catalogue", sprintf(
+    report_add(report, "Catalogue", sprintf(
       "type(s) de station sans aucun biome au catalogue : %s", paste(no_biome, collapse = ", ")))
   }
 
@@ -214,18 +228,18 @@ report_biomes <- function(report, catalog, assign, forest, stand_rank, stands, n
   n_orphan <- sum(orphan)
   plural <- function(n, one, many) sprintf("%d %s", n, if (n > 1L) many else one)
   if (n_orphan == 0L) {
-    biomes_report_add(report, section, sprintf(
+    report_add(report, section, sprintf(
       "0 cellule forestière sans type de végétation (sur %s)", plural(sum(forest), "cellule forestière", "cellules forestières")))
   } else {
-    biomes_report_add(report, section, sprintf(
+    report_add(report, section, sprintf(
       "%s sans type de végétation, laissée(s) au nodata ; aucune valeur par défaut",
       plural(n_orphan, "cellule forestière", "cellules forestières")))
     for (why in sort(unique(assign$reason[orphan]))) {
-      biomes_report_add(report, section, sprintf("%s : %s", why,
+      report_add(report, section, sprintf("%s : %s", why,
                         plural(sum(orphan & assign$reason == why, na.rm = TRUE), "cellule", "cellules")))
     }
     ids <- which(orphan) - 1L   # cell_id = ligne * largeur + colonne, depuis 0 : rang - 1 en ordre ligne par ligne
-    biomes_report_add(report, section, sprintf(
+    report_add(report, section, sprintf(
       "cell_id (ligne × %d + colonne, depuis le coin nord-ouest de grid.tif) : %s", ncol_grid,
       paste(ids, collapse = ", ")))
   }
@@ -233,20 +247,32 @@ report_biomes <- function(report, catalog, assign, forest, stand_rank, stands, n
   # -- hors polygone nemeton (spec §4.2)
   section <- "Hors polygone nemeton"
   out <- forest & is.na(stand_rank)
-  biomes_report_add(report, section, sprintf(
+  report_add(report, section, sprintf(
     "%s hors polygone nemeton : l'essence vient du type de végétation (species_source = vegetation_type) et ces cellules sont signalées ; %d d'entre elles ont un type de végétation, %d n'en ont pas",
     plural(sum(out), "cellule forestière", "cellules forestières"),
     sum(out & !is.na(assign$index)), sum(out & is.na(assign$index))))
+  if (sum(out) > 0L && !is.null(outside)) {
+    coord <- "cell_id (ligne × %d + colonne, depuis 0 au coin nord-ouest de grid.tif)"
+    if (nrow(outside) <= BIOMES_MAX_LISTED_CELLS) {
+      report_add(report, section, sprintf(paste0(coord, " des cellules signalées : %s"), ncol_grid,
+                                          paste(outside$cell_id, collapse = ", ")))
+    } else {
+      report_add(report, section, sprintf(
+        paste0(coord, " des %d premières des %d cellules signalées : %s ; liste complète (cell_id, x est, y nord, EPSG:2154) dans %s"),
+        ncol_grid, BIOMES_MAX_LISTED_CELLS, nrow(outside),
+        paste(utils::head(outside$cell_id, BIOMES_MAX_LISTED_CELLS), collapse = ", "), outside_csv))
+    }
+  }
 
   # -- mono-essence (spec §4.1) et synthetic_ml (spec §4.5)
   for (k in seq_len(nrow(stands))) {
     s <- stands[k, ]
     n_in <- sum(forest & !is.na(stand_rank) & stand_rank == k)
-    biomes_report_add(report, "Polygones nemeton : mono-essence", sprintf(
+    report_add(report, "Polygones nemeton : mono-essence", sprintf(
       "polygone %s : mono-essence, une seule essence (espar %s), %s dans la forêt ; essence et densité celles du polygone",
       s$stand_id, s$species, plural(n_in, "cellule", "cellules")))
     if (identical(s$source, BIOMES_SYNTHETIC_ML)) {
-      biomes_report_add(report, "Polygones nemeton : synthetic_ml", sprintf(
+      report_add(report, "Polygones nemeton : synthetic_ml", sprintf(
         "polygone %s : source %s, sa hauteur vient déjà du MNH ; le MNH n'est pas compté une seconde fois",
         s$stand_id, BIOMES_SYNTHETIC_ML))
     }
@@ -256,7 +282,7 @@ report_biomes <- function(report, catalog, assign, forest, stand_rank, stands, n
   counts <- table(factor(assign$index[!is.na(assign$index)], levels = seq_len(nrow(catalog))))
   for (k in seq_len(nrow(catalog))) {
     if (counts[[k]] > 0L) {
-      biomes_report_add(report, "Répartition des types de végétation", sprintf(
+      report_add(report, "Répartition des types de végétation", sprintf(
         "%s : %s", catalog$id[k], plural(counts[[k]], "cellule", "cellules")))
     }
   }
@@ -292,8 +318,9 @@ biomes_run <- function(zone_dir, cfg, biomes_dir = NULL, validate = TRUE) {
   stage <- stage_from_ratio(h0, biomes_ceiling(zone_dir, grid))
   assign <- assign_biomes(station$names, stage, forest, catalog)
 
-  report <- new_report()
+  report <- new_report("biomes")
   stands <- biomes_stands(zone_dir, grid)
+  outside <- outside_polygon_cells(grid, forest, stands$rank)
 
   # carte : valeur = rang du biome (catalogue trié par id), nodata ailleurs
   vegetation <- terra::rast(grid)
@@ -302,8 +329,16 @@ biomes_run <- function(zone_dir, cfg, biomes_dir = NULL, validate = TRUE) {
   write_categories(seq_len(nrow(catalog)), catalog$id, out("vegetation_map.csv"))
   written <- c(out("vegetation_map.tif"), out("vegetation_map.csv"))
 
+  # cell_id des cellules forestières hors polygone : dans le rapport s'il y en a peu, sinon un CSV joint
+  outside_csv <- "rapport_biomes_hors_polygone.csv"
+  if (nrow(outside) > BIOMES_MAX_LISTED_CELLS) {
+    utils::write.csv(outside, out(outside_csv), row.names = FALSE, fileEncoding = "UTF-8")
+    written <- c(written, out(outside_csv))
+  } else {
+    unlink(out(outside_csv))   # pas de liste périmée d'une exécution précédente
+  }
   report_biomes(report, catalog, assign, forest, stands$rank, stands$table, terra::ncol(grid),
-                station$legend)
+                station$legend, outside, outside_csv)
   report_path <- out("rapport_biomes.html")
   write_biomes_report(report, report_path)
   written <- c(written, report_path)

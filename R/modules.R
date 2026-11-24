@@ -2,6 +2,11 @@
 # Chaque module lit config.yml, fait valider ce fichier par le validateur, puis rend
 # son code de sortie : 0 (tout va bien) ou 2 (impossible, message sur stderr).
 # Aucune logique métier ici.
+#
+# Chargement : tout R/*.R est lu avant l'appel d'un module (Makefile, _targets.R,
+# R/tests/testthat.R). R/commun.R (rapports, lecture en EPSG:2154, écriture des grilles,
+# validation, Parquet), R/config.R et R/validateur.R sont les outils communs à tous les modules R
+# (spec §2) ; aucun module n'appelle le code d'un autre.
 
 #' Exécute un module et renvoie 0 ou 2.
 #' `depends_on` ne sert qu'à ordonner les cibles de `_targets.R`.
@@ -26,8 +31,8 @@ run_module <- function(name, config_path = "config.yml", depends_on = NULL, work
   })
 }
 
-# prepare : grille et rasters alignés (mission 017, R/prepare_grid.R). Les tables IFN
-# (019) et les peuplements (018) s'ajoutent à `work` dans leurs missions.
+# prepare : grille et rasters alignés, dont stand_map (mission 017, R/prepare_grid.R), tables IFN
+# (019, R/prepare_ifn.R) et peuplements stands.parquet (018, R/prepare_trees.R).
 run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
   run_module("prepare", config_path, depends_on, work = function(cfg, config_path) {
     zone_dir <- prepare_zone_dir(cfg)

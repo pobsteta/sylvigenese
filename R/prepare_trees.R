@@ -1,6 +1,6 @@
 # prepare : arbres détectés sur le MNH et peuplements nemeton (spec §4 ; mission 018).
 #
-# Lit les entrées de <zone>/inputs/ (et les sorties de prepare_grid et de biomes) et écrit sous <zone>/ :
+# Lit les entrées de <zone>/inputs/ (et les sorties de prepare et de biomes) et écrit sous <zone>/ :
 # trees_init/ est une étape à part, après biomes (décision de l'orchestrateur, 24/11/2026) :
 #   trees_init/trees.parquet   un arbre par maximum local du MNH à 50 cm (contrat prepare.trees_init)
 #   stands.parquet             (prepare_stands, étape prepare) les polygones nemeton (contrat prepare.stands)
@@ -27,6 +27,9 @@
 # 24/11/2026) : la détection est écrite avec terra::focal. Les valeurs de fenêtre, de hauteur
 # minimale et de lissage ci-dessous sont PROVISOIRES.
 #
+# Outils communs (rapport, lecture en EPSG:2154, validation, Parquet) : R/commun.R, commun à
+# tous les modules R (spec §2) ; ce fichier n'appelle aucune fonction de R/prepare_grid.R.
+#
 # Non fait ici (à dire) : l'inventaire vidéo (inputs/inventaire_video.gpkg) n'est pas utilisé :
 # les codes libres de nemeton (« chene_sessile ») n'ont pas de table vers l'espar dans le dépôt.
 # Aucun arbre ne porte donc species_source ou d130_source = inventaire_video.
@@ -45,37 +48,7 @@ TREES_TIE_EPS <- 1e-12
 
 TREES_SPECIES_PATTERN <- "^[0-9]{2}[A-Z0-9]{0,3}$"
 
-# ------------------------------------------------------------------ Parquet (paquet arrow)
-# Voie commune du projet : le paquet R « arrow » (décision de l'orchestrateur, 24/11/2026).
-
-.require_arrow <- function() {
-  if (!requireNamespace("arrow", quietly = TRUE)) {
-    stop("le paquet R « arrow » est absent : impossible de lire ou d'écrire du Parquet", call. = FALSE)
-  }
-}
-
-#' Lit un fichier Parquet en data.frame. Les colonnes de texte restent des chaînes (le zéro de
-#' tête des codes espar : « 09 », jamais 9).
-read_parquet_tbl <- function(path) {
-  if (!file.exists(path)) stop(sprintf("fichier Parquet absent : %s", path), call. = FALSE)
-  .require_arrow()
-  as.data.frame(arrow::read_parquet(path), stringsAsFactors = FALSE)
-}
-
-#' Écrit un data.frame en Parquet avec un schéma explicite : `types` nomme le type de chaque
-#' colonne (« string », « float64 » ou « int32 »), pour qu'une colonne vide ne devienne pas
-#' « null ». Pas de partition.
-write_parquet_tbl <- function(df, path, types) {
-  .require_arrow()
-  if (!setequal(names(df), names(types))) {
-    stop("erreur interne : colonnes et types du Parquet ne correspondent pas", call. = FALSE)
-  }
-  arrow_types <- list(string = arrow::string(), float64 = arrow::float64(), int32 = arrow::int32())
-  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  sch <- do.call(arrow::schema, lapply(names(types), function(n) arrow::field(n, arrow_types[[types[[n]]]])))
-  arrow::write_parquet(arrow::arrow_table(df[, names(types), drop = FALSE], schema = sch), path)
-  invisible(path)
-}
+# Lecture et écriture du Parquet : read_parquet_tbl et write_parquet_tbl, dans R/commun.R.
 
 #' Codes espar du référentiel contracts/species.csv (première colonne, en chaîne : « 09 »).
 #' Les colonnes de commentaire contiennent des virgules : seule la première est lue.
@@ -201,23 +174,10 @@ vegetation_dominant_species <- function(types, biomes_dir, known_species = NULL)
 
 # ------------------------------------------------------------------ rapport
 
-#' Écrit rapport_arbres.html (UTF-8), avec les fonctions de rapport_prepare.html (prepare_grid.R).
+#' Écrit rapport_arbres.html (UTF-8), les lignes groupées par section.
 write_trees_report <- function(report, path) {
-  sections <- unique(vapply(report$entries, function(e) e$section, character(1)))
-  body <- character()
-  for (s in sections) {
-    lines <- vapply(Filter(function(e) identical(e$section, s), report$entries),
-                    function(e) sprintf("<li>%s</li>", html_escape(e$text)), character(1))
-    body <- c(body, sprintf("<h2>%s</h2>", html_escape(s)), "<ul>", lines, "</ul>")
-  }
-  html <- c("<!DOCTYPE html>", "<html lang=\"fr\">",
-            "<head><meta charset=\"utf-8\"><title>Rapport de prepare : arbres</title></head>",
-            "<body>", "<h1>Rapport de prepare : arbres détectés et peuplements</h1>", body,
-            "</body>", "</html>")
-  con <- file(path, open = "wb")
-  on.exit(close(con))
-  writeLines(enc2utf8(html), con, useBytes = TRUE)
-  invisible(path)
+  write_html_report(report, path, "Rapport de prepare : arbres",
+                    "Rapport de prepare : arbres détectés et peuplements")
 }
 
 # ------------------------------------------------------------------ peuplements
@@ -257,7 +217,7 @@ TREES_TYPES <- list(tree_id = "string", x = "float64", y = "float64", species = 
 # ------------------------------------------------------------------ le module
 
 #' Détecte les arbres et écrit trees_init/ et rapport_arbres.html (mission 018).
-#' À appeler après prepare_grid (forest_mask.tif) et biomes (vegetation_map) ; rend la liste des fichiers écrits.
+#' À appeler après prepare (forest_mask.tif) et biomes (vegetation_map) ; rend la liste des fichiers écrits.
 #' `biomes_dir` : dossier des biomes (biomes/*.yml) ; `species_csv` : référentiel des essences.
 prepare_trees <- function(zone_dir, cfg, validate = TRUE,
                           biomes_dir = file.path(Sys.getenv("SYLVIGENESE_ROOT", unset = "."), "biomes"),
@@ -314,8 +274,8 @@ prepare_trees <- function(zone_dir, cfg, validate = TRUE,
   }
   det <- detect_trees(chm)
   report_add(report, sec, sprintf(
-    "%d maxima locaux détectés sur le MNH de %g m (hauteur minimale %g m, fenêtre %g à %g m selon la hauteur, médiane %dx%d) ; paramètres PROVISOIRES, lidR absent : détection écrite avec terra",
-    nrow(det), chm_res, TREES_HMIN_M, TREES_WINDOW_MIN_M, TREES_WINDOW_MAX_M,
+    "%d maxima locaux détectés sur le MNH de %s m (hauteur minimale %s m, fenêtre %s à %s m selon la hauteur, médiane %dx%d) ; paramètres PROVISOIRES, lidR absent : détection écrite avec terra",
+    nrow(det), fr_num(chm_res), fr_num(TREES_HMIN_M), fr_num(TREES_WINDOW_MIN_M), fr_num(TREES_WINDOW_MAX_M),
     TREES_SMOOTH_CELLS, TREES_SMOOTH_CELLS))
 
   # -- hors forêt : écartés et dits
