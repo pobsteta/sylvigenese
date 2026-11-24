@@ -64,3 +64,14 @@ def test_les_autres_tables_de_categories_restent_value_name(tmp_path, capsys):
         assert run(capsys, [contract, str(good)])[0] == 0, contract
         extra = h.csv(tmp_path / name, ["value", "name", "alluvium_code"], [[1, "S01", ""]])
         assert run(capsys, [contract, str(extra)])[0] == 3, contract
+
+
+@pytest.mark.parametrize("rows", [
+    [[1, "H10", "L3"], [2, "B21", ""], [3, "H10", "L3"]],   # même couple avec alluvions
+    [[1, "H10", ""], [2, "H10", "L3"], [3, "H10", ""]],      # même couple sans alluvions
+])
+def test_un_couple_ser_alluvions_en_double_est_refuse(rows, tmp_path, capsys):
+    """Une valeur par couple distinct (name, alluvium_code) : deux valeurs pour le même couple
+    sont refusées, que le code d'alluvions soit rempli ou vide."""
+    code, out = run(capsys, ["prepare.ser_categories", str(ser_csv(tmp_path, rows))])
+    assert code == 3 and "doublon" in out and "ligne 4" in out

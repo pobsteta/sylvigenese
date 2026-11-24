@@ -35,5 +35,9 @@
         "pattern": "L[1-5]"
       }
     }
+  ],
+  "primaryKey": [
+    "name",
+    "alluvium_code"
   ]
 }

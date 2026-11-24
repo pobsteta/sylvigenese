@@ -438,6 +438,10 @@ test_that("stand_map_values : valeur par rang du stand_id, doublon ou manque ref
   expect_equal(r$value, c(3L, 1L, 2L))
   expect_error(stand_map_values(c("S01", "S01")), "en double")
   expect_error(stand_map_values(c("S01", NA)), "manquant")
+  # UInt16 : 65 534 polygones au plus (65535 est le nodata), erreur explicite au-delà
+  ok <- stand_map_values(sprintf("S%05d", seq_len(65534L)))
+  expect_equal(max(ok$value), 65534L)
+  expect_error(stand_map_values(sprintf("S%05d", seq_len(65535L))), "65534 que stand_map.tif")
 })
 
 test_that("stand_map : deux polygones qui se recouvrent, règle déterministe et rapport chiffré", {

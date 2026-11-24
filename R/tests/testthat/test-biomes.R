@@ -300,7 +300,8 @@ test_that("le rapport écrit les décimales à la française et rappelle que H0 
   attendu(rapport, "seuils provisoires \\(0,25 ; 0,6 ; 0,9\\)")
   expect_false(grepl("0.25", rapport, fixed = TRUE))
   expect_false(grepl("0.6", rapport, fixed = TRUE))
-  attendu(rapport, "H0 \\(h0.tif\\) est PROVISOIRE : percentile 95 du MNH")
+  attendu(rapport, "H0 \\(h0.tif\\) est PROVISOIRE : sa définition est dans rapport_prepare.html")
+  expect_false(grepl("percentile", rapport, fixed = TRUE))
   attendu(rapport, "h_dom de typopeuplement")
 })
 
@@ -322,12 +323,31 @@ symboles_utilises <- function(fichier) {
   unique(pd$text[pd$token %in% c("SYMBOL_FUNCTION_CALL", "SYMBOL", "SYMBOL_FUNCTION")])
 }
 
-test_that("biomes.R et prepare_trees.R n'appellent aucune fonction définie dans prepare_grid.R", {
-  definies <- fonctions_definies(file.path(racine_bio, "R", "prepare_grid.R"))
-  expect_gt(length(definies), 5L)
-  for (f in c("biomes.R", "prepare_trees.R", "prepare_ifn.R")) {
-    pris <- intersect(definies, symboles_utilises(file.path(racine_bio, "R", f)))
-    expect_equal(pris, character(0), info = sprintf("%s appelle %s", f, paste(pris, collapse = ", ")))
+# Symboles définis au premier niveau d'un fichier R : fonctions ET constantes (`nom <- ...`).
+symboles_definis <- function(fichier) {
+  exprs <- parse(fichier, keep.source = FALSE)
+  noms <- vapply(exprs, function(e) {
+    if (is.call(e) && identical(e[[1]], as.name("<-")) && is.name(e[[2]])) as.character(e[[2]])
+    else NA_character_
+  }, character(1))
+  noms[!is.na(noms)]
+}
+
+FICHIERS_MODULES <- c("prepare_grid.R", "prepare_ifn.R", "prepare_trees.R", "biomes.R")
+
+test_that("aucun fichier de module n'utilise un symbole (fonction ou constante) d'un autre module", {
+  # Un module ne se charge que avec les outils communs : ce qu'un autre module définit au premier
+  # niveau (H0_PROBABILITY, TREES_*, IFN_*, BIOMES_*, fonctions) ne lui est jamais disponible.
+  chemin <- function(f) file.path(racine_bio, "R", f)
+  expect_gt(length(symboles_definis(chemin("prepare_grid.R"))), 5L)
+  expect_true("H0_PROBABILITY" %in% symboles_definis(chemin("prepare_grid.R")))   # le test voit les constantes
+  for (f in FICHIERS_MODULES) {
+    utilises <- symboles_utilises(chemin(f))
+    for (autre in setdiff(FICHIERS_MODULES, f)) {
+      pris <- intersect(symboles_definis(chemin(autre)), utilises)
+      expect_equal(pris, character(0),
+                   info = sprintf("%s utilise %s, défini dans %s", f, paste(pris, collapse = ", "), autre))
+    }
   }
 })
 
@@ -347,8 +367,8 @@ test_that("les outils communs sont dans commun.R, et aucune fonction n'est défi
 
 test_that("commun.R se charge seul : il ne dépend d'aucun module", {
   pris <- character()
-  for (f in c("prepare_grid.R", "biomes.R", "prepare_trees.R", "prepare_ifn.R")) {
-    pris <- c(pris, intersect(fonctions_definies(file.path(racine_bio, "R", f)),
+  for (f in FICHIERS_MODULES) {
+    pris <- c(pris, intersect(symboles_definis(file.path(racine_bio, "R", f)),
                               symboles_utilises(file.path(racine_bio, "R", "commun.R"))))
   }
   expect_equal(pris, character(0))
@@ -385,4 +405,50 @@ test_that("run_biomes : le jeu fictif ne laisse aucune cellule forestière sans 
   expect_equal(nrow(tab), 176L)
   expect_equal(tab$cell_id[1], 814)   # ligne 20, colonne 14 : x 700362,5 ; y 6500487,5 (forêt sans polygone)
   expect_equal(c(tab$x[1], tab$y[1]), c(700362.5, 6500487.5))
+})
+
+test_that("biomes se charge avec config, validateur, commun, modules et biomes seuls : run_biomes rend 0", {
+  # prepare tourne ici (tous les fichiers chargés) sur une racine temporaire ; la zone préparée est
+  # ensuite COPIÉE dans une seconde racine, où un processus R neuf ne charge que les cinq fichiers
+  # de biomes. Aucun fichier prepare_*.R n'y est lu : un symbole de prepare utilisé par biomes
+  # ferait rendre 2 (« object ... not found »).
+  racine_prep <- tempfile("racine_prep_"); zone_prep <- file.path(racine_prep, "tests", "fixtures", "zone_fictive")
+  dir.create(zone_prep, recursive = TRUE)
+  src <- file.path(racine_bio, "tests", "fixtures", "zone_fictive")
+  file.copy(file.path(src, c("inputs", "params")), zone_prep, recursive = TRUE)
+  file.copy(file.path(racine_bio, "biomes"), racine_prep, recursive = TRUE)
+  dir.create(file.path(racine_prep, "contracts"))
+  file.copy(file.path(racine_bio, "contracts", "species.csv"), file.path(racine_prep, "contracts"))
+  config <- file.path(racine_bio, "config.yml")
+  ancien_wd <- setwd(racine_bio)
+  ancienne_racine <- Sys.getenv("SYLVIGENESE_ROOT", unset = NA)
+  on.exit({
+    setwd(ancien_wd)
+    if (is.na(ancienne_racine)) Sys.unsetenv("SYLVIGENESE_ROOT") else Sys.setenv(SYLVIGENESE_ROOT = ancienne_racine)
+  }, add = TRUE)
+  Sys.setenv(SYLVIGENESE_ROOT = racine_prep)
+  invisible(capture.output(suppressMessages(avec_vrai_validateur_biomes(sp <- run_prepare(config)))))
+  expect_equal(sp, 0L)
+
+  # la copie : zone préparée (sans inputs/, que biomes ne lit pas) et catalogue
+  racine_copie <- tempfile("racine_copie_"); zone_copie <- file.path(racine_copie, "tests", "fixtures", "zone_fictive")
+  dir.create(zone_copie, recursive = TRUE)
+  sorties <- setdiff(list.files(zone_prep, all.files = FALSE), "inputs")
+  file.copy(file.path(zone_prep, sorties), zone_copie, recursive = TRUE)
+  file.copy(file.path(racine_bio, "biomes"), racine_copie, recursive = TRUE)
+  expect_false(file.exists(file.path(zone_copie, "vegetation_map.tif")))
+
+  fichiers <- file.path(racine_bio, "R", c("config.R", "validateur.R", "commun.R", "modules.R", "biomes.R"))
+  code <- paste0(
+    "for (f in c(", paste(sprintf("'%s'", fichiers), collapse = ", "), ")) source(f);",
+    "stopifnot(!exists('H0_PROBABILITY'), !exists('prepare_grid'));",
+    "quit(status = run_biomes('", config, "'))")
+  sortie <- suppressWarnings(system2(
+    "Rscript", c("-e", shQuote(code)), stdout = TRUE, stderr = TRUE,
+    env = c(sprintf("SYLVIGENESE_ROOT=%s", racine_copie),
+            sprintf("SYLVIGENESE_VALIDATE=%s", file.path(racine_bio, "contracts", "validate")))))
+  code_sortie <- if (is.null(attr(sortie, "status"))) 0L else attr(sortie, "status")
+  expect_equal(code_sortie, 0L, info = paste(sortie, collapse = "\n"))
+  expect_true(file.exists(file.path(zone_copie, "vegetation_map.tif")))
+  expect_true(file.exists(file.path(zone_copie, "rapport_biomes.html")))
 })

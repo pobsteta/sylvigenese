@@ -7,6 +7,7 @@
 #   - la lecture des entrées en EPSG:2154 (check_input_file, read_layer_2154, read_raster_2154) ;
 #   - l'écriture des grilles au profil GeoTIFF des contrats et des tables de catégories
 #     (write_grid_raster, write_categories) ;
+#   - la rasterisation de polygones sur la grille (rasterize_polygons) ;
 #   - le dossier d'une zone (prepare_zone_dir) ;
 #   - la validation d'un fichier par contracts/validate (validate_file) ;
 #   - la lecture et l'écriture du Parquet par le paquet R « arrow » (read_parquet_tbl,

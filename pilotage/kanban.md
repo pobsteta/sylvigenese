@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 1 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 2 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -22,11 +22,6 @@ _Modèle de carte :_
 
 ## Validé
 
-- [017-prepare-grille](missions/017-prepare-grille.md), [019-prepare-ifn](missions/019-prepare-ifn.md), [021-tests-m1](missions/021-tests-m1.md) · depuis le cycle 1
-  - Homme : `dev` ×2, `testeur` · Mission : vague 1 de M1a · Moyens : jeu fictif, contrats
-- [018-prepare-arbres](missions/018-prepare-arbres.md), [020-biomes](missions/020-biomes.md) · depuis le cycle 1
-  - Homme : `dev` ×2 · Mission : vague 2 de M1a, après 017 · Moyens : grille de 017
-
 ## Planifié
 
 
@@ -34,6 +29,11 @@ _Modèle de carte :_
 
 
 ## Terminé
+
+- [017-prepare-grille](missions/017-prepare-grille.md), [018-prepare-arbres](missions/018-prepare-arbres.md), [019-prepare-ifn](missions/019-prepare-ifn.md), [020-biomes](missions/020-biomes.md), [021-tests-m1](missions/021-tests-m1.md) · depuis le cycle 2
+  - Homme : `dev` ×4, `testeur`, relues deux fois par `relecteur`, 3 allers-retours
+  - Mission : jalon M1a rempli le 2026-11-24 sur le jeu fictif (test-command vert : pytest 446 + 142, Rust 29 + 7, testthat, 0 sauté, 38 fichiers conformes ; 9 min 48 s) ; fusion soumise à Pascal
+  - Moyens : PR pobsteta/sylvigenese#4
 
 - [009-contrats](missions/009-contrats.md), [010-tests-contrats](missions/010-tests-contrats.md), [011-table-essences](missions/011-table-essences.md), [012-squelette](missions/012-squelette.md), [013-jeu-fictif](missions/013-jeu-fictif.md), [014-ci](missions/014-ci.md), [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md), [016-referentiels-m0](missions/016-referentiels-m0.md) · depuis le cycle 1
   - Homme : `dev` ×5, `testeur`, `acquereur` ×2, relues par `relecteur`

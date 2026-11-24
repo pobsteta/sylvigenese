@@ -326,11 +326,19 @@ report_polygon_overlaps <- function(report, polys, labels, values, tmpl, what) {
 
 # ------------------------------------------------------------------ stand_map : polygone nemeton par cellule
 
+# Plus grande valeur de stand_map.tif (UInt16, contrat prepare.stand_map : maximum 65534 ; 65535 = nodata).
+STAND_MAP_MAX_POLYGONS <- 65534L
+
 #' Valeur de stand_map.tif de chaque polygone nemeton : le rang de son `stand_id` dans l'ordre
 #' des identifiants (tri par octets, indépendant de la locale et de l'ordre du fichier). Arrête
-#' si un `stand_id` manque ou se répète : la table de correspondance serait ambiguë.
+#' si un `stand_id` manque ou se répète : la table de correspondance serait ambiguë, ou s'il y a
+#' plus de STAND_MAP_MAX_POLYGONS polygones (UInt16 : la valeur 65535 est le nodata).
 stand_map_values <- function(stand_id) {
   ids <- as.character(stand_id)
+  if (length(ids) > STAND_MAP_MAX_POLYGONS) {
+    stop(sprintf("nemeton_stands.gpkg : %d polygones, au-delà des %d que stand_map.tif (UInt16) peut numéroter ; réduire le fichier ou découper la zone",
+                 length(ids), STAND_MAP_MAX_POLYGONS), call. = FALSE)
+  }
   if (anyNA(ids) || any(!nzchar(ids))) {
     stop("nemeton_stands.gpkg : stand_id manquant", call. = FALSE)
   }

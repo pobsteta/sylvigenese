@@ -208,9 +208,8 @@ report_biomes <- function(report, catalog, assign, forest, stand_rank, stands, n
   report_add(report, "Catalogue", sprintf(
     "type de peuplement : une seule valeur provisoire (%s), faute d'entrée typopeuplement ; stades tirés du rapport H0 / h_pot avec des seuils provisoires (%s), sans source",
     BIOMES_TYPOPEUPLEMENT, paste(fr_num(BIOMES_STAGE_BREAKS), collapse = " ; ")))
-  report_add(report, "Catalogue", sprintf(
-    "H0 (h0.tif) est PROVISOIRE : percentile %s du MNH sur la cellule, à remplacer par le h_dom de typopeuplement (spec §5) ; les stades, donc les types de végétation, en dépendent",
-    fr_num(100 * H0_PROBABILITY)))
+  report_add(report, "Catalogue",
+    "H0 (h0.tif) est PROVISOIRE : sa définition est dans rapport_prepare.html, à remplacer par le h_dom de typopeuplement (spec §5) ; les stades, donc les types de végétation, en dépendent")
   unknown <- setdiff(unique(catalog$station), station_legend$name)
   if (length(unknown) > 0L) {
     report_add(report, "Catalogue", sprintf(

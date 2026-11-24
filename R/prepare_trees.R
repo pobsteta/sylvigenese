@@ -48,6 +48,9 @@
 # ÉCARTS avec tarif-nemeton, tous dits au rapport :
 #  - lidR n'est pas installable ici (r-universe injoignable, constaté le 24/11/2026) : la détection
 #    et la croissance de région sont écrites avec terra et R de base ;
+#  - tarif-nemeton ramène à 0 les valeurs négatives du MNH avant tout (code/etage_b_arbres_lidar.R
+#    l.16 : `chm[chm < 0] <- 0`) ; ici le MNH est lu tel quel, sans correction : une valeur négative
+#    n'est jamais un sommet (hmin = 5 m) mais entre dans la médiane 3 x 3 à sa valeur, non à 0 ;
 #  - fenêtre de maximum local carrée, d'un nombre IMPAIR de cellules (lmf : fenêtre circulaire) ;
 #  - la hauteur écrite `h` est le maximum du MNH brut sur 3 x 3 cellules autour du sommet (tarif-
 #    nemeton écrit la hauteur du MNH lissé) ;
@@ -578,7 +581,7 @@ prepare_trees <- function(zone_dir, cfg, validate = TRUE,
     fr_num(TREES_CROWN_TH_TREE), fr_num(TREES_CROWN_TH_SEED), fr_num(TREES_CROWN_TH_CR),
     as.integer(TREES_CROWN_MAX_CR), src, fr_num(chm_res^2)))
   report_add(report, sec_p,
-             "écarts avec tarif-nemeton : lidR absent, algorithmes réécrits avec terra ; max_cr lu comme un diamètre en cellules et passes synchrones de la croissance de région, deux détails à vérifier contre lidR ; la hauteur h écrite est le maximum du MNH brut sur 3x3 cellules autour du sommet (tarif-nemeton : MNH lissé)")
+             "écarts avec tarif-nemeton : lidR absent, algorithmes réécrits avec terra ; max_cr lu comme un diamètre en cellules et passes synchrones de la croissance de région, deux détails à vérifier contre lidR ; la hauteur h écrite est le maximum du MNH brut sur 3x3 cellules autour du sommet (tarif-nemeton : MNH lissé) ; les valeurs négatives du MNH ne sont pas ramenées à 0 (tarif-nemeton, l.16 : chm[chm < 0] <- 0)")
   report_add(report, sec_p, "toutes ces valeurs sont PROVISOIRES : reprises de tarif-nemeton, non recalées sur ce MNH")
 
   # -- ce que ce module ne fait pas encore
@@ -610,15 +613,28 @@ prepare_trees <- function(zone_dir, cfg, validate = TRUE,
   invisible(written)
 }
 
-#' Écrit stands.parquet (étape prepare ; ne dépend pas de biomes). Rend le chemin écrit.
-prepare_stands <- function(zone_dir, cfg, validate = TRUE,
-                           species_csv = file.path(Sys.getenv("SYLVIGENESE_ROOT", unset = "."),
-                                                   "contracts", "species.csv")) {
+#' Contrôle les peuplements nemeton sans rien écrire : fichier présent, contrat `inputs.nemeton_stands`
+#' (`validate = TRUE`), colonnes, essences du référentiel contracts/species.csv. À appeler AVANT la
+#' première écriture de prepare (`run_prepare()` le fait, comme `prepare_ifn_check()`) : une essence
+#' de forme valide mais absente du référentiel arrête le module sans laisser aucune sortie.
+#' Rend le résultat de `read_stands()` (`sf`, `table`).
+prepare_stands_check <- function(zone_dir, validate = TRUE,
+                                 species_csv = file.path(Sys.getenv("SYLVIGENESE_ROOT", unset = "."),
+                                                         "contracts", "species.csv")) {
   path <- file.path(zone_dir, "inputs", "nemeton_stands.gpkg")
   check_input_file(path)
   check_input_file(species_csv)
   if (validate) validate_file("inputs.nemeton_stands", path, what = "entrée")
-  st <- read_stands(path, read_species_codes(species_csv))
+  read_stands(path, read_species_codes(species_csv))
+}
+
+#' Écrit stands.parquet (étape prepare ; ne dépend pas de biomes). Rend le chemin écrit.
+#' `checked` : résultat de `prepare_stands_check()` déjà fait par `run_prepare()` ; absent, le
+#' contrôle est fait ici d'abord (rien n'est écrit avant qu'il soit passé).
+prepare_stands <- function(zone_dir, cfg, validate = TRUE, checked = NULL,
+                           species_csv = file.path(Sys.getenv("SYLVIGENESE_ROOT", unset = "."),
+                                                   "contracts", "species.csv")) {
+  st <- if (is.null(checked)) prepare_stands_check(zone_dir, validate, species_csv) else checked
   out <- file.path(zone_dir, "stands.parquet")
   write_parquet_tbl(st$table, out, STANDS_TYPES)
   if (validate) validate_file("prepare.stands", out)

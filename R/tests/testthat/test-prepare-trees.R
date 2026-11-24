@@ -621,3 +621,23 @@ test_that("le module sans validation écrit les mêmes arbres que la chaîne val
     species_csv = file.path(v$racine, "contracts", "species.csv"))))
   expect_equal(lire_arbres(v$zone), lire_arbres(base$zone))
 })
+
+test_that("run_prepare : une essence nemeton de forme valide mais hors référentiel arrête le module avant toute écriture", {
+  # « 99 » respecte le motif des codes espar (contrat inputs.nemeton_stands) mais n'est pas dans
+  # contracts/species.csv : code 2, et ni grille, ni rasters, ni stand_map, ni ifn/, ni stands.parquet.
+  r <- nouvelle_racine()
+  zone <- zone_de(r)
+  f <- file.path(zone, "inputs", "nemeton_stands.gpkg")
+  s <- sf::st_read(f, layer = "stands", quiet = TRUE)
+  expect_false("99" %in% read_species_codes(file.path(r, "contracts", "species.csv")))
+  s$species_espar[1] <- "99"
+  s$age_yr <- as.integer(s$age_yr)   # le contrat veut un entier ; seule l'essence change
+  sf::st_write(s, f, layer = "stands", delete_layer = TRUE, quiet = TRUE)
+  avant <- list.files(zone, recursive = TRUE, include.dirs = TRUE)
+  res <- avec_racine(r, lancer_avec_messages(run_prepare, config_depot))
+  expect_equal(res$status, 2L)
+  expect_match(paste(res$messages, collapse = "\n"), "essence\\(s\\) hors de contracts/species.csv : 99")
+  expect_equal(list.files(zone, recursive = TRUE, include.dirs = TRUE), avant)
+  expect_false(any(file.exists(file.path(zone, c("grid.tif", "dtm.tif", "ser.tif", "h0.tif", "stand_map.tif",
+                                                 "stands.parquet", "rapport_prepare.html", "ifn")))))
+})

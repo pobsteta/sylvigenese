@@ -63,10 +63,10 @@ ifn_weight_ha <- function(c13_mm) 10000 / (pi * ifn_circle_radius_m(c13_mm)^2)
   d <- utils::read.table(path, sep = ";", header = TRUE, colClasses = "character",
                          quote = "\"", comment.char = "", check.names = FALSE,
                          encoding = "UTF-8", stringsAsFactors = FALSE)
-  manque <- setdiff(required, names(d))
-  if (length(manque)) {
+  missing_cols <- setdiff(required, names(d))
+  if (length(missing_cols)) {
     stop(sprintf("%s : colonne(s) absente(s) : %s", basename(path),
-                 paste(manque, collapse = ", ")), call. = FALSE)
+                 paste(missing_cols, collapse = ", ")), call. = FALSE)
   }
   d
 }
@@ -93,23 +93,23 @@ ifn_weight_ha <- function(c13_mm) 10000 / (pi * ifn_circle_radius_m(c13_mm)^2)
 #'
 #' @return liste `plots`, `trees`, `flora`, `report` (data.frame `section`, `text` : les
 #'   signalements, en français).
-ifn_tables <- function(placette, arbre, flore, precision_m = 700, taxref_version = "13") {
+ifn_tables <- function(plots_raw, trees_raw, flora_raw, precision_m = 700, taxref_version = "13") {
   report <- data.frame(section = character(0), text = character(0), stringsAsFactors = FALSE)
   add <- function(section, text) {
     report[nrow(report) + 1L, ] <<- list(section, text)
   }
 
   # ---- placettes
-  cle_p <- paste(placette$IDP, placette$CAMPAGNE)
-  if (anyDuplicated(cle_p)) {
+  plot_key <- paste(plots_raw$IDP, plots_raw$CAMPAGNE)
+  if (anyDuplicated(plot_key)) {
     stop(sprintf("PLACETTE.csv : couple (IDP, CAMPAGNE) en double, ex. %s",
-                 cle_p[duplicated(cle_p)][1]), call. = FALSE)
+                 plot_key[duplicated(plot_key)][1]), call. = FALSE)
   }
   plots <- data.frame(
-    plot_id = placette$IDP,
-    campaign = .ifn_campaign(placette$CAMPAGNE, "PLACETTE.csv CAMPAGNE"),
-    x = .ifn_num(placette$XL, "PLACETTE.csv XL"),
-    y = .ifn_num(placette$YL, "PLACETTE.csv YL"),
+    plot_id = plots_raw$IDP,
+    campaign = .ifn_campaign(plots_raw$CAMPAGNE, "PLACETTE.csv CAMPAGNE"),
+    x = .ifn_num(plots_raw$XL, "PLACETTE.csv XL"),
+    y = .ifn_num(plots_raw$YL, "PLACETTE.csv YL"),
     stringsAsFactors = FALSE
   )
   if (anyNA(plots$x) || anyNA(plots$y) || any(plots$plot_id == "")) {
@@ -136,96 +136,96 @@ ifn_tables <- function(placette, arbre, flore, precision_m = 700, taxref_version
     "tant qu'elles ne sont pas remplies"))
 
   # ---- arbres
-  t_camp <- .ifn_campaign(arbre$CAMPAGNE, "ARBRE.csv CAMPAGNE")
-  inconnues <- setdiff(paste(arbre$IDP, t_camp), paste(plots$plot_id, plots$campaign))
-  if (length(inconnues)) {
+  t_camp <- .ifn_campaign(trees_raw$CAMPAGNE, "ARBRE.csv CAMPAGNE")
+  unknown_keys <- setdiff(paste(trees_raw$IDP, t_camp), paste(plots$plot_id, plots$campaign))
+  if (length(unknown_keys)) {
     stop(sprintf("ARBRE.csv : placette absente de PLACETTE.csv (IDP CAMPAGNE) : %s",
-                 inconnues[1]), call. = FALSE)
+                 unknown_keys[1]), call. = FALSE)
   }
-  c13 <- .ifn_num(arbre$C13, "ARBRE.csv C13")
-  if (any(!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", arbre$ESPAR))) {
+  c13 <- .ifn_num(trees_raw$C13, "ARBRE.csv C13")
+  if (any(!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", trees_raw$ESPAR))) {
     stop(sprintf("ARBRE.csv : code ESPAR invalide (ex. « %s »)",
-                 arbre$ESPAR[!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", arbre$ESPAR)][1]), call. = FALSE)
+                 trees_raw$ESPAR[!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", trees_raw$ESPAR)][1]), call. = FALSE)
   }
-  h_present <- "HTOT" %in% names(arbre)
-  h <- if (h_present) .ifn_num(arbre$HTOT, "ARBRE.csv HTOT") else rep(NA_real_, nrow(arbre))
-  n_bas <- sum(!is.na(c13) & c13 > 0 & c13 < 100)
-  if (n_bas > 0L) {
+  h_present <- "HTOT" %in% names(trees_raw)
+  h <- if (h_present) .ifn_num(trees_raw$HTOT, "ARBRE.csv HTOT") else rep(NA_real_, nrow(trees_raw))
+  n_low <- sum(!is.na(c13) & c13 > 0 & c13 < 100)
+  if (n_low > 0L) {
     # Garde-fou sur l'unité (référentiel §2) : un c13 courant est de 300 à 2000, pas de 30 à 200.
     add("IFN : arbres", sprintf(
-      "%d arbre(s) avec C13 entre 0 et 100 : vérifier que C13 est bien en mm", n_bas))
+      "%d arbre(s) avec C13 entre 0 et 100 : vérifier que C13 est bien en mm", n_low))
   }
-  rayon <- ifn_circle_radius_m(c13)
-  garde <- !is.na(rayon)
+  radius <- ifn_circle_radius_m(c13)
+  kept <- !is.na(radius)
   n_na <- sum(is.na(c13))
-  n_sous <- sum(!is.na(c13) & c13 < IFN_C13_MIN_MM)
+  n_below <- sum(!is.na(c13) & c13 < IFN_C13_MIN_MM)
   if (n_na > 0L) {
     add("IFN : arbres", sprintf("%d arbre(s) écarté(s) : C13 manquant", n_na))
   }
-  if (n_sous > 0L) {
+  if (n_below > 0L) {
     add("IFN : arbres", sprintf(
       "%d arbre(s) écarté(s) : C13 sous le seuil de recensabilité de %d mm (IMOT 2025 p. 61)",
-      n_sous, IFN_C13_MIN_MM))
+      n_below, IFN_C13_MIN_MM))
   }
-  w <- 10000 / (pi * rayon^2)
-  fabrique <- !"ARBRE" %in% names(arbre)
-  id_arbre <- if (!fabrique) arbre$ARBRE else {
-    stats::ave(seq_along(arbre$IDP), arbre$IDP, t_camp, FUN = seq_along)
+  w <- 10000 / (pi * radius^2)
+  made_up_id <- !"ARBRE" %in% names(trees_raw)
+  tree_ids <- if (!made_up_id) trees_raw$ARBRE else {
+    stats::ave(seq_along(trees_raw$IDP), trees_raw$IDP, t_camp, FUN = seq_along)
   }
-  if (fabrique) {
+  if (made_up_id) {
     add("IFN : arbres", paste(
       "colonne ARBRE absente de ARBRE.csv : tree_id fabriqué (numéro d'ordre de la ligne dans sa",
       "placette et sa campagne), valable pour ce fichier seulement"))
   }
-  h_nul <- !is.na(h) & h <= 0
+  h_null <- !is.na(h) & h <= 0
   if (!h_present) {
     add("IFN : arbres", "colonne HTOT absente de ARBRE.csv : h vide (NA) pour tous les arbres")
-  } else if (any(h_nul[garde])) {
+  } else if (any(h_null[kept])) {
     add("IFN : arbres", sprintf(
       "%d arbre(s) avec HTOT inférieure ou égale à 0 : h mis à NA (pas de hauteur mesurée)",
-      sum(h_nul[garde])))
+      sum(h_null[kept])))
   }
   trees <- data.frame(
-    plot_id = arbre$IDP,
+    plot_id = trees_raw$IDP,
     campaign = t_camp,
-    tree_id = as.character(id_arbre),
-    species = arbre$ESPAR,
+    tree_id = as.character(tree_ids),
+    species = trees_raw$ESPAR,
     d130 = ifn_d130_cm(c13),
     h = ifelse(!is.na(h) & h > 0, h, NA_real_),
     weight_ha = w,
     stringsAsFactors = FALSE
-  )[garde, , drop = FALSE]
+  )[kept, , drop = FALSE]
   if (anyDuplicated(trees[, c("plot_id", "campaign", "tree_id")])) {
     stop("ARBRE.csv : (IDP, CAMPAGNE, ARBRE) en double", call. = FALSE)
   }
-  if ("W" %in% names(arbre)) {
-    w_brut <- .ifn_num(arbre$W, "ARBRE.csv W")[garde]
-    ecart <- !is.na(w_brut) & abs(w_brut - trees$weight_ha) > 0.01 * trees$weight_ha
-    if (any(ecart)) {
+  if ("W" %in% names(trees_raw)) {
+    w_raw <- .ifn_num(trees_raw$W, "ARBRE.csv W")[kept]
+    disagree <- !is.na(w_raw) & abs(w_raw - trees$weight_ha) > 0.01 * trees$weight_ha
+    if (any(disagree)) {
       add("IFN : arbres", sprintf(
         "%d arbre(s) dont la colonne W du fichier diffère de plus de 1 %% du poids du cercle (ex. W = %s contre %s) ; le poids du cercle (IMOT 2025 p. 61) est retenu",
-        sum(ecart), fr_num(w_brut[ecart][1], 2), fr_num(trees$weight_ha[ecart][1], 2)))
+        sum(disagree), fr_num(w_raw[disagree][1], 2), fr_num(trees$weight_ha[disagree][1], 2)))
     }
   }
   rownames(trees) <- NULL
   add("IFN : arbres", sprintf(
     "%d arbre(s) retenus sur %d ; d130 = C13 / (10 pi) ; poids par cercle de 6, 9 ou 15 m",
-    nrow(trees), nrow(arbre)))
+    nrow(trees), nrow(trees_raw)))
 
   # ---- flore
-  f_camp <- .ifn_campaign(flore$CAMPAGNE, "FLORE.csv CAMPAGNE")
-  inconnues <- setdiff(paste(flore$IDP, f_camp), paste(plots$plot_id, plots$campaign))
-  if (length(inconnues)) {
+  f_camp <- .ifn_campaign(flora_raw$CAMPAGNE, "FLORE.csv CAMPAGNE")
+  unknown_keys <- setdiff(paste(flora_raw$IDP, f_camp), paste(plots$plot_id, plots$campaign))
+  if (length(unknown_keys)) {
     stop(sprintf("FLORE.csv : placette absente de PLACETTE.csv (IDP CAMPAGNE) : %s",
-                 inconnues[1]), call. = FALSE)
+                 unknown_keys[1]), call. = FALSE)
   }
-  cd <- .ifn_num(flore$CD_REF, "FLORE.csv CD_REF")
+  cd <- .ifn_num(flora_raw$CD_REF, "FLORE.csv CD_REF")
   if (anyNA(cd) || any(cd != round(cd)) || any(cd < 1)) {
     stop("FLORE.csv : CD_REF manquant ou non entier positif", call. = FALSE)
   }
-  ab <- .ifn_num(flore$ABOND, "FLORE.csv ABOND")
+  ab <- .ifn_num(flora_raw$ABOND, "FLORE.csv ABOND")
   flora <- data.frame(
-    plot_id = flore$IDP,
+    plot_id = flora_raw$IDP,
     campaign = f_camp,
     cd_ref = as.integer(cd),
     taxref_version = taxref_version,
@@ -256,17 +256,17 @@ prepare_ifn_check <- function(zone_dir, report = NULL, precision_m = 700, taxref
                               validate = TRUE) {
   if (is.null(report)) report <- new_report()
   dir_in <- file.path(zone_dir, "inputs", "ifn")
-  chemins <- c(inputs.ifn_placette = file.path(dir_in, "PLACETTE.csv"),
-               inputs.ifn_arbre = file.path(dir_in, "ARBRE.csv"),
-               inputs.ifn_flore = file.path(dir_in, "FLORE.csv"))
-  for (k in seq_along(chemins)) check_input_file(chemins[[k]])
+  paths <- c(inputs.ifn_placette = file.path(dir_in, "PLACETTE.csv"),
+             inputs.ifn_arbre = file.path(dir_in, "ARBRE.csv"),
+             inputs.ifn_flore = file.path(dir_in, "FLORE.csv"))
+  for (k in seq_along(paths)) check_input_file(paths[[k]])
   if (validate) {
-    for (k in seq_along(chemins)) validate_file(names(chemins)[k], chemins[[k]], what = "entrée")
+    for (k in seq_along(paths)) validate_file(names(paths)[k], paths[[k]], what = "entrée")
   }
   res <- ifn_tables(
-    .ifn_read_csv(chemins[["inputs.ifn_placette"]], c("CAMPAGNE", "IDP", "XL", "YL")),
-    .ifn_read_csv(chemins[["inputs.ifn_arbre"]], c("CAMPAGNE", "IDP", "ESPAR", "C13")),
-    .ifn_read_csv(chemins[["inputs.ifn_flore"]], c("CAMPAGNE", "IDP", "CD_REF", "ABOND")),
+    .ifn_read_csv(paths[["inputs.ifn_placette"]], c("CAMPAGNE", "IDP", "XL", "YL")),
+    .ifn_read_csv(paths[["inputs.ifn_arbre"]], c("CAMPAGNE", "IDP", "ESPAR", "C13")),
+    .ifn_read_csv(paths[["inputs.ifn_flore"]], c("CAMPAGNE", "IDP", "CD_REF", "ABOND")),
     precision_m = precision_m, taxref_version = taxref_version
   )
   for (i in seq_len(nrow(res$report))) report_add(report, res$report$section[i], res$report$text[i])
@@ -300,9 +300,9 @@ prepare_ifn <- function(zone_dir, checked = NULL, report = NULL, precision_m = 7
     flora = write_parquet_tbl(res$flora, file.path(out, "flora.parquet"), IFN_FLORA_TYPES)
   )
   if (validate) {
-    contrats <- c(plots = "prepare.ifn_plots", trees = "prepare.ifn_trees",
+    contracts_by_table <- c(plots = "prepare.ifn_plots", trees = "prepare.ifn_trees",
                   flora = "prepare.ifn_flora")
-    for (k in names(contrats)) validate_file(contrats[[k]], files[[k]])
+    for (k in names(contracts_by_table)) validate_file(contracts_by_table[[k]], files[[k]])
   }
   invisible(c(res, list(files = files)))
 }

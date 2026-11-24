@@ -39,14 +39,15 @@ run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
     if (!dir.exists(zone_dir)) {
       stop(sprintf("dossier de la zone introuvable : %s", zone_dir), call. = FALSE)
     }
-    # Toutes les entrées IFN sont contrôlées AVANT la première écriture (grid.tif, ...) : une
-    # entrée refusée ne laisse aucune sortie à moitié produite. Les signalements IFN vont dans
-    # le même rapport_prepare.html que ceux de la grille.
+    # Les entrées IFN et les peuplements nemeton (essences du référentiel) sont contrôlés AVANT
+    # la première écriture (grid.tif, ...) : une entrée refusée ne laisse aucune sortie à moitié
+    # produite. Les signalements IFN vont dans le même rapport_prepare.html que ceux de la grille.
     report <- new_report()
     ifn <- prepare_ifn_check(zone_dir, report)
+    stands <- prepare_stands_check(zone_dir)
     prepare_grid(zone_dir, cfg, report = report)
     prepare_ifn(zone_dir, checked = ifn)
-    prepare_stands(zone_dir, cfg)
+    prepare_stands(zone_dir, cfg, checked = stands)
   })
 }
 
