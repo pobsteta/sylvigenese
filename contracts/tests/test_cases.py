@@ -58,7 +58,7 @@ def forest_mask(tmp, fault):
 
 def ser(tmp, fault):
     rows = [{"ser_code": "B10", "alluvium_code": None},
-            {"ser_code": "L3", "alluvium_code": "L9" if fault else "L3"}]
+            {"ser_code": "B10", "alluvium_code": "L9" if fault else "L3"}]
     layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_code", "TEXT")], rows,
              [(h.PARIS_X, h.PARIS_Y)] * 2)
     return h.gpkg(tmp / "ser.gpkg", {"ser": layer})

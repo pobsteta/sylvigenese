@@ -122,7 +122,9 @@
                 "alignment",
                 "overviews",
                 "pixel_is_area",
-                "uniform_bands"
+                "uniform_bands",
+                "band_tags",
+                "sparse_tiles"
               ]
             }
           },

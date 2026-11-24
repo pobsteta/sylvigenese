@@ -227,7 +227,7 @@ def test_ifn_arbre_w_is_checked_when_present(tmp_path, capsys):
 
 
 def test_alluvium_code_empty_string_is_refused(tmp_path, capsys):
-    rows = [{"ser_code": "L3", "alluvium_code": ""}]
+    rows = [{"ser_code": "B10", "alluvium_code": ""}]
     layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_code", "TEXT")], rows,
              [(h.PARIS_X, h.PARIS_Y)])
     path = h.gpkg(tmp_path / "ser.gpkg", {"ser": layer})

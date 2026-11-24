@@ -36,6 +36,8 @@ class RefusedKey(yaml.constructor.ConstructorError):
 LEADING_ZERO = re.compile(r"^[-+]?0[0-9_]+$|^0o[0-7_]+$")
 SEXAGESIMAL = re.compile(r"^[-+]?[0-9][0-9_]*(:[0-5]?[0-9])+(\.[0-9_]*)?$")
 YAML11_BOOLEANS = {"yes", "no", "on", "off", "y", "n"}
+UNDERSCORE_NUMBER = re.compile(r"^[-+]?[0-9][0-9_]*(\.[0-9_]*)?([eE][-+]?[0-9]+)?$")
+PREFIXED_NUMBER = re.compile(r"^[-+]?0[bB][01_]+$|^[-+]?0[xX][0-9a-fA-F_]+$")
 
 
 def ambiguity(text):
@@ -47,6 +49,13 @@ def ambiguity(text):
     if SEXAGESIMAL.match(text):
         return (f"nombre sexagésimal {text} : nombre en YAML 1.1, chaîne en YAML 1.2 ; "
                 f"écrire la valeur en nombre décimal, ou « \"{text}\" » entre guillemets")
+    if "_" in text and UNDERSCORE_NUMBER.match(text):
+        return (f"nombre avec séparateur _ {text} : nombre en YAML 1.1, chaîne en YAML 1.2 ; "
+                f"écrire le nombre sans _, ou « \"{text}\" » entre guillemets")
+    if PREFIXED_NUMBER.match(text):
+        return (f"nombre préfixé {text} (0b binaire, 0x hexadécimal) : lu différemment selon "
+                f"la version de YAML et la bibliothèque ; écrire le nombre en décimal, ou "
+                f"« \"{text}\" » entre guillemets")
     if text.lower() in YAML11_BOOLEANS:
         return (f"booléen YAML 1.1 {text} : booléen pour les uns, chaîne pour les autres ; "
                 f"écrire true ou false, ou « \"{text}\" » entre guillemets pour une chaîne")
@@ -64,21 +73,27 @@ class StrictKeyLoader(yaml.SafeLoader):
     """
 
     def construct_document(self, node):
-        self.refuse_ambiguous(node)
+        self.refuse_ambiguous(node, ())
         return super().construct_document(node)
 
-    def refuse_ambiguous(self, node):
+    def refuse_ambiguous(self, node, ancestors):
+        """Parcourt l'arbre ; `ancestors` détecte un alias qui se contient lui-même."""
         if isinstance(node, yaml.ScalarNode):
             problem = ambiguity(node.value) if node.style is None else None
             if problem:
                 raise RefusedKey(None, None, f"valeur ambiguë, {problem}", node.start_mark)
-        elif isinstance(node, yaml.SequenceNode):
+            return
+        if id(node) in ancestors:
+            raise RefusedKey(None, None, "alias YAML récursif refusé (un nœud qui se "
+                             "contient lui-même, par exemple &a [*a])", node.start_mark)
+        ancestors = ancestors + (id(node),)
+        if isinstance(node, yaml.SequenceNode):
             for child in node.value:
-                self.refuse_ambiguous(child)
+                self.refuse_ambiguous(child, ancestors)
         elif isinstance(node, yaml.MappingNode):
             for key, value in node.value:
-                self.refuse_ambiguous(key)
-                self.refuse_ambiguous(value)
+                self.refuse_ambiguous(key, ancestors)
+                self.refuse_ambiguous(value, ancestors)
 
     def construct_mapping(self, node, deep=False):
         seen = set()

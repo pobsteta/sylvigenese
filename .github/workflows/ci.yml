@@ -17,7 +17,7 @@ env:
   # Chaînes d'outils figées (mission 014). Python : python/pyproject.toml (>= 3.13) ;
   # Node : viewer-web/package.json (>= 22.18) ; R : testthat, yaml et terra, binaires r2u (CRAN du jour, voir le résumé).
   RUST_VERSION: "1.97.0"
-  PYTHON_VERSION: "3.13.18"
+  PYTHON_VERSION: "3.13.14"  # dernière 3.13 téléchargeable par uv 0.11.32
   NODE_VERSION: "22.23.5"
   GODOT_VERSION: "4.6-stable"
   PLAYWRIGHT_VERSION: "1.65.1"
@@ -79,6 +79,7 @@ jobs:
       - name: Python (uv)
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
+          version: "0.11.32"
           python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
           cache-dependency-glob: |
@@ -111,8 +112,8 @@ jobs:
 
       # Une seule source de la commande de tests : .claude/test-command (une ligne).
       # Elle échoue si pytest saute un test (-rs et contrôle de la ligne de résumé).
-      - name: Tests du projet (.claude/test-command)
-        run: bash -euo pipefail -c "$(cat .claude/test-command)"
+      - name: Tests du projet (tools/ci/run_tests.sh, comme .claude/test-command)
+        run: bash tools/ci/run_tests.sh
 
       - name: Durée de la CI
         if: always()

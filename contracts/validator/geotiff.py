@@ -222,6 +222,22 @@ def check_ifd(ifd, tiff, rules, profile, variant, options, findings):
         if pred not in allowed["predictor"]:
             findings.error(f"PREDICTOR={pred} refusé : prédicteur "
                            f"{' ou '.join(map(str, allowed['predictor']))} attendu")
+    if "band_tags" in rules:
+        # Comme le lecteur Rust : une valeur de 258 et de 339 par bande (339 absente = 1).
+        samples = first(ifd, "samples", 1)
+        bits = ifd.get(TAG["bits"], [])
+        formats = ifd.get(TAG["sample_format"], [1] * samples)
+        if len(bits) != samples or len(formats) != samples:
+            findings.error(f"{samples} bande(s) mais {len(bits)} valeur(s) de bits (balise "
+                           f"258) et {len(formats)} de format (balise 339) : une par bande "
+                           f"attendue")
+    if "sparse_tiles" in rules:
+        offsets = ifd.get(TAG["tile_offsets"]) or []
+        counts = ifd.get(TAG["tile_counts"]) or []
+        empty = [i for i, (o, c) in enumerate(zip(offsets, counts)) if o == 0 and c == 0]
+        if empty:
+            findings.error(f"tuile absente (fichier creux) refusée : {len(empty)} tuile(s) "
+                           f"de début et de taille nuls, la première au rang {empty[0]}")
     if "uniform_bands" in rules:
         samples = first(ifd, "samples", 1)
         for tag, label in ((TAG["bits"], "bits"), (TAG["sample_format"], "format")):

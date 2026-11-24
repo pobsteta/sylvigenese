@@ -1,1 +1,1 @@
-make test && python3 -m pytest -q -rs -p no:cacheprovider tests/contracts contracts/tests tools/fixtures/tests python | tee "${TMPDIR:-/tmp}/pytest-sylvigenese.out" && ! grep -Eq "[0-9]+ skipped" "${TMPDIR:-/tmp}/pytest-sylvigenese.out" && make validate ZONE=zone_fictive
+bash tools/ci/run_tests.sh

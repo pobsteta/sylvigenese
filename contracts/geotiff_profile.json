@@ -1,6 +1,6 @@
 {
   "x-schema-version": "0.1",
-  "description": "Profil fermé des GeoTIFF échangés entre modules (docs/spec.md §9, ADR 0002). Les codes de balises sont ceux de TIFF 6.0 et de GeoTIFF 1.1 (OGC 19-008r4). Les variantes complet et grille refusent aussi, comme le lecteur Rust de simulate (simulate/src/geotiff.rs, mission 015) : le pixel « point » (GeoKey 1025 = RasterPixelIsPoint), le géoréférencement par matrice (balise 34264, règle georef) et les bandes de types mixtes.",
+  "description": "Profil fermé des GeoTIFF échangés entre modules (docs/spec.md §9, ADR 0002). Les codes de balises sont ceux de TIFF 6.0 et de GeoTIFF 1.1 (OGC 19-008r4). Les variantes complet et grille refusent aussi, comme le lecteur Rust de simulate (simulate/src/geotiff.rs, mission 015) : le pixel « point » (GeoKey 1025 = RasterPixelIsPoint), le géoréférencement par matrice (balise 34264, règle georef) les bandes de types mixtes, un nombre de valeurs des balises 258 et 339 différent du nombre de bandes, et les tuiles creuses (début et taille nuls).",
   "allowed": {
     "tile_size": [
       256,
@@ -53,9 +53,11 @@
         "nodata",
         "compression",
         "predictor",
+        "band_tags",
         "uniform_bands",
         "sample_type",
         "tiles",
+        "sparse_tiles",
         "planar",
         "extent"
       ]
@@ -70,9 +72,11 @@
         "nodata",
         "compression",
         "predictor",
+        "band_tags",
         "uniform_bands",
         "sample_type",
         "tiles",
+        "sparse_tiles",
         "planar",
         "extent",
         "alignment"

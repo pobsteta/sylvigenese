@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Sylvoécorégions (inputs/ser.gpkg, couche ser)",
-  "description": "Code de SER et code des alluvions L1 à L5, vide (NULL) hors alluvions (spec §3, §7). Une chaîne vide est refusée : on écrit NULL.",
+  "description": "Code de SER et code des alluvions L1 à L5, vide (NULL) hors alluvions (spec §3, §7). Les alluvions sont rattachées à la SER sous-jacente : ser_code n'est jamais L1 à L5, le code d'alluvions va dans alluvium_code. Une chaîne vide est refusée : on écrit NULL.",
   "x-schema-version": "0.1",
   "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
   "fieldsMatch": "subset",
@@ -9,10 +9,11 @@
     {
       "name": "ser_code",
       "type": "string",
-      "description": "code de la sylvoécorégion (IGN)",
+      "description": "code de la sylvoécorégion sous-jacente (IGN), jamais L1 à L5 : le code d'alluvions va dans alluvium_code",
       "constraints": {
         "required": true,
-        "minLength": 1
+        "minLength": 1,
+        "pattern": "[^L].*|L|L[^1-5].*|L[1-5].+"
       }
     },
     {

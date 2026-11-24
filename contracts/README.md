@@ -105,12 +105,21 @@ Tests : `python3 -m pytest tests/contracts contracts/tests`.
   l'entier 2 : il faut écrire `"02"`), et toute valeur NaN ou infinie (`NaN`, `.nan`,
   `.inf`).
 - **YAML 1.1 contre YAML 1.2** : PyYAML et R lisent le YAML 1.1, TypeScript le YAML 1.2.
-  Tout scalaire non quoté qui se lirait différemment est refusé (code 3) : entier à zéro
-  de tête (`010`, `0o10`), nombre sexagésimal (`1:30`), booléen YAML 1.1 autre que
-  `true` ou `false` (`yes`, `no`, `on`, `off`, `y`, `n`, en toute casse). Le message dit
-  quoi écrire. **Attention pour les modules qui écrivent du YAML** : `yaml.safe_dump`
-  écrit la chaîne `"09"` sans guillemets ; il faut quoter ces chaînes (voir
-  `QuotingDumper` dans `tests/helpers.py`).
+  Le contrat refuse (code 3), quand ils ne sont pas entre guillemets, exactement ces
+  scalaires, clés comprises, avec un message qui dit quoi écrire :
+  - entier à zéro de tête : `010`, `-010`, `0o10` ;
+  - nombre sexagésimal : `1:30`, `190:20:30` ;
+  - nombre avec séparateur `_` : `1_000`, `1_000.5` ;
+  - nombre préfixé `0b` (binaire) ou `0x` (hexadécimal) : `0b101`, `0x1F` ;
+  - booléen YAML 1.1 autre que `true` et `false` : `yes`, `no`, `on`, `off`, `y`, `n`,
+    en toute casse.
+
+  D'autres écarts entre versions existent et **ne sont pas** dans cette règle : par
+  exemple `0.5e3`, chaîne en YAML 1.1 et nombre en YAML 1.2, n'est refusé que si le
+  schéma attend un nombre. Un alias YAML récursif (`&a [*a]`) est refusé, code 3.
+  **Attention pour les modules qui écrivent du YAML** : `yaml.safe_dump` écrit la chaîne
+  `"09"` sans guillemets ; il faut quoter ces chaînes (voir `QuotingDumper` dans
+  `tests/helpers.py`).
 - **Valeur nulle** : elle n'est refusée que par `required` ; les autres contraintes
   (`enum`, `pattern`, bornes) ne s'appliquent qu'aux valeurs présentes.
 - **Colonne facultative** (`x-optional: true`) : elle peut manquer ; si elle est là, ses
@@ -127,7 +136,9 @@ Float32 ou UInt16, nodata dans la balise 42113, GeoKey 3072 = 2154, BigTIFF refu
 Les variantes `complet` et `grille` refusent aussi, comme le lecteur Rust de `simulate`
 (`simulate/src/geotiff.rs`, mission 015) : le pixel « point » (GeoKey 1025 =
 RasterPixelIsPoint), le géoréférencement par matrice (balise 34264) et les bandes de types
-mixtes. Un test compare les deux verdicts sur les fichiers de `simulate/tests/fixtures/`.
+mixtes, un nombre de valeurs des balises 258 (BitsPerSample) et 339 (SampleFormat)
+différent du nombre de bandes, et les tuiles creuses (début et taille nuls). Un test
+compare les deux verdicts sur les fichiers de `simulate/tests/fixtures/`.
 Quatre variantes :
 
 | Variante | Pour | En plus ou en moins |
@@ -151,7 +162,7 @@ contrat de l'orchestrateur, par délégation de Pascal), en `schema_version` 0.1
 | Contrat (fichier) | Colonnes ou clés |
 |---|---|
 | `inputs.lidar_tiles` | `flight_date` (date) ; couche `lidar_tiles` |
-| `inputs.ser` | `ser_code`, `alluvium_code` (chaîne ∈ {`L1`, …, `L5`}, NULL hors alluvions ; une chaîne vide est refusée) ; couche `ser` |
+| `inputs.ser` | `ser_code` (SER sous-jacente, jamais `L1` à `L5`), `alluvium_code` (chaîne ∈ {`L1`, …, `L5`}, NULL hors alluvions ; une chaîne vide est refusée) ; couche `ser` |
 | `inputs.forest_mask` | couche `forest_mask`, géométrie seule |
 | `inputs.ifn_placette`, `ifn_arbre`, `ifn_flore` | fichiers `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` (colonnes de l'IFN : `IDP`, `XL`, `YL` ; `ESPAR`, `C13`, `HTOT`, `V`, `W` (facultative) ; `CD_REF`, `ABOND`). **Les colonnes réelles de l'export IFN seront vérifiées au jalon M1b** (le dictionnaire `metadonnees.csv` n'a pas pu être lu, `docs/referentiels/ifn-placettes.md`) |
 | tables de catégories (`ser.csv`, `station_type.csv`, `site_potential.csv`, `vegetation_map.csv`) | `value`, `name` (pour `site_potential.csv`, `value` est le numéro de bande) |
