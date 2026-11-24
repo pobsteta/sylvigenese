@@ -32,6 +32,11 @@ def _essence_hors_referentiel(d):
     _sql(d / "inputs" / "nemeton_stands.gpkg", "update stands set species_espar='ZZZ99' where stand_id='S01'")
 
 
+def _essence_valide_absente_du_referentiel(d):
+    # "99" respecte le motif du contrat ([0-9]{2}[A-Z0-9]{0,3}) mais n'est pas dans contracts/species.csv
+    _sql(d / "inputs" / "nemeton_stands.gpkg", "update stands set species_espar='99' where stand_id='S01'")
+
+
 def _date_impossible(d):
     _sql(d / "inputs" / "lidar_tiles.gpkg", "update lidar_tiles set flight_date='2022-02-30' where fid=1")
 
@@ -89,6 +94,7 @@ CAS = {
     "h_pot_absent": _sans_h_pot,                    # spec §3 : « S'il manque : erreur, code 2 »
     "essence_entier_sans_zero": _essence_entier,    # "9" au lieu de "09"
     "essence_hors_referentiel": _essence_hors_referentiel,
+    "essence_valide_absente_du_referentiel": _essence_valide_absente_du_referentiel,  # forme OK, hors species.csv
     "date_de_vol_impossible": _date_impossible,
     "stand_id_en_double": _doublon,
     "essence_manquante": _saisie_incomplete,

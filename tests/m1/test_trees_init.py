@@ -10,7 +10,7 @@ import helpers as H
 
 SPECIES_CSV = H.ROOT / "contracts" / "species.csv"
 SOURCES_ESSENCE = {"nemeton", "vegetation_type", "inventaire_video"}
-SOURCES_D130 = {"tarif_etage_b", "inventaire_video", "nemeton"}
+SOURCES_D130 = {"tarif_etage_b", "tarif_etage_b_ifn", "inventaire_video", "nemeton"}
 
 
 @pytest.fixture(scope="module")
