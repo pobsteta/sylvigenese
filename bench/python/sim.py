@@ -3,35 +3,63 @@
 
 Exemple : python3 bench/python/sim.py --variant py-numpy --n 500 --years 100 \
               --seed 42 --threads 1 --out /tmp/x
-Codes de sortie : 0 ok ; 2 entrée invalide ; 3 contrôle §6.8 déclenché.
+Codes de sortie : 0 ok ; 2 entrée refusée ; 3 contrôle §6.8 déclenché ; 4 mémoire insuffisante.
 """
 import argparse
 import json
 import os
+import re
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import numpy as np  # noqa: E402
-
-import params as P  # noqa: E402
+import params as P  # noqa: E402  (n'importe pas numpy)
 
 EXIT_INPUT = 2
 EXIT_CONTROL = 3
+EXIT_MEMORY = 4
+SEED_MAX = 2 ** 53
+DIGITS = re.compile(r"[0-9]+", re.ASCII)
+
+
+class FrArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        fail(EXIT_INPUT, f"Erreur de ligne de commande : {message}. Voir --help.")
 
 
 def parse(argv):
-    a = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    a.add_argument("--variant", choices=["py-numpy", "py-numba"], default="py-numpy")
-    a.add_argument("--n", type=int, required=True)
-    a.add_argument("--years", type=int, required=True)
-    a.add_argument("--seed", type=int, default=42)
-    a.add_argument("--threads", type=int, default=1)
-    a.add_argument("--out", required=True)
-    a.add_argument("--inject-nan", type=int, default=None, metavar="YEAR")
+    a = FrArgumentParser(description=__doc__.splitlines()[0])
+    a.add_argument("--variant", default="py-numpy", help="py-numpy ou py-numba")
+    for opt in ("n", "years", "seed", "threads", "inject-nan"):
+        a.add_argument("--" + opt, default=None, metavar="ENTIER")
+    a.add_argument("--out", default=None)
     a.add_argument("--hmax-zero", action="store_true")
-    return a.parse_args(argv)
+    args = a.parse_args(argv)
+    if args.variant not in ("py-numpy", "py-numba"):
+        fail(EXIT_INPUT, f"Erreur : --variant doit valoir py-numpy ou py-numba (reçu « {args.variant} »).")
+    for req in ("n", "years", "out"):
+        if getattr(args, req) is None:
+            fail(EXIT_INPUT, f"Erreur : --{req} est obligatoire.")
+    for opt, default in (("seed", "42"), ("threads", "1")):
+        if getattr(args, opt) is None:
+            setattr(args, opt, default)
+    # AM2 : entiers écrits en chiffres décimaux, jamais tronqués ni ignorés
+    for opt in ("n", "years", "seed", "threads", "inject_nan"):
+        v = getattr(args, opt)
+        if v is None:
+            continue
+        if not DIGITS.fullmatch(v):
+            fail(EXIT_INPUT, f"Erreur : --{opt.replace('_', '-')} doit être un entier écrit en chiffres "
+                             f"(reçu « {v} »).")
+        setattr(args, opt, int(v))
+    if args.seed >= SEED_MAX:
+        fail(EXIT_INPUT, f"Erreur : --seed doit être dans [0, 2^53) (reçu {args.seed}).")
+    if args.n < 1 or args.threads < 1:
+        fail(EXIT_INPUT, "Erreur : --n et --threads doivent être >= 1.")
+    if args.inject_nan is not None and not (1 <= args.inject_nan <= args.years):
+        fail(EXIT_INPUT, f"Erreur : --inject-nan {args.inject_nan} hors de 1 … {args.years}.")
+    return args
 
 
 def fail(code, msg):
@@ -41,15 +69,23 @@ def fail(code, msg):
 
 def main(argv=None):
     args = parse(sys.argv[1:] if argv is None else argv)
-    if args.n < 1 or args.years < 0 or args.threads < 1 or args.seed < 0:
-        fail(EXIT_INPUT, "Erreur : --n et --threads doivent être >= 1, --years et --seed >= 0.")
-    if args.inject_nan is not None and not (1 <= args.inject_nan <= args.years):
-        fail(EXIT_INPUT, f"Erreur : --inject-nan {args.inject_nan} hors de 1 … {args.years}.")
     T = args.threads
-    # Fils : fixés avant l'import de numba / de scipy.fft (workers=T plus loin).
+    # Fils : variables d'environnement fixées AVANT tout import de numpy / numba.
     os.environ["NUMBA_NUM_THREADS"] = str(T)
     for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[v] = str(T)
+    try:
+        return run(args)
+    except MemoryError:
+        n = args.n
+        est = 5 * P.S * n * n * 4 + 3 * n * n * 8      # B, D, H, Hmax (f32) + tampons f64, approximatif
+        fail(EXIT_MEMORY, f"Mémoire insuffisante : allocation impossible pour N = {n} "
+                          f"(état estimé à au moins {est / 1e6:.0f} Mo, sans compter la FFT).")
+
+
+def run(args):
+    import numpy as np
+    T = args.threads
     if args.variant == "py-numba":
         import v_numba as V
         tc = time.perf_counter()

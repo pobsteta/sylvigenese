@@ -35,7 +35,7 @@ class Engine:
             for dj in range(3):
                 cnt += ones[di:di + n, dj:dj + n]
         self.cnt = cnt
-        self.disp = Disperser(n, make_kernel(), workers=self.threads)
+        self.disp = Disperser(n, make_kernel(), workers=1)  # FFT mono-fil : identité 1/T fils par construction
 
     def step(self, year):
         n, S = self.n, P.S

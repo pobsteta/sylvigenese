@@ -60,7 +60,7 @@ def test_rng_no_overflow_warning():
     import warnings
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        u_array(2 ** 63 + 5, 10 ** 6, 7, cell_hash(1000))
+        u_array(2 ** 53 - 1, 10 ** 6, 7, cell_hash(1000))
 
 
 # ---------------------------------------------------------------- noyau et FFT
@@ -105,7 +105,7 @@ def test_inject_nan_stops_with_french_message(variant, tmp_path):
     r = run_sim(variant, 20, 6, 1, tmp_path, "--inject-nan", "3")
     assert r.returncode != 0
     assert "année 3" in r.stderr and "cellule 0" in r.stderr and "essence 0" in r.stderr
-    assert "NaN" in r.stderr.upper() or "nan" in r.stderr
+    assert "nan" in r.stderr.lower()
     assert not (tmp_path / "state_final.f32").exists()
 
 
@@ -188,7 +188,8 @@ def reference_run(n, years, seed):
                     hm = float(Hmax[s, i, j])
                     if D[s, i, j] > 0:
                         h = h + P.RGROW[s] * L[i, j] * (1 - h / hm)
-                    h = min(h, hm)
+                    if h > hm:
+                        h = hm
                     H[s, i, j] = f32(h)
                     u = u_scalar(seed, year, c, s)
                     D[s, i, j] = f32(float(D[s, i, j]) * (1 - P.MORT[s] * (0.8 + 0.4 * u)))
@@ -258,3 +259,120 @@ def test_variants_agree_on_summary(runs):
     assert a.shape == b.shape == (5 * P.S, 5)
     assert np.array_equal(a[:, :2], b[:, :2])
     np.testing.assert_allclose(a[:, 2:], b[:, 2:], rtol=1e-9, atol=0)
+
+
+# ---------------------------------------------------------------- AM4 : référence partagée
+REF_CSV = os.path.join(os.path.dirname(PYDIR), "reference", "summary_n16_y30_seed42.csv")
+
+
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_summary_matches_shared_reference(variant, tmp_path):
+    r = run_sim(variant, 16, 30, 1, tmp_path)
+    assert r.returncode == 0, r.stderr
+    got = _read_summary(tmp_path / "summary.csv")
+    ref = _read_summary(__import__("pathlib").Path(REF_CSV))
+    assert got.shape == ref.shape
+    assert np.array_equal(got[:, :2], ref[:, :2])
+    denom = np.maximum(np.abs(ref[:, 2:]), 1e-300)
+    assert np.max(np.abs(got[:, 2:] - ref[:, 2:]) / denom) <= 1e-9
+    sb = ref[ref[:, 1] == 0][:, 2]
+    assert sb[-1] > sb[18]          # la référence contient bien un recrutement
+
+
+# ---------------------------------------------------------------- contrôle §6.8 et ordre P7
+def _engine(variant):
+    if variant == "py-numpy":
+        import v_numpy as V
+    else:
+        import v_numba as V
+    e = V.Engine(6, 42, 1)
+    e.init()
+    return e
+
+
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_control_negative_d(variant):
+    e = _engine(variant)
+    assert e.violation(P.DMAX) is None
+    e.D[2, 1, 1] = -1.0
+    assert e.violation(P.DMAX) == ("D", 2, 1, 1)
+
+
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_control_d_above_dmax(variant):
+    e = _engine(variant)
+    e.D[1, 3, 4] = np.float32(P.DMAX)          # D == Dmax : toléré
+    assert e.violation(P.DMAX) is None
+    e.D[1, 3, 4] = np.float32(2e6)
+    assert e.violation(P.DMAX) == ("D", 1, 3, 4)
+
+
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_control_negative_b_and_nan_h(variant):
+    e = _engine(variant)
+    e.B[4, 0, 0] = -0.5
+    assert e.violation(P.DMAX) == ("B", 4, 0, 0)
+    e.B[4, 0, 0] = 1.0
+    e.H[5, 2, 3] = np.nan
+    assert e.violation(P.DMAX) == ("H", 5, 2, 3)
+
+
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_control_order_p7(variant):
+    """P7 : d'abord l'essence, puis la ligne, la colonne, enfin B, D, H."""
+    e = _engine(variant)
+    e.B[3, 0, 0] = np.nan
+    e.D[1, 5, 5] = -1.0
+    assert e.violation(P.DMAX) == ("D", 1, 5, 5)          # essence 1 avant essence 3
+    e.H[1, 2, 5] = np.nan
+    assert e.violation(P.DMAX) == ("H", 1, 2, 5)          # même essence : ligne 2 avant ligne 5
+    e.D[1, 2, 5] = -1.0
+    assert e.violation(P.DMAX) == ("D", 1, 2, 5)          # même cellule : D avant H
+    e.B[1, 2, 5] = -1.0
+    assert e.violation(P.DMAX) == ("B", 1, 2, 5)          # même cellule : B avant D
+
+
+# ---------------------------------------------------------------- AM2, AM3 : arguments
+@pytest.mark.parametrize("opt,val", [
+    ("--seed", "-1"), ("--seed", "1.5"), ("--seed", "abc"), ("--seed", str(2 ** 53)),
+    ("--seed", str(2 ** 64 + 5)), ("--seed", "1e3"), ("--seed", ""),
+    ("--n", "20.0"), ("--n", "0"), ("--n", "-3"), ("--years", "2.5"), ("--years", "x"),
+    ("--threads", "2.0"), ("--threads", "0"), ("--inject-nan", "1.0"), ("--inject-nan", "a"),
+])
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_bad_integer_arguments_refused(variant, opt, val, tmp_path):
+    base = {"--n": "20", "--years": "2", "--seed": "42", "--threads": "1"}
+    base[opt] = val
+    cmd = [sys.executable, SIM, "--variant", variant, "--out", str(tmp_path)]
+    for k, v in base.items():
+        cmd += [k, v]
+    if opt == "--inject-nan":
+        cmd += ["--inject-nan", val]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    assert r.returncode == 2, (r.returncode, r.stderr)
+    assert "Traceback" not in r.stderr and "Erreur" in r.stderr
+    assert not (tmp_path / "summary.csv").exists()
+
+
+def test_seed_edge_accepted(tmp_path):
+    cmd = [sys.executable, SIM, "--n", "8", "--years", "1", "--seed", str(2 ** 53 - 1), "--out", str(tmp_path)]
+    assert subprocess.run(cmd, capture_output=True, text=True).returncode == 0
+
+
+def test_rng_refuses_seed_out_of_domain():
+    with pytest.raises(ValueError):
+        u_scalar(2 ** 64, 0, 0, 0)
+    with pytest.raises(ValueError):
+        u_array(-1, 0, 0, cell_hash(2))
+
+
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_memory_error_gives_exit_4(variant, tmp_path):
+    """Limite d'espace d'adressage faible : MemoryError interceptée, message en français."""
+    code = ("import resource,sys;resource.setrlimit(resource.RLIMIT_AS,(1500*2**20,)*2);"
+            f"sys.argv=['sim','--variant','{variant}','--n','3000','--years','1','--out',r'{tmp_path}'];"
+            f"sys.path.insert(0,r'{PYDIR}');import sim;sys.exit(sim.main())")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert r.returncode == 4, (r.returncode, r.stderr[-500:])
+    assert r.stderr.startswith("Mémoire insuffisante") or "Mémoire insuffisante" in r.stderr
+    assert "Traceback" not in r.stderr

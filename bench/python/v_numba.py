@@ -192,7 +192,7 @@ class Engine:
         self.H = np.zeros((S, n, n), np.float32)
         self.btot = np.empty((n, n))
         self.L = np.empty((n, n))
-        self.disp = Disperser(n, make_kernel(), workers=self.threads)
+        self.disp = Disperser(n, make_kernel(), workers=1)  # FFT mono-fil : identité 1/T fils par construction
         self.tol = np.array(P.TOL)
         self.r = np.array(P.RGROW)
         self.m = np.array(P.MORT)

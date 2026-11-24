@@ -12,9 +12,15 @@ C3 = 0x94D049BB133111EB
 TWO_M53 = 2.0 ** -53
 
 
+def check_seed(seed):
+    if not (0 <= seed < 2 ** 53):
+        raise ValueError(f"graine hors de [0, 2^53) : {seed}")
+
+
 def u_scalar(seed, year, cell, sp):
     """Tirage dans [0, 1) pour (seed, year, cell, sp), entiers Python."""
-    x = (seed & MASK) ^ ((year * C1) & MASK) ^ ((cell * C2) & MASK) ^ ((sp * C3) & MASK)
+    check_seed(seed)
+    x = seed ^ ((year * C1) & MASK) ^ ((cell * C2) & MASK) ^ ((sp * C3) & MASK)
     x = (x + C1) & MASK
     z = ((x ^ (x >> 30)) * C2) & MASK
     z = ((z ^ (z >> 27)) * C3) & MASK
@@ -30,7 +36,8 @@ def cell_hash(n_cells):
 
 def u_array(seed, year, sp, cell_mul):
     """Tirages pour toutes les cellules (cell_mul = cell_hash(...)), un seul `sp`."""
-    base = np.uint64((seed & MASK) ^ ((year * C1) & MASK) ^ ((sp * C3) & MASK))
+    check_seed(seed)
+    base = np.uint64(seed ^ ((year * C1) & MASK) ^ ((sp * C3) & MASK))
     with np.errstate(over="ignore"):
         x = cell_mul ^ base
         x = x + np.uint64(C1)
