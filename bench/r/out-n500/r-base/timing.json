@@ -1,1 +1,1 @@
-{"lang": "r-base", "n": 500, "years": 100, "threads": 1, "init_s": 0.293000, "step_mean_s": 0.519650, "total_s": 52.258000, "write_s": 0.042000}
+{"lang": "r-base", "n": 500, "years": 100, "threads": 1, "init_s": 0.291000, "step_mean_s": 0.552100, "total_s": 55.501000, "write_s": 0.041000}

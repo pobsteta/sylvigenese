@@ -91,14 +91,12 @@ struct BtotWorker : public RcppParallel::Worker {
   }
 };
 
-struct CellWorker : public RcppParallel::Worker {
-  double *B, *D, *H; const double *Q, *Hmax, *Btot;
-  const int* forest; int N, nc, S; uint64_t seed, year;
-  const double *tol, *r, *m; double k, est, hrec, g;
+// L[c] = exp(-k * moyenne 3x3 de Btot) (étape 3), sur l'état B au début du pas.
+struct LWorker : public RcppParallel::Worker {
+  const double* Btot; double* L; int N; double k;
   void operator()(std::size_t b, std::size_t e) {
     for (std::size_t c = b; c < e; c++) {
       int i = (int)(c / N), j = (int)(c % N);
-      // 3x3 : moyenne sur les cellules présentes
       double sum = 0; int cnt = 0;
       for (int a = -1; a <= 1; a++) {
         int ii = i + a; if (ii < 0 || ii >= N) continue;
@@ -107,13 +105,38 @@ struct CellWorker : public RcppParallel::Worker {
           sum += Btot[(std::size_t)ii * N + jj]; cnt++;
         }
       }
-      double L = std::exp(-k * (sum / cnt));
-      for (int s = 0; s < S; s++) {
+      L[c] = std::exp(-k * (sum / cnt));
+    }
+  }
+};
+
+// [[Rcpp::export]]
+NumericVector compute_L(NumericMatrix B, int N, double k) {
+  int nc = B.nrow(), S = B.ncol();
+  std::vector<double> Btot(nc);
+  BtotWorker w1; w1.B = B.begin(); w1.Btot = Btot.data(); w1.nc = nc; w1.S = S;
+  RcppParallel::parallelFor(0, nc, w1, 4096);
+  NumericVector L(nc);
+  LWorker w2; w2.Btot = Btot.data(); w2.L = L.begin(); w2.N = N; w2.k = k;
+  RcppParallel::parallelFor(0, nc, w2, 1024);
+  return L;
+}
+
+// Étapes 4 à 7 pour les essences s0 .. s0+ncol(Q)-1 (Q : dispersion de ces essences seulement).
+struct CellWorker : public RcppParallel::Worker {
+  double *B, *D, *H; const double *Q, *Hmax, *L;
+  const int* forest; int nc, s0, ns; uint64_t seed, year;
+  const double *tol, *r, *m; double est, hrec, g;
+  void operator()(std::size_t b, std::size_t e) {
+    for (std::size_t c = b; c < e; c++) {
+      double Lc = L[c];
+      for (int s = s0; s < s0 + ns; s++) {
         std::size_t p = (std::size_t)s * nc + c;
+        double q = Q[(std::size_t)(s - s0) * nc + c];
         // P1 : arrondi f32 à la fin de chaque étape 4, 5, 6, 7
-        double d = f32(D[p] + forest[c] * est * Q[p] * std::pow(L, tol[s]));      // 4
+        double d = f32(D[p] + forest[c] * est * q * std::pow(Lc, tol[s]));        // 4
         double h = H[p], hm = Hmax[p];
-        if (d > 0) h += r[s] * L * (1.0 - h / hm);                                // 5
+        if (d > 0) h += r[s] * Lc * (1.0 - h / hm);                               // 5
         if (h > hm) h = hm;                                                       // P9
         h = f32(h);
         d = f32(d * (1.0 - m[s] * (0.8 + 0.4 * u_one(seed, year, c, s))));        // 6
@@ -125,20 +148,21 @@ struct CellWorker : public RcppParallel::Worker {
   }
 };
 
-// Étapes 3 à 7, en place sur B, D, H (état arrondi en f32 en fin de pas).
+// ATTENTION : step_cells MODIFIE B, D et H EN PLACE (pas de copie : ce sont les matrices de
+// st$B, st$D, st$H côté R, qui changent aussi). Appeler sans alias de ces matrices.
+// Traite les essences s0 .. s0+ncol(Q)-1 (0-based) ; L vient de compute_L, calculé sur B
+// avant toute modification du pas.
 // [[Rcpp::export]]
 void step_cells(NumericMatrix B, NumericMatrix D, NumericMatrix H, NumericMatrix Q,
-                NumericMatrix Hmax, IntegerVector forest, int N, double seed, double year,
-                NumericVector tol, NumericVector r, NumericVector m, NumericVector par) {
-  int nc = B.nrow(), S = B.ncol();
-  std::vector<double> Btot(nc);
-  BtotWorker w1; w1.B = B.begin(); w1.Btot = Btot.data(); w1.nc = nc; w1.S = S;
-  RcppParallel::parallelFor(0, nc, w1, 4096);
-  CellWorker w2;
-  w2.B = B.begin(); w2.D = D.begin(); w2.H = H.begin(); w2.Q = Q.begin(); w2.Hmax = Hmax.begin();
-  w2.Btot = Btot.data(); w2.forest = forest.begin(); w2.N = N; w2.nc = nc; w2.S = S;
-  w2.seed = (uint64_t)seed; w2.year = (uint64_t)year;
-  w2.tol = tol.begin(); w2.r = r.begin(); w2.m = m.begin();
-  w2.k = par[0]; w2.est = par[1]; w2.hrec = par[2]; w2.g = par[3];
-  RcppParallel::parallelFor(0, nc, w2, 1024);
+                NumericMatrix Hmax, IntegerVector forest, NumericVector L, int N, double seed,
+                double year, int s0, NumericVector tol, NumericVector r, NumericVector m,
+                NumericVector par) {
+  int nc = B.nrow();
+  CellWorker w;
+  w.B = B.begin(); w.D = D.begin(); w.H = H.begin(); w.Q = Q.begin(); w.Hmax = Hmax.begin();
+  w.L = L.begin(); w.forest = forest.begin(); w.nc = nc; w.s0 = s0; w.ns = Q.ncol();
+  w.seed = (uint64_t)seed; w.year = (uint64_t)year;
+  w.tol = tol.begin(); w.r = r.begin(); w.m = m.begin();
+  w.est = par[0]; w.hrec = par[1]; w.g = par[2];
+  RcppParallel::parallelFor(0, nc, w, 1024);
 }

@@ -14,9 +14,10 @@ load_cpp <- function(root, cache = Sys.getenv("SYLVI_CACHE", file.path(root, ".c
                   cacheDir = cache, rebuild = FALSE, verbose = FALSE)
 }
 
-fail <- function(msg) {            # arrêt avec message en français, code de sortie 1
+# Codes de sortie (SPEC AM3) : 2 entrée refusée, 3 contrôle §6.8 échoué, 4 mémoire insuffisante.
+fail <- function(msg, code = 2L) {  # arrêt avec message en français
   cat(msg, "\n", file = stderr(), sep = "")
-  quit(save = "no", status = 1L)
+  quit(save = "no", status = as.integer(code))
 }
 
 # ---- Noyau (§5), f64, somme = 1. Matrice (2R+1)^2 indexée [di+R+1, dj+R+1]. -------------
@@ -48,17 +49,19 @@ make_fft_ctx <- function(N, K = make_kernel()) {
 }
 
 # Dispersion par FFT (§6.2). P : ncell x S. Deux essences par FFT complexe (réelle + imaginaire ;
-# le noyau est réel). Le noyau est symétrique, donc matrix(v, N, N) (indexé [j,i]) convient.
+# le noyau est réel). Indexation explicite : matrix(v, N, N, byrow = TRUE) donne M[i, j] avec
+# c = i*N + j, et t() ramène à l'ordre des cellules. Le noyau étant symétrique, l'orientation
+# ne change pas le résultat, mais elle est ici correcte sans en dépendre.
 disperse_fft <- function(P, ctx) {
   N <- ctx$N; F <- ctx$F; S <- ncol(P); sc <- 1 / (as.double(F) * F)
   Q <- matrix(0, nrow(P), S)
   for (a in seq.int(1L, S, by = 2L)) {
     b <- if (a + 1L <= S) a + 1L else NA_integer_
     Z <- matrix(0 + 0i, F, F)
-    Z[1:N, 1:N] <- matrix(complex(real = P[, a], imaginary = if (is.na(b)) 0 else P[, b]), N, N)
+    Z[1:N, 1:N] <- matrix(complex(real = P[, a], imaginary = if (is.na(b)) 0 else P[, b]), N, N, byrow = TRUE)
     W <- fft(fft(Z) * ctx$Kf, inverse = TRUE)[1:N, 1:N]
-    Q[, a] <- as.vector(Re(W)) * sc
-    if (!is.na(b)) Q[, b] <- as.vector(Im(W)) * sc
+    Q[, a] <- as.vector(t(Re(W))) * sc
+    if (!is.na(b)) Q[, b] <- as.vector(t(Im(W))) * sc
   }
   Q
 }
@@ -113,7 +116,7 @@ check_or_stop <- function(st, year, N) {
     what <- switch(v[4], "vaut NaN", sprintf("est négative (%s)", format(v[5])),
                    sprintf("dépasse Dmax = %s (%s)", format(PAR$Dmax), format(v[5])))
     fail(sprintf("Contrôle échoué : %s[essence %d, cellule %d (ligne %d, colonne %d)] %s, année %d. Arrêt.",
-                 nm, s, c, c %/% N, c %% N, what, year))
+                 nm, s, c, c %/% N, c %% N, what, year), code = 3L)
   }
 }
 
@@ -131,26 +134,46 @@ window3_count <- function(N) {
   tot
 }
 
-# ---- Un pas annuel : variante r-base (R vectorisé) -----------------------------------------
-step_base <- function(st, Q, ctx, seed, year) {
+# ---- Un pas annuel : variante r-base (R vectorisé), par paire d'essences ----------------------
+# L (étape 3) est calculé d'abord sur le B du début de pas ; puis, pour chaque paire d'essences,
+# P et Q (étapes 1, 2) et les étapes 4 à 7, pour limiter la mémoire (Q : 2 colonnes, pas 8).
+step_base <- function(st, ctx, seed, year) {
   N <- ctx$N; S <- PAR$S; nc <- N * N
   Btot <- st$B[, 1]; for (s in 2:S) Btot <- Btot + st$B[, s]
-  Bbar <- window3_mean(matrix(Btot, N, N), ctx$cnt)            # [j,i], fenêtre symétrique
-  L <- exp(-PAR$k * as.vector(Bbar))
+  Bbar <- window3_mean(matrix(Btot, N, N, byrow = TRUE), ctx$cnt)   # [i,j]
+  L <- exp(-PAR$k * as.vector(t(Bbar)))                              # retour à l'ordre c = i*N + j
   cells <- as.numeric(0:(nc - 1))
-  for (s in 0:(S - 1)) {
-    p <- s + 1L
-    d <- to_f32(st$D[, p] + st$forest * PAR$est * Q[, p] * L^PAR$tol[p])        # 4 (P1)
-    h <- st$H[, p]; hm <- st$Hmax[, p]
-    gr <- d > 0
-    h[gr] <- h[gr] + PAR$r[p] * L[gr] * (1 - h[gr] / hm[gr])                    # 5
-    over <- !is.na(h) & h > hm; h[over] <- hm[over]                            # P9 : pas de pmin
-    h <- to_f32(h)
-    d <- to_f32(d * (1 - PAR$m[p] * (0.8 + 0.4 * u_vec(seed, year, cells, s)))) # 6
-    b <- st$B[, p]
-    rec <- !is.na(h) & h >= PAR$hrec                                            # 7
-    b[rec] <- b[rec] + PAR$g * d[rec]; d[rec] <- 0; h[rec] <- 0
-    st$B[, p] <- to_f32(b); st$D[, p] <- d; st$H[, p] <- h
+  for (a in seq.int(1L, S, by = 2L)) {
+    idx <- a:min(a + 1L, S)
+    Q <- disperse_fft(PAR$fec * st$B[, idx, drop = FALSE], ctx)      # 1, 2
+    for (p in idx) {
+      s <- p - 1L
+      d <- to_f32(st$D[, p] + st$forest * PAR$est * Q[, p - a + 1L] * L^PAR$tol[p]) # 4 (P1)
+      h <- st$H[, p]; hm <- st$Hmax[, p]
+      gr <- d > 0
+      h[gr] <- h[gr] + PAR$r[p] * L[gr] * (1 - h[gr] / hm[gr])                    # 5
+      over <- !is.na(h) & h > hm; h[over] <- hm[over]                            # P9 : pas de pmin
+      h <- to_f32(h)
+      d <- to_f32(d * (1 - PAR$m[p] * (0.8 + 0.4 * u_vec(seed, year, cells, s)))) # 6
+      b <- st$B[, p]
+      rec <- !is.na(h) & h >= PAR$hrec                                            # 7
+      b[rec] <- b[rec] + PAR$g * d[rec]; d[rec] <- 0; h[rec] <- 0
+      st$B[, p] <- to_f32(b); st$D[, p] <- d; st$H[, p] <- h
+    }
+  }
+  st
+}
+
+# Variante r-rcpp : mêmes étapes, cœur par cellule en C++ (step_cells modifie st$B, st$D, st$H
+# EN PLACE), aussi par paire d'essences.
+step_rcpp <- function(st, ctx, seed, year) {
+  N <- ctx$N; S <- PAR$S
+  L <- compute_L(st$B, N, PAR$k)
+  for (a in seq.int(1L, S, by = 2L)) {
+    idx <- a:min(a + 1L, S)
+    Q <- disperse_fft(PAR$fec * st$B[, idx, drop = FALSE], ctx)
+    step_cells(st$B, st$D, st$H, Q, st$Hmax, st$forest, L, N, seed, year, a - 1L,
+               PAR$tol, PAR$r, PAR$m, c(PAR$est, PAR$hrec, PAR$g))
   }
   st
 }
@@ -174,13 +197,8 @@ run_sim <- function(variant, N, years, seed, threads, inject_nan = NA, hmax_zero
   tl <- proc.time()[["elapsed"]]
   for (year in seq_len(years)) {
     if (!is.na(inject_nan) && year == inject_nan) st$H[1, 1] <- NaN         # H[0,0] = NaN
-    Q <- disperse_fft(PAR$fec * st$B, ctx)                                  # 1, 2
-    if (variant == "r-base") {
-      st <- step_base(st, Q, ctx, seed, year)                               # 3 à 7
-    } else {
-      step_cells(st$B, st$D, st$H, Q, st$Hmax, st$forest, N, seed, year,
-                 PAR$tol, PAR$r, PAR$m, c(PAR$k, PAR$est, PAR$hrec, PAR$g))
-    }
+    st <- if (variant == "r-base") step_base(st, ctx, seed, year)           # 1 à 7
+          else step_rcpp(st, ctx, seed, year)
     check_or_stop(st, year, N)                                              # 8
     rs <- row_summary(st$B, st$D, st$H, N)                                  # §7
     rows <- (year - 1L) * S + seq_len(S)
