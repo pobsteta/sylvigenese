@@ -4,7 +4,7 @@
 > tout démarrage. Règle de staffing : un agent par mission qui passe les trois
 > questions, jamais un agent « par principe ».
 
-- **Statut :** proposée
+- **Statut :** proposée (à compléter par `/imperatrice:mission`)
 - **Validée par :** _…_
 
 ## Plafond humain
@@ -15,13 +15,27 @@
 ## Délégation
 
 > Ce que Pascal demande à l'orchestrateur de trancher à sa place (skill `methode`,
-> « La délégation »). Vide : aucune délégation, Pascal tranche tout.
+> « La délégation »).
 
-- **Portée :** _aucune_
-- **Jusqu'à :** _…_
-- **Réservé à Pascal :** _…_ (toujours, même si rien n'est écrit : sa réponse d'abord ;
-  rendre la main ; ce qui touche l'extérieur et ne se défait pas)
-- **Inscrite au journal le :** _…_
+- **Parole de Pascal (24/11/2026), recopiée mot pour mot :** « Je valide tes choix et
+  choisis ce qu'il y a de mieux jusqu'à obtenir une première version de la plateforme à ma
+  place ».
+- **Portée :** toutes les décisions nécessaires pour obtenir une première version (v1) de
+  sylvigenese, telle que la décrit `docs/BRIEF.md` :
+  - les arbitrages du brief et de la critique du contradicteur ;
+  - la spec et les ADR ;
+  - l'équipe et les missions ;
+  - la relecture et la fusion des PR vers `main`, qui déclenche la release automatique du
+    dépôt (BRIEF §11).
+- **Jusqu'à :** la v1, c'est-à-dire les jalons M0 à M6 du BRIEF §11 remplis, ou le premier
+  retour de Pascal qui la reprend ou la restreint.
+- **Réservé à Pascal :**
+  - sa réponse d'abord ;
+  - rendre la main ;
+  - ce qui touche l'extérieur et ne se défait pas : publication hors du dépôt, contact avec
+    des tiers, dépense, partage, élargissement du réseau ou des accès de l'environnement ;
+  - le lancement du banc sur son PC.
+- **Inscrite au journal le :** 2026-11-24.
 
 ## Le vivier (catalogue, pas une équipe)
 
