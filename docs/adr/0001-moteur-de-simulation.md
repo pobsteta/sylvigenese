@@ -1,11 +1,20 @@
 # ADR 0001 — langage du moteur de simulation (`simulate`)
 
 - **Date :** 2026-11-24
-- **Statut :** proposée
+- **Statut :** acceptée en partie par Pascal le 2026-11-24 (langage et résolution) ; option G et point I4 encore ouverts
 - **Proposée par :** Claude (orchestrateur), à la demande de Pascal
-- **Tranchée par :** Pascal (à trancher)
+- **Tranchée par :** Pascal, le 2026-11-24 (langage Rust, grille SER à 25 m)
 
 ## La décision en une phrase
+
+**Décision de Pascal (24/11/2026) :** le module `simulate` est écrit en **Rust**, avec une
+grille SER à **25 m**. Elle repose sur les mesures préliminaires du banc
+(`bench/results/RESULTATS.md`) et sur les surfaces des SER (`docs/referentiels/surfaces-ser.md`).
+La plus grande SER, C20, compte environ 48 millions de cellules à 25 m. Seules les variantes
+Rust et Python tiennent dans 31 Go, et Rust est la seule qui exploite les 4 cœurs (accélération
+de 3,8). Le banc sur le PC de Pascal reste à faire, pour confirmer ces chiffres.
+
+*Proposition initiale, conservée pour la trace :*
 
 Proposition : le module `simulate` devient un exécutable **Rust** autonome
 (`sylvigenese-sim run config.yml`), qui lit et écrit les contrats de `data/<zone>/`
