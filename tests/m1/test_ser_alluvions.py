@@ -87,5 +87,7 @@ def test_variante_ligne_de_rapport_pour_l_attribution(alluvion_zone):
     avec_l3 = [b for b in blocs if re.search(r"\bL3\b", b)]
     assert any(re.search(r"\bH20\b", b) for b in avec_l3), \
         "aucune ligne de rapport « L3 -> H20 »"
-    faux = [b for b in avec_l3 if re.search(r"\bH(10|30|40)\b", b)]
+    # La ligne peut citer la voisine suivante (« suivante : H30 ») ; seule la SER de rattachement compte.
+    faux = [b for b in avec_l3
+            if (m := re.search(r"rattach\w*\s+à\s+la\s+SER\s+(\S+?)[,\s]", b)) and m.group(1) != "H20"]
     assert not faux, f"ligne de rapport qui lie L3 à une mauvaise SER : {faux[:2]}"

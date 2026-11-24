@@ -18,13 +18,16 @@ import helpers as H  # noqa: E402
 
 @pytest.fixture(scope="session")
 def runs():
-    """Exécute prepare, biomes, puis prepare une seconde fois (rejeu). Renvoie les résultats."""
+    """Exécute prepare, biomes, trees (chaîne de M1a), puis la chaîne une seconde fois (rejeu)."""
     H.clean_outputs(H.ZONE)
     res = {}
     res["prepare"] = H.run_make("prepare")
     res["biomes"] = H.run_make("biomes")
+    res["trees"] = H.run_make("trees")
     res["snapshot1"] = snapshot()
     res["prepare_2"] = H.run_make("prepare")
+    res["biomes_2"] = H.run_make("biomes")
+    res["trees_2"] = H.run_make("trees")
     res["snapshot2"] = snapshot()
     return res
 
