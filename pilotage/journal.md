@@ -52,3 +52,4 @@
 2026-11-24 · Pascal · ADR 0001 · décidé (option G) : iLand, LANDIS-II et TreeMig servent de références de validation, sans réutilisation de leur code ; une mission de comparaison est à prévoir à M3 ou M5.
 2026-11-24 · Pascal · ADR 0001 · décidé (I4) : règle de lisibilité du Rust (pas de macros maison ni de génériques avancés dans le cœur, doc en français par module, résumé en français jugeable sans lire le Rust à chaque PR), inscrite dans CLAUDE.md ; ADR 0001 acceptée en entier.
 2026-11-24 · Pascal · brief · question 1 retenue telle que proposée : bénéficiaires d'abord Pascal et les utilisateurs de nemeton, ensuite les gestionnaires et aménagistes forestiers.
+2026-11-24 · Pascal · brief · question 2 retenue telle que proposée : v1 = chaîne de modules reliés par des fichiers, avec consultation web (iTowns) et immersive (Godot) ; plateforme multi-utilisateurs et intégration à nemetonshiny après la v1.
