@@ -129,7 +129,7 @@
   |---|---|---|
   | `trophic` | flore de la placette (sylvostation, `R/placettes.R`) | raster prédit |
   | `hydric`, `bioclim` | `coarse_*_700m` | rasters |
-  | concurrence | surface terrière de la placette | surface terrière dans un disque de 15 m (706,9 m², **provisoire**) et surface terrière des arbres plus gros |
+  | concurrence | surface terrière de la placette, chaque arbre pondéré par l'inverse de la surface de son cercle (6, 9 ou 15 m selon sa classe de dimension, IMOT 2025 p. 61) | surface terrière dans un disque de 15 m (706,9 m²), avec tous les arbres simulés, et surface terrière des arbres plus gros |
 
   Le décalage entre les deux colonnes est une **limite connue**, écrite dans
   `rapport_dynamics.html`. Un test vérifie que la garde IFN refuse `station_gradients.tif`
@@ -222,7 +222,7 @@
 
 ## 12. Besoins en référentiels
 
-- Documentation IFN : cercles de placette, unité de `c13`, `metadonnees.csv`.
+- Documentation IFN : `metadonnees.csv` de l'export, pour confirmer que `c13` y est en millimètres. Les cercles et l'unité à la saisie sont établis (`docs/referentiels/ifn-placettes.md`). `d130 = c13 / (10π)` en cm.
 - Table `species.csv`.
 - Estimateur `h_dom` de typopeuplement.
 - Prise en charge de l'instanciation glTF dans iTowns.
