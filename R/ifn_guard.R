@@ -1,9 +1,10 @@
 # Garde IFN (spec §6 ; mission 019).
 #
-# Reprise TELLE QUELLE de sylvostation, `R/utils.R` lignes 1 à 157 (FINE_VARIABLES,
-# COARSE_VARIABLES, mark_ifn(), assert_no_fine_extract_on_ifn() et leurs aides), dépôt
-# /tmp/claude-0/repos/sylvostation, licence GNU GPL (>= 3) : même famille que la licence
-# GPL-3 de sylvigenese. Seul cet en-tête a été ajouté ; le corps n'est pas modifié.
+# Reprise TELLE QUELLE de sylvostation (https://github.com/pobsteta/sylvostation), fichier
+# R/utils.R, commit 2864d70ef807845496f0644ce7ee88a4e1dda449, lignes 1 à 157 (FINE_VARIABLES,
+# COARSE_VARIABLES, mark_ifn(), assert_no_fine_extract_on_ifn() et leurs aides), licence
+# GNU GPL (>= 3) : même famille que la licence GPL-3 de sylvigenese. Seul cet en-tête a été
+# ajouté ; le corps n'est pas modifié.
 # Seuil de précision de point : 25 m (argument `max_precision_m`). Toute variable qui n'est
 # pas préfixée `coarse_` (ou listée dans COARSE_VARIABLES) est traitée comme fine, donc
 # `station_gradients` (nom du raster) est refusée aux placettes IFN.

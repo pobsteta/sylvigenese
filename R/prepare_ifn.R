@@ -6,39 +6,52 @@
 #   trees.parquet   contrat prepare.ifn_trees
 #   flora.parquet   contrat prepare.ifn_flora
 #
+# En deux temps, pour qu'une entrée refusée ne laisse aucune sortie à moitié produite :
+#   prepare_ifn_check()  valide les trois entrées (contrats inputs.ifn_*), les lit et construit
+#                        les tables en mémoire ; n'écrit rien ; arrête (code 2 du module) au
+#                        premier refus. `run_prepare()` l'appelle AVANT la première écriture
+#                        de prepare (grid.tif, ...), les signalements allant dans
+#                        rapport_prepare.html ;
+#   prepare_ifn()        écrit les trois Parquet (writer commun write_parquet_tbl) et les fait
+#                        valider (contrats prepare.ifn_*).
+#
 # Règles (docs/referentiels/ifn-placettes.md, IMOT 2025 p. 61 et 71) :
 #  - `C13` est une circonférence en millimètres : d130 (cm) = C13 / (10 pi) ;
-#  - les placettes ont des cercles emboîtés, choisis par classe de dimension :
-#      d130 de 7,5 (C13 235 mm) à moins de 22,5 cm  -> cercle de 6 m
-#      d130 de 22,5 à moins de 37,5 cm               -> cercle de 9 m
-#      d130 de 37,5 cm et plus                       -> cercle de 15 m
-#    les seuils portent sur le d130 calculé (22,5 pi = 706,86 mm ; 37,5 pi = 1178,1 mm)
-#    le poids d'un arbre (tiges/ha) est 10000 / (pi R^2), soit 88,4 ; 39,3 ; 14,1 ;
+#  - les placettes ont des cercles emboîtés, choisis par classe de dimension sur C13 en mm
+#    (IMOT 2025 p. 61, tableau DIMESS ; décision du 24/11/2026) :
+#      C13 < 235 mm            non recensable : arbre écarté et signalé
+#      235 à moins de 705 mm   cercle de 6 m
+#      705 à moins de 1175 mm  cercle de 9 m
+#      1175 mm et plus         cercle de 15 m
+#    le poids d'un arbre (tiges/ha) est 10000 / (pi R^2), soit 88,4 ; 39,3 ; 14,1. La colonne
+#    W du fichier brut n'est pas la référence : un désaccord est signalé, le poids du cercle
+#    est retenu ;
 #  - les coordonnées sont floutées (700 m) : les placettes sont marquées par `mark_ifn()` de
 #    la garde (R/ifn_guard.R) et ne sont croisées avec aucun raster fin. Ce module n'ouvre
 #    aucun raster.
 #
-# Signaler plutôt que deviner : `ser_code`, `trophic`, `coarse_hydric_700m` et
-# `coarse_bioclim_700m` sont laissés vides (NA) tant que leur source n'est pas branchée ;
-# le message de sortie le dit. Voir `prepare_ifn()` pour le détail.
+# Signaler plutôt que deviner : arbres écartés, W en désaccord, colonnes laissées vides
+# (`ser_code`, `trophic`, `coarse_hydric_700m`, `coarse_bioclim_700m`), CD_REF en TAXREF v13
+# non convertis, tree_id fabriqué, HTOT <= 0 mis à NA : chacun est une ligne de
+# rapport_prepare.html (section « IFN : ... »), jamais seulement un message sur la sortie d'erreur.
 
-IFN_CIRCLES <- data.frame(
-  radius_m = c(6, 9, 15),
-  c13_min_mm = c(235, 705, 1175),
-  stringsAsFactors = FALSE
-)
+# Seuils sur C13 en mm (IMOT 2025 p. 61, tableau DIMESS).
+IFN_C13_MIN_MM <- 235      # sous ce seuil, l'arbre n'est pas recensable
+IFN_C13_9M_MM <- 705       # 705 mm et plus : cercle de 9 m
+IFN_C13_15M_MM <- 1175     # 1175 mm et plus : cercle de 15 m
 
 #' d130 en cm depuis C13 (circonférence en mm) : C13 / (10 pi).
 ifn_d130_cm <- function(c13_mm) c13_mm / (10 * pi)
 
-#' Rayon du cercle de placette (m) selon C13 (mm) ; NA sous le seuil de 235 mm
-#' (arbre non recensable) ou si C13 est NA.
+#' Rayon du cercle de placette (m) selon C13 (mm) : 6 m de 235 à moins de 705 mm, 9 m de 705 à
+#' moins de 1175 mm, 15 m à partir de 1175 mm (IMOT 2025 p. 61, tableau DIMESS). NA sous le
+#' seuil de 235 mm (arbre non recensable) ou si C13 est NA.
 ifn_circle_radius_m <- function(c13_mm) {
-  d <- ifn_d130_cm(c13_mm)          # seuils pris sur le d130 calcule (22,5 et 37,5 cm)
   r <- rep(NA_real_, length(c13_mm))
-  r[!is.na(c13_mm) & c13_mm >= 235] <- 6
-  r[!is.na(c13_mm) & d >= 22.5] <- 9
-  r[!is.na(c13_mm) & d >= 37.5] <- 15
+  ok <- !is.na(c13_mm)
+  r[ok & c13_mm >= IFN_C13_MIN_MM] <- 6
+  r[ok & c13_mm >= IFN_C13_9M_MM] <- 9
+  r[ok & c13_mm >= IFN_C13_15M_MM] <- 15
   r
 }
 
@@ -75,11 +88,16 @@ ifn_weight_ha <- function(c13_mm) 10000 / (pi * ifn_circle_radius_m(c13_mm)^2)
   as.integer(n)
 }
 
-#' Construit les trois tables à partir des trois data.frames bruts (tout en chaîne).
+#' Construit les trois tables à partir des trois data.frames bruts (tout en chaîne). Pure : rien
+#' n'est écrit, aucun message.
 #'
-#' @return liste `plots`, `trees`, `flora`, `report` (vecteur de lignes en français).
+#' @return liste `plots`, `trees`, `flora`, `report` (data.frame `section`, `text` : les
+#'   signalements, en français).
 ifn_tables <- function(placette, arbre, flore, precision_m = 700, taxref_version = "13") {
-  report <- character(0)
+  report <- data.frame(section = character(0), text = character(0), stringsAsFactors = FALSE)
+  add <- function(section, text) {
+    report[nrow(report) + 1L, ] <<- list(section, text)
+  }
 
   # ---- placettes
   cle_p <- paste(placette$IDP, placette$CAMPAGNE)
@@ -109,9 +127,13 @@ ifn_tables <- function(placette, arbre, flore, precision_m = 700, taxref_version
   plots$coarse_bioclim_700m <- NA_real_
   plots <- plots[, c("plot_id", "campaign", "x", "y", "loc_precision_m", "source",
                      "ser_code", "trophic", "coarse_hydric_700m", "coarse_bioclim_700m")]
-  report <- c(report, sprintf(
-    "ifn/plots : %d placettes ; ser_code, trophic, coarse_hydric_700m et coarse_bioclim_700m vides (source non branchée)",
-    nrow(plots)))
+  add("IFN : placettes", sprintf(
+    "%d placette(s), coordonnées floutées (précision %s m), jamais croisées avec un raster fin",
+    nrow(plots), fr_num(precision_m)))
+  add("IFN : placettes", paste(
+    "colonnes laissées vides (NA), source non branchée : ser_code, trophic (gradient trophique",
+    "à la placette), coarse_hydric_700m et coarse_bioclim_700m ; dynamics ne peut pas s'en servir",
+    "tant qu'elles ne sont pas remplies"))
 
   # ---- arbres
   t_camp <- .ifn_campaign(arbre$CAMPAGNE, "ARBRE.csv CAMPAGNE")
@@ -121,23 +143,47 @@ ifn_tables <- function(placette, arbre, flore, precision_m = 700, taxref_version
                  inconnues[1]), call. = FALSE)
   }
   c13 <- .ifn_num(arbre$C13, "ARBRE.csv C13")
-  h <- if ("HTOT" %in% names(arbre)) .ifn_num(arbre$HTOT, "ARBRE.csv HTOT") else rep(NA_real_, nrow(arbre))
-  if (any(c13[!is.na(c13)] > 0 & c13[!is.na(c13)] < 100)) {
+  if (any(!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", arbre$ESPAR))) {
+    stop(sprintf("ARBRE.csv : code ESPAR invalide (ex. « %s »)",
+                 arbre$ESPAR[!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", arbre$ESPAR)][1]), call. = FALSE)
+  }
+  h_present <- "HTOT" %in% names(arbre)
+  h <- if (h_present) .ifn_num(arbre$HTOT, "ARBRE.csv HTOT") else rep(NA_real_, nrow(arbre))
+  n_bas <- sum(!is.na(c13) & c13 > 0 & c13 < 100)
+  if (n_bas > 0L) {
     # Garde-fou sur l'unité (référentiel §2) : un c13 courant est de 300 à 2000, pas de 30 à 200.
-    n_bas <- sum(!is.na(c13) & c13 > 0 & c13 < 100)
-    report <- c(report, sprintf(
-      "ifn/trees : %d arbre(s) avec C13 < 100 : vérifier que C13 est bien en mm", n_bas))
+    add("IFN : arbres", sprintf(
+      "%d arbre(s) avec C13 entre 0 et 100 : vérifier que C13 est bien en mm", n_bas))
   }
   rayon <- ifn_circle_radius_m(c13)
   garde <- !is.na(rayon)
-  if (any(!garde)) {
-    report <- c(report, sprintf(
-      "ifn/trees : %d arbre(s) écartés (C13 manquant ou sous le seuil de recensabilité de 235 mm)",
-      sum(!garde)))
+  n_na <- sum(is.na(c13))
+  n_sous <- sum(!is.na(c13) & c13 < IFN_C13_MIN_MM)
+  if (n_na > 0L) {
+    add("IFN : arbres", sprintf("%d arbre(s) écarté(s) : C13 manquant", n_na))
+  }
+  if (n_sous > 0L) {
+    add("IFN : arbres", sprintf(
+      "%d arbre(s) écarté(s) : C13 sous le seuil de recensabilité de %d mm (IMOT 2025 p. 61)",
+      n_sous, IFN_C13_MIN_MM))
   }
   w <- 10000 / (pi * rayon^2)
-  id_arbre <- if ("ARBRE" %in% names(arbre)) arbre$ARBRE else {
+  fabrique <- !"ARBRE" %in% names(arbre)
+  id_arbre <- if (!fabrique) arbre$ARBRE else {
     stats::ave(seq_along(arbre$IDP), arbre$IDP, t_camp, FUN = seq_along)
+  }
+  if (fabrique) {
+    add("IFN : arbres", paste(
+      "colonne ARBRE absente de ARBRE.csv : tree_id fabriqué (numéro d'ordre de la ligne dans sa",
+      "placette et sa campagne), valable pour ce fichier seulement"))
+  }
+  h_nul <- !is.na(h) & h <= 0
+  if (!h_present) {
+    add("IFN : arbres", "colonne HTOT absente de ARBRE.csv : h vide (NA) pour tous les arbres")
+  } else if (any(h_nul[garde])) {
+    add("IFN : arbres", sprintf(
+      "%d arbre(s) avec HTOT inférieure ou égale à 0 : h mis à NA (pas de hauteur mesurée)",
+      sum(h_nul[garde])))
   }
   trees <- data.frame(
     plot_id = arbre$IDP,
@@ -149,23 +195,22 @@ ifn_tables <- function(placette, arbre, flore, precision_m = 700, taxref_version
     weight_ha = w,
     stringsAsFactors = FALSE
   )[garde, , drop = FALSE]
-  if (any(!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", trees$species))) {
-    stop(sprintf("ARBRE.csv : code ESPAR invalide (ex. « %s »)",
-                 trees$species[!grepl("^[0-9]{2}[A-Z0-9]{0,3}$", trees$species)][1]),
-         call. = FALSE)
+  if (anyDuplicated(trees[, c("plot_id", "campaign", "tree_id")])) {
+    stop("ARBRE.csv : (IDP, CAMPAGNE, ARBRE) en double", call. = FALSE)
   }
   if ("W" %in% names(arbre)) {
     w_brut <- .ifn_num(arbre$W, "ARBRE.csv W")[garde]
     ecart <- !is.na(w_brut) & abs(w_brut - trees$weight_ha) > 0.01 * trees$weight_ha
     if (any(ecart)) {
-      report <- c(report, sprintf(
-        "ifn/trees : %d arbre(s) dont W du fichier diffère de plus de 1 %% du poids du cercle ; le poids du cercle est retenu",
-        sum(ecart)))
+      add("IFN : arbres", sprintf(
+        "%d arbre(s) dont la colonne W du fichier diffère de plus de 1 %% du poids du cercle (ex. W = %s contre %s) ; le poids du cercle (IMOT 2025 p. 61) est retenu",
+        sum(ecart), fr_num(w_brut[ecart][1], 2), fr_num(trees$weight_ha[ecart][1], 2)))
     }
   }
   rownames(trees) <- NULL
-  report <- c(report, sprintf("ifn/trees : %d arbres ; d130 = C13 / (10 pi) ; poids par cercle de 6, 9 ou 15 m",
-                              nrow(trees)))
+  add("IFN : arbres", sprintf(
+    "%d arbre(s) retenus sur %d ; d130 = C13 / (10 pi) ; poids par cercle de 6, 9 ou 15 m",
+    nrow(trees), nrow(arbre)))
 
   # ---- flore
   f_camp <- .ifn_campaign(flore$CAMPAGNE, "FLORE.csv CAMPAGNE")
@@ -187,59 +232,77 @@ ifn_tables <- function(placette, arbre, flore, precision_m = 700, taxref_version
     abundance = ab,
     stringsAsFactors = FALSE
   )
-  report <- c(report, sprintf(
-    "ifn/flora : %d lignes ; taxref_version = « %s » (CD_REF de l'IFN, sans conversion en v18)",
-    nrow(flora), taxref_version))
+  add("IFN : flore", sprintf("%d ligne(s) de relevé floristique", nrow(flora)))
+  add("IFN : flore", sprintf(
+    "CD_REF en TAXREF v%s (version de l'IFN) NON convertis en v18 : taxref_version = « %s » ; à convertir avant toute jointure avec contracts/species.csv (v18)",
+    taxref_version, taxref_version))
 
   list(plots = plots, trees = trees, flora = flora, report = report)
 }
 
-# Écriture Parquet par Arrow, avec un schéma explicite : une colonne entièrement vide reste
-# de type chaîne ou double (et non « null », que le contrat refuse).
-.ifn_write_parquet <- function(df, path, types) {
-  if (!requireNamespace("arrow", quietly = TRUE)) {
-    stop("le paquet R « arrow » est absent : impossible d'écrire du Parquet ",
-         "(voie à décider, voir le rendu de la mission 019)", call. = FALSE)
-  }
-  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  sch <- do.call(arrow::schema, lapply(names(df), function(n) arrow::field(n, types[[n]])))
-  arrow::write_parquet(arrow::arrow_table(df, schema = sch), path)
-  invisible(path)
-}
-
-#' Prépare les tables IFN d'une zone.
-#'
-#' À brancher dans `run_prepare()` (mission 017) : `prepare_ifn(zone_dir)`.
+#' Contrôle et lit les entrées IFN d'une zone, sans rien écrire (à appeler AVANT la première
+#' écriture de prepare). Chaque fichier doit exister et passer son contrat `inputs.ifn_*`
+#' (`validate = TRUE`) ; les tables sont ensuite construites en mémoire. Au premier refus, arrête
+#' avec un message en français (code 2 du module).
 #'
 #' @param zone_dir dossier de la zone (`tests/fixtures/zone_fictive` ou `data/<zone>`).
+#' @param report rapport de prepare (`new_report()`) où ajouter les signalements ; absent,
+#'   un rapport est créé (les lignes sont dites par `message()`, rien n'est écrit).
 #' @param precision_m précision de localisation écrite dans `loc_precision_m` (700 m, IGN :
 #'   centre de la maille de 1 km, écart maximal 700 m).
 #' @param taxref_version version TAXREF des CD_REF lus (« 13 » : version de l'IFN).
-#' @return liste invisible `plots`, `trees`, `flora`, `report`, `files`. Les lignes du
-#'   rapport sont aussi écrites par `message()`.
-prepare_ifn <- function(zone_dir, precision_m = 700, taxref_version = "13") {
+#' @return liste invisible `plots`, `trees`, `flora`, `report` (data.frame des signalements).
+prepare_ifn_check <- function(zone_dir, report = NULL, precision_m = 700, taxref_version = "13",
+                              validate = TRUE) {
+  if (is.null(report)) report <- new_report()
   dir_in <- file.path(zone_dir, "inputs", "ifn")
+  chemins <- c(inputs.ifn_placette = file.path(dir_in, "PLACETTE.csv"),
+               inputs.ifn_arbre = file.path(dir_in, "ARBRE.csv"),
+               inputs.ifn_flore = file.path(dir_in, "FLORE.csv"))
+  for (k in seq_along(chemins)) check_input_file(chemins[[k]])
+  if (validate) {
+    for (k in seq_along(chemins)) validate_file(names(chemins)[k], chemins[[k]], what = "entrée")
+  }
   res <- ifn_tables(
-    .ifn_read_csv(file.path(dir_in, "PLACETTE.csv"), c("CAMPAGNE", "IDP", "XL", "YL")),
-    .ifn_read_csv(file.path(dir_in, "ARBRE.csv"), c("CAMPAGNE", "IDP", "ESPAR", "C13")),
-    .ifn_read_csv(file.path(dir_in, "FLORE.csv"), c("CAMPAGNE", "IDP", "CD_REF", "ABOND")),
+    .ifn_read_csv(chemins[["inputs.ifn_placette"]], c("CAMPAGNE", "IDP", "XL", "YL")),
+    .ifn_read_csv(chemins[["inputs.ifn_arbre"]], c("CAMPAGNE", "IDP", "ESPAR", "C13")),
+    .ifn_read_csv(chemins[["inputs.ifn_flore"]], c("CAMPAGNE", "IDP", "CD_REF", "ABOND")),
     precision_m = precision_m, taxref_version = taxref_version
   )
+  for (i in seq_len(nrow(res$report))) report_add(report, res$report$section[i], res$report$text[i])
+  invisible(res)
+}
+
+IFN_PLOTS_TYPES <- c(plot_id = "string", campaign = "int32", x = "float64", y = "float64",
+                     loc_precision_m = "float64", source = "string", ser_code = "string",
+                     trophic = "float64", coarse_hydric_700m = "float64",
+                     coarse_bioclim_700m = "float64")
+IFN_TREES_TYPES <- c(plot_id = "string", campaign = "int32", tree_id = "string",
+                     species = "string", d130 = "float64", h = "float64", weight_ha = "float64")
+IFN_FLORA_TYPES <- c(plot_id = "string", campaign = "int32", cd_ref = "int32",
+                     taxref_version = "string", abundance = "float64")
+
+#' Écrit les tables IFN d'une zone (`ifn/plots.parquet`, `trees.parquet`, `flora.parquet`) et les
+#' fait valider par les contrats `prepare.ifn_*`. `checked` : résultat de `prepare_ifn_check()`
+#' déjà fait par `run_prepare()` ; absent, le contrôle est fait ici d'abord (rien n'est écrit
+#' avant qu'il soit passé).
+#'
+#' @return liste invisible `plots`, `trees`, `flora`, `report`, `files`.
+prepare_ifn <- function(zone_dir, checked = NULL, report = NULL, precision_m = 700,
+                        taxref_version = "13", validate = TRUE) {
+  res <- if (is.null(checked)) {
+    prepare_ifn_check(zone_dir, report, precision_m, taxref_version, validate)
+  } else checked
   out <- file.path(zone_dir, "ifn")
   files <- c(
-    plots = .ifn_write_parquet(res$plots, file.path(out, "plots.parquet"), list(
-      plot_id = arrow::string(), campaign = arrow::int32(), x = arrow::float64(),
-      y = arrow::float64(), loc_precision_m = arrow::float64(), source = arrow::string(),
-      ser_code = arrow::string(), trophic = arrow::float64(),
-      coarse_hydric_700m = arrow::float64(), coarse_bioclim_700m = arrow::float64())),
-    trees = .ifn_write_parquet(res$trees, file.path(out, "trees.parquet"), list(
-      plot_id = arrow::string(), campaign = arrow::int32(), tree_id = arrow::string(),
-      species = arrow::string(), d130 = arrow::float64(), h = arrow::float64(),
-      weight_ha = arrow::float64())),
-    flora = .ifn_write_parquet(res$flora, file.path(out, "flora.parquet"), list(
-      plot_id = arrow::string(), campaign = arrow::int32(), cd_ref = arrow::int32(),
-      taxref_version = arrow::string(), abundance = arrow::float64()))
+    plots = write_parquet_tbl(res$plots, file.path(out, "plots.parquet"), IFN_PLOTS_TYPES),
+    trees = write_parquet_tbl(res$trees, file.path(out, "trees.parquet"), IFN_TREES_TYPES),
+    flora = write_parquet_tbl(res$flora, file.path(out, "flora.parquet"), IFN_FLORA_TYPES)
   )
-  for (l in res$report) message("[prepare/ifn] ", l)
+  if (validate) {
+    contrats <- c(plots = "prepare.ifn_plots", trees = "prepare.ifn_trees",
+                  flora = "prepare.ifn_flora")
+    for (k in names(contrats)) validate_file(contrats[[k]], files[[k]])
+  }
   invisible(c(res, list(files = files)))
 }

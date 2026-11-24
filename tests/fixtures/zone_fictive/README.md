@@ -39,7 +39,7 @@ Carré de 1 000 m de côté, EPSG:2154 : coin sud-ouest (700 000 ; 6 500 000), c
 | `inputs/dtm.tif` | `inputs.dtm` | MNT 25 m |
 | `inputs/station_gradients.tif` | `inputs.station_gradients` | 20 m, 3 bandes `trophic`, `hydric`, `bioclim` |
 | `inputs/station_type.tif` | `inputs.station_type` | 20 m, UInt16, nodata 65535, codes 1 à 4 |
-| `inputs/types.csv` | (aucun contrat) | légende des codes de `station_type.tif`, colonnes de `types.csv` de sylvostation |
+| `inputs/types.csv` | `inputs.station_types` | légende des codes de `station_type.tif`, colonnes de `types.csv` de sylvostation |
 | `inputs/h_pot.tif` | `inputs.h_pot` | 26,6 m, 1 bande (plafond unique : pas de famille d'essences) |
 | `inputs/fertilite.csv` | `inputs.fertilite` | 5 essences × 4 types, séparé par `;` |
 | `inputs/nemeton_stands.gpkg` | `inputs.nemeton_stands` | 5 polygones, couche `stands` |

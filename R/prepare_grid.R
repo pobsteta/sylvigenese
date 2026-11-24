@@ -345,8 +345,9 @@ stand_map_values <- function(stand_id) {
 # ------------------------------------------------------------------ le module
 
 #' Construit la grille et les rasters alignés d'une zone (mission 017). Rend la liste des
-#' fichiers écrits. Arrête avec un message en français à la première entrée refusée.
-prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
+#' fichiers écrits. Arrête avec un message en français à la première entrée refusée. `report` :
+#' rapport de prepare, déjà porteur des signalements de l'IFN quand `run_prepare()` l'a rempli.
+prepare_grid <- function(zone_dir, cfg, validate = TRUE, report = new_report()) {
   res <- cfg$grid$resolution_m
   if (is.null(res) || !is.numeric(res) || res <= 0) {
     stop("config.yml : grid.resolution_m manquante ou invalide", call. = FALSE)
@@ -357,7 +358,6 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE) {
   }
   inp <- function(...) file.path(zone_dir, "inputs", ...)
   out <- function(...) file.path(zone_dir, ...)
-  report <- new_report()
 
   # -- entrées : validées à l'entrée (spec §2), puis lues
   inputs <- list(
