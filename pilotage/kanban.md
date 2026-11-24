@@ -24,6 +24,11 @@ _Modèle de carte :_
 
 ## Planifié
 
+- [006-surfaces-ser](missions/006-surfaces-ser.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : surfaces totale et boisée des SER, et la plus grande ; lancée le 2026-11-24
+  - Moyens : sources IGN et IFN, rendu dans docs/referentiels/
+
 - [002-banc-python](missions/002-banc-python.md) · depuis le cycle 0
   - Homme : `dev` (sonnet)
   - Mission : implémenter bench/SPEC.md en Python (numpy, numba) ; lancée le 2026-11-24

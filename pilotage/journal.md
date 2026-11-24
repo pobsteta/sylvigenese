@@ -43,3 +43,4 @@
 2026-11-24 · Pascal · banc · machine de référence (B1, en partie) : PC Linux de Pascal, i7 à 8 cœurs, environ 3,2 GHz (à vérifier par Pascal) ; mémoire vive et temps maximal pour une SER encore inconnus ; le script de mesure sera lancé par Pascal, ou par Claude quand Pascal est connecté à son PC.
 2026-11-24 · Pascal · banc · machine de référence (B1) précisée : Intel Core i7-4940MX à 3,1 GHz, 4 cœurs physiques (8 processeurs logiques avec l'hyperthreading), 31 Go de mémoire vive ; temps maximal pour une SER encore à fixer.
 2026-11-24 · Pascal · ADR 0001 · décidé (B1) : temps maximal de 5 jours continus pour simuler 100 ans d'une SER sur le PC de référence (i7-4940MX, 4 cœurs physiques, 31 Go) ; reporté dans docs/adr/0001-moteur-de-simulation.md, section « Exigences mesurables ».
+2026-11-24 · Pascal · 006-surfaces-ser · décidé : lancer l'acquereur sur les surfaces des SER (plus grande SER, surface boisée) pour dimensionner la grille de l'ADR 0001.
