@@ -2,6 +2,12 @@
 
 Version du 24 novembre 2026. Auteur : Pascal Obstétar. Ce document est le cahier des charges du dépôt. Il s'adresse à la personne ou à l'agent de code qui implémente.
 
+## Ma réponse d'abord (fiche n° 15)
+
+> « J'attends de ce projet une plateforme de simulation de croissance des peuplements forestiers au vu des éléments de sortie du projet nemeton. sommieR est le passé, nemeton le présent, sylvigenese un futur envisageable »
+>
+> — Pascal, le 24 novembre 2026, dit avant toute proposition de Claude, recopié mot pour mot.
+
 ## 0. Consignes à lire avant de coder
 
 1. **Avancer jalon par jalon** (section 11). Ne pas commencer un jalon tant que les critères d'acceptation du précédent ne sont pas remplis.
