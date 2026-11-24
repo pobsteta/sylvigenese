@@ -55,3 +55,4 @@
 2026-11-24 · Pascal · brief · question 2 retenue telle que proposée : v1 = chaîne de modules reliés par des fichiers, avec consultation web (iTowns) et immersive (Godot) ; plateforme multi-utilisateurs et intégration à nemetonshiny après la v1.
 2026-11-24 · Pascal · brief · question 3 retenue : nemeton est l'entrée principale (état présent du peuplement, point de départ de la simulation) ; sylvostation, typopeuplement, IFN et LiDAR HD sont des compléments (station et plafond de hauteur, ajustement des modèles, hauteur actuelle).
 2026-11-24 · Pascal · brief · question 4 : le coût complet aujourd'hui est celui d'une licence annuelle NDunes 3D (montant et source à préciser par Pascal).
+2026-11-24 · Pascal · brief · question 4 bis : la licence annuelle NDunes 3D coûte 100 € par an (source : Pascal).
