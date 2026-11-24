@@ -73,6 +73,17 @@ et numba), et on mesure :
 
 Le seuil d'écart qui justifie Rust est **à fixer par Pascal** avant la mesure.
 
+## Exigences mesurables (B1, fixées par Pascal le 24/11/2026)
+
+- **Machine de référence :** le PC Linux de Pascal, avec un Intel Core i7-4940MX à 3,1 GHz,
+  4 cœurs physiques, 8 processeurs logiques et 31 Go de mémoire vive.
+- **Temps maximal :** 5 jours de calcul continu (432 000 s) pour simuler 100 ans d'une SER
+  entière.
+- **Mémoire :** ce qui tient dans les 31 Go de cette machine. La marge à laisser au
+  système est à préciser.
+- **À préciser :** la résolution (10 ou 25 m) et la plus grande SER à traiter, d'après les
+  surfaces réelles des SER (`acquereur`).
+
 ## Le crible FRANCE
 
 | Lettre | Question | Réponse (une ligne) | Ce que ça coûte | Prêts à payer ? |
