@@ -56,9 +56,11 @@ Reprises de `docs/BRIEF.md` §0, §4 et §6 (source : Pascal Obstétar, brief du
   validateur appelé en fin de module.
 - **Ne rien inventer d'écologique** : toute valeur (optimum d'essence, coefficient,
   densité) vient d'une source citée ou d'un fichier de paramètres marqué `provisoire: true`.
-- **IFN : coordonnées floutées au kilomètre.** Jamais de croisement d'une placette IFN
-  avec un raster fin (MNT, LiDAR) ; garde `assert_no_fine_extract_on_ifn()` reprise de
-  `sylvostation`.
+- **IFN : coordonnées floutées** (précision d'environ 700 m selon `sylvostation` et
+  `tarif-nemeton` ; le brief disait « au kilomètre »). Jamais de croisement d'une placette IFN
+  avec un raster fin (MNT, LiDAR) ; garde `assert_no_fine_extract_on_ifn()` reprise telle
+  quelle de `sylvostation` (`R/utils.R:121`) : liste de sources fines et seuil de précision de
+  point de 25 m.
 - **Hauteur** : MNH LiDAR HD (hauteur actuelle) + potentialité de station (plafond), et
   rien d'autre (décision du 24/11/2026). Une hauteur au-dessus du plafond est signalée
   dans `rapport_hauteur.html`, jamais corrigée.

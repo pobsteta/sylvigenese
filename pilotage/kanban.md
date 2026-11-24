@@ -24,15 +24,16 @@ _Modèle de carte :_
 
 ## Planifié
 
-- [008-contrats-entrees](missions/008-contrats-entrees.md) · depuis le cycle 0
-  - Homme : `acquereur` (sonnet)
-  - Mission : sorties réelles de nemeton, sylvostation, typopeuplement, tarif-nemeton ; lancée le 2026-11-24
-  - Moyens : clones en lecture seule
 
 
 
 
 ## Terminé
+
+- [008-contrats-entrees](missions/008-contrats-entrees.md) · depuis le cycle 0
+  - Homme : `acquereur` (sonnet)
+  - Mission : rendue le 2026-11-24 : docs/referentiels/entrees-externes.{md,csv} ; 13 questions, tranchées par délégation sauf la licence de tarif-nemeton
+  - Moyens : clones en lecture seule
 
 - [007-etude-godot-forest-demo](missions/007-etude-godot-forest-demo.md) · depuis le cycle 0
   - Homme : `acquereur` (sonnet)
