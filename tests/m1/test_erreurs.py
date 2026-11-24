@@ -59,6 +59,32 @@ def _xy_inverses(d):
     c.close()
 
 
+def _ifn_arbre_absent(d):
+    (d / "inputs" / "ifn" / "ARBRE.csv").unlink()
+
+
+def _remplace_c13(d, valeur):
+    f = d / "inputs" / "ifn" / "ARBRE.csv"
+    lignes = f.read_text(encoding="utf-8").splitlines()
+    cols = lignes[1].split(";")
+    cols[3] = valeur  # colonne C13
+    lignes[1] = ";".join(cols)
+    f.write_text("\n".join(lignes) + "\n", encoding="utf-8")
+
+
+def _ifn_espar_hors_referentiel(d):
+    f = d / "inputs" / "ifn" / "ARBRE.csv"
+    lignes = f.read_text(encoding="utf-8").splitlines()
+    cols = lignes[1].split(";")
+    cols[2] = "ZZZ99"  # colonne ESPAR
+    lignes[1] = ";".join(cols)
+    f.write_text("\n".join(lignes) + "\n", encoding="utf-8")
+
+
+def _ifn_c13_non_numerique(d):
+    _remplace_c13(d, "grosse")
+
+
 CAS = {
     "h_pot_absent": _sans_h_pot,                    # spec §3 : « S'il manque : erreur, code 2 »
     "essence_entier_sans_zero": _essence_entier,    # "9" au lieu de "09"
@@ -67,6 +93,9 @@ CAS = {
     "stand_id_en_double": _doublon,
     "essence_manquante": _saisie_incomplete,
     "x_y_inverses_somalie": _xy_inverses,
+    "ifn_arbre_absent": _ifn_arbre_absent,          # entrée IFN absente : code 2
+    "ifn_espar_hors_referentiel": _ifn_espar_hors_referentiel,  # hors contracts/species.csv
+    "ifn_c13_non_numerique": _ifn_c13_non_numerique,
 }
 
 
@@ -81,7 +110,9 @@ def refus(request):
         H.remove_zone_copy(nom)
 
 
-FICHIER_CITE = {"h_pot_absent": "h_pot", "date_de_vol_impossible": "lidar_tiles"}
+FICHIER_CITE = {"h_pot_absent": "h_pot", "date_de_vol_impossible": "lidar_tiles",
+                "ifn_arbre_absent": "ARBRE", "ifn_espar_hors_referentiel": "ARBRE",
+                "ifn_c13_non_numerique": "ARBRE"}
 
 
 def test_entree_refusee_donne_le_code_2_et_un_message_qui_nomme_le_fichier(refus):
@@ -94,6 +125,6 @@ def test_entree_refusee_donne_le_code_2_et_un_message_qui_nomme_le_fichier(refus
 
 def test_entree_refusee_ne_laisse_aucune_sortie_a_moitie(refus):
     nom, d, p = refus
-    produits = [f for f in ("grid.tif", "h0.tif", "ser.tif", "stands.parquet", "trees_init")
+    produits = [f for f in ("grid.tif", "h0.tif", "ser.tif", "stands.parquet", "trees_init", "ifn")
                 if (d / f).exists()]
     assert not produits, f"{nom} : sorties écrites malgré le refus : {produits}"

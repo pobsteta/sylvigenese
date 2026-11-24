@@ -1,5 +1,6 @@
 """trees_init/ et stands.parquet (spec §4 ; contrats prepare.trees_init et prepare.stands)."""
 import math
+import re
 
 import numpy as np
 import pytest
@@ -112,28 +113,100 @@ def test_arbre_de_s03_detecte_a_sa_place_au_dessus_du_plafond(trees):
     assert np.median([t["h"] for t in s03]) > 30.0
 
 
-def test_d130_par_etage_b_avec_les_coefficients_du_fichier(trees):
-    # ln D = a + b ln H, a et b lus dans params/allometry.parquet (jamais inventés).
-    rows = H.read_parquet(H.ZONE / "params" / "allometry.parquet")
+def _coef(rows):
     coef = {}
     for r in rows:
         if r["model"] == "etage_b":
             coef.setdefault(r["species"], {})[r["term"]] = r["value"]
+    return coef
+
+
+def _d130_attendu(t, c):
+    """ln D = a + b ln H (+ c ln CPA si l'essence a un coefficient c), spec §4.3."""
+    ln = c["a"] + c["b"] * math.log(t["h"])
+    if "c" in c:
+        ln += c["c"] * math.log(t["crown_area"])
+    return math.exp(ln)
+
+
+def test_chaque_arbre_detecte_porte_une_surface_de_houppier_positive(trees):
+    # spec §4.3 : crown_area (m²) segmentée sur le MNH, pour les arbres détectés.
+    detectes = [t for t in trees if t["d130_source"] not in ("inventaire_video",)]
+    assert len(detectes) >= 100
+    for t in detectes:
+        assert "crown_area" in t, f"colonne crown_area absente : {sorted(t)}"
+        assert t["crown_area"] is not None and math.isfinite(t["crown_area"]) and t["crown_area"] > 0, t
+        assert t["crown_area"] < 400.0, f"houppier de {t['crown_area']} m² : segmentation douteuse"
+
+
+def test_d130_par_etage_b_avec_les_coefficients_du_fichier(trees):
+    # ln D = a + b ln H + c ln CPA, coefficients lus dans params/allometry.parquet (jamais inventés).
+    coef = _coef(H.read_parquet(H.ZONE / "params" / "allometry.parquet"))
     verifies = 0
     for t in trees:
-        if t["d130_source"] == "tarif_etage_b" and t["species"] in coef:
-            c = coef[t["species"]]
-            attendu = math.exp(c["a"] + c["b"] * math.log(t["h"]))
+        if t["d130_source"].startswith("tarif_etage_b") and t["species"] in coef:
+            attendu = _d130_attendu(t, coef[t["species"]])
             assert t["d130"] == pytest.approx(attendu, rel=0.02), (t["tree_id"], t["d130"], attendu)
             verifies += 1
     assert verifies >= 100
 
 
-def test_d130_inventaire_video_seulement_dans_s04(trees, stands):
-    s04 = [s for s in stands if s["stand_id"] == "S04"]
-    for t in trees:
-        if t["d130_source"] == "inventaire_video" or t["species_source"] == "inventaire_video":
-            assert H.stands_in(t["x"], t["y"], s04) is not None, t["tree_id"]
+def test_variante_houppier_d130_source_distingue_avec_et_sans_coefficient_c(houppier_zone):
+    # Variante : c connu pour 09, 62, 64, 03 ; l'essence 61 n'a que a et b (spec §4.3).
+    from conftest import COEF_HOUPPIER, SANS_C
+    for k in ("prepare", "biomes", "trees"):
+        p = houppier_zone[k]
+        assert p.returncode == 0, f"{k} : code {p.returncode}\n{p.stderr[-1500:]}"
+    rows = H.read_parquet(H.trees_init_path(houppier_zone["dir"]))
+    det = [t for t in rows if t["d130_source"] != "inventaire_video"]
+    avec = [t for t in det if t["species"] != SANS_C]
+    sans = [t for t in det if t["species"] == SANS_C]
+    assert len(avec) >= 100 and len(sans) >= 10, (len(avec), len(sans))
+    src_avec, src_sans = {t["d130_source"] for t in avec}, {t["d130_source"] for t in sans}
+    assert src_avec.isdisjoint(src_sans), \
+        f"d130_source ne distingue pas le modèle avec houppier ({src_avec}) du modèle sans c ({src_sans})"
+    for t in det:
+        assert t["crown_area"] > 0, t
+        attendu = _d130_attendu(t, COEF_HOUPPIER[t["species"]])
+        assert t["d130"] == pytest.approx(attendu, rel=0.02), (t["tree_id"], t["species"], t["d130"], attendu)
+
+
+def test_variante_essence_sans_aucun_coefficient_erreur_explicite(sans_coefficient_zone):
+    # spec §4.3 : « une essence sans aucun coefficient est une erreur explicite ».
+    d = sans_coefficient_zone["dir"]
+    assert sans_coefficient_zone["prepare"].returncode == 0
+    assert sans_coefficient_zone["biomes"].returncode == 0
+    p = sans_coefficient_zone["trees"]
+    assert p.returncode != 0, "trees réussit alors que l'essence 09 n'a aucun coefficient"
+    err = p.stderr
+    assert err.strip(), "aucun message d'erreur"
+    assert "09" in err, f"le message ne nomme pas l'essence 09 : {err[-600:]}"
+    assert re.search(r"(?i)coefficient", err) and re.search(r"(?i)essence|allom", err), err[-600:]
+    assert re.search(r"(?i)\b(aucun|aucune|manque|absent|sans)\b", err), \
+        f"message pas en français ? {err[-600:]}"
+    assert not (d / "trees_init").exists() and not (d / "trees_init.parquet").exists()
+
+
+def test_rapport_arbres_dit_que_la_hauteur_n_est_pas_avancee_jusqu_a_t0(runs):
+    # spec §4.4 : hauteur MNH avancée jusqu'à t0 par la courbe de dynamics (M2) ; en M1a, le rapport
+    # dit qu'elle ne l'est pas encore.
+    blocs = H.report_blocks("rapport_arbres.html")
+    ok = [b for b in blocs if re.search(r"(?i)hauteur", b) and re.search(r"\bt0\b", b)
+          and re.search(r"(?i)dynamics", b)
+          and re.search(r"(?i)pas encore|n'est pas|non avanc|en attente|attend", b)]
+    assert ok, "rapport_arbres.html ne dit pas que la hauteur n'est pas avancée jusqu'à t0 (attente de dynamics)"
+
+
+def test_inventaire_video_lu_mais_absent_de_trees_init_en_m1a(trees, runs):
+    # Arbitrage de l'orchestrateur (24/11/2026) : en M1a, inventaire_video.gpkg est lu et validé à
+    # l'entrée, mais n'entre pas dans trees_init ; le rapport des arbres le dit.
+    video = [t["tree_id"] for t in trees
+             if "inventaire_video" in (t["d130_source"], t["species_source"])]
+    assert not video, f"{len(video)} arbres issus de l'inventaire vidéo : {video[:5]}"
+    blocs = H.report_blocks("rapport_arbres.html")
+    assert any(re.search(r"(?i)inventaire[ _]vid[ée]o", b)
+               and re.search(r"(?i)pas utilis|non utilis|n'est pas (?:encore )?(?:utilis|pris)", b)
+               for b in blocs), "rapport_arbres.html ne dit pas que l'inventaire vidéo n'est pas utilisé en M1a"
 
 
 def test_stands_parquet_reprend_les_cinq_polygones(runs, stands):

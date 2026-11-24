@@ -40,7 +40,8 @@ OUTPUT_FILES = [
     "grid.tif", "dtm.tif", "forest_mask.tif", "ser.tif", "ser.csv", "h0.tif", "chm_date.tif",
     "station_gradients.tif", "station_type.tif", "station_type.csv", "site_potential.tif",
     "site_potential.csv", "stands.parquet", "vegetation_map.tif", "vegetation_map.csv",
-    "rapport_biomes.html", "ifn/plots.parquet", "ifn/trees.parquet", "ifn/flora.parquet",
+    "rapport_biomes.html", "rapport_prepare.html", "rapport_arbres.html",
+    "stand_map.tif", "stand_map.csv", "ifn/plots.parquet", "ifn/trees.parquet", "ifn/flora.parquet",
 ]
 OUTPUT_DIRS = ["trees_init"]
 
@@ -76,11 +77,13 @@ def clean_outputs(zone_dir: Path) -> None:
 
 
 def run_make(target: str, zone: str = "zone_fictive", config: Path | None = None,
-             timeout: int = 1800) -> subprocess.CompletedProcess:
+             timeout: int = 1800, env_extra: dict | None = None) -> subprocess.CompletedProcess:
     cmd = ["make", target, f"ZONE={zone}"]
     if config is not None:
         cmd.append(f"CONFIG={config}")
-    return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=offline_env(),
+    env = offline_env()
+    env.update(env_extra or {})
+    return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env,
                           timeout=timeout)
 
 
@@ -232,14 +235,44 @@ def valid_mask(arr, nodata):
 
 
 def read_csv_map(path: Path) -> dict[int, str]:
-    lines = path.read_text(encoding="utf-8").strip().splitlines()
-    head = [h.strip().strip('"') for h in lines[0].split(",")]
-    assert head == ["value", "name"], f"{path.name} : en-tête {head}, attendu ['value', 'name']"
+    """Table de catégories (spec §8) : colonnes value,name. ser.csv porte en plus alluvium_code
+    (spec §3) : voir read_ser_table."""
+    import csv
+    with open(path, encoding="utf-8", newline="") as f:
+        rows = list(csv.reader(f))
+    head = [h.strip() for h in rows[0]]
+    attendu = ["value", "name", "alluvium_code"] if path.name == "ser.csv" else ["value", "name"]
+    assert head == attendu, f"{path.name} : en-tête {head}, attendu {attendu}"
+    return {int(r[0]): r[1].strip() for r in rows[1:] if r}
+
+
+NULL_TOKENS = {"", "NA", "NULL", "null", "NaN"}
+
+
+def read_ser_table(path: Path) -> dict[int, tuple[str, str | None]]:
+    """ser.csv : value -> (ser_code, alluvium_code ou None)."""
+    import csv
+    read_csv_map(path)  # contrôle l'en-tête
+    with open(path, encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
     out = {}
-    for ln in lines[1:]:
-        v, n = ln.split(",", 1)
-        out[int(v)] = n.strip().strip('"')
+    for r in rows:
+        a = r["alluvium_code"].strip()
+        out[int(r["value"])] = (r["name"].strip(), None if a in NULL_TOKENS else a)
     return out
+
+
+def write_allometry(path: Path, coefs: dict[str, dict[str, float]]) -> None:
+    """Réécrit params/allometry.parquet (format long, modèle etage_b) : coefs[espar][terme]."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    rows = [dict(species=sp, species_group=None, model="etage_b", term=t, value=float(v),
+                 provisoire=True, source="synthetique_jeu_fictif")
+            for sp, d in coefs.items() for t, v in d.items()]
+    schema = pa.schema([("species", pa.string()), ("species_group", pa.string()),
+                        ("model", pa.string()), ("term", pa.string()), ("value", pa.float64()),
+                        ("provisoire", pa.bool_()), ("source", pa.string())])
+    pq.write_table(pa.Table.from_pylist(rows, schema=schema), path)
 
 
 def read_parquet(path: Path):
@@ -255,9 +288,55 @@ def trees_init_path(zone_dir: Path = ZONE) -> Path:
 
 
 # ------------------------------------------------------------------ rapports HTML
+MOJIBAKE = re.compile(r"Ã[\u0080-\u00bf]|Â[\u0080-\u00bf]|<U\+[0-9A-Fa-f]{4}>|\\u[0-9a-fA-F]{4}|\ufffd")
+
+
+def decode_report(path: Path) -> str:
+    """Lit un rapport HTML en UTF-8 STRICT et refuse les accents mal encodés (octets invalides,
+    double encodage « Ã© », échappements « <U+00E9> », caractère de remplacement)."""
+    raw = Path(path).read_bytes()
+    try:
+        txt = raw.decode("utf-8")  # strict : une erreur d'octet fait échouer le test
+    except UnicodeDecodeError as e:  # pragma: no cover - échec attendu en cas de défaut
+        raise AssertionError(f"{Path(path).name} n'est pas de l'UTF-8 valide : {e}") from e
+    m = MOJIBAKE.search(txt)
+    assert not m, f"{Path(path).name} : accent mal encodé près de « {txt[max(m.start()-20,0):m.end()+20]} »"
+    return txt
+
+
+def html_sections(path: Path) -> list[tuple[str, str]]:
+    """Sections d'un rapport : (titre h1-h6, texte jusqu'au titre suivant)."""
+    raw = decode_report(path)
+    parts = re.split(r"(?is)(<h[1-6]\b[^>]*>.*?</h[1-6]>)", raw)
+    out = [("", _strip(parts[0]))]
+    for i in range(1, len(parts), 2):
+        out.append((_strip(parts[i]), _strip(parts[i + 1]) if i + 1 < len(parts) else ""))
+    return out
+
+
+def _strip(fragment: str) -> str:
+    t = re.sub(r"(?s)<[^>]+>", " ", fragment)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def sans_accent(s: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", s)
+                   if unicodedata.category(c) != "Mn").lower()
+
+
+def section_text(path: Path, needle: str) -> str:
+    """Texte des sections dont le TITRE contient `needle` (sans accent ni casse), plus les blocs
+    (lignes, items) qui contiennent `needle`. Chaîne vide si rien ne s'y rapporte."""
+    n = sans_accent(needle)
+    textes = [t for h, t in html_sections(path) if n in sans_accent(h)]
+    textes += [b for b in html_blocks(path) if n in sans_accent(b)]
+    return " ".join(textes)
+
+
 def html_blocks(path: Path) -> list[str]:
     """Texte d'un rapport HTML découpé en blocs (ligne de tableau, item, paragraphe, titre)."""
-    raw = path.read_text(encoding="utf-8")
+    raw = decode_report(path)
     parts = re.split(r"(?is)</?(?:tr|li|p|div|br|h[1-6]|table|ul|ol|section)\b[^>]*>", raw)
     out = []
     for p in parts:

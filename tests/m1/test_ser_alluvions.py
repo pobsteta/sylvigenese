@@ -91,3 +91,46 @@ def test_variante_ligne_de_rapport_pour_l_attribution(alluvion_zone):
     faux = [b for b in avec_l3
             if (m := re.search(r"rattach\w*\s+à\s+la\s+SER\s+(\S+?)[,\s]", b)) and m.group(1) != "H20"]
     assert not faux, f"ligne de rapport qui lie L3 à une mauvaise SER : {faux[:2]}"
+
+
+# ---- alluvium_code (spec §3, §7) : une valeur de ser.tif par couple (ser_code, alluvium_code) ----
+def test_ser_csv_a_les_colonnes_value_name_alluvium_code(runs):
+    table = H.read_ser_table(need("ser.csv"))  # contrôle l'en-tête exact
+    assert table
+    for v, (nom, alu) in table.items():
+        assert not H.L_CODE.match(nom), (v, nom)
+        assert alu is None or H.L_CODE.match(alu), (v, alu)
+    couples = list(table.values())
+    assert len(couples) == len(set(couples)), "un couple (ser_code, alluvium_code) est répété"
+
+
+def test_jeu_fictif_le_couloir_garde_alluvium_code_l3(grid):
+    table = H.read_ser_table(H.ZONE / "ser.csv")
+    _, arr, _ = _ser_names(H.ZONE)
+    couloir = grid.fully_in((0, 1000, 420, 520))
+    assert {table[int(v)] for v in np.unique(arr[couloir])} == {("H10", "L3")}
+    hors = grid.forest() & ~grid.in_rect((0, 1000, 400, 540))
+    assert {table[int(v)][1] for v in np.unique(arr[hors])} == {None}, \
+        "alluvium_code renseigné hors du couloir d'alluvions"
+
+
+def test_variante_cellules_d_alluvion_gardent_alluvium_code_et_une_ser_sous_jacente(alluvion_zone):
+    d = alluvion_zone["dir"]
+    g = H.Grid(d / "grid.tif")
+    table = H.read_ser_table(d / "ser.csv")
+    arr = H.read_raster(d / "ser.tif")[0][0]
+    couloir = g.fully_in((0, 1000, 420, 520))
+    couples = {table[int(v)] for v in np.unique(arr[couloir])}
+    assert couples == {("H20", "L3")}, couples
+    # jamais L1-L5 comme ser_code, sur toute la table et toutes les cellules forestières
+    assert not [n for n, _ in table.values() if H.L_CODE.match(n)]
+    valeurs = {int(v) for v in np.unique(arr[g.forest()])}
+    assert not [table[v] for v in valeurs if H.L_CODE.match(table[v][0])]
+    # une valeur distincte pour (H20, L3) et pour (H20, NULL) : la bande de H20 hors couloir
+    bande_h20 = g.fully_in((0, 1000, 525, 600))
+    couples_h20 = {table[int(v)] for v in np.unique(arr[bande_h20])}
+    assert couples_h20 == {("H20", None)}, couples_h20
+    assert {int(v) for v in np.unique(arr[couloir])}.isdisjoint({int(v) for v in np.unique(arr[bande_h20])})
+    # alluvium_code NULL partout ailleurs
+    ailleurs = g.forest() & ~g.in_rect((0, 1000, 400, 540))
+    assert {table[int(v)][1] for v in np.unique(arr[ailleurs])} == {None}
