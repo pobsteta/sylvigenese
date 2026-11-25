@@ -32,9 +32,11 @@
 
 # ------------------------------------------------------------------ réglages (provisoires)
 
-# Taille des blocs carrés de la validation croisée, en m (EPSG:2154). Provisoire : deux placettes
-# distantes de plus de 1 400 m (deux rayons de 700 m) ne partagent aucune maille de station
-# `coarse_*_700m`, et 2 km fait environ trois fois la portée du floutage des coordonnées IFN.
+# Taille des blocs carrés de la validation croisée, en m (EPSG:2154). Provisoire : 2 km font
+# environ trois fois la portée du floutage des coordonnées IFN (700 m) et dépassent le diamètre
+# (1 400 m) du disque des valeurs `coarse_*_700m`. Ce n'est PAS une garantie d'indépendance : deux
+# placettes de blocs voisins peuvent être à moins de 1 400 m et partager des mailles de station ;
+# il n'y a pas de zone tampon en M2a (à revoir en M2b, sur la SER pilote).
 DYN_BLOCK_SIZE_M <- 2000
 # Au-delà de DYN_MAX_FOLDS blocs, ils sont répartis en DYN_GROUPED_FOLDS plis par la graine.
 DYN_MAX_FOLDS <- 20L
@@ -525,6 +527,20 @@ dyn_fit <- function(kind, data) {
   fit
 }
 
+#' Ajuste un modèle sans taire mgcv : rend l'ajustement (ou l'erreur), le nombre d'avertissements,
+#' leurs textes, et si l'ajustement a convergé (gam$converged et outer.info$conv).
+dyn_fit_logged <- function(kind, data) {
+  warns <- character()
+  fit <- tryCatch(withCallingHandlers(dyn_fit(kind, data), warning = function(w) {
+    warns <<- c(warns, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }), error = function(e) e)
+  ok <- !inherits(fit, "error")
+  conv <- ok && isTRUE(fit$converged) &&
+    (is.null(fit$outer.info$conv) || identical(fit$outer.info$conv, "full convergence"))
+  list(fit = fit, ok = ok, converged = conv, warnings = warns)
+}
+
 #' Lignes de paramètres d'un ajustement (représentation A) : intercept, valeurs de chaque terme
 #' lisse à ses nœuds, valeur de chaque niveau de SER, dispersion et puissance Tweedie.
 #' Colonnes : term, variable, x, value.
@@ -632,20 +648,25 @@ dyn_cv <- function(kind, data, fold_of_block) {
   fold <- fold_of_block[data$block]
   failed <- 0L
   unseen <- 0L
+  not_conv <- 0L
+  warns <- character()
   for (f in sort(unique(fold))) {
     test <- fold == f
     train <- data[!test, , drop = FALSE]
     if (!nrow(train)) { failed <- failed + 1L; next }
-    fit <- tryCatch(suppressWarnings(dyn_fit(kind, train)), error = function(e) NULL)
-    if (is.null(fit)) { failed <- failed + 1L; next }
+    lf <- dyn_fit_logged(kind, train)
+    warns <- c(warns, lf$warnings)
+    if (!lf$ok) { failed <- failed + 1L; next }
+    if (!lf$converged) not_conv <- not_conv + 1L
+    fit <- lf$fit
     rows <- dyn_export(fit)
     eta <- dyn_eta(rows, data[test, , drop = FALSE])
     unseen <- unseen + attr(eta, "unseen_ser")
     pred[test] <- dyn_response(kind, eta, data$dt[test])
     null[test] <- dyn_null(kind, train, data[test, , drop = FALSE])
   }
-  list(pred = pred, null = null, failed = failed, unseen = unseen,
-       n_folds = length(unique(fold)))
+  list(pred = pred, null = null, failed = failed, unseen = unseen, not_converged = not_conv,
+       warnings = warns, n_folds = length(unique(fold)))
 }
 
 #' Biais (prédit − observé), erreur et erreur du modèle nul. Erreur : RMSE ; pour la mortalité,
@@ -674,14 +695,15 @@ dyn_run_model <- function(kind, data, species, species_ref, fold_of_block, sourc
   params <- list()
   per_species <- list()
   unit_info <- list()
-  pooled <- list(obs = numeric(), pred = numeric(), null = numeric())
+  pooled <- list(obs = numeric(), pred = numeric(), null = numeric(), block = character())
   for (u in sort(unique(units$unit), method = "radix")) {
     ud <- dyn_unit_rows(data, units, u)
-    fit <- tryCatch(suppressWarnings(dyn_fit(kind, ud)), error = function(e) e)
-    if (inherits(fit, "error")) {
+    lf <- dyn_fit_logged(kind, ud)
+    if (!lf$ok) {
       stop(sprintf("%s : ajustement impossible pour %s (%d lignes) : %s", spec$label, u, nrow(ud),
-                   conditionMessage(fit)), call. = FALSE)
+                   conditionMessage(lf$fit)), call. = FALSE)
     }
+    fit <- lf$fit
     rows <- dyn_export(fit)
     is_sp <- units$unit_type[units$unit == u][1] == "essence"
     rows$species <- if (is_sp) u else NA_character_
@@ -692,10 +714,16 @@ dyn_run_model <- function(kind, data, species, species_ref, fold_of_block, sourc
     obs <- dyn_observed(kind, ud)
     unit_info[[u]] <- list(n = nrow(ud), dropped = attr(fit, "dropped"), failed = cv$failed,
                            n_folds = cv$n_folds, unseen = cv$unseen,
+                           final_converged = lf$converged, final_warnings = lf$warnings,
+                           fold_not_converged = cv$not_converged, fold_warnings = cv$warnings,
                            count = units$unit_count[units$unit == u][1],
                            members = units$members[units$unit == u][1])
-    pooled$obs <- c(pooled$obs, obs); pooled$pred <- c(pooled$pred, cv$pred)
-    pooled$null <- c(pooled$null, cv$null)
+    # Résumé global : seulement les lignes des essences affectées à cette unité. Les unités se
+    # recouvrent (toutes_essences contient aussi les essences d'un groupe) : sans ce filtre, une
+    # même observation compterait deux fois.
+    assigned <- ud$species %in% units$species[units$unit == u]
+    pooled$obs <- c(pooled$obs, obs[assigned]); pooled$pred <- c(pooled$pred, cv$pred[assigned])
+    pooled$null <- c(pooled$null, cv$null[assigned]); pooled$block <- c(pooled$block, ud$block[assigned])
     for (sp in units$species[units$unit == u]) {
       sel <- ud$species == sp
       met <- dyn_metrics(kind, obs[sel], cv$pred[sel], cv$null[sel])
@@ -710,7 +738,8 @@ dyn_run_model <- function(kind, data, species, species_ref, fold_of_block, sourc
   p$source <- source
   list(params = p, per_species = per_species[sort(names(per_species), method = "radix")],
        units = units, unit_info = unit_info,
-       pooled = dyn_metrics(kind, pooled$obs, pooled$pred, pooled$null))
+       pooled = dyn_metrics(kind, pooled$obs, pooled$pred, pooled$null),
+       block_counts = table(factor(pooled$block, levels = sort(unique(pooled$block), method = "radix"))))
 }
 
 #' Domaine de validité d'une essence pour un modèle : étendue des données d'ajustement.
@@ -931,10 +960,11 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
   nblocks <- length(unique(prep$blocks))
   cv_items <- list(
     dyn_p(sprintf(paste0("Validation croisée spatiale par blocs : blocs carrés de %s m de côté (taille des blocs ",
-                     "provisoire : deux placettes à plus de 1 400 m, deux rayons de 700 m, ne partagent aucune maille ",
-                     "de station coarse_*_700m, et 2 km font environ trois fois la portée du floutage des coordonnées ",
-                     "IFN ; à revoir sur la SER pilote en M2b). Blocs tirés des coordonnées floutées de 1re visite ",
-                     "(EPSG:2154) ; %s blocs spatiaux ; %s."),
+                     "provisoire : 2 km font environ trois fois la portée du floutage des coordonnées IFN, 700 m, et ",
+                     "dépassent le diamètre, 1 400 m, du disque des valeurs coarse_*_700m ; mais deux placettes de ",
+                     "blocs voisins peuvent être à moins de 1 400 m et partager des mailles de station : pas de zone ",
+                     "tampon en M2a, à revoir sur la SER pilote en M2b). Blocs tirés des coordonnées floutées de 1re ",
+                     "visite (EPSG:2154) ; %s blocs spatiaux ; %s."),
               dyn_int(DYN_BLOCK_SIZE_M), dyn_int(nblocks),
               if (nblocks <= DYN_MAX_FOLDS) "un bloc mis de côté à chaque tour" else
                 sprintf("blocs répartis en %s plis par la graine %s", dyn_int(DYN_GROUPED_FOLDS), DYN_SEED))),
@@ -946,12 +976,30 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
     r <- res[[k]]$pooled
     failed <- sum(vapply(res[[k]]$unit_info, function(u) u$failed, integer(1)))
     unseen <- sum(vapply(res[[k]]$unit_info, function(u) u$unseen, integer(1)))
-    sprintf("%s : erreur du modèle %s contre %s pour le modèle nul (%s), biais %s, sur %s prédictions des mêmes blocs mis de côté ; plis non ajustés : %s ; niveaux de SER inconnus du pli : %s.",
+    ui <- res[[k]]$unit_info
+    final_nc <- sum(!vapply(ui, function(u) u$final_converged, logical(1)))
+    fold_nc <- sum(vapply(ui, function(u) u$fold_not_converged, integer(1)))
+    w_final <- sum(vapply(ui, function(u) length(u$final_warnings), integer(1)))
+    w_fold <- sum(vapply(ui, function(u) length(u$fold_warnings), integer(1)))
+    sprintf("%s : erreur du modèle %s contre %s pour le modèle nul (%s), biais %s, sur %s prédictions des mêmes blocs mis de côté (chaque observation une seule fois, par l'unité de son essence) ; plis non ajustés : %s ; niveaux de SER inconnus du pli : %s ; ajustements finals non convergés : %s sur %s, plis non convergés : %s ; avertissements de mgcv : %s à l'ajustement final, %s dans les plis.",
             DYN_MODELS[[k]]$label, dyn_fmt(r$error, 4), dyn_fmt(r$error_null, 4),
             if (k == "mortality") "log-perte" else paste("RMSE,", DYN_MODELS[[k]]$unit),
-            dyn_fmt(r$bias, 4), dyn_int(r$n_pred), dyn_int(failed), dyn_int(unseen))
+            dyn_fmt(r$bias, 4), dyn_int(r$n_pred), dyn_int(failed), dyn_int(unseen),
+            dyn_int(final_nc), dyn_int(length(ui)), dyn_int(fold_nc), dyn_int(w_final), dyn_int(w_fold))
   }, character(1))
   cv_items[[length(cv_items) + 1L]] <- dyn_ul(unname(summ))
+  bc <- vapply(names(res), function(k) {
+    t <- res[[k]]$block_counts
+    sprintf("%s, effectif par bloc mis de côté (bloc colonne_ligne de %s m : lignes) : %s ; le plus gros bloc porte %s %% des lignes.",
+            DYN_MODELS[[k]]$label, dyn_int(DYN_BLOCK_SIZE_M),
+            paste(sprintf("%s : %s", names(t), as.integer(t)), collapse = " ; "),
+            dyn_fmt(100 * max(t) / sum(t), 1))
+  }, character(1))
+  cv_items[[length(cv_items) + 1L]] <- dyn_ul(unname(bc))
+  wtxt <- unique(unlist(lapply(res, function(r) unlist(lapply(r$unit_info, function(u) c(u$final_warnings, u$fold_warnings))))))
+  if (length(wtxt)) {
+    cv_items[[length(cv_items) + 1L]] <- dyn_ul(sprintf("Avertissement de mgcv rencontré : %s", utils::head(wtxt, 10)))
+  }
   sections[[length(sections) + 1L]] <- list(title = "Validation croisée spatiale par blocs", items = cv_items)
 
   # Un tableau par modèle, une ligne par essence.
@@ -1020,6 +1068,9 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
     "Accroissement passé, état présent : IR5 couvre les 5 cernes avant la visite, alors que d130 et la concurrence sont ceux de la visite.",
     "Ajustement non pondéré par W : le tirage dépend de d130, qui est une variable du modèle ; W sert au recrutement (tiges/ha) et à la surface terrière.",
     "Hors du domaine : chaque variable est bornée à ses nœuds extrêmes (la valeur au bord est tenue) ; une SER absente de l'ajustement compte pour 0 (moyenne de l'effet aléatoire).",
+    sprintf("Blocs déséquilibrés : un bloc qui porte l'essentiel des données (ici, pour la mortalité, %s %% des arbres à risque dans un seul bloc) rend la comparaison au modèle nul peu informative : quand ce bloc est mis de côté, les deux modèles sont ajustés sur peu de données, et les autres plis ne testent presque rien.",
+            dyn_fmt(100 * max(res$mortality$block_counts) / sum(res$mortality$block_counts), 1)),
+    "Chablis retirés : les arbres en chablis (code A de VEGET5, campagnes 2010 à 2018) sont d'état inconnu, vivant ou mort ; ils sont retirés de la population à risque, d'où une mortalité probablement sous-estimée (question posée à Pascal).",
     "Chapman-Richards : paramètres reconstitués par nemeton et recalés sur un point de référence publié, pas les paramètres publiés eux-mêmes ; à vérifier sur les sources.",
     "Jeu fictif : en M2a, aucune erreur ni comparaison au modèle nul ne dit quoi que ce soit de la forêt réelle ; le critère de M2b (RMSE sous celle du modèle nul sur la SER pilote) reste à passer avec Pascal."
   ))))

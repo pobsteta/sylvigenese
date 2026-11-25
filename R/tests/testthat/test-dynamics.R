@@ -140,6 +140,69 @@ test_that("les valeurs aux nœuds relues redonnent predict.gam à 1e-10 (mortali
                as.numeric(stats::predict(fit, newdata = nd, type = "response")), tolerance = 1e-10)
 })
 
+test_that("les valeurs aux nœuds relues redonnent predict.gam à 1e-10 (recrutement, Tweedie, décalage log(dt))", {
+  ifn <- fake_ifn(n_plots = 30L, seed = 9L)
+  prep <- dyn_prepare_data(ifn$trees, ifn$plots)
+  fit <- suppressWarnings(dyn_fit("recruitment", prep$recruitment))
+  rows <- dyn_export(fit)
+  expect_true("tweedie_p" %in% rows$term)
+  nd <- dyn_model_frame(prep$recruitment)
+  eta <- as.numeric(dyn_eta(rows, nd))
+  expect_equal(eta + log(nd$dt), as.numeric(stats::predict(fit, newdata = nd, type = "link")),
+               tolerance = 1e-10)
+  # tiges/ha sur l'intervalle = exp(η) × dt
+  expect_equal(dyn_response("recruitment", eta) * nd$dt,
+               as.numeric(stats::predict(fit, newdata = nd, type = "response")), tolerance = 1e-10)
+})
+
+test_that("les valeurs aux nœuds relues redonnent predict.gam à 1e-10 (hauteur relative, gaussienne)", {
+  ifn <- fake_ifn(n_plots = 30L, seed = 10L)
+  prep <- dyn_prepare_data(ifn$trees, ifn$plots)
+  fit <- dyn_fit("height", prep$height)
+  rows <- dyn_export(fit)
+  nd <- dyn_model_frame(prep$height)
+  expect_equal(as.numeric(dyn_eta(rows, nd)),
+               as.numeric(stats::predict(fit, newdata = nd, type = "response")), tolerance = 1e-10)
+})
+
+test_that("le résumé global compte chaque observation une fois, même quand les unités se recouvrent", {
+  ifn <- fake_ifn(n_plots = 30L, seed = 11L)
+  prep <- dyn_prepare_data(ifn$trees, ifn$plots)
+  ref <- species_ref()
+  fb <- stats::setNames(dyn_folds(sort(unique(prep$mortality$block))), sort(unique(prep$mortality$block)))
+  sp <- sort(unique(prep$mortality$species))
+  # Seuil choisi pour que le groupe feuillu (03 + 09) l'atteigne et pas le résineux 62 : 62 prend
+  # toutes_essences, qui contient aussi 03 et 09, déjà dans l'unité feuillu (recouvrement).
+  deaths <- tapply(prep$mortality$dead, prep$mortality$species, sum)
+  thr <- deaths[["03"]] + deaths[["09"]]
+  expect_lt(deaths[["62"]], thr)
+  old <- DYN_THRESHOLDS
+  on.exit(DYN_THRESHOLDS <<- old, add = TRUE)
+  DYN_THRESHOLDS[["mortality"]] <<- thr
+  r <- dyn_run_model("mortality", prep$mortality, sp, ref, fb, "essai synthétique")
+  expect_setequal(r$units$unit, c("feuillu", DYN_ALL_SPECIES))
+  expect_equal(r$pooled$n_pred, nrow(prep$mortality))
+  expect_equal(sum(r$block_counts), nrow(prep$mortality))
+  for (k in c("growth", "recruitment", "height")) {
+    fbk <- stats::setNames(dyn_folds(sort(unique(prep[[k]]$block))), sort(unique(prep[[k]]$block)))
+    rk <- dyn_run_model(k, prep[[k]], sort(unique(prep[[k]]$species)), ref, fbk, "essai synthétique")
+    expect_equal(rk$pooled$n_pred, nrow(prep[[k]]))
+  }
+})
+
+test_that("les avertissements de mgcv sont comptés, pas tus", {
+  lf <- dyn_fit_logged("mortality", data.frame(dead = c(0, 0, 1, 0), dt = 5, d130 = 1:4, ba_plot = 1,
+                                               bal = 1, trophic = 1, coarse_hydric_700m = 1,
+                                               coarse_bioclim_700m = 1, ser_code = "H10"))
+  expect_true(lf$ok)
+  w <- NULL
+  lf2 <- withCallingHandlers(dyn_fit_logged("height", data.frame(y = c(1, 1, 1), rel_d = 1:3)),
+                             warning = function(x) w <<- x)
+  expect_null(w)
+  expect_type(lf2$warnings, "character")
+  expect_type(lf$converged, "logical")
+})
+
 test_that("un point du terrain tombe dans le bon bloc de 2 km (x est, y nord, EPSG:2154, m)", {
   # (701 999,9 ; 6 500 000,1) : colonne 350 (700 000 à 702 000), ligne 3250 (6 500 000 à 6 502 000)
   expect_equal(dyn_block_id(701999.9, 6500000.1), "350_3250")
