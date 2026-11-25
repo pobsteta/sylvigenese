@@ -177,12 +177,15 @@ contrat de l'orchestrateur, par délégation de Pascal), en `schema_version` 0.1
 | `dynamics.height_curve` : modèle `korf` (mission 033) | deuxième forme de courbe de hauteur dominante, pour le hêtre (09), décision de Pascal du 25/11/2026 : termes `a`, `b`, `c`, `p_f_class1` à `p_f_class5`, et le point de départ `t_ref0` (ans), `h_ref0` (m), `age_ref` (ans) qui sert à choisir la classe (mission 040, provisoires et sourcés) ; formule de récurrence annuelle dans la description du contrat (Bontemps et al. 2007, reprise de nemeton, provisoire) |
 | `import_tarif.allometry` : modèles `hcb` et `cw` (mission 033) | `hcb` : `CR_a`, `CR_b`, `CR_min`, `CR_max` (hcb = h (1 − CR), CR = CR_a + CR_b ln d130, borné) ; `cw` : `R_a`, `R_b` (cw = 2 E, ln E = R_a + R_b ln d130) ; formes dans la description du contrat, aucune valeur dans le contrat |
 | `simulate.trees` | `status` ∈ {`alive`, `dead`} (les autres colonnes viennent du BRIEF §4 ; `year` est dans le nom du dossier) |
-| `simulate.cells` | `cell_id`, `year`, `species`, `stems_ha`, `basal_area_m2_ha`, `d130_mean` ; facultatives jusqu'à M5 (« semis non simulés », décision de Pascal du 25/11/2026) : `seedlings_ha`, `seedling_h_mean` ; `cell_id` = ligne × largeur + colonne dans `grid.tif`, depuis le coin nord-ouest, à partir de 0 |
+| `simulate.cells` | `cell_id`, `year`, `species`, `stems_ha`, `basal_area_m2_ha`, `d130_mean` ; facultatives jusqu'à M5 (« semis non simulés », décision de Pascal du 25/11/2026) : `seedlings_ha`, `seedling_h_mean` ; **facultative** (mission 044, décision de Pascal Q1 du 25/11/2026) : `h_dom_m`, hauteur dominante de la cellule pour l'année, m, même valeur sur toutes les lignes d'une cellule et d'une année, jamais corrigée au plafond ; `simulate` l'écrira à la mission 046, et la fiche v2 comme `assets` l'exigent ; `cell_id` = ligne × largeur + colonne dans `grid.tif`, depuis le coin nord-ouest, à partir de 0 |
 | `simulate.flags` (`sim/flags.parquet`, mission 033) | `year`, `entity` (tree_id, ou cell_id en décimal), `kind` (minuscules et underscores), `message` (français), `value` (vide permis) ; une table sans ligne est conforme ; `post` la met en page |
 | `post.summary` | `cell_id`, `year`, `species`, `volume_m3_ha`, `biomass_t_ha`, `carbon_t_ha`, `provisoire` |
 | `simulate.run` (`sim/run.json`) | tout est obligatoire (mission 033) : `schema_version`, `level`, `seed`, `t0`, `years`, `threads`, `memory_estimate_bytes`, `duration_s`, `config_sha256`, `zeroed_values`, `provisional_share`, et les comptes `domain_outputs` (par variable : `below`, `above`), `cells_at_height_ceiling`, `edge_disks`, `mixed_cells`, `recruits`, `deaths` ; un compte nul s'écrit 0 |
-| `config` (`config.yml`) | `schema_version`, `zone`, `crs`, `grid.resolution_m`, `management` ; facultatifs : `external.tarif_nemeton_dir`, `external.raf20_grid`, `simulate.{level, seed, t0, years, threads}` ; toute autre clé est refusée |
-| `assets.cell_sheet` (`web/cells/<tuile>.json`) | `schema_version`, `tile`, `cells[].{cell_id, x, y, station_type, vegetation_type, years[].{year, provisoire, composition[].{species, share}, volume_m3_ha, carbon_t_ha}}` ; facultatifs par année : `h0_m`, `density_trees_ha`, `notes[]` ; `volume_m3_ha` et `carbon_t_ha` valent `null` quand ils ne sont pas calculés (état initial : `post` vient après la simulation), et `notes` le dit |
+| `config` (`config.yml`) | `schema_version`, `zone`, `crs`, `grid.resolution_m`, `management` ; facultatifs : `external.tarif_nemeton_dir`, `external.raf20_grid`, `simulate.{level, seed, t0, years, threads}` ; **mission 044** : bloc `assets.year_step` (entier ≥ 1, une année retenue sur N ; le dépôt écrit 10), exigé par `assets` dès que `sim/` existe (le schéma ne peut pas savoir si `sim/` existe : sans le bloc, `assets` s'arrête, code 2, aucune valeur par défaut) ; toute autre clé est refusée |
+| `assets.cell_sheet` (`web/cells/<tuile>.json`), **version 1** (état initial, sans `sim/`) | `schema_version` = 1, `tile`, `cells[].{cell_id, x, y, station_type, vegetation_type, years[].{year, provisoire, composition[].{species, share}, volume_m3_ha, carbon_t_ha}}` ; facultatifs par année : `h0_m`, `density_trees_ha`, `notes[]` ; `volume_m3_ha` et `carbon_t_ha` valent `null` quand ils ne sont pas calculés (état initial : `post` vient après la simulation), et `notes` le dit. **Inchangée par la mission 044** : refuse seulement, en plus, les clés de la version 2 (`source`, `notes` du document) |
+| `assets.cell_sheet`, **version 2** (mission 044, quand `sim/` existe ; la vue refuse la version 1 dès qu'un `sim/` existe) | document : `schema_version` = 2, `tile`, `source` = `sim` (toutes les années, t0 compris, viennent de `sim/`), `notes[]` (écrites une fois pour toute la fiche, et non plus par cellule et par année ; l'une contient « non validée écologiquement », l'autre « volume et carbone non calculés ») ; cellule : `cell_id`, `x`, `y`, `station_type`, `vegetation_type` (état initial : il n'évolue pas), `h_ceiling_m` (plafond de la station, `null` = inconnu, dit par la fiche), `years[]` ; année : `year`, `provisoire`, `stems_ha`, `basal_area_m2_ha`, `d130_mean_cm` (moyenne pondérée par les tiges, `null` sans tige), `h_dom_m` (de `sim/cells`, jamais corrigée), `composition[].{species, stems_ha, basal_area_m2_ha, share}` (**`share` = part des TIGES**), `flags[].{kind, message, value}` (recopiés de `sim/flags.parquet` : `hdom_au_dessus_du_plafond`, `trouee_sans_recrue`… ; `[]` = rien à signaler), `volume_m3_ha` et `carbon_t_ha` toujours `null` (décision de Pascal Q2 : `post` est une mission à part après M4a ; les remplir demandera une version 3) ; facultatif : `h0_m` (réservé à t0). Plus de `density_trees_ha` ni de `notes` par année |
+| `assets.tiles_index` (`tiles/index.json`, mission 044) | `schema_version` = 1, `source` (`sim` ou `trees_init`), `t0`, `provisoire`, `notes[]`, `years[].{year, instances (vivants dessinés), tileset (`<année>/tileset.json`), tiles[].{tile (`t_<x>_<y>`), instances}}`. Mode `sim` : en plus `year_step`, `run_config_sha256` (copié de `sim/run.json`), `basal_area_map.{unit = m2/ha, scale_min_m2_ha, scale_max_m2_ha, mention}` (échelle fixe de toutes les années) et `years[].dead` (morts non dessinés) ; `notes` contient « non validée écologiquement » ; mode `trees_init` : une seule année et aucune de ces clés |
+| `assets.basal_area_raster` (`web/rasters/g_<année>.tif`, mission 044, décision de Pascal Q3) | surface terrière par cellule, m2/ha ; COG avec aperçus, Float32, une bande, maille de 25 m, EPSG:2154 ; un fichier par année de `tiles/index.json`, lu avec l'échelle fixe de `basal_area_map` |
 | `assets.massif_block` (`massif/<bloc>.json`) | `schema_version`, `block_id`, `year`, `crs`, `vertical_datum` (`NGF-IGN69`), `origin.{x, y, z}`, `trees[].{tree_id, species, stage, x, y, z, h, d130, hcb, cw}` (positions relatives à l'origine) |
 | `zone_marker` (`<zone>/zone.yml`, facultatif) | `schema_version`, `fictive` (booléen), `reason` ; `fictive: true` dispense `assets` de la grille RAF20 (ondulation 0, dite) ; les copies de zone héritent du marqueur |
 | `assets.gltf` (`assets/trees/*.gltf`, `tiles/*/*.gltf`) | glTF 2.0 en JSON avec `.bin` externe (pas de `.glb` pour le contenu de tuile, référentiel iTowns point A) : `asset.version` = `2.0`, `scenes`, `nodes`, `meshes`, `buffers[].uri` en `.bin`, `extras.{generique, provisoire}` vrais ; contrôle de forme seulement (glTF-Validator : M4) |
@@ -193,6 +196,27 @@ Noms repris tels quels d'une source : `nemeton_stands` (spec §3), `inventaire_v
 (schéma nemeton 1.7.0), `fertilite.csv` (sylvostation), `trees_init` et `sim/trees`
 (BRIEF §4), clés du biome (BRIEF §5, en français pour rester lisibles par un forestier),
 `species.csv` (mission 011).
+
+## Ce que les contrats de la mission 044 ne contrôlent pas
+
+Le validateur lit un fichier à la fois (voir « Hors de M0 ») ; ces règles reviennent donc à
+`assets` (mission 047) et aux tests d'acceptation (mission 045) :
+
+- la suite des années de l'index (t0, t0 + N, t0 + 2N…, puis la dernière année), leur ordre, et
+  leur unicité ; l'unicité des années d'une cellule de la fiche ;
+- que chaque année de l'index ait son `tiles/<année>/`, son `web/rasters/g_<année>.tif` (en mode
+  `sim`) et une fiche portant la même liste d'années ; que l'année du nom de fichier d'un
+  `g_<année>.tif` soit celle de l'index ;
+- que `scale_max_m2_ha` dépasse `scale_min_m2_ha` ;
+- que `instances` d'une année soit la somme de ses tuiles, et égal au nombre d'arbres vivants de
+  `sim/trees` ;
+- que `h_dom_m` d'une cellule soit le même sur toutes ses lignes de `sim/cells`, et que la fiche
+  recopie `sim/cells` et `sim/flags.parquet` à l'identique ;
+- que `year_step` de `config.yml` soit celui de l'index, et `run_config_sha256` celui de `run.json` ;
+- les extras du `tileset.json` (`etat`, `source`, `annee`, `instances`), prévus au plan §3 mais
+  hors du périmètre de la mission 044 : `tileset.schema.json` n'est pas modifié ;
+- avec `--require-outputs`, `tiles/index.json` et les `g_*.tif` sont exigés comme toute sortie,
+  même sans `sim/` ; le jeu fictif sans `sim/` ne passe donc pas ce mode (aucun test ne l'emploie).
 
 ## Hors de M0
 

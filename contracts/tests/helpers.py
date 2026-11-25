@@ -289,3 +289,55 @@ def massif_block():
             "vertical_datum": "NGF-IGN69", "origin": {"x": PARIS_X, "y": PARIS_Y, "z": 35.0},
             "trees": [{"tree_id": "T1", "species": "09", "stage": "mature", "x": 1.0,
                        "y": 2.0, "z": 0.5, "h": 25.0, "d130": 30.0, "hcb": 12.0, "cw": 6.0}]}
+
+
+def cell_sheet_v2():
+    """Fiche de cellule v2 (mission 044) : deux années retenues, lues dans sim/, h_dom_m, flags,
+    volume et carbone non calculés. Les valeurs sont celles d'un essai, sans sens écologique."""
+    def year(y, stems, g, d, h_dom, flags):
+        return {"year": y, "provisoire": True, "stems_ha": stems, "basal_area_m2_ha": g,
+                "d130_mean_cm": d, "h_dom_m": h_dom,
+                "composition": [{"species": "09", "stems_ha": stems * 0.75,
+                                 "basal_area_m2_ha": g * 0.5, "share": 0.75},
+                                {"species": "02", "stems_ha": stems * 0.25,
+                                 "basal_area_m2_ha": g * 0.5, "share": 0.25}],
+                "flags": flags, "volume_m3_ha": None, "carbon_t_ha": None}
+    first = year(2022, 120.0, 20.0, 31.5, 22.0, [])
+    first["h0_m"] = 21.4
+    return {"schema_version": 2, "tile": "t_0_0", "source": "sim",
+            "notes": ["trajectoire technique, non validée écologiquement (décision du 25/11/2026)",
+                      "volume et carbone non calculés (post)", "semis non simulés"],
+            "cells": [{"cell_id": 0, "x": PARIS_X, "y": PARIS_Y,
+                       "station_type": "fraiche_acide", "vegetation_type": "hetraie",
+                       "h_ceiling_m": 30.0,
+                       "years": [first,
+                                 year(2032, 200.0, 25.0, 28.0, 31.2,
+                                      [{"kind": "hdom_au_dessus_du_plafond",
+                                        "message": "hauteur dominante au-dessus du plafond",
+                                        "value": 31.2},
+                                       {"kind": "trouee_sans_recrue",
+                                        "message": "trouée sans recrue", "value": None}])]}]}
+
+
+def tiles_index():
+    """tiles/index.json en mode sim : trois années retenues (N = 10, dernière année 2045)."""
+    def year(y, alive, dead):
+        half = alive // 2
+        return {"year": y, "instances": alive, "dead": dead, "tileset": f"{y}/tileset.json",
+                "tiles": [{"tile": "t_700000_6500000", "instances": half},
+                          {"tile": "t_700500_6500000", "instances": alive - half}]}
+    return {"schema_version": 1, "source": "sim", "t0": 2022, "year_step": 10,
+            "run_config_sha256": "0123456789abcdef" * 4, "provisoire": True,
+            "notes": ["trajectoire technique, non validée écologiquement (décision du 25/11/2026)"],
+            "basal_area_map": {"unit": "m2/ha", "scale_min_m2_ha": 0.0,
+                               "scale_max_m2_ha": 400.0,
+                               "mention": "surface terrière, non validée écologiquement"},
+            "years": [year(2022, 100, 0), year(2032, 140, 12), year(2045, 160, 30)]}
+
+
+def tiles_index_initial():
+    """tiles/index.json sans sim/ : l'état initial seul, sans clé propre au mode sim."""
+    return {"schema_version": 1, "source": "trees_init", "t0": 2022, "provisoire": True,
+            "notes": ["état initial : arbres du générateur, sans simulation"],
+            "years": [{"year": 2022, "instances": 100, "tileset": "2022/tileset.json",
+                       "tiles": [{"tile": "t_700000_6500000", "instances": 100}]}]}
