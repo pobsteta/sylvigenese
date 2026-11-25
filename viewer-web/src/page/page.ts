@@ -154,6 +154,15 @@ function texteurCarte(r: Raster, couleurs: Map<number, string>) {
 const NODATA_MNT = -9999;
 
 // Nombre de cellules du MNT sans valeur (nodata), pour le dire à l'écran.
+function altitudeMin(r: Raster): number {
+  let m = Infinity;
+  for (let i = 0; i < r.valeurs.length; i++) {
+    const v = r.valeurs[i] as number;
+    if (v !== r.nodata && v < m) m = v;
+  }
+  return m;
+}
+
 function compterNodata(r: Raster): number {
   let n = 0;
   for (let i = 0; i < r.valeurs.length; i++) if (r.valeurs[i] === r.nodata) n++;
@@ -162,8 +171,9 @@ function compterNodata(r: Raster): number {
 
 // Tuile d'altitudes à partir du MNT local. Hors de l'emprise du MNT, et sur ses cellules sans valeur, la tuile porte
 // NODATA_MNT : iTowns reprend alors la valeur de la tuile parente (terrain IGN si joint, sinon ellipsoïde).
-// Aucune altitude n'est inventée ni étendue au-delà du bord.
-function texteurMnt(r: Raster) {
+// Aucune altitude n'est inventée ni étendue au-delà du bord. Seule exception, demandée pour un jeu fictif : `plan` =
+// altitude minimale du MNT, plan neutre hors emprise (dit à l'écran).
+function texteurMnt(r: Raster, plan: number | null) {
   const g = r.grille;
   const est = g.x0 + g.colonnes * g.resolution, sud = g.y0 - g.lignes * g.resolution;
   const brut = (c: number, l: number): number | null => {
@@ -179,7 +189,10 @@ function texteurMnt(r: Raster) {
       for (let i = 0; i < DIM; i++) {
         const lon = w + ((i + 0.5) / DIM) * (e - w);
         const [x, y] = vers93.forward([lon, lat]) as [number, number];
-        if (x < g.x0 || x >= est || y <= sud || y > g.y0) continue; // hors emprise : nodata
+        if (x < g.x0 || x >= est || y <= sud || y > g.y0) { // hors emprise : nodata, ou plan neutre (jeu fictif)
+          if (plan !== null) data[j * DIM + i] = plan;
+          continue;
+        }
         if (brut(Math.floor((x - g.x0) / g.resolution), Math.floor((g.y0 - y) / g.resolution)) === null) continue; // cellule sans valeur
         // bilinéaire entre centres de cellules, poids renormalisés sur les voisins valides
         const fc = (x - g.x0) / g.resolution - 0.5, fl = (g.y0 - y) / g.resolution - 0.5;
@@ -225,7 +238,7 @@ function compter(racine: THREE.Object3D) {
 // ---------------------------------------------------------------- démarrage
 async function demarrer(): Promise<void> {
   const debut = performance.now();
-  const cfg = await json<{ zone: string; annees: number[]; a_dtm: boolean }>("/api/config.json");
+  const cfg = await json<{ zone: string; annees: number[]; a_dtm: boolean; fictive: boolean }>("/api/config.json");
   const annee = cfg.annees[cfg.annees.length - 1] as number;
   etat.year = annee;
   $("annee-texte").textContent = `${annee} (une seule année disponible)`;
@@ -275,7 +288,8 @@ async function demarrer(): Promise<void> {
   vue.scene.add(soleil);
 
   // Terrain : MNT local sur son emprise ; hors emprise, terrain IGN si joignable, sinon ellipsoïde. Dit dans la page.
-  const ign = await sonderIgn();
+  // Zone fictive (zone.yml) : aucune donnée réelle mêlée aux données fictives, donc ni terrain ni orthophoto IGN.
+  const ign = cfg.fictive ? false : await sonderIgn();
   let terrainIgn = false;
   if (ign) {
     try {
@@ -288,16 +302,17 @@ async function demarrer(): Promise<void> {
       terrainIgn = true;
     } catch { /* repli : ellipsoïde */ }
   }
-  const horsEmprise = terrainIgn ? "hors emprise : terrain IGN (RGE ALTI)" : "hors emprise : ellipsoïde, altitude 0";
+  const horsEmprise = cfg.fictive ? "hors zone : plan neutre pour l'affichage, jeu fictif"
+    : terrainIgn ? "hors emprise : terrain IGN (RGE ALTI)" : "hors emprise : ellipsoïde, altitude 0";
   if (cfg.a_dtm) {
     try {
       const mnt = await lireRaster("/zone/dtm.tif");
       const sansValeur = compterNodata(mnt);
       const couche = new itowns.ElevationLayer("mnt-local", {
-        source: sourceLocale(texteurMnt(mnt), 17), scale: 1, noDataValue: NODATA_MNT,
+        source: sourceLocale(texteurMnt(mnt, cfg.fictive ? altitudeMin(mnt) : null), 17), scale: 1, noDataValue: NODATA_MNT,
       } as never);
       await vue.addLayer(couche);
-      etat.terrain = `Terrain : MNT local (dtm.tif, 25 m) sur son emprise, altitudes NGF sans conversion RAF20 ; ${horsEmprise}.` +
+      etat.terrain = `Terrain : MNT local (dtm.tif, 25 m) sur son emprise, altitudes NGF sans conversion RAF20 ; ${horsEmprise}${cfg.fictive ? ` (altitude ${Math.round(altitudeMin(mnt) * 10) / 10} m)` : ""}.` +
         (sansValeur > 0 ? ` ${sansValeur} cellule(s) du MNT sans valeur : terrain du niveau parent.` : "");
     } catch (err) {
       etat.terrain = `Terrain : ${terrainIgn ? "IGN" : "ellipsoïde"} (MNT local illisible : ${(err as Error).message}).`;
@@ -308,7 +323,7 @@ async function demarrer(): Promise<void> {
   $("etat-terrain").textContent = etat.terrain;
 
   // Fond IGN : facultatif, seulement s'il est joignable.
-  etat.fond = "Fond : IGN injoignable, la vue s'affiche sans fond.";
+  etat.fond = cfg.fictive ? "Fond : aucun (jeu fictif : pas de données réelles mêlées)." : "Fond : IGN injoignable, la vue s'affiche sans fond.";
   if (ign) {
     try {
       const src = new itowns.WMTSSource({

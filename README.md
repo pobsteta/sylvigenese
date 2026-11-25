@@ -53,10 +53,14 @@ Ce qu'on doit voir :
   « non calculés » ; la commande `viewer-massif -- --x <X> --y <Y> --year <A>` à copier ;
 - le curseur des années est désactivé (une seule année).
 
-Avec ou sans réseau : tout est servi en local, la page s'affiche sans réseau. Si `data.geopf.fr` est joignable, elle
-ajoute l'orthophoto IGN en fond et le terrain IGN hors de l'emprise du MNT local ; sinon elle le dit en pied de page
-(hors emprise : ellipsoïde, altitude 0). Le chargement complet prend environ 20 s sans réseau, plus avec le fond IGN.
-Sans GPU, le navigateur dessine en logiciel : moins d'une image par seconde, sans rapport avec une machine normale.
+Avec ou sans réseau : tout est servi en local, la page s'affiche sans réseau. Terrain : MNT local sur son emprise.
+- **Zone réelle** (pas de `zone.yml`, ou `fictive: false`) : si `data.geopf.fr` est joignable, la page ajoute l'orthophoto
+  IGN en fond et le terrain IGN hors de l'emprise du MNT ; sinon elle le dit en pied de page (ellipsoïde, altitude 0).
+- **Zone fictive** (`zone.yml` avec `fictive: true`, cas du jeu d'essai) : ni orthophoto ni terrain IGN, pour ne pas
+  mêler de vraies données aux données fictives ; hors de l'emprise, un plan neutre à l'altitude minimale du MNT, dit en
+  pied de page (« hors zone : plan neutre pour l'affichage, jeu fictif »).
+
+Le chargement complet prend environ 20 s en jeu fictif (plus avec le fond IGN d'une zone réelle). Sans GPU, le navigateur dessine en logiciel : moins d'une image par seconde, sans rapport avec une machine normale.
 Les tests de la vue sont `cd viewer-web && npm test` (logique) et `tests/m4/test_m4_vue.py` (navigateur).
 
 ## Versions des outils

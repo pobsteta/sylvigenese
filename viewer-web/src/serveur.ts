@@ -4,10 +4,11 @@
 // Usage : node src/serveur.ts --zone-dir <dossier> [--port N] [--zone nom]
 
 import { createServer } from "node:http";
-import { existsSync, readdirSync, statSync, createReadStream, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, createReadStream, mkdirSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSync } from "esbuild";
+import { parse } from "yaml";
 
 const ICI = dirname(fileURLToPath(import.meta.url));
 const RACINE_VUE = resolve(ICI, "..");
@@ -38,6 +39,18 @@ export function anneesDisponibles(zoneDir: string): number[] {
     .filter((n) => /^\d{4}$/.test(n) && existsSync(join(tiles, n, "tileset.json")))
     .map(Number)
     .sort((a, b) => a - b);
+}
+
+// Marqueur de zone fictive : <zone>/zone.yml avec `fictive: true`. Absent ou illisible : zone réelle (comportement par défaut).
+export function zoneFictive(zoneDir: string): boolean {
+  const f = join(zoneDir, "zone.yml");
+  if (!existsSync(f)) return false;
+  try {
+    const c = parse(readFileSync(f, "utf-8")) as { fictive?: unknown } | null;
+    return c?.fictive === true;
+  } catch {
+    return false;
+  }
 }
 
 export function construirePage(): void {
@@ -86,7 +99,7 @@ export function creerServeur(zoneDir: string, zone: string) {
     } else if (chemin === "/app.js") {
       servirFichier(join(DIST, "app.js"), req, res);
     } else if (chemin === "/api/config.json") {
-      const corps = JSON.stringify({ zone, annees: anneesDisponibles(zoneAbs), a_dtm: existsSync(join(zoneAbs, "dtm.tif")) });
+      const corps = JSON.stringify({ zone, annees: anneesDisponibles(zoneAbs), a_dtm: existsSync(join(zoneAbs, "dtm.tif")), fictive: zoneFictive(zoneAbs) });
       res.writeHead(200, { "Content-Type": TYPES[".json"] }).end(corps);
     } else if (chemin.startsWith("/zone/") && cheminAutorise(chemin.slice(6))) {
       const fichier = join(zoneAbs, chemin.slice(6));
