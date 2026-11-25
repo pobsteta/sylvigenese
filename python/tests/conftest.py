@@ -13,37 +13,37 @@ from pathlib import Path
 
 import pytest
 
-RACINE_DEPOT = Path(__file__).resolve().parents[2]
-A_COPIER = ["R", "biomes", "contracts", "python", "config.yml", "Makefile", "DESCRIPTION", "NAMESPACE", "_targets.R"]
-ZONE_VERSIONNEE = ["inputs", "params", "README.md", "zone.yml"]
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TO_COPY = ["R", "biomes", "contracts", "python", "config.yml", "Makefile", "DESCRIPTION", "NAMESPACE", "_targets.R"]
+VERSIONED_ZONE = ["inputs", "params", "README.md", "zone.yml"]
 
 
 @pytest.fixture(scope="session")
-def zone_chaine(tmp_path_factory) -> Path:
+def zone_chain(tmp_path_factory) -> Path:
     """Dossier de zone du jeu fictif après `make prepare biomes trees` (racine temporaire)."""
-    racine = tmp_path_factory.mktemp("chaine")
-    for nom in A_COPIER:
-        source = RACINE_DEPOT / nom
+    root = tmp_path_factory.mktemp("chaine")
+    for name in TO_COPY:
+        source = REPO_ROOT / name
         if source.is_dir():
-            shutil.copytree(source, racine / nom, ignore=shutil.ignore_patterns("__pycache__", "tests"))
+            shutil.copytree(source, root / name, ignore=shutil.ignore_patterns("__pycache__", "tests"))
         elif source.is_file():
-            shutil.copy2(source, racine / nom)
-    zone_source = RACINE_DEPOT / "tests" / "fixtures" / "zone_fictive"
-    zone = racine / "tests" / "fixtures" / "zone_fictive"
+            shutil.copy2(source, root / name)
+    zone_source = REPO_ROOT / "tests" / "fixtures" / "zone_fictive"
+    zone = root / "tests" / "fixtures" / "zone_fictive"
     zone.mkdir(parents=True)
-    for nom in ZONE_VERSIONNEE:
-        source = zone_source / nom
+    for name in VERSIONED_ZONE:
+        source = zone_source / name
         if source.is_dir():
-            shutil.copytree(source, zone / nom)
+            shutil.copytree(source, zone / name)
         elif source.is_file():
-            shutil.copy2(source, zone / nom)
-    resultat = subprocess.run(["make", "prepare", "biomes", "trees", "ZONE=zone_fictive"], cwd=racine,
+            shutil.copy2(source, zone / name)
+    result = subprocess.run(["make", "prepare", "biomes", "trees", "ZONE=zone_fictive"], cwd=root,
                               capture_output=True, text=True)
-    assert resultat.returncode == 0, resultat.stdout[-2000:] + resultat.stderr[-2000:]
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
     assert (zone / "trees_init" / "trees.parquet").is_file()
     return zone
 
 
 @pytest.fixture(scope="session")
-def racine_chaine(zone_chaine) -> Path:
-    return zone_chaine.parents[2]
+def chain_root(zone_chain) -> Path:
+    return zone_chain.parents[2]

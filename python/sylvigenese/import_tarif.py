@@ -41,21 +41,21 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from sylvigenese.commun import (
-    SORTIE_IMPOSSIBLE,
-    SORTIE_OK,
-    ErreurModule,
-    appeler_validateur,
-    lire_config,
+from sylvigenese.common import (
+    EXIT_IMPOSSIBLE,
+    EXIT_OK,
+    ModuleError,
+    call_validator,
+    read_config,
 )
 
-NOM = "import_tarif"
-MODELE = "etage_b"
-URL_DEPOT = "https://github.com/pobsteta/tarif-nemeton"
-DOSSIER_RESULTATS = Path("resultats") / "etage_b"
-FICHIER_HOUPPIER = "allometrie_D.csv"
-FICHIER_IFN = "allometrie_D_ifn.csv"
-COLONNES_CSV = ("essence", "a", "b_lnH", "c_lnCPA")
+NAME = "import_tarif"
+MODEL = "etage_b"
+REPO_URL = "https://github.com/pobsteta/tarif-nemeton"
+RESULTS_DIR = Path("resultats") / "etage_b"
+CROWN_FILE = "allometrie_D.csv"
+IFN_FILE = "allometrie_D_ifn.csv"
+CSV_COLUMNS = ("essence", "a", "b_lnH", "c_lnCPA")
 
 SCHEMA = pa.schema([
     ("species", pa.string()),
@@ -68,200 +68,200 @@ SCHEMA = pa.schema([
 ])
 
 
-def racine() -> Path:
+def root() -> Path:
     return Path(os.environ.get("SYLVIGENESE_ROOT", "."))
 
 
-def dossier_zone(config: dict) -> Path:
+def zone_dir(config: dict) -> Path:
     """Même règle que `prepare_zone_dir` (R) : jeu fictif versionné, sinon data/<zone>."""
     zone = config.get("zone")
     if not zone:
-        raise ErreurModule("config.yml : `zone` manquante")
+        raise ModuleError("config.yml : `zone` manquante")
     if zone == "zone_fictive":
-        return racine() / "tests" / "fixtures" / "zone_fictive"
-    return racine() / "data" / zone
+        return root() / "tests" / "fixtures" / "zone_fictive"
+    return root() / "data" / zone
 
 
-def commit_lu(dossier: Path) -> str | None:
+def read_commit(directory: Path) -> str | None:
     """Commit (7 caractères) du dépôt tarif-nemeton lu, ou None si `.git` ne le dit pas."""
-    git = dossier / ".git"
+    git = directory / ".git"
     try:
-        tete = (git / "HEAD").read_text(encoding="utf-8").strip()
-        if tete.startswith("ref:"):
-            ref = tete.split(":", 1)[1].strip()
-            fichier = git / ref
-            if fichier.is_file():
-                tete = fichier.read_text(encoding="utf-8").strip()
+        head = (git / "HEAD").read_text(encoding="utf-8").strip()
+        if head.startswith("ref:"):
+            ref = head.split(":", 1)[1].strip()
+            file = git / ref
+            if file.is_file():
+                head = file.read_text(encoding="utf-8").strip()
             else:
-                tete = next((ligne.split()[0] for ligne in
+                head = next((row.split()[0] for row in
                              (git / "packed-refs").read_text(encoding="utf-8").splitlines()
-                             if ligne.endswith(" " + ref)), "")
+                             if row.endswith(" " + ref)), "")
     except OSError:
         return None
-    return tete[:7] if tete else None
+    return head[:7] if head else None
 
 
-def correspondances_espar(chemin: Path) -> dict[str, list[str]]:
+def read_espar_mapping(path: Path) -> dict[str, list[str]]:
     """`tarif_nemeton_code` -> liste des codes espar (contracts/species.csv), ordre du fichier."""
-    if not chemin.is_file():
-        raise ErreurModule(f"contracts/species.csv introuvable : {chemin}")
-    resultat: dict[str, list[str]] = {}
-    with chemin.open(encoding="utf-8", newline="") as flux:
-        lecteur = csv.DictReader(flux)
-        if not lecteur.fieldnames or not {"espar", "tarif_nemeton_code"} <= set(lecteur.fieldnames):
-            raise ErreurModule(f"{chemin} : colonnes espar et tarif_nemeton_code attendues")
-        for ligne in lecteur:
-            nom = (ligne["tarif_nemeton_code"] or "").strip()
-            if nom:
-                resultat.setdefault(nom, []).append(ligne["espar"])
-    return resultat
+    if not path.is_file():
+        raise ModuleError(f"contracts/species.csv introuvable : {path}")
+    result: dict[str, list[str]] = {}
+    with path.open(encoding="utf-8", newline="") as stream:
+        reader = csv.DictReader(stream)
+        if not reader.fieldnames or not {"espar", "tarif_nemeton_code"} <= set(reader.fieldnames):
+            raise ModuleError(f"{path} : colonnes espar et tarif_nemeton_code attendues")
+        for row in reader:
+            name = (row["tarif_nemeton_code"] or "").strip()
+            if name:
+                result.setdefault(name, []).append(row["espar"])
+    return result
 
 
-def _nombre(texte: str | None, fichier: str, numero: int, colonne: str) -> float | None:
+def _number(text: str | None, file: str, line_number: int, column: str) -> float | None:
     """Nombre lu, None si la case est vide ; une case illisible est une erreur, pas un zéro."""
-    texte = (texte or "").strip()
-    if texte == "":
+    text = (text or "").strip()
+    if text == "":
         return None
     try:
-        valeur = float(texte)
+        value = float(text)
     except ValueError:
-        raise ErreurModule(f"{fichier} ligne {numero} : {colonne} = « {texte} » n'est pas un nombre") from None
-    if math.isnan(valeur):
+        raise ModuleError(f"{file} ligne {line_number} : {column} = « {text} » n'est pas un nombre") from None
+    if math.isnan(value):
         return None
-    if math.isinf(valeur):
-        raise ErreurModule(f"{fichier} ligne {numero} : {colonne} = « {texte} » n'est pas fini")
-    return valeur
+    if math.isinf(value):
+        raise ModuleError(f"{file} ligne {line_number} : {column} = « {text} » n'est pas fini")
+    return value
 
 
-def lire_coefficients(chemin: Path) -> dict[str, dict[str, float | None]]:
+def read_coefficients(path: Path) -> dict[str, dict[str, float | None]]:
     """essence -> {a, b, c} ; c vaut None quand `c_lnCPA` est 0, vide, NA ou la colonne absente."""
-    if not chemin.is_file():
-        raise ErreurModule(f"fichier de tarif-nemeton introuvable : {chemin}")
-    resultat: dict[str, dict[str, float | None]] = {}
-    with chemin.open(encoding="utf-8-sig", newline="") as flux:
-        lecteur = csv.DictReader(flux)
-        manque = [c for c in COLONNES_CSV[:3] if c not in (lecteur.fieldnames or [])]
-        if manque:
-            raise ErreurModule(f"{chemin.name} : colonne(s) {', '.join(manque)} absente(s)")
-        for numero, ligne in enumerate(lecteur, start=2):
-            essence = (ligne["essence"] or "").strip()
-            if not essence:
-                raise ErreurModule(f"{chemin.name} ligne {numero} : essence vide")
-            if essence in resultat:
-                raise ErreurModule(f"{chemin.name} ligne {numero} : essence {essence} en double")
-            a = _nombre(ligne["a"], chemin.name, numero, "a")
-            b = _nombre(ligne["b_lnH"], chemin.name, numero, "b_lnH")
-            c = _nombre(ligne.get("c_lnCPA"), chemin.name, numero, "c_lnCPA")
-            resultat[essence] = {"a": a, "b": b, "c": None if (c is None or c == 0.0) else c}
-    return resultat
+    if not path.is_file():
+        raise ModuleError(f"fichier de tarif-nemeton introuvable : {path}")
+    result: dict[str, dict[str, float | None]] = {}
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        missing = [c for c in CSV_COLUMNS[:3] if c not in (reader.fieldnames or [])]
+        if missing:
+            raise ModuleError(f"{path.name} : colonne(s) {', '.join(missing)} absente(s)")
+        for line_number, row in enumerate(reader, start=2):
+            species_name = (row["essence"] or "").strip()
+            if not species_name:
+                raise ModuleError(f"{path.name} ligne {line_number} : essence vide")
+            if species_name in result:
+                raise ModuleError(f"{path.name} ligne {line_number} : essence {species_name} en double")
+            a = _number(row["a"], path.name, line_number, "a")
+            b = _number(row["b_lnH"], path.name, line_number, "b_lnH")
+            c = _number(row.get("c_lnCPA"), path.name, line_number, "c_lnCPA")
+            result[species_name] = {"a": a, "b": b, "c": None if (c is None or c == 0.0) else c}
+    return result
 
 
-def construire_lignes(dossier: Path, correspondances: dict[str, list[str]]) -> tuple[list[dict], list[str]]:
+def build_rows(directory: Path, espar_mapping: dict[str, list[str]]) -> tuple[list[dict], list[str]]:
     """Lignes du format long, et lignes de rapport (signalements)."""
-    resultats = dossier / DOSSIER_RESULTATS
-    houppier = lire_coefficients(resultats / FICHIER_HOUPPIER)
-    ifn = lire_coefficients(resultats / FICHIER_IFN)
-    commit = commit_lu(dossier)
+    results_dir = directory / RESULTS_DIR
+    with_crown = read_coefficients(results_dir / CROWN_FILE)
+    ifn = read_coefficients(results_dir / IFN_FILE)
+    commit = read_commit(directory)
     version = f"commit {commit}" if commit else "commit non lu (dossier sans .git)"
-    rapport: list[str] = []
-    lignes: list[dict] = []
+    report: list[str] = []
+    rows: list[dict] = []
 
-    jeux: list[tuple[str, str, dict]] = []   # (essence, fichier, coefficients)
-    for essence, coef in houppier.items():
-        jeux.append((essence, FICHIER_HOUPPIER, coef))
-    for essence, coef in ifn.items():
-        if essence in houppier:
-            rapport.append(f"{essence} : présente dans {FICHIER_HOUPPIER} et {FICHIER_IFN} ; "
-                           f"le jeu de {FICHIER_HOUPPIER} est gardé, celui de l'IFN est ignoré")
+    coefficient_sets: list[tuple[str, str, dict]] = []   # (essence, fichier, coefficients)
+    for species_name, coef in with_crown.items():
+        coefficient_sets.append((species_name, CROWN_FILE, coef))
+    for species_name, coef in ifn.items():
+        if species_name in with_crown:
+            report.append(f"{species_name} : présente dans {CROWN_FILE} et {IFN_FILE} ; "
+                           f"le jeu de {CROWN_FILE} est gardé, celui de l'IFN est ignoré")
         else:
-            jeux.append((essence, FICHIER_IFN, coef))
+            coefficient_sets.append((species_name, IFN_FILE, coef))
 
-    for essence, fichier, coef in jeux:
+    for species_name, file, coef in coefficient_sets:
         if coef["a"] is None or coef["b"] is None:
-            rapport.append(f"{essence} ({fichier}) : a ou b manquant, essence sautée (rien n'est deviné)")
+            report.append(f"{species_name} ({file}) : a ou b manquant, essence sautée (rien n'est deviné)")
             continue
-        codes = correspondances.get(essence)
+        codes = espar_mapping.get(species_name)
         if not codes:
-            rapport.append(f"{essence} ({fichier}) : aucun code espar dans contracts/species.csv "
+            report.append(f"{species_name} ({file}) : aucun code espar dans contracts/species.csv "
                            f"(colonne tarif_nemeton_code), essence sautée (rien n'est deviné)")
             continue
         if len(codes) > 1:
-            rapport.append(f"{essence} : coefficients écrits pour les espar {', '.join(codes)} "
-                           f"(docs/referentiels/species.md : {essence} = ces codes et rien d'autre)")
+            report.append(f"{species_name} : coefficients écrits pour les espar {', '.join(codes)} "
+                           f"(docs/referentiels/species.md : {species_name} = ces codes et rien d'autre)")
         if coef["c"] is None:
-            rapport.append(f"{essence} ({fichier}) : pas de terme c (c_lnCPA = 0 ou absent) ; "
+            report.append(f"{species_name} ({file}) : pas de terme c (c_lnCPA = 0 ou absent) ; "
                            f"ln D = a + b ln H")
         elif coef["c"] < 0:
-            rapport.append(f"{essence} ({fichier}) : c = {coef['c']} est négatif (un houppier plus "
+            report.append(f"{species_name} ({file}) : c = {coef['c']} est négatif (un houppier plus "
                            f"large donnerait un d130 plus petit) ; repris tel quel, à vérifier")
-        source = f"tarif-nemeton {DOSSIER_RESULTATS.as_posix()}/{fichier} ({URL_DEPOT}, {version})"
-        termes = [("a", coef["a"]), ("b", coef["b"])]
+        source = f"tarif-nemeton {RESULTS_DIR.as_posix()}/{file} ({REPO_URL}, {version})"
+        terms = [("a", coef["a"]), ("b", coef["b"])]
         if coef["c"] is not None:
-            termes.append(("c", coef["c"]))
+            terms.append(("c", coef["c"]))
         for espar in codes:
-            for terme, valeur in termes:
-                lignes.append({"species": espar, "species_group": None, "model": MODELE,
-                               "term": terme, "value": float(valeur), "provisoire": True,
+            for term, value in terms:
+                rows.append({"species": espar, "species_group": None, "model": MODEL,
+                               "term": term, "value": float(value), "provisoire": True,
                                "source": source})
-    if not lignes:
-        raise ErreurModule("aucune essence de tarif-nemeton n'a de code espar : rien à écrire")
-    lignes.sort(key=lambda r: (r["species"].encode(), r["term"]))
-    return lignes, rapport
+    if not rows:
+        raise ModuleError("aucune essence de tarif-nemeton n'a de code espar : rien à écrire")
+    rows.sort(key=lambda r: (r["species"].encode(), r["term"]))
+    return rows, report
 
 
-def ecrire_allometrie(lignes: list[dict], chemin: Path) -> None:
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    colonnes = {nom: [ligne[nom] for ligne in lignes] for nom in SCHEMA.names}
-    pq.write_table(pa.table(colonnes, schema=SCHEMA), chemin)
+def write_allometry(rows: list[dict], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    columns = {name: [row[name] for row in rows] for name in SCHEMA.names}
+    pq.write_table(pa.table(columns, schema=SCHEMA), path)
 
 
-def importer(config: dict) -> Path:
+def run_import(config: dict) -> Path:
     """Lit tarif-nemeton, écrit params/allometry.parquet, le fait valider ; rend son chemin."""
-    externe = (config.get("external") or {}).get("tarif_nemeton_dir")
-    if not externe:
+    external_dir = (config.get("external") or {}).get("tarif_nemeton_dir")
+    if not external_dir:
         # Rien à importer : aucun coefficient n'est inventé. Si params/allometry.parquet existe déjà
         # (jeu fictif versionné), il est laissé tel quel et le module le dit ; sinon, code 2.
-        existant = dossier_zone(config) / "params" / "allometry.parquet"
-        if existant.is_file():
-            print(f"[{NOM}] external.tarif_nemeton_dir absent de config.yml : rien à importer, "
-                  f"{existant} existant conservé tel quel", file=sys.stderr)
-            return existant
-        raise ErreurModule("config.yml : external.tarif_nemeton_dir absent et aucun "
-                           f"params/allometry.parquet existant ({existant}) : rien n'est inventé")
-    dossier = Path(externe)
-    if not dossier.is_dir():
-        raise ErreurModule(f"external.tarif_nemeton_dir : dossier introuvable : {dossier}")
-    lignes, rapport = construire_lignes(dossier, correspondances_espar(racine() / "contracts" / "species.csv"))
-    sortie = dossier_zone(config) / "params" / "allometry.parquet"
-    ecrire_allometrie(lignes, sortie)
-    for texte in rapport:
-        print(f"[{NOM}] {texte}", file=sys.stderr)
-    code = appeler_validateur(["import_tarif.allometry", str(sortie)])
+        existing = zone_dir(config) / "params" / "allometry.parquet"
+        if existing.is_file():
+            print(f"[{NAME}] external.tarif_nemeton_dir absent de config.yml : rien à importer, "
+                  f"{existing} existant conservé tel quel", file=sys.stderr)
+            return existing
+        raise ModuleError("config.yml : external.tarif_nemeton_dir absent et aucun "
+                           f"params/allometry.parquet existant ({existing}) : rien n'est inventé")
+    directory = Path(external_dir)
+    if not directory.is_dir():
+        raise ModuleError(f"external.tarif_nemeton_dir : dossier introuvable : {directory}")
+    rows, report = build_rows(directory, read_espar_mapping(root() / "contracts" / "species.csv"))
+    output = zone_dir(config) / "params" / "allometry.parquet"
+    write_allometry(rows, output)
+    for text in report:
+        print(f"[{NAME}] {text}", file=sys.stderr)
+    code = call_validator(["import_tarif.allometry", str(output)])
     if code != 0:
-        raise ErreurModule(f"{sortie} non conforme au contrat import_tarif.allometry (validateur, code {code})")
-    especes = sorted({ligne["species"] for ligne in lignes})
-    print(f"[{NOM}] {len(lignes)} coefficient(s) etage_b pour {len(especes)} essence(s) "
-          f"({', '.join(especes)}), provisoire : {sortie}", file=sys.stderr)
-    return sortie
+        raise ModuleError(f"{output} non conforme au contrat import_tarif.allometry (validateur, code {code})")
+    species_codes = sorted({row["species"] for row in rows})
+    print(f"[{NAME}] {len(rows)} coefficient(s) etage_b pour {len(species_codes)} essence(s) "
+          f"({', '.join(species_codes)}), provisoire : {output}", file=sys.stderr)
+    return output
 
 
 def main(argv: list[str] | None = None) -> int:
-    analyseur = argparse.ArgumentParser(prog=NOM, exit_on_error=False)
-    analyseur.add_argument("--config", default="config.yml", help="chemin de config.yml")
+    parser = argparse.ArgumentParser(prog=NAME, exit_on_error=False)
+    parser.add_argument("--config", default="config.yml", help="chemin de config.yml")
     try:
-        options = analyseur.parse_args(argv)
+        options = parser.parse_args(argv)
     except (argparse.ArgumentError, SystemExit):
-        return SORTIE_IMPOSSIBLE
+        return EXIT_IMPOSSIBLE
     try:
-        config = lire_config(options.config)
-        code = appeler_validateur(["config", str(options.config)])
+        config = read_config(options.config)
+        code = call_validator(["config", str(options.config)])
         if code != 0:
-            raise ErreurModule(f"config.yml non conforme (validateur, code {code})")
-        importer(config)
-    except ErreurModule as erreur:
-        print(f"[{NOM}] erreur : {erreur}", file=sys.stderr)
-        return SORTIE_IMPOSSIBLE
-    return SORTIE_OK
+            raise ModuleError(f"config.yml non conforme (validateur, code {code})")
+        run_import(config)
+    except ModuleError as error:
+        print(f"[{NAME}] erreur : {error}", file=sys.stderr)
+        return EXIT_IMPOSSIBLE
+    return EXIT_OK
 
 
 if __name__ == "__main__":

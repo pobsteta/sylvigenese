@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 
-export class ErreurModule extends Error {}
+export class ModuleError extends Error {}
 
 export interface Config {
   schema_version: number;
@@ -14,21 +14,21 @@ export interface Config {
   management: string;
 }
 
-export function lireConfig(chemin: string): Config {
-  let texte: string;
+export function readConfig(path: string): Config {
+  let text: string;
   try {
-    texte = readFileSync(chemin, "utf-8");
+    text = readFileSync(path, "utf-8");
   } catch {
-    throw new ErreurModule(`config.yml introuvable : ${chemin}`);
+    throw new ModuleError(`config.yml introuvable : ${path}`);
   }
-  let contenu: unknown;
+  let content: unknown;
   try {
-    contenu = parse(texte);
-  } catch (erreur) {
-    throw new ErreurModule(`config.yml illisible (${chemin}) : ${(erreur as Error).message}`);
+    content = parse(text);
+  } catch (error) {
+    throw new ModuleError(`config.yml illisible (${path}) : ${(error as Error).message}`);
   }
-  if (contenu === null || typeof contenu !== "object" || Array.isArray(contenu)) {
-    throw new ErreurModule(`config.yml vide ou mal formé : ${chemin}`);
+  if (content === null || typeof content !== "object" || Array.isArray(content)) {
+    throw new ModuleError(`config.yml vide ou mal formé : ${path}`);
   }
-  return contenu as Config;
+  return content as Config;
 }

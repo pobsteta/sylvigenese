@@ -19,36 +19,36 @@ function loadPlaywright() {
 (async () => {
   const url = process.argv[2] || "http://127.0.0.1:8080/";
   const png = process.argv[3] || "tests/fixtures/zone_fictive/web/capture_vue.png";
-  const copie = process.argv[4];
+  const copy = process.argv[4];
   const oblique = process.argv[5];
   const { chromium } = loadPlaywright();
   const browser = await chromium.launch({
     headless: true,
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--no-sandbox"],
   });
-  const sortie = { errors: [], console: [] };
+  const report = { errors: [], console: [] };
   try {
     const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 })).newPage();
-    page.on("pageerror", (e) => sortie.errors.push(String(e)));
-    page.on("console", (m) => { const t = m.text(); if (["error", "warning"].includes(m.type()) && !/GL Driver|willReadFrequently/.test(t) && !sortie.console.includes(t)) sortie.console.push(t.slice(0, 300)); });
+    page.on("pageerror", (e) => report.errors.push(String(e)));
+    page.on("console", (m) => { const t = m.text(); if (["error", "warning"].includes(m.type()) && !/GL Driver|willReadFrequently/.test(t) && !report.console.includes(t)) report.console.push(t.slice(0, 300)); });
     const t0 = Date.now();
     await page.goto(url, { waitUntil: "load" });
     await page.waitForFunction(() => window.sylvigenese && (window.sylvigenese.ready || window.sylvigenese.error), null, { timeout: 300000 });
-    sortie.attenteMs = Date.now() - t0;
-    sortie.etat = await page.evaluate(() => {
+    report.attenteMs = Date.now() - t0;
+    report.etat = await page.evaluate(() => {
       const s = window.sylvigenese;
       return { ready: s.ready, error: s.error, year: s.year, instanceCount: s.instanceCount, instancesChargees: s.instancesChargees,
                instancesAttendues: s.instancesAttendues, meshesInstancies: s.meshesInstancies, chargementMs: s.chargementMs,
                terrain: s.terrain, fond: s.fond };
     });
-    sortie.fps = await page.evaluate(() => window.sylvigenese.mesurerFps(5000));
+    report.fps = await page.evaluate(() => window.sylvigenese.mesurerFps(5000));
     // Fiche : clic réel au centre de la vue, puis repli sur openCell si le clic ne tombe sur aucune cellule.
     await page.mouse.click(640, 400);
     await page.waitForTimeout(1500);
     let visible = await page.locator('[data-testid="cell-sheet"]').isVisible();
     if (!visible) await page.evaluate(() => window.sylvigenese.openCell(820));
-    sortie.ficheParClic = visible;
-    sortie.fiche = await page.locator('[data-testid="cell-sheet"]').innerText();
+    report.ficheParClic = visible;
+    report.fiche = await page.locator('[data-testid="cell-sheet"]').innerText();
     await page.waitForTimeout(1500);
     fs.mkdirSync(path.dirname(png), { recursive: true });
     await page.screenshot({ path: png, timeout: 180000 });
@@ -57,11 +57,11 @@ function loadPlaywright() {
       await page.waitForTimeout(12000);
       await page.screenshot({ path: oblique, timeout: 180000 });
     }
-    if (copie) { fs.mkdirSync(path.dirname(copie), { recursive: true }); fs.copyFileSync(png, copie); }
+    if (copy) { fs.mkdirSync(path.dirname(copy), { recursive: true }); fs.copyFileSync(png, copy); }
   } catch (e) {
-    sortie.fatal = String(e && e.message ? e.message : e);
+    report.fatal = String(e && e.message ? e.message : e);
   } finally {
     await browser.close();
   }
-  process.stdout.write(JSON.stringify(sortie, null, 1) + "\n");
+  process.stdout.write(JSON.stringify(report, null, 1) + "\n");
 })();
