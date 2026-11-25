@@ -48,8 +48,10 @@ post:
 assets:
 	$(PY).assets --config $(CONFIG)
 
+# simulate (mission 038) : compilé en release, dépendances figées (--locked) ; écrit <zone>/sim/.
+# La zone vient de `zone` de $(CONFIG) (jeu fictif sous tests/fixtures, sinon data/<zone>).
 simulate:
-	cargo run --quiet --manifest-path simulate/Cargo.toml -- --config $(CONFIG)
+	cargo run --release --locked --quiet --manifest-path simulate/Cargo.toml -- --config $(CONFIG)
 
 viewer-web:
 	node viewer-web/src/main.ts --config $(CONFIG)
