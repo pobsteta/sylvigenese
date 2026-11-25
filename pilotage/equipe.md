@@ -88,3 +88,5 @@
 | [028-assets-etat-initial](missions/028-assets-etat-initial.md) | `dev` | sonnet | donner | 3 oui | M4a (état initial) |
 | [029-viewer-web-etat-initial](missions/029-viewer-web-etat-initial.md) | `afficheur` | sonnet | donner | 3 oui après 028 | M4a (état initial) |
 | [030-tests-m4-etat-initial](missions/030-tests-m4-etat-initial.md) | `testeur` | sonnet | donner | 3 oui | M4a (état initial) |
+| [031-dynamics-reponses-pascal](missions/031-dynamics-reponses-pascal.md) | `dev` | sonnet | donner | 3 oui | M2a (suite) |
+| [032-identifiants-en-anglais](missions/032-identifiants-en-anglais.md) | `dev` | sonnet | donner | 3 oui | dette |
