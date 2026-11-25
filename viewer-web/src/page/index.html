@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sylvigenese — état initial</title>
+<style>
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #1d2a24; color: #fff; }
+  #vue { position: absolute; inset: 0; }
+  #bandeau { position: absolute; top: 0; left: 0; right: 0; z-index: 5; padding: 8px 14px; background: #7a3b00;
+             font-size: 22px; font-weight: 700; display: flex; gap: 18px; align-items: baseline; }
+  #bandeau small { font-size: 14px; font-weight: 400; }
+  #legende { position: absolute; left: 10px; top: 56px; z-index: 5; background: rgba(0,0,0,.72); padding: 8px 10px;
+             border-radius: 6px; font-size: 13px; max-height: 60%; overflow: auto; }
+  #legende h2 { margin: 0 0 4px; font-size: 15px; }
+  #legende-corps div { display: flex; align-items: center; gap: 6px; line-height: 1.3; white-space: nowrap; }
+  #legende-corps i { width: 14px; height: 14px; display: inline-block; border: 1px solid #fff8; }
+  #fiche { position: absolute; right: 10px; top: 56px; width: 360px; z-index: 5; background: rgba(255,255,255,.96); color: #111;
+           padding: 10px 14px; border-radius: 6px; font-size: 16px; }
+  #fiche[hidden] { display: none; }
+  #fiche h2 { margin: 0 0 4px; font-size: 20px; }
+  #fiche .prov { color: #a63b00; font-weight: 700; }
+  #fiche dl { margin: 6px 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+  #fiche dt { color: #444; }
+  #fiche dd { margin: 0; font-weight: 600; }
+  #fiche ul { margin: 4px 0; padding-left: 18px; font-size: 13px; color: #333; }
+  #fiche code { display: block; padding: 6px; background: #e9eee9; user-select: all; font-size: 13px; word-break: break-all; }
+  #fiche button { margin-top: 4px; font-size: 15px; padding: 6px 12px; }
+  #fiche .fermer { position: absolute; right: 8px; top: 6px; margin: 0; }
+  #pied { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; padding: 6px 14px; background: rgba(0,0,0,.78);
+          font-size: 13px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  #pied input[type=range] { width: 160px; }
+  #message { position: absolute; left: 50%; top: 45%; transform: translateX(-50%); z-index: 6; background: rgba(0,0,0,.8);
+             padding: 12px 20px; border-radius: 6px; font-size: 20px; }
+  #message[hidden] { display: none; }
+  #message.erreur { background: #8b0000; }
+</style>
+</head>
+<body>
+<div id="vue"></div>
+<div id="bandeau">Résultat provisoire <small>état initial, jeu et valeurs provisoires : ne rien en conclure d'écologique</small></div>
+<div id="message">Chargement…</div>
+<div id="legende" aria-label="Légende"><h2>Types de végétation</h2><div id="legende-corps"></div></div>
+<div id="fiche" data-testid="cell-sheet" hidden></div>
+<div id="pied">
+  <label>Année <input id="annee" type="range" disabled> <span id="annee-texte"></span></label>
+  <span id="etat-terrain"></span>
+  <span id="etat-fond"></span>
+  <span id="etat-arbres"></span>
+  <span id="etat-source"></span>
+</div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

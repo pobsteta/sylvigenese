@@ -16,7 +16,7 @@ R_LOAD = for (f in list.files("R", pattern = "[.]R$$", full.names = TRUE)) sourc
 PY     = PYTHONPATH=python python3 -m sylvigenese
 
 .PHONY: all validate validate-config prepare import_tarif biomes trees dynamics simulate post assets \
-        viewer-web test test-r test-rust test-python test-web
+        viewer-web viewer test test-r test-rust test-python test-web
 
 all: prepare import_tarif biomes trees dynamics simulate post assets viewer-web
 
@@ -53,6 +53,12 @@ simulate:
 
 viewer-web:
 	node viewer-web/src/main.ts --config $(CONFIG)
+
+# Vue web locale (mission 029) : serveur statique au premier plan sur http://127.0.0.1:$(PORT)/
+# (npm ci dans viewer-web une fois ; PORT et ZONE modifiables).
+PORT ?= 8080
+viewer:
+	node viewer-web/src/serveur.ts --zone $(ZONE) --zone-dir $(ZONE_DIR) --port $(PORT)
 
 # Tests : un par langage. Les tests d'intégration appellent le vrai validateur
 # (contracts/validate) ; SYLVIGENESE_VALIDATE peut en désigner un autre.
