@@ -94,8 +94,16 @@ run_trees <- function(config_path = "config.yml", depends_on = NULL) {
   })
 }
 
+# dynamics : accroissement, mortalité, recrutement et hauteur ajustés sur ifn/ (mission 025,
+# R/dynamics.R). Ne lit que ifn/ et contracts/species.csv.
 run_dynamics <- function(config_path = "config.yml", depends_on = NULL) {
-  run_module("dynamics", config_path, depends_on)
+  run_module("dynamics", config_path, depends_on, work = function(cfg, config_path) {
+    zone_dir <- prepare_zone_dir(cfg)
+    if (!dir.exists(zone_dir)) {
+      stop(sprintf("dossier de la zone introuvable : %s", zone_dir), call. = FALSE)
+    }
+    dynamics_run(zone_dir, zone = cfg$zone)
+  })
 }
 
 #' Pour `targets` : arrête le pipeline si un module n'a pas rendu 0.

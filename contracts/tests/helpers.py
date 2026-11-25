@@ -181,6 +181,21 @@ def parameters():
             "source": ["jeu fictif, synthétique", "jeu fictif, synthétique"]}
 
 
+def dynamics_params():
+    """Params de dynamics (contrat dynamics_params, mission 025) : un intercept, deux valeurs aux
+    nœuds, un niveau de SER, et un groupe."""
+    src = "ajusté par dynamics sur le jeu fictif, synthétique"
+    return {"species": ["09", "09", "09", "09", None],
+            "species_group": [None, None, None, None, "resineux"],
+            "model": ["growth_gam"] * 4 + ["mortality_gam"],
+            "term": ["intercept", "s(d130)[01]", "s(d130)[02]", "ser_code=H10", "intercept"],
+            "variable": [None, "d130", "d130", "ser_code", None],
+            "x": [None, 7.5, 60.0, None, None],
+            "value": [-1.2, -0.3, 0.4, 0.05, -4.0],
+            "provisoire": [True] * 5,
+            "source": [src] * 5}
+
+
 def sim_trees(year=2030):
     return {"tree_id": ["T1", "T2"], "year": [year, year], "species": ["09", "02"],
             "x": [PARIS_X, PARIS_X + 3], "y": [PARIS_Y, PARIS_Y + 3], "d130": [30.0, 12.0],

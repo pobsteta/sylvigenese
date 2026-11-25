@@ -204,22 +204,22 @@ contracts:
   dynamics.growth:
     aliases: [growth]
     kind: parquet
-    schema: tables/params/parameters.schema.json
+    schema: tables/params/dynamics_params.schema.json
     paths: [params/growth.parquet]
   dynamics.mortality:
     aliases: [mortality]
     kind: parquet
-    schema: tables/params/parameters.schema.json
+    schema: tables/params/dynamics_params.schema.json
     paths: [params/mortality.parquet]
   dynamics.recruitment:
     aliases: [recruitment]
     kind: parquet
-    schema: tables/params/parameters.schema.json
+    schema: tables/params/dynamics_params.schema.json
     paths: [params/recruitment.parquet]
   dynamics.height_curve:
     aliases: [height_curve]
     kind: parquet
-    schema: tables/params/parameters.schema.json
+    schema: tables/params/dynamics_params.schema.json
     paths: [params/height_curve.parquet]
   # valeurs indicatrices de la flore, lues par prepare pour `trophic` aux placettes (mission 024)
   params.indicator_values:

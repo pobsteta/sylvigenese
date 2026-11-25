@@ -254,6 +254,10 @@ def set_first(key, value):
 
 
 # contrat -> (fabrique, motif du message attendu sur le fichier fautif)
+# Colonnes vides en partie : types explicites (une colonne toute nulle serait « null »).
+DYN_TYPES = {"species": pa.string(), "species_group": pa.string(), "variable": pa.string(),
+             "x": pa.float64()}
+
 CASES = {
     "inputs.nemeton_stands": (stands, r"species_espar"),
     "inputs.inventaire_video": (inventaire, r"dbh_source"),
@@ -305,13 +309,15 @@ CASES = {
                            r"species, species_group"),
     "import_tarif.allometry": (table("a.parquet", h.parameters, setitem("provisoire", [1, 1])),
                                r"provisoire"),
-    "dynamics.growth": (table("g.parquet", h.parameters, set_first("source", "")), r"source"),
-    "dynamics.mortality": (table("m.parquet", h.parameters, lambda d: d.pop("term")),
-                           r"term"),
-    "dynamics.recruitment": (table("r.parquet", h.parameters, set_first("species", "9")),
-                             r"species"),
-    "dynamics.height_curve": (table("hc.parquet", h.parameters,
-                                    set_first("value", float("inf"))), r"value"),
+    "dynamics.growth": (table("g.parquet", h.dynamics_params, setitem("model", ["gam"] * 5),
+                              types=DYN_TYPES), r"model"),
+    "dynamics.mortality": (table("m.parquet", h.dynamics_params,
+                                 lambda d: d["term"].__setitem__(2, "s(d130)[01]"),
+                                 types=DYN_TYPES), r"doublon"),
+    "dynamics.recruitment": (table("r.parquet", h.dynamics_params, set_first("species", "9"),
+                                   types=DYN_TYPES), r"species"),
+    "dynamics.height_curve": (table("hc.parquet", h.dynamics_params,
+                                    set_first("value", float("inf")), types=DYN_TYPES), r"value"),
     "biomes.biome": (document("hetraie.yml", h.biome,
                               lambda d: d["strates"]["arboree"]["composition"].update(sapin=0.5),
                               h.write_yaml), r"sapin"),
