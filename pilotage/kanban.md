@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 4 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 5 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -22,12 +22,17 @@ _Modèle de carte :_
 
 ## Validé
 
+- [031](missions/031-dynamics-reponses-pascal.md), [032](missions/032-identifiants-en-anglais.md) · depuis le cycle 5
+  - Homme : `dev` ×2, `testeur` · Mission : réponses de Pascal dans dynamics ; identifiants en anglais · Moyens : suites de tests existantes
+
 ## Planifié
 
-- [028](missions/028-assets-etat-initial.md), [029](missions/029-viewer-web-etat-initial.md), [030](missions/030-tests-m4-etat-initial.md) · depuis le cycle 4
-  - Homme : `dev`, `afficheur`, `testeur` · Mission : vue iTowns de l'état initial · Moyens : sorties de M1a, contrats 3D Tiles
+- M3a (moteur simulate, 100 ans sur le massif fictif) · depuis le cycle 5
 
 ## Terminé
+
+- [028](missions/028-assets-etat-initial.md), [029](missions/029-viewer-web-etat-initial.md), [030](missions/030-tests-m4-etat-initial.md) · depuis le cycle 5
+  - Homme : `dev`, `afficheur`, `testeur`, relus par `relecteur` · Mission : vue iTowns de l'état initial, fusionnée le 2026-11-25 · Moyens : PR pobsteta/sylvigenese#6
 
 - [022](missions/022-referentiel-ifn-dynamique.md) à [027](missions/027-dettes-m1a.md) · depuis le cycle 4
   - Homme : `acquereur`, `dev` ×4, `testeur`, relus par `relecteur`

@@ -155,13 +155,17 @@
   - accroissement : `IR5` (cumul de 5 cernes, en m) quand il existe ; la différence de `C13`
     entre visites sert de contrôle, écrit au rapport ;
   - mortalité : population à risque = arbres vivants sur pied à la 1re visite (`VEGET` = 0) ;
-    mort = codes de mort naturelle de `VEGET5` (selon la campagne) ; arbres coupés (6, 7),
+    mort = codes de mort naturelle de `VEGET5` (selon la campagne) et chablis (code A, campagnes
+    2010 à 2018, décision de Pascal du 25/11/2026) ; toutes les revisites (2010 et après) y
+    servent ; arbres coupés (6, 7),
     non retrouvés (N) ou perdus (T) : retirés de la population et comptés au rapport ;
     placettes à incident (`NINCID` ≠ 0), défrichées (`DEF5` ≥ 1) ou plantées (`INSTP5` = 1) :
     écartées et comptées ; `PRELEV5`, sans modalités documentées, est gardée et signalée ;
     une placette sans valeur de station est exclue de l'ajustement et comptée ;
-  - recrutement : arbres de 2e visite sans 1re visite et recensables (`C13` ≥ 0,235 m) ; leur
-    poids suit `W` de l'export, sinon il est signalé, jamais deviné ;
+  - recrutement : arbres de 2e visite sans 1re visite et recensables (`C13` ≥ 0,235 m), sur les
+    seules 2es visites de la campagne 2015 et après (décision de Pascal du 25/11/2026 : les
+    revisites de 2010 à 2014 ne servent qu'à la mortalité) ; leur poids suit `W` de l'export,
+    sinon il est signalé, jamais deviné ; le rapport dit la plage de campagnes de chaque modèle ;
   - intervalle : `DATEPOINT` des deux visites s'il existe, sinon 5 ans, et le rapport le dit ;
   - station d'un arbre revu : flore et écologie de la 1re visite (seules relevées) ; décalage
     écrit au rapport ;

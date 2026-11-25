@@ -7,11 +7,11 @@ Pour l'instant : lit config.yml et fait valider ce fichier.
 
 import sys
 
-from sylvigenese.commun import main_module
+from sylvigenese.common import module_main
 
 
 def main(argv: list[str] | None = None) -> int:
-    return main_module("post", argv)
+    return module_main("post", argv)
 
 
 if __name__ == "__main__":

@@ -48,6 +48,9 @@ DYN_SEED <- 20261125L
 DYN_THRESHOLDS <- c(growth = 100, mortality = 40, recruitment = 30, height = 100)
 DYN_NOMINAL_INTERVAL_Y <- 5
 DYN_RECRUIT_C13_M <- 0.235
+# Première campagne de 2e visite qui sert au recrutement : en 2010-2014 les revisites ne relèvent
+# pas les nouveaux arbres (décision de Pascal du 25/11/2026, spec §6).
+DYN_RECRUIT_FIRST_CAMPAIGN <- 2015L
 DYN_HDOM_STEMS_HA <- 100
 DYN_ALL_SPECIES <- "toutes_essences"
 DYN_PARAMS <- c("growth", "mortality", "recruitment", "height_curve")
@@ -182,7 +185,9 @@ dyn_dominant <- function(d130, h, w, stems = DYN_HDOM_STEMS_HA) {
 
 #' Sort d'un arbre vivant à la 1re visite, d'après VEGET5 lu avec la nomenclature de la campagne
 #' de la 2e visite (docs/referentiels/ifn-dynamique.md §4 ; metadonnees.csv l. 6075-6099).
-#' Rend : vivant, mort, coupe, non_retrouve, perdu, chablis_inconnu, etat_absent, hors_nomenclature.
+#' Rend : vivant, mort, coupe, non_retrouve, perdu, chablis, etat_absent, hors_nomenclature.
+#' « chablis » : code A de VEGET5 (campagnes 2010 à 2018), compté comme mort dans la mortalité
+#' (décision de Pascal du 25/11/2026, spec §6).
 dyn_fate <- function(code, campaign) {
   out <- rep("hors_nomenclature", length(code))
   set <- function(sel, codes, v) out[sel & code %in% codes] <<- v
@@ -193,11 +198,11 @@ dyn_fate <- function(code, campaign) {
   set(p19, c("0", "1"), "vivant"); set(p19, c("M", "2"), "mort"); set(p19, c("6", "7"), "coupe")
   set(p19, "N", "non_retrouve"); set(p19, "T", "perdu")
   set(p17, "0", "vivant"); set(p17, "M", "mort"); set(p17, c("6", "7"), "coupe")
-  set(p17, "N", "non_retrouve"); set(p17, "T", "perdu"); set(p17, "A", "chablis_inconnu")
+  set(p17, "N", "non_retrouve"); set(p17, "T", "perdu"); set(p17, "A", "chablis")
   set(p15, "0", "vivant"); set(p15, "M", "mort"); set(p15, "6", "coupe")
-  set(p15, "N", "non_retrouve"); set(p15, "A", "chablis_inconnu")
+  set(p15, "N", "non_retrouve"); set(p15, "A", "chablis")
   set(p10, "0", "vivant"); set(p10, c("5", "C"), "mort"); set(p10, "6", "coupe")
-  set(p10, "A", "chablis_inconnu")
+  set(p10, "A", "chablis")
   out[is.na(code)] <- "etat_absent"
   out
 }
@@ -287,6 +292,7 @@ dyn_prepare_data <- function(trees, plots) {
   camp2 <- p2$campaign[match(revisited, p2$plot_id)]
   camp1 <- p1$campaign[match(revisited, p1$plot_id)]
   cnt$campaign_gap_not5 <- sum(camp2 - camp1 != 5L)
+  camp2_of <- stats::setNames(camp2, revisited)
 
   # Placettes écartées (spec §6, décision du 25/11/2026) et placettes sans station.
   ids <- p1$plot_id
@@ -313,6 +319,20 @@ dyn_prepare_data <- function(trees, plots) {
   fit_rev <- intersect(fit_plots, revisited)
   cnt$fit_plots <- length(fit_plots)
   cnt$fit_rev <- length(fit_rev)
+  # Plage de campagnes de 2e visite de chaque modèle (décision de Pascal du 25/11/2026, spec §6) :
+  # la mortalité sert toutes les revisites ; le recrutement seulement celles de 2015 et après.
+  fit_rec <- fit_rev[camp2_of[fit_rev] >= DYN_RECRUIT_FIRST_CAMPAIGN]
+  cnt$fit_rec <- length(fit_rec)
+  cnt$rec_excluded_plots <- length(fit_rev) - length(fit_rec)
+  rng <- function(ids) if (length(ids)) range(camp2_of[ids]) else c(NA_integer_, NA_integer_)
+  cnt$camp2_range_mortality <- rng(fit_rev)
+  cnt$camp2_range_recruitment <- rng(fit_rec)
+  if (!length(fit_rec)) {
+    stop(sprintf(paste0("ifn/plots.parquet : aucune placette retenue revue en %d ou après ; le ",
+                        "recrutement ne peut pas être ajusté (les revisites de 2010 à 2014 ne servent ",
+                        "qu'à la mortalité, spec §6) : entrée refusée"), DYN_RECRUIT_FIRST_CAMPAIGN),
+         call. = FALSE)
+  }
   ser_values <- p1$ser_code[match(fit_plots, p1$plot_id)]
   cnt$ser_levels <- sort(unique(ser_values[!is.na(ser_values)]), method = "radix")
   cnt$ser_missing <- sum(is.na(ser_values))
@@ -375,9 +395,11 @@ dyn_prepare_data <- function(trees, plots) {
   kept <- risk$plot_id %in% fit_plots
   cnt$fates_all <- table(factor(fate, levels = dyn_fate_levels()))
   cnt$fates_kept <- table(factor(fate[kept], levels = dyn_fate_levels()))
-  m <- risk[kept & fate %in% c("vivant", "mort") & !is.na(risk$d130), , drop = FALSE]
-  cnt$risk_no_d130 <- sum(kept & fate %in% c("vivant", "mort") & is.na(risk$d130))
-  m$dead <- as.integer(m$fate == "mort")
+  # Les chablis (code A) comptent comme morts (décision de Pascal du 25/11/2026).
+  at_risk <- fate %in% c("vivant", "mort", "chablis")
+  m <- risk[kept & at_risk & !is.na(risk$d130), , drop = FALSE]
+  cnt$risk_no_d130 <- sum(kept & at_risk & is.na(risk$d130))
+  m$dead <- as.integer(m$fate %in% c("mort", "chablis"))
   m$dt <- as.numeric(dt_of[m$plot_id])
   mortality <- m[, c("plot_id", "block", "species", "dead", "dt", "d130", "ba_plot", "bal",
                      "ser_code", DYN_STATION_VARS)]
@@ -386,7 +408,8 @@ dyn_prepare_data <- function(trees, plots) {
   rc <- t2[t2$plot_id %in% revisited & !(t2$key %in% t1$key), , drop = FALSE]
   c13 <- rc$d130 * pi / 100
   rec_ok <- !is.na(c13) & c13 >= DYN_RECRUIT_C13_M - 1e-9
-  rc_kept <- rc$plot_id %in% fit_rev
+  rc_kept <- rc$plot_id %in% fit_rec
+  cnt$recruits_old_campaign <- sum(rec_ok & rc$plot_id %in% fit_rev & !(rc$plot_id %in% fit_rec))
   cnt$recruits_all <- sum(rec_ok)
   cnt$recruits_kept <- sum(rec_ok & rc_kept)
   cnt$recruits_below <- sum(!rec_ok & !is.na(c13))
@@ -395,7 +418,7 @@ dyn_prepare_data <- function(trees, plots) {
   cnt$recruits_no_w_kept <- sum(rec_ok & rc_kept & is.na(rc$weight_ha))
   rr <- rc[rec_ok & rc_kept, , drop = FALSE]
   all_species <- sort(unique(trees$species), method = "radix")
-  cells <- expand.grid(species = all_species, plot_id = fit_rev, stringsAsFactors = FALSE)
+  cells <- expand.grid(species = all_species, plot_id = fit_rec, stringsAsFactors = FALSE)
   cells <- cells[, c("plot_id", "species")]
   ck <- paste(cells$plot_id, cells$species)
   rk <- paste(rr$plot_id, rr$species)
@@ -405,7 +428,7 @@ dyn_prepare_data <- function(trees, plots) {
   no_w <- is.na(cells$y)
   cnt$recruit_cells_no_w <- sum(no_w)
   cells <- cells[!no_w, , drop = FALSE]
-  v1 <- t1[t1$plot_id %in% fit_rev, , drop = FALSE]
+  v1 <- t1[t1$plot_id %in% fit_rec, , drop = FALSE]
   cells$ba_plot <- as.numeric(tapply(ifelse(is.na(v1$ba_tree), 0, v1$ba_tree), v1$plot_id, sum)[cells$plot_id])
   ba_sp <- tapply(ifelse(is.na(v1$ba_tree), 0, v1$ba_tree), paste(v1$plot_id, v1$species), sum)
   cells$ba_species <- as.numeric(ba_sp[paste(cells$plot_id, cells$species)])
@@ -437,7 +460,7 @@ dyn_prepare_data <- function(trees, plots) {
 }
 
 dyn_fate_levels <- function() {
-  c("vivant", "mort", "coupe", "non_retrouve", "perdu", "chablis_inconnu", "etat_absent",
+  c("vivant", "mort", "coupe", "non_retrouve", "perdu", "chablis", "etat_absent",
     "hors_nomenclature", "sans_ligne_2e_visite")
 }
 
@@ -897,13 +920,21 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
             dyn_int(fk[["coupe"]]), dyn_int(fa[["coupe"]])),
     sprintf("Arbres non retrouvés (N), retirés de la population : %s sur les placettes retenues (%s sur toutes les placettes revues).",
             dyn_int(fk[["non_retrouve"]]), dyn_int(fa[["non_retrouve"]])),
+    sprintf("Chablis comptés comme morts (code A de VEGET5, campagnes de 2e visite 2010 à 2018 ; décision de Pascal du 25/11/2026) : %s sur les placettes retenues (%s sur toutes les placettes revues), dans la mortalité avec les morts naturelles.",
+            dyn_int(fk[["chablis"]]), dyn_int(fa[["chablis"]])),
     sprintf("Arbres perdus (T, cassés sous C13 ou perdus après incident), retirés de la population : %s sur les placettes retenues (%s sur toutes les placettes revues).",
             dyn_int(fk[["perdu"]]), dyn_int(fa[["perdu"]])),
-    sprintf("Autres arbres retirés sur les placettes retenues : chablis d'avant 2019 d'état inconnu %s ; VEGET5 vide %s ; code hors nomenclature de la campagne %s ; sans ligne de 2e visite %s ; sans d130 %s.",
-            dyn_int(fk[["chablis_inconnu"]]), dyn_int(fk[["etat_absent"]]), dyn_int(fk[["hors_nomenclature"]]),
+    sprintf("Autres arbres retirés sur les placettes retenues : VEGET5 vide %s ; code hors nomenclature de la campagne %s ; sans ligne de 2e visite %s ; sans d130 %s.",
+            dyn_int(fk[["etat_absent"]]), dyn_int(fk[["hors_nomenclature"]]),
             dyn_int(fk[["sans_ligne_2e_visite"]]), dyn_int(cnt$risk_no_d130)),
-    sprintf("Morts naturelles (VEGET5 selon la campagne) sur les placettes retenues : %s, sur %s arbres à risque.",
-            dyn_int(fk[["mort"]]), dyn_int(fk[["vivant"]] + fk[["mort"]])),
+    sprintf("Morts (morts naturelles de VEGET5 selon la campagne, plus chablis) sur les placettes retenues : %s, sur %s arbres à risque.",
+            dyn_int(fk[["mort"]] + fk[["chablis"]]),
+            dyn_int(fk[["vivant"]] + fk[["mort"]] + fk[["chablis"]])),
+    sprintf("Plage de campagnes de 2e visite de la mortalité : %s à %s (toutes les revisites des placettes retenues, %s placettes).",
+            cnt$camp2_range_mortality[1], cnt$camp2_range_mortality[2], dyn_int(cnt$fit_rev)),
+    sprintf("Plage de campagnes de 2e visite du recrutement : %s à %s (%s placettes) ; écartées du recrutement : %s placettes revues retenues dont la 2e visite date d'avant %d (revisites de 2010 à 2014, qui ne relèvent pas les nouveaux arbres) et leurs %s recrues, qui ne servent qu'à la mortalité.",
+            cnt$camp2_range_recruitment[1], cnt$camp2_range_recruitment[2], dyn_int(cnt$fit_rec),
+            dyn_int(cnt$rec_excluded_plots), DYN_RECRUIT_FIRST_CAMPAIGN, dyn_int(cnt$recruits_old_campaign)),
     sprintf("Recrues (arbres de 2e visite sans 1re visite, C13 ≥ 0,235 m) : %s sur toutes les placettes revues, dont %s sur les placettes retenues ; lignes sous le seuil, non comptées : %s.",
             dyn_int(cnt$recruits_all), dyn_int(cnt$recruits_kept), dyn_int(cnt$recruits_below)),
     sprintf("Recrues sans poids (W absent de l'export) : %s sur toutes les placettes revues, dont %s sur les placettes retenues ; le poids n'est jamais deviné : les couples placette × essence concernés (%s) sont exclus du recrutement.",
@@ -1070,7 +1101,7 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
     "Hors du domaine : chaque variable est bornée à ses nœuds extrêmes (la valeur au bord est tenue) ; une SER absente de l'ajustement compte pour 0 (moyenne de l'effet aléatoire).",
     sprintf("Blocs déséquilibrés : un bloc qui porte l'essentiel des données (ici, pour la mortalité, %s %% des arbres à risque dans un seul bloc) rend la comparaison au modèle nul peu informative : quand ce bloc est mis de côté, les deux modèles sont ajustés sur peu de données, et les autres plis ne testent presque rien.",
             dyn_fmt(100 * max(res$mortality$block_counts) / sum(res$mortality$block_counts), 1)),
-    "Chablis retirés : les arbres en chablis (code A de VEGET5, campagnes 2010 à 2018) sont d'état inconnu, vivant ou mort ; ils sont retirés de la population à risque, d'où une mortalité probablement sous-estimée (question posée à Pascal).",
+    "Chablis comptés comme morts : les arbres en chablis (code A de VEGET5, campagnes 2010 à 2018) restent dans la population à risque et comptent comme morts, qu'ils aient été vivants ou morts au sol (règle de Pascal du 25/11/2026) ; à partir de 2019, les chablis vivants (code 1) restent vivants.",
     "Chapman-Richards : paramètres reconstitués par nemeton et recalés sur un point de référence publié, pas les paramètres publiés eux-mêmes ; à vérifier sur les sources.",
     "Jeu fictif : en M2a, aucune erreur ni comparaison au modèle nul ne dit quoi que ce soit de la forêt réelle ; le critère de M2b (RMSE sous celle du modèle nul sur la SER pilote) reste à passer avec Pascal."
   ))))

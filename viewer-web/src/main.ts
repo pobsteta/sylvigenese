@@ -5,33 +5,33 @@
 // Usage : node src/main.ts [--config <chemin>]   Code de sortie : 0 ou 2.
 
 import { pathToFileURL } from "node:url";
-import { ErreurModule, lireConfig } from "./config.ts";
-import { appelerValidateur } from "./validateur.ts";
+import { ModuleError, readConfig } from "./config.ts";
+import { callValidator } from "./validator.ts";
 
-export const SORTIE_OK = 0;
-export const SORTIE_IMPOSSIBLE = 2;
+export const EXIT_OK = 0;
+export const EXIT_IMPOSSIBLE = 2;
 
-export function executer(cheminConfig: string): number {
+export function run(configPath: string): number {
   try {
-    lireConfig(cheminConfig);
-    const code = appelerValidateur(["config", cheminConfig]);
+    readConfig(configPath);
+    const code = callValidator(["config", configPath]);
     if (code !== 0) {
-      throw new ErreurModule(`config.yml non conforme (validateur, code ${code})`);
+      throw new ModuleError(`config.yml non conforme (validateur, code ${code})`);
     }
-  } catch (erreur) {
-    if (!(erreur instanceof ErreurModule)) throw erreur;
-    console.error(`[viewer-web] erreur : ${erreur.message}`);
-    return SORTIE_IMPOSSIBLE;
+  } catch (error) {
+    if (!(error instanceof ModuleError)) throw error;
+    console.error(`[viewer-web] erreur : ${error.message}`);
+    return EXIT_IMPOSSIBLE;
   }
   console.error("[viewer-web] config.yml lu et conforme ; rien d'autre à faire (squelette).");
-  return SORTIE_OK;
+  return EXIT_OK;
 }
 
 export function main(argv: string[]): number {
-  if (argv.length === 0) return executer("config.yml");
-  if (argv.length === 2 && argv[0] === "--config") return executer(argv[1] as string);
+  if (argv.length === 0) return run("config.yml");
+  if (argv.length === 2 && argv[0] === "--config") return run(argv[1] as string);
   console.error("usage : main.ts [--config <chemin>]");
-  return SORTIE_IMPOSSIBLE;
+  return EXIT_IMPOSSIBLE;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
