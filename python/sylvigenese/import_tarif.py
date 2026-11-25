@@ -22,6 +22,16 @@ Règles, dites plutôt que devinées :
   Quercus_spec ») : les mêmes coefficients sont écrits pour 02 et pour 03, les autres chênes
   n'ont aucun coefficient ; `Betula_spec` = 12P + 12V, de la même façon, comme le fichier le dit.
 
+Houppier (mission 034, contrat params/allometry, modèles `hcb` et `cw`) : les coefficients de
+`CR = CR_a + CR_b ln(d130)` (rapport de houppier, hcb = h (1 − CR)) et de `ln E = R_a + R_b ln(d130)`
+(E : étendue maximale du houppier, cw = 2 E) sont lus dans `resultats/synth_arbres/bornes_dimensions.csv`
+(colonnes `CR_a, CR_b, R_a, R_b`, sortie de `code/synth_calage.py`) ; les bornes `CR_min` et `CR_max`
+sont lues dans `code/synth_calage.py` (l'écrêtage de CR de la fonction `forme`). L'unité de d130 est
+VÉRIFIÉE avant toute écriture (centimètres : relations de `synth_calage.py` sur `dTLS`, quantiles
+D_obs du fichier) ; une unité douteuse, ou un fichier de bornes présent mais illisible, arrête le
+module (code 2) ; un fichier absent est signalé et rien n'est inventé (simulate refusera alors les
+essences sans coefficients). Écrits dans le même `params/allometry.parquet`, `provisoire: true`.
+
 Source des CSV : https://github.com/pobsteta/tarif-nemeton (dépôt sans licence : seuls des
 résultats sont lus ; le commit lu est cité dans la colonne `source`).
 Sortie : `data/<zone>/params/allometry.parquet` (jeu fictif : `tests/fixtures/zone_fictive`),
@@ -35,6 +45,7 @@ import argparse
 import csv
 import math
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -56,6 +67,20 @@ RESULTS_DIR = Path("resultats") / "etage_b"
 CROWN_FILE = "allometrie_D.csv"
 IFN_FILE = "allometrie_D_ifn.csv"
 CSV_COLUMNS = ("essence", "a", "b_lnH", "c_lnCPA")
+BORNES_FILE = Path("resultats") / "synth_arbres" / "bornes_dimensions.csv"
+CALAGE_SCRIPT = Path("code") / "synth_calage.py"
+BORNES_COLUMNS = ("essence", "n_arbres", "source", "D_obs_q05", "D_obs_q95", "CR_a", "CR_b", "R_a", "R_b")
+D130_CM_RANGE = (5.0, 250.0)   # un diamètre d'arbre adulte en cm ; en mètres, il serait sous 3
+# Écrêtage du rapport de houppier dans synth_calage.py (fonction forme) : np.clip(CR_a + CR_b * ln D, bas, haut)
+CLIP_PATTERN = re.compile(r'np\.clip\(\s*par\["CR_a"\]\s*\+\s*par\["CR_b"\]\s*\*\s*np\.log\(D\)\s*,'
+                          r'\s*([0-9]*\.?[0-9]+)\s*,\s*([0-9]*\.?[0-9]+)\s*\)')
+# Relations de ajuster() : D = d.dTLS (cm) ; CR et ln E régressés sur ln D ; E = crown_extent_max_m
+CALAGE_PATTERNS = {
+    "D = d.dTLS": re.compile(r"D\s*=\s*d\.dTLS\.values"),
+    "régression sur ln D": re.compile(r"np\.c_\[\s*np\.ones\(len\(d\)\)\s*,\s*np\.log\(D\)\s*\]"),
+    "ln E": re.compile(r"lnE\s*=\s*np\.log\(d\.crown_extent_max_m"),
+}
+CROWN_MODELS = ("hcb", "cw")
 
 SCHEMA = pa.schema([
     ("species", pa.string()),
@@ -205,7 +230,126 @@ def build_rows(directory: Path, espar_mapping: dict[str, list[str]]) -> tuple[li
                                "source": source})
     if not rows:
         raise ModuleError("aucune essence de tarif-nemeton n'a de code espar : rien à écrire")
-    rows.sort(key=lambda r: (r["species"].encode(), r["term"]))
+    crown_rows, crown_report = build_crown_rows(directory, espar_mapping, version)
+    report.extend(crown_report)
+    rows.extend(crown_rows)
+    stage_b = {r["species"] for r in rows if r["model"] == MODEL}
+    with_crown = {r["species"] for r in rows if r["model"] == "hcb"} & {r["species"] for r in rows if r["model"] == "cw"}
+    if crown_rows:
+        lacking = sorted(stage_b - with_crown)
+        if lacking:
+            report.append(f"essence(s) {', '.join(lacking)} avec l'étage B mais sans hcb ni cw : simulate les refusera")
+    rows.sort(key=lambda r: (r["species"].encode(), r["model"], r["term"]))
+    return rows, report
+
+
+def read_calage_script(directory: Path) -> tuple[float, float, str]:
+    """Bornes (CR_min, CR_max) et référence de ligne, lues dans code/synth_calage.py ; erreur si la
+    forme des relations n'est pas celle qu'on suppose (rien n'est deviné)."""
+    path = directory / CALAGE_SCRIPT
+    if not path.is_file():
+        raise ModuleError(f"{CALAGE_SCRIPT.as_posix()} introuvable dans {directory} : l'unité de d130 et les "
+                          f"bornes de CR ne peuvent pas être vérifiées")
+    text = path.read_text(encoding="utf-8")
+    for label, pattern in CALAGE_PATTERNS.items():
+        if not pattern.search(text):
+            raise ModuleError(f"{path.name} : relation « {label} » introuvable ; la forme de hcb et cw "
+                              f"n'est plus celle du contrat (CR = CR_a + CR_b ln d130, ln E = R_a + R_b ln d130)")
+    match = CLIP_PATTERN.search(text)
+    if not match:
+        raise ModuleError(f"{path.name} : écrêtage np.clip(CR_a + CR_b ln D, bas, haut) introuvable ; "
+                          f"CR_min et CR_max ne sont pas devinés")
+    low, high = float(match.group(1)), float(match.group(2))
+    if not 0.0 <= low < high <= 1.0:
+        raise ModuleError(f"{path.name} : bornes de CR illisibles ({low} ; {high}), attendu 0 <= bas < haut <= 1")
+    line = text.count("\n", 0, match.start()) + 1
+    return low, high, f"{CALAGE_SCRIPT.as_posix()} ligne {line}"
+
+
+def check_d130_unit(bornes: list[dict]) -> None:
+    """d130 en centimètres : les quantiles D_obs des essences calées sur leurs propres arbres doivent
+    tomber dans [5 ; 250]. Des mètres (< 3) ou des millimètres (> 250) arrêtent le module."""
+    own = [row for row in bornes if row["source"] == "essence"]
+    if not own:
+        raise ModuleError(f"{BORNES_FILE.as_posix()} : aucune essence calée sur ses propres arbres, "
+                          f"l'unité de d130 ne peut pas être vérifiée")
+    low, high = D130_CM_RANGE
+    for row in own:
+        for column in ("D_obs_q05", "D_obs_q95"):
+            value = row[column]
+            if value is None or not low <= value <= high:
+                raise ModuleError(
+                    f"{BORNES_FILE.as_posix()} : {row['essence']}, {column} = {value} hors de [{low:g} ; {high:g}] : "
+                    f"d130 n'est pas en centimètres (unité attendue par hcb et cw) ; rien n'est converti ni écrit")
+
+
+def read_crown_bounds_table(path: Path) -> list[dict]:
+    """Lignes de bornes_dimensions.csv (nombres lus, case vide = None, texte illisible = erreur)."""
+    if not path.is_file():
+        raise ModuleError(f"fichier de tarif-nemeton introuvable : {path}")
+    rows = []
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        missing = [c for c in BORNES_COLUMNS if c not in (reader.fieldnames or [])]
+        if missing:
+            raise ModuleError(f"{path.name} : colonne(s) {', '.join(missing)} absente(s)")
+        seen = set()
+        for line_number, row in enumerate(reader, start=2):
+            name = (row["essence"] or "").strip()
+            if not name:
+                raise ModuleError(f"{path.name} ligne {line_number} : essence vide")
+            if name in seen:
+                raise ModuleError(f"{path.name} ligne {line_number} : essence {name} en double")
+            seen.add(name)
+            item = {"essence": name, "source": (row["source"] or "").strip(), "line": line_number}
+            for column in ("n_arbres", "D_obs_q05", "D_obs_q95", "CR_a", "CR_b", "R_a", "R_b"):
+                item[column] = _number(row[column], path.name, line_number, column)
+            rows.append(item)
+    return rows
+
+
+def build_crown_rows(directory: Path, espar_mapping: dict[str, list[str]], version: str) -> tuple[list[dict], list[str]]:
+    """Lignes hcb et cw (format long) et signalements. Absence des fichiers : signalée, aucune ligne."""
+    report: list[str] = []
+    bornes_path = directory / BORNES_FILE
+    if not bornes_path.is_file() or not (directory / CALAGE_SCRIPT).is_file():
+        report.append(f"hcb et cw non importés : {BORNES_FILE.as_posix()} ou {CALAGE_SCRIPT.as_posix()} absent de "
+                      f"{directory} ; rien n'est inventé (simulate refusera toute essence sans ces coefficients)")
+        return [], report
+    cr_min, cr_max, clip_ref = read_calage_script(directory)
+    bornes = read_crown_bounds_table(bornes_path)
+    check_d130_unit(bornes)
+    rows: list[dict] = []
+    file_ref = f"{REPO_URL}, {version}"
+    for entry in bornes:
+        name = entry["essence"]
+        codes = espar_mapping.get(name)
+        if not codes:
+            report.append(f"{name} ({BORNES_FILE.name}) : aucun code espar dans contracts/species.csv "
+                          f"(colonne tarif_nemeton_code), houppier sauté (rien n'est deviné)")
+            continue
+        values = {"CR_a": entry["CR_a"], "CR_b": entry["CR_b"], "R_a": entry["R_a"], "R_b": entry["R_b"]}
+        absent = [term for term, value in values.items() if value is None]
+        if absent:
+            report.append(f"{name} ({BORNES_FILE.name}) : {', '.join(absent)} manquant, houppier sauté (rien n'est deviné)")
+            continue
+        n_trees = int(entry["n_arbres"]) if entry["n_arbres"] is not None else 0
+        origin = (f"calé sur ses {n_trees} arbres" if entry["source"] == "essence" else entry["source"])
+        if entry["source"] != "essence":
+            report.append(f"{name} : coefficients de houppier empruntés ({entry['source']}), à vérifier")
+        base = f"tarif-nemeton {BORNES_FILE.as_posix()} ({file_ref}), {origin} ; d130 en cm vérifié par import_tarif"
+        for espar in codes:
+            for term in ("CR_a", "CR_b"):
+                rows.append({"species": espar, "species_group": None, "model": "hcb", "term": term,
+                             "value": float(values[term]), "provisoire": True, "source": base})
+            for term, value, ref in (("CR_min", cr_min, clip_ref), ("CR_max", cr_max, clip_ref)):
+                rows.append({"species": espar, "species_group": None, "model": "hcb", "term": term,
+                             "value": float(value), "provisoire": True,
+                             "source": f"tarif-nemeton {ref} ({file_ref}) : écrêtage de CR dans la fonction forme ; "
+                                       f"provisoire"})
+            for term in ("R_a", "R_b"):
+                rows.append({"species": espar, "species_group": None, "model": "cw", "term": term,
+                             "value": float(values[term]), "provisoire": True, "source": base})
     return rows, report
 
 
@@ -240,7 +384,7 @@ def run_import(config: dict) -> Path:
     if code != 0:
         raise ModuleError(f"{output} non conforme au contrat import_tarif.allometry (validateur, code {code})")
     species_codes = sorted({row["species"] for row in rows})
-    print(f"[{NAME}] {len(rows)} coefficient(s) etage_b pour {len(species_codes)} essence(s) "
+    print(f"[{NAME}] {len(rows)} coefficient(s) (etage_b, hcb, cw) pour {len(species_codes)} essence(s) "
           f"({', '.join(species_codes)}), provisoire : {output}", file=sys.stderr)
     return output
 

@@ -29,12 +29,14 @@
       }
     },
     "simulate": {
+      "description": "réglages de simulate ; level, seed, t0 et years sont tous exigés (aucune valeur par défaut silencieuse : simulate refuse sans bloc ou clé, code 2) ; threads est facultatif",
       "type": "object",
+      "required": ["level", "seed", "t0", "years"],
       "additionalProperties": false,
       "properties": {
         "level": {"description": "niveau de simulation (spec §1)", "enum": ["massif", "ser"]},
         "seed": {"description": "graine du générateur à compteur (spec §6 ; bench/SPEC.md AM2)", "type": "integer", "minimum": 0, "maximum": 9007199254740991},
-        "t0": {"description": "année de départ", "type": "integer"},
+        "t0": {"description": "année de départ de la simulation (état initial = année t0) ; jeu fictif : 2021, année de vol majoritaire de chm_date.tif", "type": "integer"},
         "years": {"description": "horizon en années (défaut du BRIEF §8 : 100)", "type": "integer", "minimum": 1},
         "threads": {"description": "nombre de fils", "type": "integer", "minimum": 1}
       }

@@ -320,7 +320,7 @@ test_that("sans 2e visite, l'entrée est refusée", {
   expect_error(dyn_prepare_data(t, p), "revisit")
 })
 
-test_that("Chapman-Richards : paramètres de nemeton cités, hêtre (Korf) signalé et non inventé", {
+test_that("Chapman-Richards : paramètres de nemeton cités, le hêtre n'y est plus (il a sa courbe de Korf)", {
   cr <- dyn_chapman_richards(c("09", "62", "17C"), species_ref())
   r62 <- cr$rows[cr$rows$species == "62", ]
   expect_equal(r62$value[r62$term == "k"], 0.028)
@@ -328,8 +328,55 @@ test_that("Chapman-Richards : paramètres de nemeton cités, hêtre (Korf) signa
   expect_true(all(grepl("nemeton bd6fbe5", r62$source)) && all(grepl("Seynave", r62$source)))
   expect_true(all(r62$provisoire))
   expect_false("09" %in% cr$rows$species)
-  expect_match(cr$missing[["09"]], "Korf")
+  expect_match(cr$missing[["09"]], "aucune courbe dans nemeton")   # FASY n'est pas dans site_index_params
   expect_true("17C" %in% names(cr$missing))
+})
+
+test_that("Korf du hêtre : moyenne terme à terme des régions NO et NE de nemeton, citée et provisoire", {
+  k <- dyn_korf(c("09", "62"), species_ref())
+  expect_equal(unique(k$rows$species), "09")          # le sapin 62 n'a pas de Korf
+  expect_equal(unique(k$rows$model), "korf")
+  v <- stats::setNames(k$rows$value, k$rows$term)
+  expect_equal(sort(names(v)), sort(c("a", "b", "c", paste0("p_f_class", 1:5))))
+  # moyennes recalculées à la main : (44.2 + 68.7) / 2, (0.032 + 0.028) / 2, (1.647 + 0.823) / 2
+  expect_equal(v[["a"]], 56.45)
+  expect_equal(v[["b"]], 0.030)
+  expect_equal(v[["c"]], 1.235)
+  # p_f : (0.58 + 0.53) / 2 = 0.555 (classe 1), (0.29 + 0.21) / 2 = 0.25 (classe 5), pas égal, décroissant
+  expect_equal(v[["p_f_class1"]], 0.555)
+  expect_equal(v[["p_f_class5"]], 0.25)
+  expect_equal(diff(unname(v[paste0("p_f_class", 1:5)])), rep(-0.0762500, 4), tolerance = 1e-9)
+  expect_true(all(k$rows$provisoire))
+  expect_true(all(grepl("nemeton bd6fbe5", k$rows$source) & grepl("Bontemps", k$rows$source)))
+  expect_true(all(is.na(k$rows$species_group)))
+})
+
+test_that("Korf : un pas de la formule du contrat ; les régions de nemeton redonnent son point de référence", {
+  # pas à la main : a = 44.2, b = 0.032, c = 1.647, p_f = 0.4, H_prec = 10
+  h <- 44.2 * exp(-(0.4 * 0.032 + log(44.2 / 10)^(-1 / 1.647))^(-1.647))
+  expect_equal(dyn_korf_step(10, 44.2, 0.032, 1.647, 0.4), h, tolerance = 1e-12)
+  expect_gt(h, 10)                                                    # la hauteur croît
+  expect_lt(dyn_korf_step(10, 44.2, 0.032, 1.647, 0.3), h)           # moins fertile : moins haut
+  expect_error(dyn_korf_step(44.2, 44.2, 0.032, 1.647, 0.4), "strictement")
+  expect_error(dyn_korf_step(0, 44.2, 0.032, 1.647, 0.4), "strictement")
+  # point de référence de nemeton : H(100), classe 3, moyenne des hauteurs NO et NE = 29,2 m (à 0,5 m)
+  reg <- DYN_KORF_REGIONS
+  h100 <- vapply(1:2, function(r) dyn_korf_height(100, reg$a[r], reg$b[r], reg$c[r], reg$t0[r], reg$H0[r],
+                                                   mean(c(reg$p_f_max[r], reg$p_f_min[r]))), numeric(1))
+  expect_lt(abs(mean(h100) - DYN_KORF_REF_H_CLASS3), 0.5)
+  expect_equal(h100[1], 30.02, tolerance = 0.01)   # NO, calculé à part par la récurrence de nemeton
+  expect_equal(h100[2], 28.41, tolerance = 0.01)   # NE
+  expect_error(dyn_korf_height(5, 44.2, 0.032, 1.647, 6, 1.4, 0.4), "rieur")
+})
+
+test_that("Korf : le rapport montre la courbe retenue, l'écart à la moyenne des hauteurs et ses limites", {
+  k <- dyn_korf("09", species_ref())
+  items <- dyn_korf_report_items(k)
+  expect_length(items, 4)
+  txt <- paste(unlist(items), collapse = " ")
+  expect_match(txt, "Bontemps")
+  expect_match(txt, "connu")
+  expect_length(dyn_korf_report_items(list(rows = NULL, info = list())), 0)
 })
 
 # ------------------------------------------------------------------ module complet
@@ -351,6 +398,12 @@ test_that("dynamics écrit les quatre tables conformes et un rapport par essence
   expect_match(html, "Limites connues")
   expect_false(grepl("\\b(NA|NaN|Inf)\\b", html))
   for (sp in c("03", "09", "62")) expect_match(html, sprintf("<td>%s</td>", sp))
+  hc <- read_parquet_tbl(out[["height_curve"]])
+  expect_equal(sort(hc$term[hc$species == "09" & hc$model == "korf"]),
+               sort(c("a", "b", "c", paste0("p_f_class", 1:5))))
+  expect_false("chapman_richards" %in% hc$model[hc$species == "09"])
+  expect_match(html, "forme de Korf")
+  expect_match(html, "Moyenne des hauteurs NO et NE")
 })
 
 test_that("sur la loi synthétique, l'accroissement et la hauteur battent le modèle nul en validation croisée", {
