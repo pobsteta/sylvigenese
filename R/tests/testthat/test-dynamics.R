@@ -244,9 +244,10 @@ test_that("VEGET5 se lit avec la nomenclature de la campagne : coupé, non retro
                c("vivant", "vivant", "mort", "mort", "coupe", "coupe", "non_retrouve", "perdu",
                  "etat_absent", "hors_nomenclature"))
   expect_equal(dyn_fate(c("5", "C", "A", "6", "M"), 2012L),
-               c("mort", "mort", "chablis_inconnu", "coupe", "hors_nomenclature"))
+               c("mort", "mort", "chablis", "coupe", "hors_nomenclature"))
   expect_equal(dyn_fate(c("M", "A", "N", "7"), 2016L),
-               c("mort", "chablis_inconnu", "non_retrouve", "hors_nomenclature"))
+               c("mort", "chablis", "non_retrouve", "hors_nomenclature"))
+  expect_equal(dyn_fate(c("A", "M"), 2018L), c("chablis", "mort"))
 })
 
 test_that("une essence sous le seuil prend son groupe, un groupe sous le seuil toutes les essences", {
@@ -383,4 +384,73 @@ test_that("une entrée refusée ne laisse aucune sortie, même d'un lancement pr
   expect_false(any(file.exists(dyn_output_paths(zone))))
   unlink(file.path(zone, "ifn", "plots.parquet"))
   expect_error(dynamics_run(zone, root = racine), "plots")
+})
+
+# ------------------------------------------------------------------ décisions du 25/11/2026 (mission 031)
+
+# Variante : placettes 1, 3, 5... revues en 2012 (1re visite 2007) ; placettes 2, 6, 10 revues en 2017
+# (1re visite 2012) ; les autres gardent 2020-2024. Des arbres de 2e visite sont en chablis (code A,
+# valable en 2012 et en 2017, pas à partir de 2019).
+fake_ifn_chablis <- function() {
+  ifn <- fake_ifn(n_plots = 12L, seed = 7L)
+  p <- ifn$plots; t <- ifn$trees
+  ids <- unique(p$plot_id)
+  old <- ids[seq(1L, length(ids), by = 2L)]
+  mid <- ids[c(2L, 6L, 10L)]
+  shift <- function(df, ids, c1, c2) {
+    for (i in ids) {
+      k <- df$plot_id == i
+      first <- df$campaign == min(df$campaign[k])
+      df$campaign[k & first] <- c1
+      df$campaign[k & !first] <- c2
+    }
+    df
+  }
+  p <- shift(p, old, 2007L, 2012L); t <- shift(t, old, 2007L, 2012L)
+  p <- shift(p, mid, 2012L, 2017L); t <- shift(t, mid, 2012L, 2017L)
+  p$date_point[p$plot_id %in% old & p$campaign == 2007L] <- "2007-09-15"
+  p$date_point[p$plot_id %in% old & p$campaign == 2012L] <- "2012-09-15"
+  p$date_point[p$plot_id %in% mid & p$campaign == 2012L] <- "2012-09-15"
+  p$date_point[p$plot_id %in% mid & p$campaign == 2017L] <- "2017-09-15"
+  pick <- function(set, n) which(t$plot_id %in% set & t$campaign > 2010L & t$veg_state_5y == "0" &
+                                   as.integer(t$tree_id) <= 15L)[seq_len(n)]
+  ia <- pick(old, 3L); ib <- pick(mid, 2L)
+  t$veg_state_5y[c(ia, ib)] <- "A"
+  list(trees = t, plots = p, n_chablis_2012 = length(ia), n_chablis_late = length(ib), old = old)
+}
+
+test_that("chablis A (2e visite 2012-2018) : comptés morts, dans la population à risque", {
+  v <- fake_ifn_chablis()
+  with_a <- dyn_prepare_data(v$trees, v$plots)
+  fk <- with_a$counts$fates_kept
+  expect_equal(fk[["chablis"]], v$n_chablis_2012 + v$n_chablis_late)
+  v0 <- v; v0$trees$veg_state_5y[v0$trees$veg_state_5y == "A"] <- "0"
+  sans <- dyn_prepare_data(v0$trees, v0$plots)
+  expect_equal(nrow(with_a$mortality), nrow(sans$mortality))
+  expect_equal(sum(with_a$mortality$dead) - sum(sans$mortality$dead),
+               v$n_chablis_2012 + v$n_chablis_late)
+})
+
+test_that("revisites 2012 : dans la mortalité, hors du recrutement ; le rapport dit les plages", {
+  v <- fake_ifn_chablis()
+  prep <- dyn_prepare_data(v$trees, v$plots)
+  expect_equal(prep$counts$camp2_range_mortality, c(2012L, max(v$plots$campaign)))
+  expect_true(all(prep$counts$camp2_range_recruitment >= 2015L))
+  expect_true(any(v$old %in% prep$mortality$plot_id))
+  expect_false(any(v$old %in% prep$recruitment$plot_id))
+  expect_equal(prep$counts$rec_excluded_plots, length(v$old))
+  # les recrues de 2012 existent dans les données mais ne sont pas comptées au recrutement
+  expect_gt(prep$counts$recruits_old_campaign, 0L)
+  expect_equal(sum(prep$recruitment$n_recruits), prep$counts$recruits_kept)
+  expect_equal(prep$counts$recruits_all, prep$counts$recruits_kept + prep$counts$recruits_old_campaign)
+})
+
+test_that("aucune revisite de 2015 ou après : le recrutement est refusé, dit en clair", {
+  v <- fake_ifn_chablis()
+  p <- v$plots; t <- v$trees
+  all_ids <- unique(p$plot_id)
+  for (i in setdiff(all_ids, v$old)) {
+    p <- p[p$plot_id != i, ]; t <- t[t$plot_id != i, ]
+  }
+  expect_error(dyn_prepare_data(t, p), "aucune placette retenue revue en 2015")
 })
