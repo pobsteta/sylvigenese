@@ -6,13 +6,40 @@
 # Le bash et pipefail sont ici et non dans test-command : sous dash, « a | tee » masquerait l'échec de a.
 # Tout saut de test pytest est un échec (un test sauté sans le dire n'est pas un test passé).
 # SYLVIGENESE_PYTEST_EXTRA : chemins pytest supplémentaires (sert à prouver que l'échec remonte).
+#
+# Sans argument : toutes les sections, dans l'ordre historique (c'est ce que lance
+# .claude/test-command, donc le poste local).
+# Avec des arguments : seulement ces sections, dans l'ordre donné (la CI en fait un job par
+# groupe, mission 043). Sections :
+#   r        testthat (make test-r)
+#   rust     cargo test (make test-rust)
+#   python   pytest python (make test-python)
+#   web      node --test (make test-web)
+#   contrats pytest tests/contracts, contracts/tests, tools/fixtures/tests et python
+#   m1 m2 m4 m3   tests d'acceptation des jalons, une session pytest chacun
+#   validate le validateur sur le jeu fictif
+# Chaque section écrit sa durée (sortie standard et, en CI, résumé du job).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-make test
+ALL_SECTIONS=(r rust python web contrats m1 m2 m4 m3 validate)
 
 out="$(mktemp)"
-trap 'rm -f "$out"' EXIT
+current=""
+started=0
+trap 'rm -f "$out"; report_duration "interrompue ou en échec"' EXIT
+
+# Écrit la durée de la section en cours (si une l'est), puis l'oublie.
+report_duration() {
+  [ -n "$current" ] || return 0
+  local s=$(( SECONDS - started )) line
+  line="Durée de la section « $current » : $((s / 60)) min $((s % 60)) s (${s} s) — ${1:-terminée}"
+  echo "== $line"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo "- $line" >> "$GITHUB_STEP_SUMMARY"
+  fi
+  current=""
+}
 
 # Lance pytest sur les chemins donnés ; échec si pytest échoue ou saute un test.
 run_pytest() {
@@ -31,13 +58,44 @@ run_pytest() {
   fi
 }
 
-# shellcheck disable=SC2086
-run_pytest tests/contracts contracts/tests tools/fixtures/tests python ${SYLVIGENESE_PYTEST_EXTRA:-}
-# Tests d'acceptation du jalon M1a (mission 021) : session séparée, car leurs modules
-# d'aide portent le même nom que ceux des contrats (helpers.py).
-run_pytest tests/m1
-run_pytest tests/m2
-run_pytest tests/m4
-run_pytest tests/m3
+run_section() {
+  case "$1" in
+    r)        make test-r ;;
+    rust)     make test-rust ;;
+    python)   make test-python ;;
+    web)      make test-web ;;
+    contrats)
+      # shellcheck disable=SC2086
+      run_pytest tests/contracts contracts/tests tools/fixtures/tests python ${SYLVIGENESE_PYTEST_EXTRA:-} ;;
+    # Tests d'acceptation du jalon M1a (mission 021) : session séparée, car leurs modules
+    # d'aide portent le même nom que ceux des contrats (helpers.py).
+    m1)       run_pytest tests/m1 ;;
+    m2)       run_pytest tests/m2 ;;
+    m4)       run_pytest tests/m4 ;;
+    m3)       run_pytest tests/m3 ;;
+    validate) make validate ZONE=zone_fictive ;;
+    *)
+      echo "run_tests.sh : section inconnue « $1 » (attendu : ${ALL_SECTIONS[*]})." >&2
+      exit 2 ;;
+  esac
+}
 
-make validate ZONE=zone_fictive
+if [ "$#" -eq 0 ]; then
+  set -- "${ALL_SECTIONS[@]}"
+fi
+
+# Contrôle de tous les noms avant de lancer quoi que ce soit.
+for s in "$@"; do
+  case " ${ALL_SECTIONS[*]} " in
+    *" $s "*) ;;
+    *) echo "run_tests.sh : section inconnue « $s » (attendu : ${ALL_SECTIONS[*]})." >&2; exit 2 ;;
+  esac
+done
+
+for s in "$@"; do
+  current="$s"
+  started=$SECONDS
+  echo "== section « $s » : début"
+  run_section "$s"
+  report_duration
+done
