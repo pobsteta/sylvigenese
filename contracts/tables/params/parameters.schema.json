@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Paramètres (params/tarif.parquet, params/allometry.parquet ; ceux de dynamics ont leur contrat, dynamics_params.schema.json)",
-  "description": "Format long : un coefficient par ligne, avec son statut provisoire et sa source (spec §10). Par essence (species) ou par groupe d'essences (species_group) : au moins l'un des deux.",
+  "description": "Format long : un coefficient par ligne, avec son statut provisoire et sa source (spec §10). Par essence (species) ou par groupe d'essences (species_group) : au moins l'un des deux. ALLOMÉTRIES DE HOUPPIER (mission 033, params/allometry.parquet ; aucune valeur dans le contrat, elles viennent de tarif-nemeton par import_tarif, sourcées, ou du jeu fictif, synthétiques et provisoires). model = hcb : hauteur de la base du houppier, hcb = h × (1 − CR) avec CR = CR_a + CR_b × ln(d130), puis CR borné à [CR_min ; CR_max] ; h en m, d130 en cm (unité des exemples de calcul du référentiel entrees-externes, à vérifier par import_tarif contre synth_calage.py) ; termes CR_a, CR_b, CR_min, CR_max (sans unité) ; hcb à la première branche vivante (décision du 24/11/2026). model = cw : largeur du houppier, cw = 2 × E avec ln(E) = R_a + R_b × ln(d130), E étant l'étendue maximale (un rayon, m) de tarif-nemeton (décision du 24/11/2026) ; termes R_a, R_b. Pas de terme de résidu : la simulation est en moyenne, sans bruit (décision de Pascal du 25/11/2026). Repli par essence, puis par groupe, puis toutes_essences, comme dynamics_params ; une essence sans aucun coefficient est une erreur explicite de simulate (code 2), jamais une valeur par défaut.",
   "x-schema-version": "0.1",
   "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
   "fieldsMatch": "equal",
@@ -25,7 +25,7 @@
     {
       "name": "model",
       "type": "string",
-      "description": "nom du modèle (par exemple chapman_richards, etage_b)",
+      "description": "nom du modèle (par exemple chapman_richards, etage_b, hcb, cw)",
       "constraints": {
         "required": true,
         "minLength": 1

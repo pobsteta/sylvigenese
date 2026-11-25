@@ -1,0 +1,51 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Signalements de la simulation (sim/flags.parquet, simulate)",
+  "description": "Une ligne par signalement : ce que simulate a borné, constaté ou refusé de corriger, sans jamais le deviner (CLAUDE.md : signaler plutôt que deviner). La table est brute ; `post` la met en page dans rapport_simulation.html (plan M3a, T9). Une table sans ligne est permise (rien à signaler). Les comptes de run.json (sim/run.json) en sont les totaux.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 033 (orchestrateur, par délégation de Pascal)",
+  "x-allow-empty": true,
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "year",
+      "type": "integer",
+      "description": "année simulée du signalement (colonne dans le fichier : la table n'est pas partitionnée)",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "entity",
+      "type": "string",
+      "description": "ce qui est signalé : identifiant de l'arbre (tree_id) ou de la cellule (cell_id écrit en décimal, rang dans grid.tif) ; le sens est donné par `kind`",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "kind",
+      "type": "string",
+      "description": "sorte de signalement, en minuscules et underscores (par exemple une sortie de domaine, une hauteur au-dessus du plafond, un disque au bord) ; la liste des sorte est tenue par simulate et dite dans rapport_simulation.html, le contrat n'en fixe que la forme",
+      "constraints": {
+        "required": true,
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "description": "phrase en français, lisible sans le code",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "value",
+      "type": "number",
+      "description": "valeur en cause (la hauteur, la variable bornée…), dans l'unité dite par le message ; vide quand il n'y en a pas, notamment pour une valeur non finie (NaN et infinis sont refusés dans toute table)"
+    }
+  ]
+}

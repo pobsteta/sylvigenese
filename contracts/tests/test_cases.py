@@ -329,6 +329,8 @@ CASES = {
                        r"doublon"),
     "simulate.run": (document("run.json", h.run_json, setitem("provisional_share", 1.5),
                               h.write_json), r"provisional_share"),
+    "simulate.flags": (table("flags.parquet", h.sim_flags, set_first("kind", "Hauteur Plafond"),
+                             types={"entity": pa.string(), "value": pa.float64()}), r"kind"),
     "post.summary": (table("summary.parquet", h.summary, set_first("volume_m3_ha", -1.0)),
                      r"volume_m3_ha"),
     "assets.tree_model": (tree_model, r"version 2"),

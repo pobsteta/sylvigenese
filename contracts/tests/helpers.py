@@ -210,6 +210,14 @@ def sim_cells(year=2030):
             "seedling_h_mean": [0.6, 0.3, None]}
 
 
+def sim_flags():
+    return {"year": [2026, 2027], "entity": ["T1", "cell:12"],
+            "kind": ["height_above_ceiling", "domain_output"],
+            "message": ["hauteur au-dessus du plafond de la station",
+                        "d130 au-dessus du dernier nœud de la spline"],
+            "value": [31.2, None]}
+
+
 def summary():
     return {"cell_id": [0, 1], "year": [2030, 2030], "species": ["09", "09"],
             "volume_m3_ha": [300.0, 120.0], "biomass_t_ha": [200.0, 80.0],
@@ -241,7 +249,13 @@ def biome():
 
 def run_json():
     return {"schema_version": 1, "level": "massif", "seed": 42, "t0": 2025, "years": 100,
-            "threads": 4, "zeroed_values": 0, "provisional_share": 0.8}
+            "threads": 4, "memory_estimate_bytes": 123456789, "duration_s": 12.5,
+            "config_sha256": "0123456789abcdef" * 4, "zeroed_values": 0,
+            "provisional_share": 0.8,
+            "domain_outputs": {"d130": {"below": 0, "above": 3},
+                               "ba_plot": {"below": 0, "above": 0}},
+            "cells_at_height_ceiling": 7, "edge_disks": 120, "mixed_cells": 15,
+            "recruits": 40, "deaths": 25}
 
 
 def tileset():
