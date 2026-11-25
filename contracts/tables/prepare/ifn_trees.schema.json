@@ -1,9 +1,9 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Arbres IFN préparés (ifn/trees.parquet)",
-  "description": "d130 = C13 / (10 π), C13 en mm (docs/referentiels/ifn-placettes.md §2).",
+  "description": "Une ligne par arbre et par visite (une 2e visite est une ligne de plus, campagne de la 1re plus 5 ; tree_id = numéro d'arbre A de l'export). d130 = C13 × 100 / π, C13 en MÈTRES (metadonnees.csv l. 35 et 203 ; docs/referentiels/ifn-dynamique.md §3). d130 et weight_ha sont vides pour un arbre de 2e visite sans C13 (coupé, non retrouvé) ou sans W : rien n'est deviné. La jointure des deux visites (IDP + A) est faite par dynamics.",
   "x-schema-version": "0.1",
-  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal) ; colonnes de la dynamique : mission 023",
   "fieldsMatch": "equal",
   "fields": [
     {
@@ -26,7 +26,7 @@
     {
       "name": "tree_id",
       "type": "string",
-      "description": "identifiant de l'arbre dans la placette",
+      "description": "numéro d'arbre A de l'export, à associer avec plot_id (metadonnees.csv l. 19)",
       "constraints": {
         "required": true,
         "minLength": 1
@@ -44,10 +44,9 @@
     {
       "name": "d130",
       "type": "number",
-      "description": "diamètre à 1,30 m",
+      "description": "diamètre à 1,30 m = C13 × 100 / π (C13 en m) ; vide si C13 manque (arbre de 2e visite coupé ou non retrouvé)",
       "x-unit": "cm",
       "constraints": {
-        "required": true,
         "exclusiveMinimum": 0
       }
     },
@@ -63,8 +62,51 @@
     {
       "name": "weight_ha",
       "type": "number",
-      "description": "poids de l'arbre (W)",
+      "description": "poids de l'arbre : 1re visite, inverse de la surface du cercle de sa classe de C13 ; 2e visite, W de l'export (vide s'il manque)",
       "x-unit": "tiges/ha",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "veg_state",
+      "type": "string",
+      "description": "VEGET : état à la 1re visite (0 vivant, 1 chablis vivant, 5 mort sur pied, C mort cassé, A chablis avant 2019) ; vide sur une ligne de 2e visite ou si hors modalités de sa période",
+      "constraints": {
+        "enum": [
+          "0",
+          "1",
+          "5",
+          "A",
+          "C"
+        ]
+      }
+    },
+    {
+      "name": "veg_state_5y",
+      "type": "string",
+      "description": "VEGET5 : état à la 2e visite, codes selon la campagne (0 vivant ; 6, 7 coupé ; M, 5 mort sur pied ; 2 chablis mort ; N non retrouvé ; T cassé ou non retrouvé après incident ; 1, A chablis ; C mort cassé) ; vide sur une ligne de 1re visite ou si hors modalités de sa période",
+      "constraints": {
+        "enum": [
+          "0",
+          "1",
+          "2",
+          "5",
+          "6",
+          "7",
+          "A",
+          "C",
+          "M",
+          "N",
+          "T"
+        ]
+      }
+    },
+    {
+      "name": "radial_incr_5y_m",
+      "type": "number",
+      "description": "IR5 : accroissement radial cumulé de 5 ans, en m (épaisseur de 5 cernes) ; vide si non mesuré",
+      "x-unit": "m",
       "constraints": {
         "minimum": 0
       }

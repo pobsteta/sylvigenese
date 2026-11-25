@@ -214,14 +214,16 @@ def test_zone_with_only_a_refused_file_gives_2(tmp_path, capsys):
 # ---------------------------------------------------------- I7, I8 : colonnes IFN, SER
 
 def test_ifn_arbre_without_w_is_conform(tmp_path, capsys):
-    path = h.csv(tmp_path / "ARBRE.csv", ["IDP", "ESPAR", "C13", "HTOT", "V"],
-                 [["1001", "09", 950, 22.5, 0.8]], sep=";")
+    path = h.csv(tmp_path / "ARBRE.csv",
+                 ["IDP", "CAMPAGNE", "A", "ESPAR", "C13", "VEGET", "IR5", "HTOT", "V"],
+                 [["1001", 2015, 1, "09", 0.950, 0, 0.012, 22.5, 0.8]], sep=";")
     assert run(capsys, ["ifn_arbre", str(path)])[0] == 0
 
 
 def test_ifn_arbre_w_is_checked_when_present(tmp_path, capsys):
-    path = h.csv(tmp_path / "ARBRE.csv", ["IDP", "ESPAR", "C13", "HTOT", "V", "W"],
-                 [["1001", "09", 950, 22.5, 0.8, -3]], sep=";")
+    path = h.csv(tmp_path / "ARBRE.csv",
+                 ["IDP", "CAMPAGNE", "A", "ESPAR", "C13", "VEGET", "IR5", "HTOT", "V", "W"],
+                 [["1001", 2015, 1, "09", 0.950, 0, 0.012, 22.5, 0.8, -3]], sep=";")
     code, out = run(capsys, ["ifn_arbre", str(path)])
     assert code == 3 and "W" in out
 

@@ -1,9 +1,9 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Placettes IFN préparées (ifn/plots.parquet)",
-  "description": "Une ligne par placette et par campagne. Coordonnées floutées : jamais croisées avec un raster fin (garde IFN, spec §6).",
+  "description": "Une ligne par placette, par campagne et par visite (une 2e visite est une ligne de plus, campagne de la 1re plus 5, même plot_id). Coordonnées floutées : jamais croisées avec un raster fin (garde IFN, spec §6). Les colonnes d'incident et de prélèvement recopient l'export, vides si l'export ne les donne pas (jamais devinées) ; la jointure des deux visites est faite par dynamics.",
   "x-schema-version": "0.1",
-  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal) ; colonnes de la dynamique : mission 023",
   "fieldsMatch": "equal",
   "fields": [
     {
@@ -79,6 +79,67 @@
       "name": "coarse_bioclim_700m",
       "type": "number",
       "description": "gradient bioclimatique moyen dans un disque de 700 m"
+    },
+    {
+      "name": "visit",
+      "type": "integer",
+      "description": "VISITE : 1 = 1re visite, 2 = 2e visite (ifn-dynamique-colonnes.csv, ligne VISITE)",
+      "constraints": {
+        "required": true,
+        "enum": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "date_point",
+      "type": "string",
+      "description": "DATEPOINT en AAAA-MM-JJ (ISO) ; vide si l'export ne la donne pas",
+      "constraints": {
+        "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}"
+      }
+    },
+    {
+      "name": "incident_nature",
+      "type": "integer",
+      "description": "NINCID : 0 aucun, 1 incendie, 2 mortalité, 3 mouvement de terrain, 4 tempête, 5 autre ; relevé en 1re visite, vide sinon",
+      "constraints": {
+        "minimum": 0,
+        "maximum": 5
+      }
+    },
+    {
+      "name": "incident_intensity",
+      "type": "integer",
+      "description": "INCID : 0 à 4 (0 aucun dégât, 4 plus de 75 % du couvert) ; relevé en 1re visite, vide sinon",
+      "constraints": {
+        "minimum": 0,
+        "maximum": 4
+      }
+    },
+    {
+      "name": "harvest_5y",
+      "type": "string",
+      "description": "PRELEV5 recopié tel quel : aucune modalité documentée par l'export (2010-2014 seulement)"
+    },
+    {
+      "name": "clearing_5y",
+      "type": "integer",
+      "description": "DEF5 : défrichement entre les deux visites, 0 aucun, 1 à 5 selon l'étendue (2e visite)",
+      "constraints": {
+        "minimum": 0,
+        "maximum": 5
+      }
+    },
+    {
+      "name": "planting_5y",
+      "type": "integer",
+      "description": "INSTP5 : 0 pas de travaux, 1 plantation ou semis entre les deux visites (2e visite)",
+      "constraints": {
+        "minimum": 0,
+        "maximum": 1
+      }
     }
   ],
   "primaryKey": [

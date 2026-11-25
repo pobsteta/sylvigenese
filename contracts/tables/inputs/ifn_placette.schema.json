@@ -1,9 +1,9 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "IFN brut, PLACETTE.csv",
-  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises. Coordonnées floutées (environ 700 m), Lambert-93.",
+  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises. Coordonnées floutées (environ 700 m), Lambert-93. Une ligne par point et par visite : la 2e visite garde l'IDP de la 1re et sa campagne vaut celle de la 1re plus 5 (docs/referentiels/ifn-dynamique.md §1 et §2). Les colonnes d'incident et de prélèvement sont facultatives (années de validité dans ifn-dynamique-colonnes.csv) ; leur absence est signalée par prepare.",
   "x-schema-version": "0.1",
-  "x-names-fixed-by": "IFN, données brutes ; sylvostation R/placettes.R:109-112",
+  "x-names-fixed-by": "IFN, données brutes ; docs/referentiels/ifn-dynamique-colonnes.csv ; sylvostation R/placettes.R:109-112",
   "fieldsMatch": "subset",
   "fields": [
     {
@@ -13,6 +13,15 @@
       "constraints": {
         "required": true,
         "minLength": 1
+      }
+    },
+    {
+      "name": "CAMPAGNE",
+      "type": "integer",
+      "description": "campagne annuelle d'inventaire (ifn-dynamique-colonnes.csv, ligne CAMPAGNE) ; la 2e visite d'un point est à la campagne de la 1re plus 5",
+      "constraints": {
+        "required": true,
+        "minimum": 2005
       }
     },
     {
@@ -31,6 +40,73 @@
       "x-unit": "m",
       "constraints": {
         "required": true
+      }
+    },
+    {
+      "name": "VISITE",
+      "type": "integer",
+      "description": "protocole de visite : 1 = 1re visite (relevé complet), 2 = 2e visite (relevé partiel) (ifn-dynamique-colonnes.csv, ligne VISITE ; metadonnees.csv l. 179)",
+      "constraints": {
+        "required": true,
+        "enum": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "DATEPOINT",
+      "type": "string",
+      "description": "date de validation de la placette, JJ/MM/AAAA, quelle que soit la visite (ifn-dynamique-colonnes.csv, ligne DATEPOINT ; metadonnees.csv l. 47) ; vide ou absente : l'intervalle est supposé de 5 ans et prepare le dit",
+      "x-optional": true,
+      "constraints": {
+        "pattern": "[0-3][0-9]/[0-1][0-9]/[0-9]{4}"
+      }
+    },
+    {
+      "name": "NINCID",
+      "type": "integer",
+      "description": "nature d'un incident des 5 ans avant la 1re visite : 0 aucun, 1 incendie, 2 mortalité, 3 mouvement de terrain, 4 tempête, 5 autre (ifn-dynamique-colonnes.csv, ligne NINCID ; depuis 2015)",
+      "x-optional": true,
+      "constraints": {
+        "minimum": 0,
+        "maximum": 5
+      }
+    },
+    {
+      "name": "INCID",
+      "type": "integer",
+      "description": "intensité de cet incident : 0 aucun dégât, 1 moins de 25 %, 2 de 25 à 50 %, 3 de 50 à 75 %, 4 plus de 75 % du couvert (ifn-dynamique-colonnes.csv, ligne INCID ; depuis 2009)",
+      "x-optional": true,
+      "constraints": {
+        "minimum": 0,
+        "maximum": 4
+      }
+    },
+    {
+      "name": "PRELEV5",
+      "type": "string",
+      "description": "coupe entre les deux visites (ifn-dynamique-colonnes.csv, ligne PRELEV5) : AUCUNE modalité documentée par l'export, renseignée de 2010 à 2014 seulement ; recopiée telle quelle, sans interprétation",
+      "x-optional": true
+    },
+    {
+      "name": "DEF5",
+      "type": "integer",
+      "description": "défrichement entre les deux visites : 0 aucun, 1 à 5 selon l'étendue (ifn-dynamique-colonnes.csv, ligne DEF5 ; depuis 2017)",
+      "x-optional": true,
+      "constraints": {
+        "minimum": 0,
+        "maximum": 5
+      }
+    },
+    {
+      "name": "INSTP5",
+      "type": "integer",
+      "description": "installation de peuplement entre les deux visites : 0 pas de travaux, 1 plantation ou semis (ifn-dynamique-colonnes.csv, ligne INSTP5 ; depuis 2015)",
+      "x-optional": true,
+      "constraints": {
+        "minimum": 0,
+        "maximum": 1
       }
     }
   ],
