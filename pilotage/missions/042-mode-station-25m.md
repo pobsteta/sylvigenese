@@ -18,3 +18,10 @@
 
 - testthat : un cas à majorité nette, un cas à égalité départagé par le centre et signalé, un cas aux bords ; même sortie quelle que soit la version de GDAL (la règle n'appelle pas `resample(method = "mode")`).
 - `test_m3_amont` à l'égalité exacte sur species et d130.
+
+## Reprises jointes (seconde relecture de la PR n° 8)
+
+- `tests/m3/helpers_m3.py` : ne plus lire à l'import `tests/fixtures/zone_fictive/chm_date.tif` (sortie ignorée par git) ; lire la date dans `tests/m3/reference/entrees/chm_date.tif`.
+- Test du MANIFEST détaché de la fixture de 100 ans, et refus d'un fichier en trop sous `entrees/`.
+- `docs/spec.md` §5 : « environ 10 % » au-dessus du plafond contre 45 % mesurés (§6) — dire l'écart en un seul endroit, renvoyé à M3b.
+- Fiche 031, ligne 37 : renvoi à 039 au lieu de 033.
