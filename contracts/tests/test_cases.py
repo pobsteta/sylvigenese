@@ -332,6 +332,8 @@ CASES = {
     "post.summary": (table("summary.parquet", h.summary, set_first("volume_m3_ha", -1.0)),
                      r"volume_m3_ha"),
     "assets.tree_model": (tree_model, r"version 2"),
+    "assets.gltf": (document("feuillu.gltf", h.gltf_json,
+                             lambda d: d["extras"].update(generique=False), h.write_json), r"generique"),
     "assets.tileset": (document("tileset.json", h.tileset,
                                 lambda d: d["asset"].update(version="1.0"), h.write_json),
                        r"asset.version"),
@@ -375,3 +377,20 @@ def test_faulty_file_is_refused(name, tmp_path, capsys):
     code, out = run(capsys, [name, str(path)] + extra)
     assert code == 3, out
     assert re.search(CASES[name][1], out), out
+
+
+def test_cell_sheet_accepts_empty_volume_and_carbon_with_a_note(tmp_path, capsys):
+    """Mission 028 : volume et carbone vides (null) sont admis, avec H0, densité et notes."""
+    sheet = h.cell_sheet()
+    year = sheet["cells"][0]["years"][0]
+    year.update(volume_m3_ha=None, carbon_t_ha=None, h0_m=26.9, density_trees_ha=112.0,
+                notes=["volume et carbone non calculés (post)"])
+    code, out = run(capsys, ["cell_sheet", str(h.write_json(tmp_path / "t_0_0.json", sheet))])
+    assert code == 0, out
+
+
+def test_cell_sheet_still_refuses_a_negative_volume(tmp_path, capsys):
+    sheet = h.cell_sheet()
+    sheet["cells"][0]["years"][0]["volume_m3_ha"] = -1.0
+    code, out = run(capsys, ["cell_sheet", str(h.write_json(tmp_path / "t_0_0.json", sheet))])
+    assert code == 3 and "volume_m3_ha" in out, out

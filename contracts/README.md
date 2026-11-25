@@ -179,8 +179,9 @@ contrat de l'orchestrateur, par délégation de Pascal), en `schema_version` 0.1
 | `post.summary` | `cell_id`, `year`, `species`, `volume_m3_ha`, `biomass_t_ha`, `carbon_t_ha`, `provisoire` |
 | `simulate.run` (`sim/run.json`) | `schema_version`, `level`, `seed`, `t0`, `years`, `threads`, `zeroed_values`, `provisional_share` ; facultatifs : `memory_estimate_bytes`, `duration_s`, `config_sha256` |
 | `config` (`config.yml`) | `schema_version`, `zone`, `crs`, `grid.resolution_m`, `management` ; facultatifs : `external.tarif_nemeton_dir`, `external.raf20_grid`, `simulate.{level, seed, t0, years, threads}` ; toute autre clé est refusée |
-| `assets.cell_sheet` (`web/cells/<tuile>.json`) | `schema_version`, `tile`, `cells[].{cell_id, x, y, station_type, vegetation_type, years[].{year, provisoire, composition[].{species, share}, volume_m3_ha, carbon_t_ha}}` |
+| `assets.cell_sheet` (`web/cells/<tuile>.json`) | `schema_version`, `tile`, `cells[].{cell_id, x, y, station_type, vegetation_type, years[].{year, provisoire, composition[].{species, share}, volume_m3_ha, carbon_t_ha}}` ; facultatifs par année : `h0_m`, `density_trees_ha`, `notes[]` ; `volume_m3_ha` et `carbon_t_ha` valent `null` quand ils ne sont pas calculés (état initial : `post` vient après la simulation), et `notes` le dit |
 | `assets.massif_block` (`massif/<bloc>.json`) | `schema_version`, `block_id`, `year`, `crs`, `vertical_datum` (`NGF-IGN69`), `origin.{x, y, z}`, `trees[].{tree_id, species, stage, x, y, z, h, d130, hcb, cw}` (positions relatives à l'origine) |
+| `assets.gltf` (`assets/trees/*.gltf`, `tiles/*/*.gltf`) | glTF 2.0 en JSON avec `.bin` externe (pas de `.glb` pour le contenu de tuile, référentiel iTowns point A) : `asset.version` = `2.0`, `scenes`, `nodes`, `meshes`, `buffers[].uri` en `.bin`, `extras.{generique, provisoire}` vrais ; contrôle de forme seulement (glTF-Validator : M4) |
 | `assets.tree_model` | nom `<species>_<stage>.glb` (BRIEF §4) |
 | énumération `stage` (`json/enums/stage.json`, **provisoire**) | `young`, `pole`, `mature`, `old` |
 

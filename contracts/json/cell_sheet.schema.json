@@ -42,8 +42,11 @@
                     }
                   }
                 },
-                "volume_m3_ha": {"type": "number", "minimum": 0},
-                "carbon_t_ha": {"type": "number", "minimum": 0}
+                "volume_m3_ha": {"description": "null = non calculé (post, après la simulation) ; la fiche le dit dans notes", "type": ["number", "null"], "minimum": 0},
+                "carbon_t_ha": {"description": "null = non calculé (post, après la simulation) ; la fiche le dit dans notes", "type": ["number", "null"], "minimum": 0},
+                "h0_m": {"description": "hauteur dominante de la cellule (h0.tif), m", "type": "number", "minimum": 0},
+                "density_trees_ha": {"description": "arbres détectés par hectare", "type": "number", "minimum": 0},
+                "notes": {"description": "mentions affichées avec la fiche (valeurs vides, statut provisoire)", "type": "array", "items": {"type": "string", "minLength": 1}}
               }
             }
           }

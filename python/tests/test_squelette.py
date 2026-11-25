@@ -6,6 +6,7 @@ d'intégration appelle le vrai validateur : rouge tant que `contracts/validate`
 """
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +25,14 @@ def faux_validateur(dossier: Path, code: int) -> Path:
     chemin = dossier / "validate"
     chemin.write_text(f"import sys\nsys.exit({code})\n", encoding="utf-8")
     return chemin
+
+
+def racine_temporaire(tmp_path: Path) -> Path:
+    """Racine d'essai : copie du jeu fictif, sans les sorties d'assets (le dépôt n'est pas écrit)."""
+    cible = tmp_path / "racine" / "tests" / "fixtures" / "zone_fictive"
+    shutil.copytree(RACINE / "tests" / "fixtures" / "zone_fictive", cible,
+                    ignore=shutil.ignore_patterns("tiles", "web", "assets", "sim"))
+    return tmp_path / "racine"
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +55,8 @@ def test_lire_config_absent():
 @pytest.mark.parametrize("module", MODULES)
 def test_sortie_0_si_le_validateur_dit_0(module, tmp_path, monkeypatch):
     monkeypatch.setenv("SYLVIGENESE_VALIDATE", str(faux_validateur(tmp_path, 0)))
+    if module is assets:  # assets écrit ses sorties : racine temporaire, pas le dépôt
+        monkeypatch.setenv("SYLVIGENESE_ROOT", str(racine_temporaire(tmp_path)))
     assert module.main(["--config", str(CONFIG)]) == 0
 
 
@@ -72,9 +83,11 @@ def test_sortie_2_si_argument_inconnu():
 
 
 @pytest.mark.parametrize("nom", ["import_tarif", "post", "assets"])
-def test_integration_en_ligne_de_commande_avec_le_vrai_validateur(nom):
+def test_integration_en_ligne_de_commande_avec_le_vrai_validateur(nom, tmp_path):
     # Rouge tant que contracts/validate (mission 009) est absent de l'arbre.
     env = {**os.environ, "PYTHONPATH": str(RACINE / "python")}
+    if nom == "assets":  # racine temporaire : le dépôt n'est pas écrit
+        env["SYLVIGENESE_ROOT"] = str(racine_temporaire(tmp_path))
     resultat = subprocess.run(
         [sys.executable, "-m", f"sylvigenese.{nom}", "--config", str(CONFIG)],
         cwd=RACINE, env=env, capture_output=True, text=True,

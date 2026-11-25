@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:gltf",
+  "title": "glTF 2.0 en JSON (.gltf + .bin externe) : modèles d'arbres génériques et contenus de tuiles (assets)",
+  "description": "Contrôle de forme minimal (glTF 2.0, spécification Khronos) : version, scène, nœuds, maillage et tampon externe. Contenu en .gltf et non .glb à cause du gestionnaire d'iTowns (docs/referentiels/itowns-instancing.md, point A). La validation complète par le glTF-Validator de Khronos reste à faire (M4).",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["asset", "scenes", "nodes", "meshes", "buffers", "bufferViews", "accessors"],
+  "properties": {
+    "asset": {"type": "object", "required": ["version"], "properties": {"version": {"const": "2.0"}}},
+    "scene": {"type": "integer", "minimum": 0},
+    "scenes": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["nodes"], "properties": {"nodes": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 0}}}}},
+    "nodes": {"type": "array", "minItems": 1},
+    "meshes": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["primitives"]}},
+    "buffers": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["uri", "byteLength"], "properties": {"uri": {"type": "string", "pattern": "[.]bin$"}, "byteLength": {"type": "integer", "minimum": 4}}}},
+    "bufferViews": {"type": "array", "minItems": 1},
+    "accessors": {"type": "array", "minItems": 1},
+    "extensionsUsed": {"type": "array", "items": {"type": "string"}},
+    "extensionsRequired": {"type": "array", "items": {"type": "string"}},
+    "extras": {"type": "object", "required": ["generique", "provisoire"], "properties": {"generique": {"const": true}, "provisoire": {"const": true}}}
+  }
+}

@@ -279,6 +279,11 @@ contracts:
     kind: glb
     options: {name_rule: species_stage}
     paths: [assets/trees/*.glb]
+  assets.gltf:
+    aliases: [gltf]
+    kind: json
+    schema: json/gltf_generic.schema.json
+    paths: [assets/trees/*.gltf, tiles/*/*.gltf]
   assets.tileset:
     aliases: [tileset]
     kind: json
