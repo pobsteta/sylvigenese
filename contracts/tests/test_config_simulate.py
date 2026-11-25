@@ -1,8 +1,8 @@
 """Bloc `simulate` de config.yml (mission 034) : level, seed, t0 et years sont exigés ; threads est facultatif.
 
 Aucune valeur par défaut silencieuse : le schéma refuse un bloc incomplet, et simulate refuse (code 2)
-l'absence du bloc. Le config.yml du dépôt porte le bloc actif (jeu fictif : t0 = 2021, année de vol
-majoritaire de chm_date.tif retenue par assets).
+l'absence du bloc. Le config.yml du dépôt porte le bloc actif (jeu fictif : t0 = 2022, année du vol
+le plus récent de chm_date.tif : la hauteur ne se recule pas, décision de l'orchestrateur du 25/11/2026).
 """
 import copy
 import subprocess
@@ -27,7 +27,7 @@ def run(tmp_path, content):
 def test_config_du_depot_porte_le_bloc_simulate_actif():
     content = yaml.safe_load((ROOT / "config.yml").read_text(encoding="utf-8"))
     assert content["simulate"]["level"] == "massif"
-    assert content["simulate"]["t0"] == 2021          # année de vol majoritaire du jeu fictif (assets)
+    assert content["simulate"]["t0"] == 2022          # année du vol le plus récent du jeu fictif
     assert set(content["simulate"]) >= {"level", "seed", "t0", "years"}
     done = subprocess.run([sys.executable, str(VALIDATE), "config", str(ROOT / "config.yml")], capture_output=True, text=True)
     assert done.returncode == 0, done.stdout + done.stderr
