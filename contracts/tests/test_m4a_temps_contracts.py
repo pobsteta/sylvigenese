@@ -85,6 +85,16 @@ def test_cell_sheet_v2_accepts_a_cell_without_stem_and_an_unknown_ceiling(tmp_pa
     assert code == 0, out
 
 
+def test_cell_sheet_v2_accepts_a_null_h_dom_m_with_stems(tmp_path, capsys):
+    """I3 (relecture de la PR n° 9) : h_dom_m null est conforme, même avec des tiges (hauteur dominante non finie) ;
+    c'est assets qui refuse ce cas à l'écriture, le contrat de la fiche n'a pas à le faire."""
+    sheet = h.cell_sheet_v2()
+    year0(sheet)["h_dom_m"] = None
+    assert year0(sheet)["stems_ha"] > 0
+    code, out = run(capsys, ["cell_sheet", str(sheet_path(tmp_path, sheet))])
+    assert code == 0, out
+
+
 V2_FAULTS = [
     # (nom du cas, changement, motif attendu dans le message)
     ("source not sim", lambda d: d.update(source="trees_init"), r"source"),
@@ -331,3 +341,24 @@ def test_cells_with_an_infinite_h_dom_m_are_refused(tmp_path, capsys):
     path = h.hive(tmp_path / "cells", cells_with_hdom([25.0, float("inf"), 3.0]))
     code, out = run(capsys, ["sim_cells", str(path)])
     assert code == 3 and re.search(r"h_dom_m|infini|NaN", out), out
+
+
+# ------------------------------------------------------------------ tree_id : jamais des chiffres seuls (I4)
+
+def sim_trees_with_ids(tmp_path, ids):
+    data = h.sim_trees()
+    data["tree_id"] = ids
+    return h.hive(tmp_path / "trees", data)
+
+
+@pytest.mark.parametrize("ids", [["T0001_0307", "r12_2030_3"], ["T1", "a"], ["1a", "12_3"]])
+def test_sim_trees_tree_id_with_a_non_digit_is_conform(ids, tmp_path, capsys):
+    code, out = run(capsys, ["simulate.trees", str(sim_trees_with_ids(tmp_path, ids))])
+    assert code == 0, out
+
+
+@pytest.mark.parametrize("ids", [["T1", "12345"], ["0307", "T2"]])
+def test_sim_trees_tree_id_of_digits_only_is_refused(ids, tmp_path, capsys):
+    code, out = run(capsys, ["simulate.trees", str(sim_trees_with_ids(tmp_path, ids))])
+    assert code == 3, out
+    assert re.search(r"tree_id.*motif", out), out

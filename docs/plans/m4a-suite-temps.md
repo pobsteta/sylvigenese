@@ -304,3 +304,32 @@ par l'API, et images par seconde relevées) soit prouvé.
   `OGC3DTilesLayer` à chaud n'est pas éprouvé. D commence par cet essai.
 - **Mémoire de `assets`** : 2 millions de points à N = 10, tenus année par année et jamais tous à la
   fois.
+
+- **Comptes de tests avant et après le découpage de la CI (relevé de la mission 049, reprise de la relecture de
+  la PR n° 9, M2).** Méthode : `pytest --collect-only -q` par suite sur une copie `git archive e6e20ed` (avant :
+  fusion de M3a, CI en un seul job) et une copie `git archive HEAD` de la branche avant la mission 049 (après :
+  044 à 048, CI découpée par 043) ; tests cargo listés par `cargo test --locked -- --list` ; tests node par
+  `node --test test/*.test.ts`. Les huit suites pytest sont celles de `run_tests.sh` (sections `contrats`,
+  `m1`, `m2`, `m4`, `m3`) : aucune n'a été perdue au découpage.
+
+  | Suite | e6e20ed (avant) | HEAD (après) | Écart | Cause |
+  |---|---:|---:|---:|---|
+  | `tests/m1` | 143 | 143 | 0 | |
+  | `tests/m2` | 93 | 93 | 0 | |
+  | `tests/m3` | 178 | 187 | +9 | 045 : `test_m3_hdom.py` (h_dom_m de chaque année égale à celle du moteur) |
+  | `tests/m4` | 83 | 191 | +108 | 045 : sept fichiers `test_m4t_*` (charge 5, fiches 18, index 14, instances 15, rasters 10, refus 34, vue 12) |
+  | `contracts/tests` | 398 | 494 | +96 | 044 : `test_m4a_temps_contracts.py` (91) ; cas `assets.basal_area_raster` et `assets.tiles_index` dans `test_cases.py` (+4, un conforme et un fautif chacun) ; schéma `tiles_index` au catalogue (+1 dans `test_catalog.py`) |
+  | `python/tests` | 66 | 94 | +28 | 047 : `test_assets_sim.py` (26) ; `test_assets.py` (+2, mêmes refus pour `sim/`) |
+  | `tools/fixtures/tests` | 27 | 27 | 0 | |
+  | `tests/contracts` | 113 | 113 | 0 | |
+  | **Total pytest** | **1 101** | **1 342** | **+241** | 9 + 108 + 96 + 28 |
+  | cargo (`simulate`) | 171 | 175 | +4 | 046 : deux tests `non_regression` (h_dom_m), listés chacun deux fois par `--list` |
+  | node (`viewer-web`) | 21 | 36 | +15 | 048 : `test/temps.test.ts` |
+
+  - **La mission 043 n'a ajouté ni retiré aucun test** : ses commits (`1ab0605`, `b9dfc8b`, `ea5348b`,
+    `85d2430`) ne touchent que `ci.yml`, `run_tests.sh`, le journal et la fiche. Tout l'écart vient des missions
+    044 à 048. La CI découpée lance les mêmes chemins qu'avant.
+  - `tests/m3` à e6e20ed ne se collecte pas sur une copie `git archive` nue : un module lit `chm_date.tif`, fichier
+    généré, absent de l'archive. Il a fallu y copier ce fichier (celui du dépôt de travail) pour compter 178.
+  - Après la mission 049 : `contracts/tests` 500 (+6 : cas h_dom_m null, tree_id), `python/tests` 96 (+2 : I2),
+    node 38 (+2 : M1) ; le reste est inchangé.

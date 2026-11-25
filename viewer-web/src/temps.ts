@@ -297,3 +297,48 @@ export function formatEvolution(c: CellV2, year: number, fileNotes: string[]): D
     command: massifViewerCommand(c.x, c.y, a.year),
   };
 }
+
+// ---------------------------------------------------------------- couches d'arbres (revue de la PR n° 9, M1)
+// Règle : jamais plus de deux couches d'arbres en mémoire : celle qui est affichée, et celle en cours de chargement.
+// Quand un nouvel appel abandonne un chargement en cours, la couche abandonnée est retirée AVANT d'en ajouter une autre
+// (avant, elle n'était retirée qu'au tick suivant, 300 ms plus tard : trois couches possibles).
+// Le code navigateur appelle ces méthodes et retire (dispose) les couches rendues ; rien d'autre ici que du comptage.
+export class TreeLayerSlots<L> {
+  shown: L | null = null;
+  loading: L | null = null;
+
+  /** À appeler juste avant d'ajouter une nouvelle couche : rend la couche abandonnée à retirer d'abord (ou rien). */
+  beforeAdd(): L[] {
+    const dropped = this.loading === null ? [] : [this.loading];
+    this.loading = null;
+    return dropped;
+  }
+
+  /** La nouvelle couche est ajoutée (en cours de chargement). */
+  added(layer: L): void {
+    if (this.loading !== null) throw new Error("beforeAdd() doit être appelé et ses couches retirées avant added()");
+    this.loading = layer;
+  }
+
+  /** Le chargement de `layer` est fini : elle devient la couche affichée ; rend l'ancienne à retirer. Une couche
+   *  déjà abandonnée ne remplace rien (rend alors elle-même, si elle n'a pas été retirée). */
+  commit(layer: L): L[] {
+    if (this.loading !== layer) return [];
+    const old = this.shown;
+    this.shown = layer;
+    this.loading = null;
+    return old === null ? [] : [old];
+  }
+
+  /** Le chargement de `layer` est abandonné ou en échec : rend la couche à retirer si elle ne l'a pas déjà été. */
+  abandon(layer: L): L[] {
+    if (this.loading !== layer) return [];
+    this.loading = null;
+    return [layer];
+  }
+
+  /** Nombre de couches d'arbres actuellement gardées. */
+  get count(): number {
+    return (this.shown === null ? 0 : 1) + (this.loading === null ? 0 : 1);
+  }
+}

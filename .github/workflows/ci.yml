@@ -529,10 +529,12 @@ jobs:
 
       # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
       # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
-      - name: Tests (run_tests.sh m4)
+      # validate après m4 : le validateur voit aussi les sorties d'assets (tuiles, web/), que le job m3 ne produit pas.
+      # (validate reste aussi dans le job m3, qui valide le jeu fictif régénéré.)
+      - name: Tests (run_tests.sh m4 validate)
         run: |
-          echo "### Durées des sections (m4)" >> "$GITHUB_STEP_SUMMARY"
-          bash tools/ci/run_tests.sh m4
+          echo "### Durées des sections (m4 validate)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh m4 validate
 
 
   # Vérifie seulement que Godot 4.6 et Playwright s'installent (spec §11, M0).

@@ -84,7 +84,7 @@
     {
       "name": "h_dom_m",
       "type": "number",
-      "description": "hauteur dominante de la cellule pour l'année (décision de Pascal Q1, 25/11/2026), même valeur sur toutes les lignes (essences) d'une même cellule et d'une même année (non vérifié par le contrat) ; jamais corrigée au plafond de la station ; colonne FACULTATIVE tant que simulate (mission 046) ne l'écrit pas : la fiche de cellule v2 l'exige, et assets refuse un sim/ sans elle. Début ou fin d'année : à écrire par la mission 046, dans ce champ",
+      "description": "hauteur dominante de la cellule à la FIN de l'année (décision de Pascal Q1, 25/11/2026), même valeur sur toutes les lignes (essences) d'une même cellule et d'une même année (non vérifié par le contrat) ; jamais corrigée au plafond de la station ; null si la hauteur dominante n'est pas finie. simulate l'écrit depuis la mission 046 ; la colonne reste FACULTATIVE dans le contrat (un sim/ plus ancien la lit absente), mais la fiche de cellule v2 l'exige et assets refuse un sim/ sans elle ; assets refuse aussi une cellule qui a des tiges vivantes et un h_dom_m null",
       "x-optional": true,
       "x-unit": "m",
       "constraints": {

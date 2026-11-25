@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 
@@ -220,11 +221,17 @@ def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], re
     return docs, counts, g_maps
 
 
+def h_missing(heights: set) -> bool:
+    """Vrai si la hauteur dominante lue est absente (null, ou NaN lu par pyarrow comme valeur)."""
+    return len(heights) == 1 and all(h is None or (isinstance(h, float) and math.isnan(h)) for h in heights)
+
+
 def year_entry_v2(rows: list[dict], year: int, cid: int) -> dict:
     """Une année de la fiche v2 depuis les lignes de sim/cells d'une cellule (contrat cell_sheet, year_v2).
 
     Sans ligne : aucun arbre vivant (tiges et G à 0, d130 moyen et h_dom_m null, composition vide ; contrat
-    simulate.cells). Une h_dom_m qui diffère d'une essence à l'autre de la même cellule est refusée : on ne choisit pas.
+    simulate.cells). Des tiges vivantes avec une h_dom_m null sont refusées, cause nommée : la fiche ne les montre
+    jamais comme « aucun arbre vivant » (relecture de la PR n° 9, I2). Une h_dom_m qui diffère d'une essence à l'autre de la même cellule est refusée : on ne choisit pas.
     """
     rows = sorted(rows, key=lambda r: str(r["species"]))
     stems = sum(float(r["stems_ha"]) for r in rows)
@@ -235,6 +242,10 @@ def year_entry_v2(rows: list[dict], year: int, cid: int) -> dict:
     if len(heights) > 1:
         raise ModuleError(f"sim/cells, année {year}, cellule {cid} : h_dom_m diffère d'une essence à l'autre "
                           f"({sorted(map(str, heights))}) ; une seule hauteur dominante par cellule est attendue")
+    if h_missing(heights) and stems > 0:
+        raise ModuleError(f"sim/cells, année {year}, cellule {cid} : {stems:g} tiges/ha vivantes mais h_dom_m est null "
+                          "(hauteur dominante non finie dans simulate) ; refusé : la fiche ne dirait pas « aucun arbre "
+                          "vivant » pour une cellule qui a des arbres")
     composition = [{"species": str(r["species"]), "stems_ha": float(r["stems_ha"]),
                     "basal_area_m2_ha": float(r["basal_area_m2_ha"]),
                     "share": float(r["stems_ha"]) / stems if stems > 0 else 0.0} for r in rows]

@@ -196,6 +196,15 @@ def test_h_dom_m_differente_entre_essences_est_refusee():
         cell_sheets.year_entry_v2(rows, 2032, 7)
 
 
+def test_tiges_vivantes_avec_h_dom_m_null_refusees_jamais_aucun_arbre_vivant():
+    rows = [{"species": "61", "stems_ha": 48.0, "basal_area_m2_ha": 10.1, "d130_mean": 40.0, "h_dom_m": None}]
+    with pytest.raises(ModuleError, match=r"cellule 7.*48 tiges/ha vivantes.*h_dom_m est null") as err:
+        cell_sheets.year_entry_v2(rows, 2032, 7)
+    assert "aucun arbre vivant" in str(err.value)   # la cause dit ce qu'elle refuse d'afficher
+    # aucune ligne : c'est bien « aucun arbre vivant », et rien n'est refusé
+    assert cell_sheets.year_entry_v2([], 2032, 7)["h_dom_m"] is None
+
+
 # ---------------------------------------------------------------- bout en bout sur un sim/ synthétique
 
 def test_index_annees_instances_et_morts(sim_zone):
@@ -326,6 +335,15 @@ def test_sans_h_dom_m_refuse(fresh):
     p = fresh / "sim" / "cells" / "year=2022" / "part-00000.parquet"
     pq.write_table(pq.read_table(p).drop_columns(["h_dom_m"]), p)
     with pytest.raises(ModuleError, match="h_dom_m"):
+        produce(fresh)
+
+
+def test_tiges_avec_h_dom_m_null_refusees_en_code_2(fresh):
+    p = fresh / "sim" / "cells" / "year=2022" / "part-00000.parquet"
+    t = pq.read_table(p)
+    nulls = pa.array([None] * t.num_rows, pa.float64())
+    pq.write_table(t.set_column(t.schema.get_field_index("h_dom_m"), "h_dom_m", nulls), p)
+    with pytest.raises(ModuleError, match="h_dom_m est null"):   # ModuleError = code de sortie 2 (common.py)
         produce(fresh)
 
 

@@ -287,8 +287,14 @@
     25/11/2026) ;
   - `massif/*.json` reste en NGF-IGN69, avec son origine locale.
 - **Rasters web** : COG avec aperçus.
-- **Fiche de cellule** : `web/cells/<tuile>.json`.
-- **`config.yml`** : JSON Schema.
+- **Fiche de cellule** : `web/cells/<tuile>.json`. La fiche v1 (état initial) et la fiche v2 (vue dans le
+  temps : une entrée par année retenue, `h_dom_m`, `h_ceiling_m`, composition, signalements) sont décrites par
+  `contracts/json/cell_sheet.schema.json`.
+- **Index des tuiles** : `tiles/index.json` (années retenues, instances vivantes par année et par tuile, échelle
+  fixe de la carte de surface terrière) ; contrat `contracts/json/tiles_index.schema.json`. La carte de surface
+  terrière par année, `g_<année>.tif`, suit le profil GeoTIFF ci-dessus.
+- **`config.yml`** : JSON Schema (`contracts/json/config.schema.json`) ; le pas des années retenues par `assets`
+  est `assets.year_step`.
 
 ## 10. Statut « provisoire »
 

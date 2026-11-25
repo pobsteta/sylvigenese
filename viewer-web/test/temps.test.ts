@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { SheetError, indexSheets } from "../src/sheet.ts";
 import {
   chooseYear, format1, formatEvolution, indexTiles, indexYear, indexYears, legendTicks, neighbourYear,
-  positionOfYear, rampColor, readTilesIndex, sheetNotes, yearAtPosition, yearLabel,
+  positionOfYear, rampColor, readTilesIndex, sheetNotes, TreeLayerSlots, yearAtPosition, yearLabel,
   type CellV2, type TileSheetsV2,
 } from "../src/temps.ts";
 
@@ -158,4 +158,41 @@ test("dès que sim/ existe, la vue n'accepte que des fiches v2", () => {
   assert.equal(indexSheets([v2], 2).get(820)?.h_ceiling_m, 28);
   assert.throws(() => indexSheets([{ schema_version: 1, tile: "t", cells: [] }], 2), /schema_version 2 attendu/);
   assert.throws(() => indexSheets([v2], 1), /schema_version 1 attendu/);
+});
+
+// Revue de la PR n° 9, M1 : jamais plus de deux couches d'arbres, même lors d'un changement d'année rapide.
+test("couches d'arbres : une année abandonnée est retirée avant que la suivante soit ajoutée", () => {
+  const slots = new TreeLayerSlots<string>();
+  const alive = new Set<string>(); // ce que la scène garde réellement
+  let peak = 0;
+  const load = (name: string) => {
+    for (const d of slots.beforeAdd()) alive.delete(d);
+    slots.added(name);
+    alive.add(name);
+    peak = Math.max(peak, alive.size);
+    assert.equal(alive.size, slots.count);
+  };
+  load("2022");
+  for (const d of slots.commit("2022")) alive.delete(d); // 2022 affichée
+  load("2032"); // en chargement
+  load("2037"); // changement d'année rapide : 2032 abandonnée, retirée avant l'ajout de 2037
+  load("2042");
+  assert.ok(peak <= 2, `pic de ${peak} couches`);
+  assert.deepEqual([...alive].sort(), ["2022", "2042"]);
+  // le tail de la charge abandonnée ne retire rien une seconde fois ni ne remplace la couche affichée
+  assert.deepEqual(slots.abandon("2032"), []);
+  assert.deepEqual(slots.commit("2037"), []);
+  assert.equal(slots.shown, "2022");
+  // la dernière gagne : 2042 remplace 2022, qui est rendue pour être retirée
+  assert.deepEqual(slots.commit("2042"), ["2022"]);
+  assert.equal(slots.shown, "2042");
+  assert.equal(slots.count, 1);
+});
+
+test("couches d'arbres : une couche en échec est rendue une seule fois", () => {
+  const slots = new TreeLayerSlots<string>();
+  slots.added("2032");
+  assert.deepEqual(slots.abandon("2032"), ["2032"]);
+  assert.deepEqual(slots.abandon("2032"), []);
+  assert.equal(slots.count, 0);
 });

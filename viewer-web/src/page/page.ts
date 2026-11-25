@@ -14,7 +14,7 @@ import {
 } from "../sheet.ts";
 import {
   chooseYear, formatEvolution, indexTiles, indexYear, legendTicks, neighbourYear, positionOfYear, rampColor, rampCss,
-  readTilesIndex, yearAtPosition, yearLabel, MENTION_ECO,
+  readTilesIndex, yearAtPosition, yearLabel, MENTION_ECO, TreeLayerSlots,
   type CellV2, type TileSheetsV2, type TilesIndex,
 } from "../temps.ts";
 
@@ -559,7 +559,8 @@ async function startViewer(): Promise<void> {
 
   // ------------------------------------------------------------ arbres : une couche par année, une seule gardée
   type TreesLayer = itowns.OGC3DTilesLayer & { tilesRenderer: { group: THREE.Object3D; stats: Record<string, number> } };
-  let trees: TreesLayer | null = null;
+  const slots = new TreeLayerSlots<TreesLayer>(); // jamais plus de deux couches : l'affichée et celle en chargement
+  let adding: Promise<unknown> = Promise.resolve();
   let loadToken = 0;
   const sched = (view as unknown as { mainLoop: { scheduler: { commandsWaitingExecutionCount: () => number; commandsRunningCount: () => number } } }).mainLoop.scheduler;
   const groundLoaded = () => sched.commandsWaitingExecutionCount() + sched.commandsRunningCount() === 0;
@@ -568,7 +569,7 @@ async function startViewer(): Promise<void> {
     return (a === firstYear ? firstTileset : await json<Tileset>(tilesetUrlOf(a))).extras?.instances ?? null;
   };
   const refreshCount = () => {
-    const c = trees ? countInstances(trees.tilesRenderer.group) : { drawn: 0, loaded: 0, meshes: 0 };
+    const c = slots.shown ? countInstances(slots.shown.tilesRenderer.group) : { drawn: 0, loaded: 0, meshes: 0 };
     state.instanceCount = c.drawn;
     state.meshesInstancies = c.meshes;
     $("etat-arbres").textContent = `Arbres dessinés : ${c.drawn.toLocaleString("fr-FR")}${state.ready ? "" : " (chargement…)"}`;
@@ -608,13 +609,18 @@ async function startViewer(): Promise<void> {
     state.instancesAttendues = expected;
     await swapBasalArea(a, token);
     if (token !== loadToken) return;
+    await adding.catch(() => undefined); // une couche encore en train de s'ajouter ne se retire pas en cours de route
+    if (token !== loadToken) return;
+    for (const abandoned of slots.beforeAdd()) dropTrees(abandoned); // retirée avant d'en ajouter une autre
     const layer = new itowns.OGC3DTilesLayer(`arbres-${a}-${token}`, {
       source: new itowns.OGC3DTilesSource({ url: tilesetUrlOf(a) }), sseThreshold: 2,
     } as never) as TreesLayer;
     const group = layer.tilesRenderer.group;
-    if (trees) group.visible = false; // chargée en retrait : l'ancienne année reste à l'écran
-    await view.addLayer(layer);
-    state.tilesetsEnMemoire = trees ? 2 : 1;
+    if (slots.shown) group.visible = false; // chargée en retrait : l'ancienne année reste à l'écran
+    slots.added(layer);
+    adding = view.addLayer(layer);
+    await adding;
+    state.tilesetsEnMemoire = slots.count;
     let stable = 0;
     await new Promise<void>((done, fail) => {
       const timer = setInterval(() => {
@@ -634,12 +640,10 @@ async function startViewer(): Promise<void> {
         }
       }, 300);
     });
-    if (token !== loadToken) { dropTrees(layer); return; }
+    if (token !== loadToken) { for (const l of slots.abandon(layer)) dropTrees(l); return; }
     group.visible = true;
-    const old = trees;
-    trees = layer;
-    if (old) dropTrees(old);
-    state.tilesetsEnMemoire = 1;
+    for (const old of slots.commit(layer)) dropTrees(old);
+    state.tilesetsEnMemoire = slots.count;
     view.notifyChange(view.camera3D);
     refreshCount();
     state.chargementMs = Math.round(performance.now() - started);
