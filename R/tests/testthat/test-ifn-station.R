@@ -153,10 +153,11 @@ test_that("jeu fictif : coarse_* égales au calcul indépendant, 2e visite = 1re
   p <- res$plots
   sg <- terra::rast(file.path(zone, "inputs", "station_gradients.tif"))
   xy <- terra::xyFromCell(sg, seq_len(terra::ncell(sg)))
-  # placettes dont le disque touche le raster (les autres restent vides, et sont comptées)
-  avec <- which(!is.na(p$coarse_hydric_700m))
-  expect_gt(length(avec), 0)
-  for (k in c(utils::head(avec, 3), utils::tail(avec, 1))) {
+  # jeu fictif : toutes les placettes ont des mailles de station dans leur disque (mission 023)
+  expect_false(anyNA(p$coarse_hydric_700m))
+  expect_false(anyNA(p$coarse_bioclim_700m))
+  idx <- seq_len(nrow(p))
+  for (k in unique(c(utils::head(idx, 3), utils::tail(idx, 1)))) {
     d2 <- (xy[, 1] - p$x[k])^2 + (xy[, 2] - p$y[k])^2 <= 700^2
     for (b in c("hydric", "bioclim")) {
       v <- terra::values(sg[[b]])[d2]
@@ -164,14 +165,8 @@ test_that("jeu fictif : coarse_* égales au calcul indépendant, 2e visite = 1re
                    info = paste(p$plot_id[k], b))
     }
   }
-  # une placette sans aucune maille dans son disque : vide, jamais complétée
-  for (k in which(is.na(p$coarse_hydric_700m))[1:3]) {
-    d2 <- (xy[, 1] - p$x[k])^2 + (xy[, 2] - p$y[k])^2 <= 700^2
-    expect_false(any(d2), info = p$plot_id[k])
-  }
   expect_equal(is.na(p$coarse_bioclim_700m), is.na(p$coarse_hydric_700m))
-  expect_true(all(p$ser_code[!is.na(p$ser_code)] == "H10"))
-  expect_true(any(!is.na(p$ser_code)))
+  expect_true(all(p$ser_code == "H10"))
   v1 <- p$visit == 1L
   i2 <- which(!v1)
   i1 <- match(p$plot_id[i2], p$plot_id[v1])
@@ -185,8 +180,43 @@ test_that("jeu fictif : coarse_* égales au calcul indépendant, 2e visite = 1re
   expect_true(any(grepl("SYNTH", textes)))
   expect_true(any(grepl("assert_no_fine_extract_on_ifn", textes)))
   expect_true(any(grepl("PROVISOIRE", textes)))
-  expect_true(any(grepl("sans valeur indicatrice", textes)))   # 125816 absent de la table fictive
+  # taxons de la flore sans valeur : comptés s'il y en a, sinon le rapport dit qu'il n'y en a pas
+  ind <- utils::read.csv(file.path(zone, "params", "indicator_values.csv"), sep = ";")
+  sans <- setdiff(res$flora$cd_ref, ind$cd_ref[!is.na(ind$reaction) | !is.na(ind$nutrients)])
+  expect_true(any(grepl(if (length(sans)) sprintf("^%d taxon.*sans valeur indicatrice", length(sans))
+                        else "tous les taxons", textes)))
   expect_true(any(grepl("NON convertis", textes)))
+})
+
+test_that("placette dont le disque ne touche aucune maille : coarse_* et ser_code vides, comptés", {
+  zone <- copie_zone_station()
+  # la placette du premier IDP (ses deux visites) est déplacée à 5 km au sud-ouest du massif
+  f <- file.path(zone, "inputs", "ifn", "PLACETTE.csv")
+  pl <- utils::read.table(f, sep = ";", header = TRUE, colClasses = "character", check.names = FALSE)
+  loin <- pl$IDP == pl$IDP[1]
+  pl$XL[loin] <- "695000.0"; pl$YL[loin] <- "6495000.0"
+  utils::write.table(pl, f, sep = ";", row.names = FALSE, quote = FALSE, na = "")
+  rapport <- new_report()
+  avec_racine_st(suppressMessages({
+    res <- prepare_ifn_check(zone, rapport)
+    res <- ifn_station_coarse(res, zone, rapport)
+  }))
+  p <- res$plots
+  vide <- p$plot_id == pl$IDP[1]
+  expect_equal(sum(vide), sum(loin))
+  # calcul indépendant : aucune maille de station_gradients.tif à 700 m ou moins
+  sg <- terra::rast(file.path(zone, "inputs", "station_gradients.tif"))
+  xy <- terra::xyFromCell(sg, seq_len(terra::ncell(sg)))
+  expect_false(any((xy[, 1] - 695000)^2 + (xy[, 2] - 6495000)^2 <= 700^2))
+  expect_true(all(is.na(p$coarse_hydric_700m[vide])))
+  expect_true(all(is.na(p$coarse_bioclim_700m[vide])))
+  expect_true(all(is.na(p$ser_code[vide])))
+  expect_false(anyNA(p$coarse_hydric_700m[!vide]))
+  textes <- vapply(rapport$entries, `[[`, "", "text")
+  ligne <- sprintf("; 1 placette\\(s\\) \\(%d ligne\\(s\\)\\) sans aucune maille dans le disque : coarse_hydric_700m vide",
+                   sum(loin))
+  expect_true(any(grepl(ligne, textes)))
+  expect_true(any(grepl("; 1 placette\\(s\\) sans aucune maille de SER dans le disque", textes)))
 })
 
 test_that("zone sans table de valeurs indicatrices ni grille : colonnes vides, et dit", {
@@ -207,7 +237,10 @@ test_that("zone sans table de valeurs indicatrices ni grille : colonnes vides, e
 test_that("table de valeurs indicatrices hors contrat : refusée avant toute écriture", {
   zone <- copie_zone_station()
   f <- file.path(zone, "params", "indicator_values.csv")
-  l <- readLines(f); l[2] <- sub(";3;4;", ";12;4;", l[2]); writeLines(l, f)
+  # par nom de colonne : réaction de la première ligne mise à 12, hors de l'échelle de 1 à 9
+  t <- utils::read.table(f, sep = ";", header = TRUE, colClasses = "character")
+  t$reaction[1] <- "12"
+  utils::write.table(t, f, sep = ";", row.names = FALSE, quote = FALSE, na = "")
   avec_racine_st(expect_error(suppressMessages(prepare_ifn_check(zone)), "indicator_values"))
   expect_false(dir.exists(file.path(zone, "ifn")))
 })
