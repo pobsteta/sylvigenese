@@ -35,7 +35,7 @@ function loadPlaywright() {
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--no-sandbox"],
   });
   try {
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => out.errors.push(String(e)));
     await page.route("**/*", (route) => {
@@ -64,7 +64,7 @@ function loadPlaywright() {
         cellId: await sel.getAttribute("data-cell-id"),
       };
     }
-    if (shot) await page.screenshot({ path: shot });
+    if (shot) await page.screenshot({ path: shot, timeout: 120000 });
   } catch (e) {
     out.fatal = String(e && e.message ? e.message : e);
   } finally {
