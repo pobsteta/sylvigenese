@@ -36,5 +36,6 @@ run_pytest tests/contracts contracts/tests tools/fixtures/tests python ${SYLVIGE
 # Tests d'acceptation du jalon M1a (mission 021) : session séparée, car leurs modules
 # d'aide portent le même nom que ceux des contrats (helpers.py).
 run_pytest tests/m1
+run_pytest tests/m2
 
 make validate ZONE=zone_fictive

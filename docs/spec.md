@@ -157,7 +157,9 @@
   - mortalité : population à risque = arbres vivants sur pied à la 1re visite (`VEGET` = 0) ;
     mort = codes de mort naturelle de `VEGET5` (selon la campagne) ; arbres coupés (6, 7),
     non retrouvés (N) ou perdus (T) : retirés de la population et comptés au rapport ;
-    placettes à incident ou prélèvement signalé : écartées et comptées ;
+    placettes à incident (`NINCID` ≠ 0), défrichées (`DEF5` ≥ 1) ou plantées (`INSTP5` = 1) :
+    écartées et comptées ; `PRELEV5`, sans modalités documentées, est gardée et signalée ;
+    une placette sans valeur de station est exclue de l'ajustement et comptée ;
   - recrutement : arbres de 2e visite sans 1re visite et recensables (`C13` ≥ 0,235 m) ; leur
     poids suit `W` de l'export, sinon il est signalé, jamais deviné ;
   - intervalle : `DATEPOINT` des deux visites s'il existe, sinon 5 ans, et le rapport le dit ;
