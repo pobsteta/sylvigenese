@@ -15,6 +15,13 @@
 
 ## Versions
 
+> **Mise à jour du 25/11/2026 (mission 029, relecture).** Le paquet npm publié `itowns@2.46.0`,
+> que la vue utilise, n'est pas le clone lu ici : il dépend de `three` ^0.174.0 (figé à 0.174.0)
+> et de `3d-tiles-renderer` 0.4.28, et il ne fournit pas `CogSource` (le COG est lu par
+> geotiff.js). Les constats ci-dessous valent pour le clone ; l'instanciation
+> `EXT_mesh_gpu_instancing` d'un contenu `.gltf` a été éprouvée sur la version publiée
+> (14 080 instances dessinées, tests/m4).
+
 | Élément | Version | Emplacement |
 |---|---|---|
 | `3d-tiles-renderer` | `^0.5.3`, résolue 0.5.3 | `packages/Main/package.json:58` ; `package-lock.json:4421-4423` |

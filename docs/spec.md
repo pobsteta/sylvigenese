@@ -49,8 +49,8 @@
 | `dynamics` | R (`mgcv`) | `ifn/` | `params/{growth,mortality,recruitment,height_curve}.parquet`, `rapport_dynamics.html` |
 | `simulate` | Rust (ADR 0001) | ce qui précède, `config.yml` | `sim/trees/year=AAAA/*.parquet`, `sim/cells/year=AAAA/*.parquet`, `sim/run.json` |
 | `post` | Python | `sim/`, `params/tarif.parquet` | `sim/summary.parquet`, avec la clé (cellule, année, essence) |
-| `assets` | Python | `sim/`, `params/allometry.parquet`, segments de tarif-nemeton (s'ils existent) | `assets/trees/*.glb`, `tiles/<year>/tileset.json`, `web/cells/<tuile>.json`, `web/rasters/*.tif` (COG), `massif/<bloc>.json` |
-| `viewer-web` | TypeScript, iTowns | `tiles/`, `web/` | page web locale |
+| `assets` | Python | `sim/` ; à défaut (état initial) `trees_init/` ; `grid.tif`, `dtm.tif`, `h0.tif`, `chm_date.tif`, `station_type.tif`, `vegetation_map.tif` (+ `.csv`), `contracts/species.csv`, `zone.yml` ; segments de tarif-nemeton (s'ils existent) | `assets/trees/*.gltf` (génériques jusqu'à M6, puis `*.glb` du générateur), `tiles/<year>/tileset.json` (contenu `.gltf` instancié), `web/cells/<tuile>.json`, `web/rasters/*.tif` (COG), `massif/<bloc>.json` |
+| `viewer-web` | TypeScript, iTowns | `tiles/`, `web/`, `dtm.tif` (terrain) | page web locale |
 | `viewer-massif` | Godot 4.6.x, GDScript | `massif/`, `assets/trees/` | application |
 
 **Règles :**
@@ -229,7 +229,9 @@
   - 3D Tiles 1.1 avec instanciation, ou i3dm en repli, selon l'examen du code d'iTowns (mission
     de M0) ;
   - conversion de l'altitude NGF-IGN69 en hauteur ellipsoïdale avec la grille RAF20, dont le
-    chemin est donné dans `config.yml`. Si elle manque : erreur ;
+    chemin est donné dans `config.yml`. Si elle manque : erreur, sauf pour un jeu fictif déclaré
+    par `zone.yml` (`fictive: true`), où l'ondulation vaut 0 et le tileset le dit (décision du
+    25/11/2026) ;
   - `massif/*.json` reste en NGF-IGN69, avec son origine locale.
 - **Rasters web** : COG avec aperçus.
 - **Fiche de cellule** : `web/cells/<tuile>.json`.
