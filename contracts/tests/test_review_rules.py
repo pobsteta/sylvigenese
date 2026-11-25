@@ -3,7 +3,7 @@
 - NaN et infini refusés dans les YAML et JSON (B1) ; clé YAML non chaîne refusée (B2) ;
 - LZW admis en entrée seulement (I1) ; partitions Hive (I2) ; chaînes en dictionnaire ou
   string_view (I3) ; variante grille sans --grid : code 2 (I4) ; --require-outputs et
-  mode --zone qui continue (I5) ; W facultative (I7) ; alluvium_code (I8) ;
+  mode --zone qui continue (I5) ; W facultative (I7) ; ser_code brut (I8, mission 017) ;
 - refus communs avec `simulate/src/geotiff.rs` (mission 015) : pixel « point »,
   géoréférencement par matrice, bandes de types mixtes ; et verdicts identiques sur les
   fichiers d'essai de `simulate/tests/fixtures/`.
@@ -226,22 +226,20 @@ def test_ifn_arbre_w_is_checked_when_present(tmp_path, capsys):
     assert code == 3 and "W" in out
 
 
-def test_alluvium_code_empty_string_is_refused(tmp_path, capsys):
-    rows = [{"ser_code": "B10", "alluvium_code": ""}]
-    layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_code", "TEXT")], rows,
-             [(h.PARIS_X, h.PARIS_Y)])
+def test_ser_code_empty_string_is_refused(tmp_path, capsys):
+    rows = [{"ser_code": ""}]
+    layer = ("POLYGON", [("ser_code", "TEXT")], rows, [(h.PARIS_X, h.PARIS_Y)])
     path = h.gpkg(tmp_path / "ser.gpkg", {"ser": layer})
     code, out = run(capsys, ["inputs.ser", str(path)])
-    assert code == 3 and "alluvium_code" in out
+    assert code == 3 and "ser_code" in out
 
 
-def test_old_alluvium_flag_is_refused(tmp_path, capsys):
-    rows = [{"ser_code": "B10", "alluvium_flag": 0}]
-    layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_flag", "BOOLEAN")], rows,
-             [(h.PARIS_X, h.PARIS_Y)])
+def test_ser_without_ser_code_column_is_refused(tmp_path, capsys):
+    rows = [{"alluvium_flag": 0}]
+    layer = ("POLYGON", [("alluvium_flag", "BOOLEAN")], rows, [(h.PARIS_X, h.PARIS_Y)])
     path = h.gpkg(tmp_path / "ser.gpkg", {"ser": layer})
     code, out = run(capsys, ["inputs.ser", str(path)])
-    assert code == 3 and "alluvium_code" in out
+    assert code == 3 and "ser_code" in out
 
 
 # ------------------------------------------------- mêmes refus que le lecteur Rust
@@ -323,7 +321,7 @@ def test_null_passes_enum_when_field_is_not_required():
 
 
 def test_regenerated_fictive_ser_is_conform(capsys):
-    """Le ser.gpkg du jeu fictif (mission 013) : L3 sur le couloir d'alluvions, NULL ailleurs."""
+    """Le ser.gpkg du jeu fictif, forme brute de l'IGN : H10 et un polygone L3 (mission 017)."""
     path = ROOT / "tests" / "fixtures" / "zone_fictive" / "inputs" / "ser.gpkg"
     code, out = run(capsys, ["inputs.ser", str(path)])
     assert code == 0, out

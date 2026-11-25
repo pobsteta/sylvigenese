@@ -1,0 +1,58 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Légende des types de station (inputs/types.csv, sylvostation)",
+  "description": "Légende des codes de station_type.tif : un type par ligne, avec ses surfaces et les moyennes de ses gradients (docs/referentiels/entrees-externes.md, sylvostation R/sorties.R:60-63). CSV séparé par des points-virgules, décimale au point. `prepare` en lit `id` et `type` ; le nom du type est la catégorie (spec §8).",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "sylvostation, R/sorties.R:60-63",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "id",
+      "type": "integer",
+      "description": "valeur du type dans station_type.tif",
+      "constraints": {"required": true, "unique": true, "minimum": 0, "maximum": 65534}
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "description": "nom du type de station",
+      "constraints": {"required": true, "minLength": 1, "unique": true}
+    },
+    {
+      "name": "area_ha",
+      "type": "number",
+      "description": "surface du type",
+      "x-unit": "ha",
+      "constraints": {"required": true, "minimum": 0}
+    },
+    {
+      "name": "part_surface",
+      "type": "number",
+      "description": "part de la surface totale",
+      "constraints": {"required": true, "minimum": 0, "maximum": 1}
+    },
+    {
+      "name": "trophic",
+      "type": "number",
+      "description": "gradient trophique moyen du type"
+    },
+    {
+      "name": "hydric",
+      "type": "number",
+      "description": "gradient hydrique moyen du type"
+    },
+    {
+      "name": "bioclim",
+      "type": "number",
+      "description": "gradient bioclimatique moyen du type"
+    },
+    {
+      "name": "n_placettes",
+      "type": "integer",
+      "description": "nombre de placettes du type",
+      "constraints": {"required": true, "minimum": 0}
+    }
+  ],
+  "primaryKey": ["id"],
+  "x-csv": {"delimiter": ";"}
+}

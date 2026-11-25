@@ -15,10 +15,10 @@ endif
 R_LOAD = for (f in list.files("R", pattern = "[.]R$$", full.names = TRUE)) source(f)
 PY     = PYTHONPATH=python python3 -m sylvigenese
 
-.PHONY: all validate validate-config prepare import_tarif biomes dynamics simulate post assets \
+.PHONY: all validate validate-config prepare import_tarif biomes trees dynamics simulate post assets \
         viewer-web test test-r test-rust test-python test-web
 
-all: prepare import_tarif biomes dynamics simulate post assets viewer-web
+all: prepare import_tarif biomes trees dynamics simulate post assets viewer-web
 
 # Contrôle des fichiers d'une zone contre les contrats : make validate ZONE=zone_fictive
 validate:
@@ -32,6 +32,9 @@ prepare:
 
 biomes:
 	Rscript -e '$(R_LOAD); quit(status = run_biomes("$(CONFIG)"))'
+
+trees:
+	Rscript -e '$(R_LOAD); quit(status = run_trees("$(CONFIG)"))'
 
 dynamics:
 	Rscript -e '$(R_LOAD); quit(status = run_dynamics("$(CONFIG)"))'

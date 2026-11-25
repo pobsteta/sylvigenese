@@ -39,16 +39,16 @@ Carré de 1 000 m de côté, EPSG:2154 : coin sud-ouest (700 000 ; 6 500 000), c
 | `inputs/dtm.tif` | `inputs.dtm` | MNT 25 m |
 | `inputs/station_gradients.tif` | `inputs.station_gradients` | 20 m, 3 bandes `trophic`, `hydric`, `bioclim` |
 | `inputs/station_type.tif` | `inputs.station_type` | 20 m, UInt16, nodata 65535, codes 1 à 4 |
-| `inputs/types.csv` | (aucun contrat) | légende des codes de `station_type.tif`, colonnes de `types.csv` de sylvostation |
+| `inputs/types.csv` | `inputs.station_types` | légende des codes de `station_type.tif`, colonnes de `types.csv` de sylvostation |
 | `inputs/h_pot.tif` | `inputs.h_pot` | 26,6 m, 1 bande (plafond unique : pas de famille d'essences) |
 | `inputs/fertilite.csv` | `inputs.fertilite` | 5 essences × 4 types, séparé par `;` |
 | `inputs/nemeton_stands.gpkg` | `inputs.nemeton_stands` | 5 polygones, couche `stands` |
 | `inputs/inventaire_video.gpkg` | `inputs.inventaire_video` | 3 placettes de 15 m dans S04 (code libre `chene_sessile`) |
 | `inputs/lidar_tiles.gpkg` | `inputs.lidar_tiles` | 4 dalles de 500 m, deux dates de vol (2021-08-03, 2022-06-21) |
 | `inputs/forest_mask.gpkg` | `inputs.forest_mask` | massif moins la trouée |
-| `inputs/ser.gpkg` | `inputs.ser` | `ser_code = H10` partout ; `alluvium_code = L3` sur un couloir, NULL ailleurs (3 polygones sans recouvrement) |
+| `inputs/ser.gpkg` | `inputs.ser` | forme brute de l'IGN : `ser_code` seul ; `H10` sur deux polygones, `L3` (alluvions) sur un couloir de 100 m entre eux (3 polygones sans recouvrement) |
 | `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` | `inputs.ifn_*` | 40 placettes ; `C13` en mm ; coordonnées floutées (écart ≤ 700 m) |
-| `params/tarif.parquet`, `params/allometry.parquet` | `import_tarif.*` | format long, `provisoire: true` |
+| `params/tarif.parquet`, `params/allometry.parquet` | `import_tarif.*` | format long, `provisoire: true` ; `allometry` porte les termes a, b et c (houppier), tous fictifs |
 
 Les `CD_REF` de `FLORE.csv` sont ceux de `contracts/species.csv` (arbres), faute de table de
 flore ; ils sont en v18 alors que l'IFN réel est en v13.

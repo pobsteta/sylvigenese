@@ -42,7 +42,8 @@
 
 | Module | Langage | Entrées | Sorties |
 |---|---|---|---|
-| `prepare` | R (package + `targets`) | `inputs/` (§3) | `grid.tif`, `dtm.tif`, `forest_mask.tif`, `ser.tif` (+ `.csv`), `h0.tif`, `chm_date.tif`, `station_gradients.tif`, `station_type.tif` (+ `.csv`), `site_potential.tif` (+ `.csv`), `trees_init/`, `ifn/`, `stands.parquet` |
+| `prepare` | R (package + `targets`) | `inputs/` (§3) | `grid.tif`, `dtm.tif`, `forest_mask.tif`, `ser.tif` (+ `.csv`), `h0.tif`, `chm_date.tif`, `station_gradients.tif`, `station_type.tif` (+ `.csv`), `site_potential.tif` (+ `.csv`), `stand_map.tif` (+ `.csv`), `ifn/`, `stands.parquet` |
+| `prepare`, étape `trees` | R | sorties de `prepare`, `vegetation_map.tif` (+ `.csv`), `params/allometry.parquet` | `trees_init/`, `rapport_arbres.html` |
 | `import_tarif` | Python | dossier de tarif-nemeton, `external.tarif_nemeton_dir` dans `config.yml` | `params/tarif.parquet`, `params/allometry.parquet` |
 | `biomes` | R + YAML | sorties de `prepare`, `biomes/*.yml` | `vegetation_map.tif` (+ `.csv`), `rapport_biomes.html` |
 | `dynamics` | R (`mgcv`) | `ifn/` | `params/{growth,mortality,recruitment,height_curve}.parquet`, `rapport_dynamics.html` |
@@ -53,7 +54,12 @@
 | `viewer-massif` | Godot 4.6.x, GDScript | `massif/`, `assets/trees/` | application |
 
 **Règles :**
-- Aucun module n'importe le code d'un autre.
+- Aucun module n'importe le code d'un autre. Les outils transverses sans logique métier
+  (`R/config.R`, `R/validateur.R`, `R/commun.R` : rapports HTML, lecture en EPSG:2154,
+  écriture des grilles et des tables de catégories) sont communs à tous les modules R.
+- L'étape `trees` appartient à `prepare` mais tourne après `biomes`, dont elle lit la carte
+  des types de végétation pour les arbres hors polygone (§4.2). Ordre : `prepare` → `biomes`
+  → `trees` (décision de l'orchestrateur, par délégation, du 24/11/2026).
 - **Contrats** (ADR 0002), en trois couches :
   - Table Schema (Frictionless, version figée) pour le Parquet et le CSV ;
   - JSON Schema pour le YAML et le JSON, avec les schémas officiels de CesiumGS pour
@@ -75,7 +81,7 @@
 | `dtm.tif` | MNT LiDAR HD, ou RGE ALTI | altitude NGF-IGN69 |
 | `lidar_tiles.gpkg` | IGN | une dalle par entité, avec sa date de vol |
 | `forest_mask.gpkg` | définition de la forêt par l'IFN | masque forestier |
-| `ser.gpkg` | IGN, sylvoécorégions et alluvions | `ser_code`, code de la SER sous-jacente (jamais L1 à L5) ; `alluvium_code` ∈ {L1 … L5} sur les alluvions, NULL ailleurs |
+| `ser.gpkg` | IGN, sylvoécorégions et alluvions, sous la forme brute | `ser_code`, code de SER tel que publié par l'IGN, **L1 à L5 compris** pour les alluvions. C'est `prepare` qui produit la SER sous-jacente (`ser.tif` et sa table : `ser_code` jamais L1 à L5, `alluvium_code` ∈ {L1 … L5} ou NULL ; une valeur de `ser.tif` par couple distinct, de sorte que chaque cellule garde son origine), §7 |
 | `station_gradients.tif`, `station_type.tif`, `fertilite.csv` | sylvostation | `trophic`, `hydric`, `bioclim` (Tichý 2023) ; type de station ; H0 à 50 ans par essence et par type |
 | `h_pot.tif` | typopeuplement | plafond par famille d'essences. **S'il manque : erreur, code 2.** |
 | `ifn/` (brut) | IFN, données brutes | ajustement de `dynamics` ; coordonnées floutées à environ 700 m |
@@ -95,10 +101,17 @@
 2. **Hors polygone nemeton** : l'essence vient du type de végétation, avec
    `species_source = vegetation_type`, et la cellule est signalée. La BD Forêt v2 n'est pas
    utilisée, car sylvostation l'a désactivée pour une licence contradictoire.
-3. **Arbres détectés** : détection sur `chm.tif` à 50 cm. Le d130 est donné par la méthode
-   de l'« étage B » de tarif-nemeton (`ln D = a + b ln H`), réécrite dans `prepare` avec
-   citation. Les coefficients viennent de `params/allometry.parquet`. Les colonnes
-   `species_source` et `d130_source` sont remplies.
+3. **Arbres détectés** : détection sur `chm.tif` à 50 cm, puis segmentation des houppiers
+   et surface projetée de chaque houppier (`crown_area`, m²), comme l'étage B de
+   tarif-nemeton (`code/etage_b_arbres_lidar.R`). Le d130 est donné par
+   `ln D = a + b ln H + c ln CPA` (`code/etage_b_allometrie_D.py`), réécrite dans `prepare`
+   avec citation (décision de Pascal du 24/11/2026 : le terme du houppier est réintégré).
+   Les coefficients viennent de `params/allometry.parquet`. Pour une essence sans
+   coefficient `c`, le modèle `ln D = a + b ln H` (calé sur l'IFN,
+   `code/etage_b_allometrie_ifn.py`) s'applique, et `d130_source` le dit ; une essence sans
+   aucun coefficient est une erreur explicite. Réserve de tarif-nemeton : la surface de
+   houppier segmentée dans un MNH aéroporté n'est pas celle mesurée au TLS, d'où le statut
+   provisoire. Les colonnes `species_source` et `d130_source` sont remplies.
 4. **Hauteur** : celle du MNH à la date de vol (`chm_date`, en jours depuis le 1970-01-01),
    avancée jusqu'à `t0` par la courbe de hauteur.
 5. **Polygones `source = synthetic_ml`** : leur hauteur vient déjà du MNH. Le MNH n'est pas
@@ -162,7 +175,7 @@
   - le MNH à 50 cm n'est **jamais** rééchantillonné : `prepare` l'agrège en `h0.tif`.
 - **Zone tampon** de la largeur du noyau de dispersion. Ses cellules sont sources de graines
   seulement, et le bord est absorbant.
-- **Alluvions** : rattachées à la SER sous-jacente (`ser_code`), et repérées par `alluvium_code`.
+- **Alluvions** : rattachées à la SER sous-jacente (`ser_code`), et repérées par `alluvium_code`. Dans la couche IGN brute, les alluvions forment leurs propres SER (L1 à L5). `prepare` leur attribue la SER voisine qui partage avec elles la plus longue frontière, et chaque attribution est une ligne de rapport (décision de Pascal du 24/11/2026).
 - **YAML** : le contrat refuse les écritures qui se lisent différemment en YAML 1.1 et en YAML 1.2 (entiers à zéro de tête, `yes`, `no`, `on`, `off`, `y`, `n`), pour que tous les modules lisent la même valeur.
 
 ## 8. Nomenclatures

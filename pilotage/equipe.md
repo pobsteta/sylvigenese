@@ -69,3 +69,8 @@
 | [014-ci](missions/014-ci.md) | `dev` | sonnet | donner | 3 oui | M0 |
 | [015-lecteur-geotiff-rust](missions/015-lecteur-geotiff-rust.md) | `dev` | sonnet | donner | 3 oui | M0 |
 | [016-referentiels-m0](missions/016-referentiels-m0.md) | `acquereur` | sonnet | donner | 3 oui | M0 |
+| [017-prepare-grille](missions/017-prepare-grille.md) | `dev` | sonnet | donner | 3 oui | M1 |
+| [018-prepare-arbres](missions/018-prepare-arbres.md) | `dev` | sonnet | donner | 3 oui | M1 |
+| [019-prepare-ifn](missions/019-prepare-ifn.md) | `dev` | sonnet | donner | 3 oui | M1 |
+| [020-biomes](missions/020-biomes.md) | `dev` | sonnet | donner | 3 oui | M1 |
+| [021-tests-m1](missions/021-tests-m1.md) | `testeur` | sonnet | donner | 3 oui | M1 |

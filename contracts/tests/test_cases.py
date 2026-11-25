@@ -57,10 +57,9 @@ def forest_mask(tmp, fault):
 
 
 def ser(tmp, fault):
-    rows = [{"ser_code": "B10", "alluvium_code": None},
-            {"ser_code": "B10", "alluvium_code": "L9" if fault else "L3"}]
-    layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_code", "TEXT")], rows,
-             [(h.PARIS_X, h.PARIS_Y)] * 2)
+    # forme brute de l'IGN : les alluvions L1 à L5 sont des SER ; L9 n'existe pas
+    rows = [{"ser_code": "B10"}, {"ser_code": "L9" if fault else "L3"}]
+    layer = ("POLYGON", [("ser_code", "TEXT")], rows, [(h.PARIS_X, h.PARIS_Y)] * 2)
     return h.gpkg(tmp / "ser.gpkg", {"ser": layer})
 
 
@@ -69,6 +68,14 @@ def fertilite(tmp, fault):
               "fertilite_sd", "age_ref"]
     rows = [["09", "fraiche_acide", -1 if fault else 12, 24.5, 24.0, 2.1, 50]]
     return h.csv(tmp / "fertilite.csv", header, rows, sep=";")
+
+
+def station_types(tmp, fault):
+    header = ["id", "type", "area_ha", "part_surface", "trophic", "hydric", "bioclim",
+              "n_placettes"]
+    rows = [[1, "type_sec", 19.52, 0.1952, 4.551, -1.379, 0.321, 48],
+            [1 if fault else 2, "type_frais", 29.84, 0.2984, 5.867, -1.472, 0.0, 74]]
+    return h.csv(tmp / "types.csv", header, rows, sep=";")
 
 
 def ifn_placette(tmp, fault):
@@ -94,6 +101,15 @@ def categories(name):
             rows[1][1] = "fraiche_acide"
         return h.csv(tmp / name, ["value", "name"], rows)
     return build
+
+
+def ser_categories(tmp, fault):
+    """ser.csv : une valeur par couple (SER, alluvions) ; le même `name` peut se répéter.
+    Fautif : une alluvion L3 prise pour une SER (jamais L1 à L5 dans `name`)."""
+    rows = [[1, "H10", ""], [2, "H10", "L3"], [3, "B21", ""]]
+    if fault:
+        rows[1][1] = "L3"
+    return h.csv(tmp / "ser.csv", ["value", "name", "alluvium_code"], rows)
 
 
 def raster(name, fault_kwargs, **good):
@@ -214,9 +230,10 @@ CASES = {
     "inputs.dtm": (raster("dtm.tif", {"crs": "EPSG:2056"}, tiled=False), r"EPSG"),
     "inputs.lidar_tiles": (lidar_tiles, r"flight_date"),
     "inputs.forest_mask": (forest_mask, r"EPSG:2154"),
-    "inputs.ser": (ser, r"alluvium_code"),
+    "inputs.ser": (ser, r"ser_code"),
     "inputs.station_gradients": (raster("sg.tif", {"bands": 1}, bands=3), r"bande"),
     "inputs.station_type": (raster("st.tif", {"nodata": None}, dtype="uint16"), r"nodata"),
+    "inputs.station_types": (station_types, r"id"),
     "inputs.fertilite": (fertilite, r"n_plots"),
     "inputs.h_pot": (raster("h_pot.tif", {"bigtiff": True}), r"BigTIFF"),
     "inputs.ifn_placette": (ifn_placette, r"emprise"),
@@ -228,7 +245,7 @@ CASES = {
                             r"Float32"),
     "prepare.ser": (raster("ser.tif", {"interleave": "pixel"}, dtype="uint16"),
                     r"PLANARCONFIG"),
-    "prepare.ser_categories": (categories("ser.csv"), r"name"),
+    "prepare.ser_categories": (ser_categories, r"name"),
     "prepare.h0": (raster("h0.tif", {"block": 512}), r"tuiles"),
     "prepare.chm_date": (raster("chm_date.tif", {"dtype": "float32"}, dtype="uint16"),
                          r"type de valeur"),
@@ -237,6 +254,8 @@ CASES = {
     "prepare.station_type_categories": (categories("station_type.csv"), r"name"),
     "prepare.site_potential": (raster("sp.tif", {"crs": "EPSG:3857"}, bands=2), r"EPSG"),
     "prepare.site_potential_bands": (categories("site_potential.csv"), r"name"),
+    "prepare.stand_map": (aligned("stand_map.tif", dtype="uint16"), r"aligné"),
+    "prepare.stand_map_categories": (categories("stand_map.csv"), r"name"),
     "prepare.trees_init": (trees_init_dir, r"species_source"),
     "prepare.ifn_plots": (table("plots.parquet", ifn_plots, set_first("loc_precision_m", 0.0)),
                           r"loc_precision_m"),

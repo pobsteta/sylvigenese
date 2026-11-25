@@ -187,7 +187,7 @@ def test_trees_conform(tmp_path):
     assert_ok(run("trees_init", b.write_trees_parquet(tmp_path / "trees_init.parquet")))
 
 
-@pytest.mark.parametrize("column", ["tree_id", "x", "y", "species", "d130", "h",
+@pytest.mark.parametrize("column", ["tree_id", "x", "y", "species", "d130", "h", "crown_area",
                                     "species_source", "d130_source"])
 def test_trees_missing_column(column, tmp_path):
     f = b.write_trees_parquet(tmp_path / "t.parquet", drop=[column])
@@ -218,7 +218,11 @@ def test_trees_duplicate_tree_id(tmp_path):
 @pytest.mark.parametrize("column,bad", [("d130", [28.0, -1.0, 41.2]),
                                         ("h", [22.1, 0.0 - 4.0, 27.0]),
                                         ("d130", [28.0, float("nan"), 41.2]),
-                                        ("h", [22.1, None, 27.0])])
+                                        ("h", [22.1, None, 27.0]),
+                                        ("crown_area", [14.5, 0.0, 31.25]),
+                                        ("crown_area", [14.5, -3.0, 31.25]),
+                                        ("crown_area", [14.5, float("nan"), 31.25]),
+                                        ("crown_area", [14.5, None, 31.25])])
 def test_trees_invalid_measure(column, bad, tmp_path):
     d = b.good_trees()
     d[column] = bad
@@ -246,6 +250,13 @@ def test_trees_all_closed_list_values_are_accepted(tmp_path):
     d = b.good_trees()
     d["species_source"] = ["nemeton", "vegetation_type", "inventaire_video"]
     d["d130_source"] = ["tarif_etage_b", "inventaire_video", "nemeton"]
+    assert_ok(run("trees_init", b.write_trees_parquet(tmp_path / "t.parquet", d)))
+
+
+def test_trees_d130_source_sans_coefficient_c_est_acceptee(tmp_path):
+    # spec §4.3 : « tarif_etage_b » = avec houppier, « tarif_etage_b_ifn » = sans coefficient c
+    d = b.good_trees()
+    d["d130_source"] = ["tarif_etage_b", "tarif_etage_b_ifn", "tarif_etage_b_ifn"]
     assert_ok(run("trees_init", b.write_trees_parquet(tmp_path / "t.parquet", d)))
 
 

@@ -1,7 +1,7 @@
 """Règles de la relecture 3/3 de la mission 009.
 
 - écritures YAML ambiguës en plus : séparateur `_` dans un nombre, préfixes `0b` et `0x` ;
-- `ser_code` jamais L1 à L5 (les alluvions vont dans `alluvium_code`) ;
+- `ser_code` en entrée : forme brute de l'IGN, L1 à L5 permis (mission 017) ;
 - alias YAML récursif : refusé clairement, code 3 ;
 - parité avec le lecteur Rust : tuile creuse, nombre de valeurs des balises 258 et 339.
 """
@@ -59,22 +59,22 @@ def test_recursive_alias_is_refused_clearly(text, tmp_path, capsys):
 
 # ------------------------------------------------------------------ ser_code
 
-def ser_gpkg(tmp_path, ser_code, alluvium=None):
-    rows = [{"ser_code": ser_code, "alluvium_code": alluvium}]
-    layer = ("POLYGON", [("ser_code", "TEXT"), ("alluvium_code", "TEXT")], rows,
-             [(h.PARIS_X, h.PARIS_Y)])
+def ser_gpkg(tmp_path, ser_code):
+    rows = [{"ser_code": ser_code}]
+    layer = ("POLYGON", [("ser_code", "TEXT")], rows, [(h.PARIS_X, h.PARIS_Y)])
     return h.gpkg(tmp_path / "ser.gpkg", {"ser": layer})
 
 
-@pytest.mark.parametrize("code_ser", ["L1", "L3", "L5"])
-def test_ser_code_is_never_an_alluvium_code(code_ser, tmp_path, capsys):
-    code, out = run(capsys, ["inputs.ser", str(ser_gpkg(tmp_path, code_ser, code_ser))])
-    assert code == 3 and "ser_code" in out and "jamais L1 à L5" in out
+@pytest.mark.parametrize("code_ser", ["L1", "L3", "L5", "B10", "H10", "C20", "K13", "A30"])
+def test_ser_code_brut_de_ign_est_accepte_alluvions_comprises(code_ser, tmp_path, capsys):
+    """En entrée, les alluvions L1 à L5 sont des SER comme les autres (forme brute IGN)."""
+    assert run(capsys, ["inputs.ser", str(ser_gpkg(tmp_path, code_ser))])[0] == 0
 
 
-@pytest.mark.parametrize("code_ser", ["B10", "H10", "C20", "L6", "L10"])
-def test_other_ser_codes_are_accepted(code_ser, tmp_path, capsys):
-    assert run(capsys, ["inputs.ser", str(ser_gpkg(tmp_path, code_ser, "L3"))])[0] == 0
+@pytest.mark.parametrize("code_ser", ["L6", "L0", "L10", "Z99", "b10", "B1", "H100", ""])
+def test_ser_code_hors_referentiel_est_refuse(code_ser, tmp_path, capsys):
+    code, out = run(capsys, ["inputs.ser", str(ser_gpkg(tmp_path, code_ser))])
+    assert code == 3 and "ser_code" in out
 
 
 # --------------------------------------------------- parité avec le lecteur Rust

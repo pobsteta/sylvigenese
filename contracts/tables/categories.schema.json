@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Table de correspondance d'un raster catégoriel ou à bandes",
-  "description": "Valeur du raster (ou numéro de bande) et nom de la catégorie : une catégorie est codée par son nom, jamais par un indice qui dépend de l'ordre (spec §8). Sert à ser.csv, station_type.csv, site_potential.csv et vegetation_map.csv.",
+  "description": "Valeur du raster (ou numéro de bande) et nom de la catégorie : une catégorie est codée par son nom, jamais par un indice qui dépend de l'ordre (spec §8). Sert à station_type.csv, site_potential.csv, stand_map.csv (name = stand_id) et vegetation_map.csv. ser.csv a son contrat : tables/prepare/ser_categories.schema.json (colonne alluvium_code en plus).",
   "x-schema-version": "0.1",
   "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
   "fieldsMatch": "equal",

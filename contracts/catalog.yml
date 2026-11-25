@@ -61,6 +61,12 @@ contracts:
     options: {variant: entree, bands: 1}
     paths: [inputs/station_type.tif]
     required: true
+  inputs.station_types:
+    aliases: [station_types]
+    kind: csv
+    schema: tables/inputs/station_types.schema.json
+    paths: [inputs/types.csv]
+    required: true
   inputs.fertilite:
     aliases: [fertilite]
     kind: csv
@@ -113,7 +119,7 @@ contracts:
   prepare.ser_categories:
     aliases: [ser_categories]
     kind: csv
-    schema: tables/categories.schema.json
+    schema: tables/prepare/ser_categories.schema.json
     paths: [ser.csv]
   prepare.h0:
     aliases: [h0]
@@ -148,6 +154,16 @@ contracts:
     kind: csv
     schema: tables/categories.schema.json
     paths: [site_potential.csv]
+  prepare.stand_map:
+    aliases: [stand_map]
+    kind: geotiff
+    options: {variant: grille, sample_types: [UInt16], bands: 1}
+    paths: [stand_map.tif]
+  prepare.stand_map_categories:
+    aliases: [stand_map_categories]
+    kind: csv
+    schema: tables/categories.schema.json
+    paths: [stand_map.csv]
   prepare.trees_init:
     aliases: [trees_init]
     kind: parquet

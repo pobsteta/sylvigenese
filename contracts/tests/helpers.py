@@ -170,7 +170,7 @@ STANDS_COLUMNS = [("stand_id", "TEXT"), ("species_espar", "TEXT"), ("dbh_cm", "R
 def trees_init():
     return {"tree_id": ["T1", "T2"], "x": [PARIS_X, PARIS_X + 5],
             "y": [PARIS_Y, PARIS_Y + 5], "species": ["09", "02"], "d130": [28.0, 35.5],
-            "h": [22.1, 25.4], "species_source": ["nemeton", "vegetation_type"],
+            "h": [22.1, 25.4], "crown_area": [14.5, 22.0], "species_source": ["nemeton", "vegetation_type"],
             "d130_source": ["tarif_etage_b", "nemeton"]}
 
 
