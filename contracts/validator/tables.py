@@ -144,16 +144,35 @@ def check_field_values(field, column, findings):
         check_unique(findings, [name], pa.table({name: column}))
 
 
-def check_unique(findings, keys, table):
-    """Doublons sur une colonne ou une clé composée (les valeurs nulles sont ignorées)."""
-    sub = table.select(keys).drop_null()
+def check_unique(findings, keys, table, *, primary_key=False):
+    """Doublons sur une colonne ou une clé composée.
+
+    Contrainte `unique` d'une colonne : les valeurs nulles sont ignorées.
+    Clé primaire (`primary_key=True`) : une valeur nulle est une valeur comme une autre dans le
+    couple, donc (H10, nul) en double est refusé ; une ligne dont toutes les colonnes de la clé
+    sont nulles est refusée, car elle n'identifie rien (comportement de Frictionless, qui
+    sert de référence à Table Schema).
+    """
+    label = keys[0] if len(keys) == 1 else "(" + ", ".join(keys) + ")"
+    if primary_key:
+        empty = None
+        for k in keys:
+            col = pc.is_null(table[k])
+            empty = col if empty is None else pc.and_(empty, col)
+        rows = _first_rows(empty)
+        if rows:
+            findings.error(f"clé primaire {label} : {len(rows)} ligne(s) dont la clé est entièrement "
+                           f"nulle ; première à la ligne {rows[0] + 1}")
+        sub = table.select(keys).filter(pc.invert(empty))
+    else:
+        sub = table.select(keys).drop_null()
     if sub.num_rows == 0:
         return
     counts = sub.group_by(keys).aggregate([([], "count_all")])
     dup = counts.filter(pc.greater(counts["count_all"], 1))
     if dup.num_rows:
-        example = ", ".join(str(dup[k][0].as_py()) for k in keys)
-        label = keys[0] if len(keys) == 1 else "(" + ", ".join(keys) + ")"
+        example = ", ".join("(vide)" if dup[k][0].as_py() is None else str(dup[k][0].as_py())
+                            for k in keys)
         findings.error(f"colonne {label} : {dup.num_rows} doublon(s) ; par exemple "
                        f"{show_value(example)}")
 
@@ -182,9 +201,10 @@ def check_table(schema, table, findings, *, skip=()):
     if table.num_rows == 0 and not schema.get("x-allow-empty", False):
         findings.error("table vide : au moins une ligne attendue")
     keys = schema.get("primaryKey", [])
-    already_unique = len(keys) == 1 and fields[keys[0]].get("constraints", {}).get("unique")
+    kc = fields[keys[0]].get("constraints", {}) if len(keys) == 1 else {}
+    already_unique = bool(kc.get("unique") and kc.get("required"))
     if keys and all(k in good for k in keys) and not already_unique:
-        check_unique(findings, keys, table)
+        check_unique(findings, keys, table, primary_key=True)
     one_of = schema.get("x-require-one-of")
     if one_of and all(k in good for k in one_of):
         none = None

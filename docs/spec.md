@@ -147,6 +147,24 @@
   Le décalage entre les deux colonnes est une **limite connue**, écrite dans
   `rapport_dynamics.html`. Un test vérifie que la garde IFN refuse `station_gradients.tif`
   aux placettes.
+- **Données d'ajustement** (`docs/referentiels/ifn-dynamique.md`, règles provisoires décidées le
+  25/11/2026 par délégation, à vérifier sur un export réel en M2b) :
+  - les deux visites d'un point se joignent par `IDP` et le numéro d'arbre `A` ; la campagne
+    de 2e visite vaut celle de la 1re plus 5 ; `VISITE` vient de `PLACETTE.csv` ; la jointure
+    est faite par `dynamics`, `prepare` garde une ligne par visite ;
+  - accroissement : `IR5` (cumul de 5 cernes, en m) quand il existe ; la différence de `C13`
+    entre visites sert de contrôle, écrit au rapport ;
+  - mortalité : population à risque = arbres vivants sur pied à la 1re visite (`VEGET` = 0) ;
+    mort = codes de mort naturelle de `VEGET5` (selon la campagne) ; arbres coupés (6, 7),
+    non retrouvés (N) ou perdus (T) : retirés de la population et comptés au rapport ;
+    placettes à incident ou prélèvement signalé : écartées et comptées ;
+  - recrutement : arbres de 2e visite sans 1re visite et recensables (`C13` ≥ 0,235 m) ; leur
+    poids suit `W` de l'export, sinon il est signalé, jamais deviné ;
+  - intervalle : `DATEPOINT` des deux visites s'il existe, sinon 5 ans, et le rapport le dit ;
+  - station d'un arbre revu : flore et écologie de la 1re visite (seules relevées) ; décalage
+    écrit au rapport ;
+  - valeurs indicatrices : Tichý et al. 2023 (Zenodo 10.5281/zenodo.7427088), comme
+    sylvostation ; leur licence reste à confirmer par Pascal avant tout usage hors du jeu fictif.
 - **Garde IFN** : celle de sylvostation, reprise telle quelle (`R/utils.R`). Toute source
   qui n'est pas préfixée `coarse_` est traitée comme fine, et le seuil de précision d'un point
   est de 25 m.
@@ -236,7 +254,7 @@
 
 ## 12. Besoins en référentiels
 
-- Documentation IFN : `metadonnees.csv` de l'export, pour confirmer que `c13` y est en millimètres. Les cercles et l'unité à la saisie sont établis (`docs/referentiels/ifn-placettes.md`). `d130 = c13 / (10π)` en cm.
+- Documentation IFN : établie (`docs/referentiels/ifn-placettes.md`, `docs/referentiels/ifn-dynamique.md`). **`C13` est en mètres dans l'export des données brutes** (`metadonnees.csv` l. 35 et 203), alors que l'IMOT le saisit en millimètres : `d130 = C13 × 100 / π` en cm, et les bornes des cercles valent 0,235, 0,705 et 1,175 m (décision du 25/11/2026).
 - Table `species.csv`.
 - Estimateur `h_dom` de typopeuplement.
 - Prise en charge de l'instanciation glTF dans iTowns.

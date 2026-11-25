@@ -387,6 +387,13 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE, report = new_report()) 
     for (k in seq_along(inputs)) validate_file(names(inputs)[k], inputs[[k]], what = "entrée")
   }
 
+  # -- polygones nemeton : lus et contrôlés ICI, avant la première écriture (dette M1a) : au-delà
+  # de 65 534 polygones, stand_id manquant ou en double, prepare s'arrête (code 2) sans laisser
+  # de sortie à moitié produite. stand_map.tif n'est écrit que plus bas.
+  stands_sf <- read_layer_2154(inputs$inputs.nemeton_stands, "stands")
+  if (!"stand_id" %in% names(stands_sf)) stop("nemeton_stands.gpkg : colonne stand_id absente", call. = FALSE)
+  sm <- stand_map_values(stands_sf$stand_id)
+
   # -- grille : emprise du masque forestier, arrondie vers l'extérieur
   mask_sf <- read_layer_2154(inputs$inputs.forest_mask, "forest_mask")
   tmpl <- grid_template(sf::st_bbox(mask_sf), res)
@@ -509,9 +516,6 @@ prepare_grid <- function(zone_dir, cfg, validate = TRUE, report = new_report()) 
   written <- c(written, out("site_potential.tif"), out("site_potential.csv"))
 
   # -- polygones nemeton : stand_map (ce que lit biomes, spec §4.1, §4.2)
-  stands_sf <- read_layer_2154(inputs$inputs.nemeton_stands, "stands")
-  if (!"stand_id" %in% names(stands_sf)) stop("nemeton_stands.gpkg : colonne stand_id absente", call. = FALSE)
-  sm <- stand_map_values(stands_sf$stand_id)
   report_polygon_overlaps(report, stands_sf, as.character(stands_sf$stand_id), sm$value, tmpl,
                           "nemeton_stands.gpkg")
   stand_r <- rasterize_polygons(stands_sf, sm$value, tmpl)
