@@ -2,6 +2,15 @@
 // Sert la page et son script (construit par esbuild à chaque lancement), ainsi que, en lecture seule,
 // tiles/, web/ et dtm.tif de la zone sous /zone/. Aucun service extérieur. Range pris en charge (COG).
 // Usage : node src/serveur.ts --zone-dir <dossier> [--port N] [--zone nom]
+//
+// Interface interne /api/config.json (lue par la page au chargement, non documentée ailleurs ; pas un
+// contrat entre modules) : objet JSON { zone, years, has_dtm, fictitious }.
+//   - years      : années proposées dans la page, soit les sous-dossiers de tiles/ nommés par quatre chiffres
+//                  qui portent un tileset.json (tableau de nombres, vide si tiles/ est absent) ;
+//   - has_dtm    : true si dtm.tif existe dans le dossier de la zone ;
+//   - fictitious : true si zone.yml de la zone porte « fictive: true » (false si le fichier manque ou est
+//                  illisible) ; sert à signaler le jeu fictif, pour ne pas le confondre avec un massif réel.
+//   - zone       : nom de la zone passé par --zone.
 
 import { createServer } from "node:http";
 import { existsSync, readFileSync, readdirSync, statSync, createReadStream, mkdirSync } from "node:fs";

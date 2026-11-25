@@ -511,3 +511,19 @@ test_that("aucune revisite de 2015 ou après : le recrutement est refusé, dit e
   }
   expect_error(dyn_prepare_data(t, p), "aucune placette retenue revue en 2015")
 })
+
+test_that("le rapport dit, sur la variante des chablis, le nombre de chablis et les deux plages de campagnes", {
+  v <- fake_ifn_chablis()
+  zone <- write_fake_zone(v)
+  old <- setwd(racine); on.exit(setwd(old), add = TRUE)
+  suppressMessages(dynamics_run(zone, zone = "essai", root = racine))
+  html <- paste(readLines(dyn_output_paths(zone)[["report"]], encoding = "UTF-8"), collapse = "\n")
+  prep <- dyn_prepare_data(v$trees, v$plots)
+  n_ch <- v$n_chablis_2012 + v$n_chablis_late
+  expect_match(html, sprintf("Chablis comptés comme morts (code A de VEGET5, campagnes de 2e visite 2010 à 2018 ; décision de Pascal du 25/11/2026) : %d sur les placettes retenues", n_ch), fixed = TRUE)
+  expect_match(html, sprintf("Plage de campagnes de 2e visite de la mortalité : 2012 à %d", max(v$plots$campaign)), fixed = TRUE)
+  rr <- prep$counts$camp2_range_recruitment
+  expect_match(html, sprintf("Plage de campagnes de 2e visite du recrutement : %d à %d (", rr[1], rr[2]), fixed = TRUE)
+  expect_match(html, "placettes retenues pour le recrutement)", fixed = TRUE)
+  expect_match(html, "ces placettes ne servent qu'à la mortalité", fixed = TRUE)
+})
