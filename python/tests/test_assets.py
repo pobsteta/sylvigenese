@@ -34,11 +34,14 @@ def depuis_la_racine(monkeypatch):
     monkeypatch.chdir(RACINE)
 
 
+SORTIES_ASSETS = shutil.ignore_patterns("tiles", "web", "assets", "sim")
+
+
 @pytest.fixture(scope="module")
-def zone(tmp_path_factory):
-    """Copie du jeu fictif (sans les sorties d'assets déjà écrites) + état initial produit."""
+def zone(tmp_path_factory, zone_chaine):
+    """Copie du jeu fictif passé par prepare, biomes et trees (conftest), + état initial produit."""
     dossier = tmp_path_factory.mktemp("zone") / "zone_fictive"
-    shutil.copytree(FICTIF, dossier, ignore=shutil.ignore_patterns("tiles", "web", "assets", "sim"))
+    shutil.copytree(zone_chaine, dossier, ignore=SORTIES_ASSETS)
     RESUME.update(assets.produire_etat_initial(CONFIG, dossier))
     return dossier
 
@@ -241,27 +244,54 @@ def test_rejouable_a_l_identique(zone, tmp_path):
 
 # ---------------------------------------------------------------- erreurs, jamais de valeur devinée
 
-def copie_sans_sorties(tmp_path):
+@pytest.fixture
+def copie_sans_sorties(tmp_path, zone_chaine):
     dossier = tmp_path / "z"
-    shutil.copytree(FICTIF, dossier, ignore=shutil.ignore_patterns("tiles", "web", "assets", "sim"))
+    shutil.copytree(zone_chaine, dossier, ignore=SORTIES_ASSETS)
     return dossier
 
 
-def test_sim_present_est_une_erreur_explicite(tmp_path):
-    dossier = copie_sans_sorties(tmp_path)
+def test_sim_present_est_une_erreur_explicite(tmp_path, copie_sans_sorties):
+    dossier = copie_sans_sorties
     (dossier / "sim").mkdir()
     with pytest.raises(ErreurModule, match="sim/|sim"):
         assets.produire_etat_initial(CONFIG, dossier)
 
 
-def test_zone_reelle_sans_raf20_est_une_erreur(tmp_path):
-    dossier = copie_sans_sorties(tmp_path)
+def test_zone_sans_marqueur_et_sans_raf20_est_une_erreur(tmp_path, copie_sans_sorties):
+    dossier = copie_sans_sorties
+    (dossier / "zone.yml").unlink()
+    assert not assets.zone_fictive(dossier)
     with pytest.raises(ErreurModule, match="raf20_grid"):
         assets.produire_etat_initial({"zone": "massif_reel"}, dossier)
 
 
-def test_raf20_ajoute_l_ondulation(tmp_path):
-    dossier = copie_sans_sorties(tmp_path)
+def test_marqueur_false_ne_dispense_pas_de_raf20(tmp_path, copie_sans_sorties):
+    dossier = copie_sans_sorties
+    (dossier / "zone.yml").write_text("schema_version: 1\nfictive: false\nreason: zone réelle\n", encoding="utf-8")
+    with pytest.raises(ErreurModule, match="raf20_grid"):
+        assets.produire_etat_initial({"zone": "massif_reel"}, dossier)
+
+
+def test_copie_de_zone_sous_un_autre_nom_herite_du_marqueur(tmp_path, copie_sans_sorties):
+    """Variante copiée (autre nom de zone) : le marqueur fait foi, pas le nom ; l'état initial réussit."""
+    dossier = copie_sans_sorties
+    assert assets.zone_fictive(dossier)
+    resume = assets.produire_etat_initial({"zone": "m4_variante"}, dossier)
+    assert resume["arbres"] == 14080
+    tileset = json.loads((dossier / "tiles" / str(resume["annee"]) / "tileset.json").read_text(encoding="utf-8"))
+    assert tileset["extras"]["raf20"] is None and "fictive" in tileset["extras"]["altitude"]
+
+
+def test_marqueur_du_depot_est_conforme_au_contrat():
+    import subprocess, sys
+    r = subprocess.run([sys.executable, "contracts/validate", "zone_marker", str(FICTIF / "zone.yml")],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+
+
+def test_raf20_ajoute_l_ondulation(tmp_path, copie_sans_sorties):
+    dossier = copie_sans_sorties
     grille = tmp_path / "raf20_essai.tif"  # grille géographique d'essai : ondulation constante de 50 m
     with rasterio.open(grille, "w", driver="GTiff", width=40, height=40, count=1, dtype="float32",
                        crs="EPSG:4326", transform=from_origin(2.0, 47.0, 0.05, 0.05)) as dst:
@@ -277,8 +307,8 @@ def test_essence_inconnue_est_une_erreur():
         etat_initial.groupe_de_chaque_arbre(np.array(["09", "99Z"], dtype=object), etat_initial.groupes_essences())
 
 
-def test_nodata_sous_un_arbre_est_une_erreur(tmp_path):
-    dossier = copie_sans_sorties(tmp_path)
+def test_nodata_sous_un_arbre_est_une_erreur(tmp_path, copie_sans_sorties):
+    dossier = copie_sans_sorties
     with rasterio.open(dossier / "dtm.tif", "r+") as dtm:
         a = dtm.read(1)
         a[:] = dtm.nodata

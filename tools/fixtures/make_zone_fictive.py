@@ -564,6 +564,16 @@ def write_params(zone):
     pq.write_table(table("etage_b", ALLOMETRY, ("a", "b", "c")), zone / "params" / "allometry.parquet")
 
 
+def write_zone_marker(zone):
+    """Marqueur versionné (contrat zone_marker) : le jeu est fictif, ses copies le restent.
+
+    Lu par `assets` : seule une zone marquée fictive peut se passer de la grille RAF20.
+    """
+    write_text(zone / "zone.yml",
+               "schema_version: 1\nfictive: true\n"
+               "reason: jeu d'essai synthétique (coordonnées et valeurs inventées, aucune source réelle)\n")
+
+
 def generate(out_dir, seed=42):
     zone = Path(out_dir)
     inputs = zone / "inputs"
@@ -575,6 +585,7 @@ def generate(out_dir, seed=42):
     write_ifn(inputs, seed)
     write_params(zone)
     write_indicator_values(zone, seed)
+    write_zone_marker(zone)
     return zone
 
 

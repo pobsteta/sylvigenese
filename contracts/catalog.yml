@@ -229,6 +229,13 @@ contracts:
     paths: [params/indicator_values.csv]
     required: false
 
+  zone_marker:
+    aliases: [zone]
+    kind: yaml
+    schema: json/zone.schema.json
+    paths: [zone.yml]
+    required: false
+
   # ------------------------------------------------------------ biomes
   biomes.biome:
     aliases: [biome]

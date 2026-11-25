@@ -56,6 +56,11 @@ def lire_arbres(zone: Path) -> dict[str, np.ndarray]:
     table = pq.read_table(fichier, columns=COLONNES)
     if table.num_rows == 0:
         raise ErreurModule(f"état initial : {fichier} ne contient aucun arbre")
+    ids = table.column("tree_id").to_pylist()
+    doubles = sorted({i for i in ids if ids.count(i) > 1}) if len(set(ids)) != len(ids) else []
+    if doubles:
+        raise ErreurModule(f"état initial : tree_id en double dans trees_init ({len(doubles)}, par exemple {doubles[0]}) ; "
+                           "un tree_id doit être unique")
     ordre = np.argsort(np.array(table.column("tree_id").to_pylist(), dtype=object), kind="stable")
     arbres = {}
     for nom in COLONNES:

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:zone",
+  "title": "Marqueur de zone (<zone>/zone.yml)",
+  "description": "Dit qu'une zone est un jeu d'essai fictif (coordonnées et valeurs synthétiques). Une copie de la zone hérite du marqueur. Lu par assets : seule une zone marquée fictive peut se passer de la grille RAF20 (ondulation prise égale à 0, dite) ; une zone réelle sans marqueur et sans RAF20 est une erreur (spec §9).",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["schema_version", "fictive", "reason"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "fictive": {"type": "boolean"},
+    "reason": {"description": "pourquoi la zone est dite fictive", "type": "string", "minLength": 1}
+  }
+}
