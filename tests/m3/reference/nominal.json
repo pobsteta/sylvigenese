@@ -1,112 +1,112 @@
 {
  "annees": {
   "2022": {
-   "g_total_m2_ha": 146260.4089399878,
+   "g_total_m2_ha": 146266.75148137796,
    "lignes": 14080,
    "lignes_cellules": 1536,
    "morts": 0,
    "recrues": 0,
-   "somme_d130": 1246855.1815427248,
-   "somme_h": 395371.25795138755,
+   "somme_d130": 1246918.0525162932,
+   "somme_h": 395373.0680220851,
    "somme_x": 9863135737.5,
    "somme_y": 91526900015.0,
    "stems_total_ha": 225280.0,
    "vivants": 14080
   },
   "2023": {
-   "g_total_m2_ha": 145495.59590746672,
-   "lignes": 17678,
-   "lignes_cellules": 2059,
+   "g_total_m2_ha": 145499.64130232,
+   "lignes": 17676,
+   "lignes_cellules": 2058,
    "morts": 197,
-   "recrues": 3598,
-   "somme_d130": 1261092.6552045117,
-   "somme_h": 428492.9221343965,
-   "somme_x": 12245504805.40607,
-   "somme_y": 113634815630.77533,
-   "stems_total_ha": 279696.0,
-   "vivants": 17481
+   "recrues": 3596,
+   "somme_d130": 1261122.5872726543,
+   "somme_h": 428477.7629366819,
+   "somme_x": 12244104321.773752,
+   "somme_y": 113621814964.41304,
+   "stems_total_ha": 279664.0,
+   "vivants": 17479
   },
   "2032": {
-   "g_total_m2_ha": 141034.85895941348,
-   "lignes": 46532,
-   "lignes_cellules": 4642,
-   "morts": 606,
-   "recrues": 34202,
-   "somme_d130": 1485916.1426892756,
-   "somme_h": 720471.5550917578,
-   "somme_x": 32171031140.524025,
-   "somme_y": 298539182381.91376,
-   "stems_total_ha": 734816.0,
-   "vivants": 45926
+   "g_total_m2_ha": 140995.04822291693,
+   "lignes": 46533,
+   "lignes_cellules": 4646,
+   "morts": 579,
+   "recrues": 34211,
+   "somme_d130": 1485711.7810596507,
+   "somme_h": 720631.7345870433,
+   "somme_x": 32190656085.414696,
+   "somme_y": 298721194608.0059,
+   "stems_total_ha": 735264.0,
+   "vivants": 45954
   },
   "2072": {
-   "g_total_m2_ha": 215083.88903376384,
-   "lignes": 153459,
-   "lignes_cellules": 7073,
-   "morts": 1927,
-   "recrues": 146440,
-   "somme_d130": 4032100.5062042833,
-   "somme_h": 2046095.0361249722,
-   "somme_x": 106147294831.33804,
-   "somme_y": 985024197073.0271,
-   "stems_total_ha": 2424512.0,
-   "vivants": 151532
+   "g_total_m2_ha": 214773.19939347886,
+   "lignes": 153115,
+   "lignes_cellules": 7067,
+   "morts": 1843,
+   "recrues": 146100,
+   "somme_d130": 4024726.4978235327,
+   "somme_h": 2042620.532081364,
+   "somme_x": 105965377511.64258,
+   "somme_y": 983334051356.8627,
+   "stems_total_ha": 2420352.0,
+   "vivants": 151272
   },
   "2122": {
-   "g_total_m2_ha": 564283.2164360783,
-   "lignes": 407329,
-   "lignes_cellules": 7511,
-   "morts": 4781,
-   "recrues": 403700,
-   "somme_d130": 11283435.929319892,
-   "somme_h": 5592420.788597701,
-   "somme_x": 281981210236.7562,
-   "somme_y": 2616767298943.086,
-   "stems_total_ha": 6440768.0,
-   "vivants": 402548
+   "g_total_m2_ha": 563873.0163537528,
+   "lignes": 407224,
+   "lignes_cellules": 7502,
+   "morts": 4787,
+   "recrues": 403596,
+   "somme_d130": 11274824.245412577,
+   "somme_h": 5587653.949661828,
+   "somme_x": 281904736857.29785,
+   "somme_y": 2616045804426.4346,
+   "stems_total_ha": 6438992.0,
+   "vivants": 402437
   }
  },
  "run": {
-  "cells_at_height_ceiling": 72494,
-  "deaths": 212428,
+  "cells_at_height_ceiling": 72536,
+  "deaths": 211938,
   "domain_outputs": {
    "ba_plot": {
-    "above": 34796301,
-    "below": 724
+    "above": 34755948,
+    "below": 730
    },
    "ba_species": {
-    "above": 181210,
+    "above": 180841,
     "below": 0
    },
    "bal": {
-    "above": 32933517,
+    "above": 32888631,
     "below": 0
    },
    "coarse_bioclim_700m": {
-    "above": 15582047,
-    "below": 14440834
+    "above": 15583885,
+    "below": 14355317
    },
    "coarse_hydric_700m": {
-    "above": 7085681,
-    "below": 11827745
+    "above": 7137367,
+    "below": 11750835
    },
    "d130": {
-    "above": 1243730,
-    "below": 641197
+    "above": 1243486,
+    "below": 640410
    },
    "rel_d": {
-    "above": 680,
-    "below": 6277751
+    "above": 718,
+    "below": 6266218
    },
    "trophic": {
-    "above": 1943953,
-    "below": 1310367
+    "above": 1925375,
+    "below": 1293892
    }
   },
-  "edge_disks": 1099197,
-  "mixed_cells": 148345,
+  "edge_disks": 1106037,
+  "mixed_cells": 148349,
   "provisional_share": 1.0,
-  "recruits": 600896,
+  "recruits": 600295,
   "seed": 42,
   "t0": 2022,
   "years": 100,

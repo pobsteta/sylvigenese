@@ -613,7 +613,7 @@ test_that("station_gradients.tif : trois bandes dans l'ordre trophic, hydric, bi
   }
 })
 
-test_that("station_type.tif : valeurs de la légende, noms de types.csv, mode et non moyenne", {
+test_that("station_type.tif : valeurs de la légende, noms de types.csv, un type source et non une moyenne", {
   z <- zone_preparee()
   cats <- utils::read.csv(file.path(z, "station_type.csv"), stringsAsFactors = FALSE)
   legende <- utils::read.csv2(file.path(z, "inputs", "types.csv"), stringsAsFactors = FALSE)
@@ -625,6 +625,236 @@ test_that("station_type.tif : valeurs de la légende, noms de types.csv, mode et
   # code source (une moyenne donnerait des codes décimaux arrondis hors de la légende)
   src <- terra::rast(file.path(z, "inputs", "station_type.tif"))
   expect_true(all(unique(v) %in% unique(terra::values(src, mat = FALSE))))
+})
+
+# ------------------------------------------------------------------ type de station : règle de Pascal (mission 042)
+# Majorité pondérée par la surface couverte ; à égalité, le pixel qui couvre le centre ; chaque
+# égalité au rapport (décision du 25/11/2026). Coordonnées : EPSG:2154, x vers l'est puis y vers le
+# nord ; les matrices de valeurs s'écrivent ligne par ligne depuis le coin nord-ouest.
+
+# Raster source en EPSG:2154 : coin nord-ouest (xmin, ymax), maille `res`, valeurs `m` (matrice,
+# première ligne au nord).
+source_2154 <- function(xmin, ymax, res, m) {
+  m <- as.matrix(m)
+  terra::rast(nrows = nrow(m), ncols = ncol(m), xmin = xmin, xmax = xmin + ncol(m) * res,
+              ymin = ymax - nrow(m) * res, ymax = ymax, crs = "EPSG:2154",
+              vals = as.vector(t(m)))
+}
+
+# Grille cible de 25 m (ou `res`) : coin nord-ouest (xmin, ymax), nc colonnes, nr lignes.
+grille_2154 <- function(xmin, ymax, nc = 1, nr = 1, res = 25, crs = "EPSG:2154") {
+  terra::rast(xmin = xmin, xmax = xmin + nc * res, ymin = ymax - nr * res, ymax = ymax,
+              resolution = res, crs = crs)
+}
+
+valeurs <- function(r) terra::values(r, mat = FALSE)
+
+# Textes comparés en octets UTF-8 (useBytes) : une locale C ne fausse pas les accents (comme
+# test-biomes.R). `lignes_du_rapport` : les textes d'un rapport, d'une section ou de toutes.
+en_octets <- function(x) vapply(x, function(s) rawToChar(charToRaw(s)), character(1), USE.NAMES = FALSE)
+lignes_du_rapport <- function(rap, section = NULL) {
+  e <- rap$entries
+  if (!is.null(section)) e <- Filter(function(x) en_octets(x$section) == en_octets(section), e)
+  en_octets(vapply(e, function(x) x$text, character(1)))
+}
+contient <- function(textes, motif) any(grepl(en_octets(motif), textes, fixed = TRUE, useBytes = TRUE))
+
+# Pixels de 10 m sous une cellule de 25 m au même coin nord-ouest : largeurs 10, 10, 5 sur chaque
+# axe, soit 100 100 50 / 100 100 50 / 50 50 25 m² ; le centre (12,5 m ; 12,5 m) est dans le pixel
+# de la ligne 2, colonne 2.
+Y_TOP <- Y0 + 30
+
+test_that("majorité nette : la surface couverte l'emporte sur le nombre de pixels", {
+  # pixels de 20 m, cellule au même coin : 400 / 100 / 100 / 25 m² ; le type 1 couvre 400 m², le
+  # type 2 deux pixels (200 m²) : compter les pixels donnerait 2, la surface donne 1
+  src <- source_2154(X0, Y0 + 40, 20, rbind(c(1, 2), c(2, 3)))
+  m <- categorical_majority(src, grille_2154(X0, Y0 + 40))
+  expect_equal(valeurs(m$raster), 1)
+  expect_equal(nrow(m$ties), 0L)
+})
+
+test_that("majorité nette : la surface couverte l'emporte aussi sur le pixel du centre", {
+  # cellule décalée de 5 m : 225 (centre, type 1) / 150 / 150 / 100 m² ; type 2 = 300 m² > 225
+  src <- source_2154(X0, Y0 + 40, 20, rbind(c(1, 2), c(2, 3)))
+  m <- categorical_majority(src, grille_2154(X0 + 5, Y0 + 35))
+  expect_equal(valeurs(m$raster), 2)
+  expect_equal(nrow(m$ties), 0L)
+})
+
+test_that("égalité exacte : le pixel du centre départage, et non le plus petit code", {
+  # type 1 : 100 + 100 ; type 2 : 100 + 100 (dont le centre) ; type 3 : 175 ; type 4 : 50 m²
+  src <- source_2154(X0, Y_TOP, 10, rbind(c(1, 1, 3), c(2, 2, 4), c(3, 3, 3)))
+  m <- categorical_majority(src, grille_2154(X0, Y_TOP))
+  expect_equal(valeurs(m$raster), 2)
+  expect_equal(nrow(m$ties), 1L)
+  expect_equal(m$ties$types, "1 et 2")
+  expect_equal(m$ties$area_m2, 200)
+  expect_equal(m$ties$center_type, 2)
+  expect_equal(m$ties$value, 2)
+  # le miroir : le centre est de type 1, le type 1 gagne
+  src2 <- source_2154(X0, Y_TOP, 10, rbind(c(2, 2, 3), c(1, 1, 4), c(3, 3, 3)))
+  expect_equal(valeurs(categorical_majority(src2, grille_2154(X0, Y_TOP))$raster), 1)
+})
+
+test_that("une égalité est une ligne du rapport : cellule, centre en EPSG:2154, types, surface, type retenu", {
+  src <- source_2154(X0, Y_TOP, 10, rbind(c(1, 1, 3), c(2, 2, 4), c(3, 3, 3)))
+  rap <- new_report()
+  r <- suppressMessages(resample_categorical(src, grille_2154(X0, Y_TOP), rap, "station_type.tif"))
+  expect_equal(valeurs(r), 2)
+  lignes <- lignes_du_rapport(rap, "Égalités de surface (rééchantillonnage catégoriel)")
+  expect_length(lignes, 2L)
+  expect_true(contient(lignes[1], "1 cellule(s) à égalité de surface entre types, dont 1 départagée(s) par le pixel du centre et 0 laissée(s) sans valeur"))
+  expect_true(contient(lignes[2], "cellule 0 (ligne 1, colonne 1 ; centre x = 700012,5, y = 6500017,5, EPSG:2154) : types 1 et 2 à égalité, 200 m² chacun ; pixel du centre : type 2 ; type 2 retenu"))
+})
+
+test_that("sans égalité, le rapport le dit aussi (0 cellule), il ne se tait pas", {
+  src <- source_2154(X0, Y0 + 40, 20, rbind(c(1, 2), c(2, 3)))
+  rap <- new_report()
+  suppressMessages(resample_categorical(src, grille_2154(X0, Y0 + 40), rap, "station_type.tif"))
+  textes <- lignes_du_rapport(rap)
+  expect_true(contient(textes, "station_type.tif : 0 cellule(s) à égalité de surface"))
+  expect_true(contient(textes, "majorité pondérée par la surface couverte"))
+})
+
+test_that("égalité que le centre ne départage pas (centre d'un autre type) : NA, et le rapport le dit", {
+  # type 1 : 200 ; type 2 : 100 + 50 + 50 = 200 ; type 3 (centre) : 100 ; type 4 : 125 m²
+  src <- source_2154(X0, Y_TOP, 10, rbind(c(1, 1, 4), c(2, 3, 4), c(2, 2, 4)))
+  rap <- new_report()
+  r <- suppressMessages(resample_categorical(src, grille_2154(X0, Y_TOP), rap, "station_type.tif"))
+  expect_true(is.na(valeurs(r)))
+  textes <- lignes_du_rapport(rap)
+  expect_true(contient(textes, "dont 0 départagée(s) par le pixel du centre et 1 laissée(s) sans valeur"))
+  expect_true(contient(textes, "types 1 et 2 à égalité, 200 m² chacun ; pixel du centre : type 3 ; cellule laissée sans valeur, la règle ne tranche pas"))
+})
+
+test_that("bord de zone : seule la partie couverte par la source vote ; une cellule hors source reste NA, comptée", {
+  # source de 20 m sur (700000-700040 ; 6500000-6500040) ; grille de 3 x 2 cellules de 25 m depuis
+  # (700000 ; 6500040) : elle déborde à l'est et au sud
+  src <- source_2154(X0, Y0 + 40, 20, rbind(c(1, 2), c(3, 3)))
+  g <- grille_2154(X0, Y0 + 40, nc = 3, nr = 2)
+  m <- categorical_majority(src, g)
+  v <- valeurs(m$raster)
+  # ligne 1 : 1 (400 contre 100 et 125) ; 2 (300 contre 75, le reste hors source) ; NA (hors source)
+  # ligne 2 : 3 (375, sur 15 m de haut seulement) ; 3 (225) ; NA
+  expect_equal(v, c(1, 2, NA, 3, 3, NA))
+  expect_equal(m$no_vote, 2L)
+  expect_equal(m$partial, 3L)
+  # point du terrain : (700037,5 ; 6500027,5), en x est puis y nord, tombe dans la cellule de type 2
+  expect_equal(terra::extract(m$raster, matrix(c(700037.5, 6500027.5), ncol = 2))[1, 1], 2)
+  rap <- new_report()
+  suppressMessages(resample_categorical(src, g, rap, "station_type.tif"))
+  textes <- lignes_du_rapport(rap)
+  expect_true(contient(textes, "2 cellule(s) sans aucun pixel source avec valeur (aucun vote)"))
+  expect_true(contient(textes, "3 cellule(s) dont une partie de la surface n'a pas de valeur source"))
+})
+
+test_that("une source plus grande que la grille est recadrée sans décaler les pixels", {
+  # le pixel de type 9 est à l'ouest de la grille, celui de type 8 au nord : ils ne votent pas
+  src <- source_2154(X0 - 20, Y0 + 60, 20, rbind(c(8, 8, 8), c(9, 1, 2), c(9, 2, 3)))
+  m <- categorical_majority(src, grille_2154(X0, Y0 + 40))
+  expect_equal(valeurs(m$raster), 1)
+})
+
+test_that("NA : un pixel sans valeur ne vote pas ; sans aucun vote la cellule reste NA, signalée", {
+  # NA sur 400 m², type 2 sur 100, type 3 sur 100 + 25 : le type 3 l'emporte, le NA ne gagne pas
+  src <- source_2154(X0, Y0 + 40, 20, rbind(c(NA, 2), c(3, 3)))
+  m <- categorical_majority(src, grille_2154(X0, Y0 + 40))
+  expect_equal(valeurs(m$raster), 3)
+  expect_equal(m$partial, 1L)
+  # tout NA : aucun vote
+  src_na <- source_2154(X0, Y0 + 40, 20, matrix(NA_real_, 2, 2))
+  rap <- new_report()
+  r <- suppressMessages(resample_categorical(src_na, grille_2154(X0, Y0 + 40), rap, "station_type.tif"))
+  expect_true(is.na(valeurs(r)))
+  textes <- lignes_du_rapport(rap)
+  expect_true(contient(textes, "1 cellule(s) sans aucun pixel source avec valeur (aucun vote) ; laissées au nodata"))
+  # égalité 2 contre 3 (100 m² chacun) et centre sur un pixel NA : la règle ne tranche pas
+  src_c <- source_2154(X0, Y0 + 40, 20, rbind(c(NA, 2), c(3, NA)))
+  m_c <- categorical_majority(src_c, grille_2154(X0, Y0 + 40))
+  expect_true(is.na(valeurs(m_c$raster)))
+  expect_equal(m_c$ties$types, "2 et 3")
+  expect_true(is.na(m_c$ties$center_type))
+})
+
+test_that("grilles non alignées comme attendu : erreur explicite, aucun résultat deviné", {
+  src <- source_2154(X0, Y0 + 40, 20, rbind(c(1, 2), c(2, 3)))
+  expect_error(categorical_majority(src, grille_2154(X0 + 0.003, Y0 + 40)), "hors du centim")
+  expect_error(categorical_majority(src, grille_2154(X0, Y0 + 40, crs = "EPSG:3035")),
+               "de coordonn")
+  expect_error(categorical_majority(src, grille_2154(X0 + 5000, Y0 + 40)), "ne recouvre pas la grille")
+  expect_error(categorical_majority(c(src, src), grille_2154(X0, Y0 + 40)), "une seule attendue")
+  src_dec <- source_2154(X0, Y0 + 40, 20, rbind(c(1.5, 2), c(2, 3)))
+  expect_error(categorical_majority(src_dec, grille_2154(X0, Y0 + 40)), "non enti")
+})
+
+test_that("la règle n'appelle pas le rééchantillonnage de terra ni de GDAL (même sortie quelle que soit la version)", {
+  local_mocked_bindings(resample = function(...) stop("resample appelé"), .package = "terra")
+  src <- source_2154(X0, Y_TOP, 10, rbind(c(1, 1, 3), c(2, 2, 4), c(3, 3, 3)))
+  expect_equal(valeurs(categorical_majority(src, grille_2154(X0, Y_TOP))$raster), 2)
+  for (f in list(categorical_majority, axis_overlaps, to_lattice, resample_categorical)) {
+    expect_false(any(grepl("resample(", deparse(body(f)), fixed = TRUE)))
+  }
+})
+
+test_that("contre un calcul indépendant par intersection de polygones (sf), sur une source tirée au hasard", {
+  set.seed(42)
+  m_src <- matrix(sample(c(1, 2, 3, NA), 7 * 6, replace = TRUE, prob = c(0.3, 0.3, 0.3, 0.1)), 6, 7)
+  src <- source_2154(X0 - 10, Y0 + 130, 20, m_src)
+  g <- grille_2154(X0, Y0 + 125, nc = 6, nr = 5)   # déborde à l'est et au sud de la source
+  m <- categorical_majority(src, g)
+  ps <- sf::st_as_sf(terra::as.polygons(src, aggregate = FALSE, na.rm = TRUE)); names(ps)[1] <- "v"
+  pc <- sf::st_as_sf(terra::as.polygons(terra::rast(g, vals = seq_len(terra::ncell(g))), aggregate = FALSE))
+  names(pc)[1] <- "cell"
+  sf::st_agr(ps) <- "constant"; sf::st_agr(pc) <- "constant"
+  ii <- suppressWarnings(sf::st_intersection(pc, ps))
+  ii$a <- as.numeric(sf::st_area(ii))
+  ii <- sf::st_drop_geometry(ii)
+  ii <- ii[ii$a > 1e-9, ]
+  attendu <- rep(NA_real_, terra::ncell(g))
+  for (cell in unique(ii$cell)) {
+    d <- stats::aggregate(a ~ v, data = ii[ii$cell == cell, ], FUN = sum)
+    top <- d$v[abs(d$a - max(d$a)) < 1e-6]
+    if (length(top) == 1L) {
+      attendu[cell] <- top
+    } else {
+      xy <- terra::xyFromCell(g, cell)
+      ct <- terra::extract(src, xy)[1, 1]
+      attendu[cell] <- if (!is.na(ct) && ct %in% top) ct else NA_real_
+    }
+  }
+  expect_equal(valeurs(m$raster), attendu)
+})
+
+test_that("jeu fictif : station_type.tif est la majorité par surface, recalculée par intersection sf", {
+  z <- zone_preparee()
+  src <- terra::rast(file.path(z, "inputs", "station_type.tif"))
+  g <- terra::rast(file.path(z, "grid.tif"))
+  ps <- sf::st_as_sf(terra::as.polygons(src, aggregate = FALSE)); names(ps)[1] <- "v"
+  pc <- sf::st_as_sf(terra::as.polygons(terra::rast(g, vals = seq_len(terra::ncell(g))), aggregate = FALSE))
+  names(pc)[1] <- "cell"
+  sf::st_agr(ps) <- "constant"; sf::st_agr(pc) <- "constant"
+  ii <- sf::st_drop_geometry(transform(suppressWarnings(sf::st_intersection(pc, ps)), a = 0))
+  ii$a <- as.numeric(sf::st_area(suppressWarnings(sf::st_intersection(pc, ps))))
+  ag <- stats::aggregate(a ~ cell + v, data = ii, FUN = sum)
+  ag <- ag[order(ag$cell, -ag$a), ]
+  premier <- ag[!duplicated(ag$cell), ]
+  # aucune égalité sur le jeu fictif (le rapport dit 0 cellule)
+  second <- ag[duplicated(ag$cell), ]
+  second <- second[!duplicated(second$cell), ]
+  expect_false(any(abs(premier$a[match(second$cell, premier$cell)] - second$a) < 1e-6))
+  v <- valeurs(terra::rast(file.path(z, "station_type.tif")))
+  expect_equal(v[premier$cell], premier$v)
+  f <- file.path(z, "rapport_prepare.html")
+  rapport <- rawToChar(readBin(f, "raw", file.size(f)))
+  expect_true(contient(rapport, "station_type.tif : 0 cellule(s) à égalité de surface entre types"))
+  # point du terrain, x est puis y nord : (700412,5 ; 6500912,5). Sous la cellule, le pixel de 20 m
+  # du sud-ouest (type 1) couvre 400 m², les trois autres (type 3) 100 + 25 + 100 = 225 m² : type 1.
+  # Le « mode » de GDAL 3.8 (compte de pixels) donnait 3.
+  expect_equal(valeur_en(file.path(z, "station_type.tif"), 700412.5, 6500912.5), 1)
+  expect_equal(valeur_en(file.path(z, "inputs", "station_type.tif"), 700410, 6500910), 1)
+  for (p in list(c(700410, 6500930), c(700430, 6500930), c(700430, 6500910))) {
+    expect_equal(valeur_en(file.path(z, "inputs", "station_type.tif"), p[1], p[2]), 3)
+  }
 })
 
 test_that("site_potential.tif : une bande par famille, table valeur/nom, plafond dans l'étendue de h_pot", {

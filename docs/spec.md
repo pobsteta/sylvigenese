@@ -151,8 +151,10 @@
   La recolonisation des trouées viendra en M5 par les cohortes (décision de Pascal du
   25/11/2026, M3a, trouées).
 - **Au-dessus du plafond** : on écrit `si dH < 0 alors dH = 0`, sans fonction `min`. Chaque
-  cas est une ligne de `rapport_hauteur.html`. Environ 10 % des cas sont attendus, par
-  construction de `h_pot`.
+  cas est une ligne de `rapport_hauteur.html`. Environ 10 % des cas étaient attendus, par
+  construction de `h_pot` ; M3a en mesure environ 45 % des cellules du massif fictif sur 100 ans
+  (compte `cells_at_height_ceiling` de `tests/m3/reference/nominal.json`). Cet écart est à
+  expliquer en M3b, premier chantier de vraisemblance (§6, non-régression de M3a).
 - **Hauteur d'un arbre** (décision de Pascal du 25/11/2026, M3a, question 2) : la hauteur mesurée
   par le MNH reste l'ancre ; l'arbre grandit de sa part de la croissance de la hauteur
   dominante, h += f(rel_d) × ΔH_dom, avec rel_d = d130 / d_dom (rang en diamètre) et f la
@@ -219,12 +221,12 @@
     comptée dans `run.json` ;
   - au-delà : arrêt, code 3, message en français.
 - **Non-régression de M3a** (décision de Pascal du 25/11/2026, fusion sur le critère technique) :
-  la trajectoire du massif fictif (G de 91 à 353 m²/ha et de 141 à 4 025 tiges/ha en 100 ans)
-  est figée dans `tests/m3/reference/nominal.json`, jugée **sur entrées figées**
-  (`tests/m3/reference/entrees`, pas sur la chaîne R, dont le rééchantillonnage dépend de la
-  version de GDAL). C'est une **référence technique, non validée écologiquement** ; la
-  vraisemblance (frein hors domaine, H/D des recrues, plafond dépassé dans environ 45 % des
-  cellules) est le premier chantier de M3b.
+  la trajectoire du massif fictif (G de 91 à 352 m²/ha et de 141 à 4 024 tiges/ha en 100 ans,
+  regelée après la règle du type de station de la mission 042) est figée dans `tests/m3/reference/nominal.json`, jugée **sur entrées figées**
+  (`tests/m3/reference/entrees`, pas sur la chaîne R, jugée à part par
+  `tests/m3/test_m3_amont.py`). C'est une **référence technique, non validée écologiquement** ;
+  la vraisemblance (frein hors domaine, H/D des recrues, dépassement du plafond, voir §5) est le
+  premier chantier de M3b.
 - **Codes de sortie** : 2 pour une entrée refusée, 3 pour un contrôle échoué, 4 pour une
   mémoire insuffisante. Avant le premier pas, le moteur estime la mémoire nécessaire et la
   compare à `MemAvailable`. Le noyau Linux tue un programme qui sur-alloue (code 137) : le
@@ -235,7 +237,10 @@
 - Une seule grille de simulation, à **25 m**, en EPSG:2154, définie par `grid.tif`.
 - **Rééchantillonnage** :
   - bilinéaire pour les entrées continues de maille proche (20 et 26,6 m) ;
-  - mode pour les entrées catégorielles ;
+  - pour les entrées catégorielles (type de station), majorité pondérée par la surface que
+    chaque pixel source couvre dans la cellule ; à égalité, le type du pixel qui couvre le
+    centre de la cellule ; chaque cellule à égalité est une ligne de `rapport_prepare.html`.
+    Règle écrite par le projet, indépendante de GDAL (décision de Pascal du 25/11/2026) ;
   - le MNH à 50 cm n'est **jamais** rééchantillonné : `prepare` l'agrège en `h0.tif`.
 - **Zone tampon** de la largeur du noyau de dispersion. Ses cellules sont sources de graines
   seulement, et le bord est absorbant.

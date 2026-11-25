@@ -44,6 +44,9 @@ import rasterio
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "zone_fictive"
+# Entrées de simulate figées et versionnées (test_m3_non_regression.py, MANIFEST.json) : lues à l'import à la place
+# des sorties de la chaîne sous FIXTURE, ignorées par git (mission 042).
+ENTREES_FIGEES = ROOT / "tests" / "m3" / "reference" / "entrees"
 VALIDATE = ROOT / "contracts" / "validate"
 SPECIES_CSV = ROOT / "contracts" / "species.csv"
 MASK64 = (1 << 64) - 1
@@ -65,9 +68,10 @@ TOL_D130 = 1e-9
 RE_RECRUE = re.compile(r"^r(\d+)_(\d{4})_(\d+)$")
 
 def _annee_du_dernier_vol() -> int:
-    """Année de la date de vol la plus tardive de chm_date.tif du jeu fictif (jours depuis 1970-01-01)."""
+    """Année de la date de vol la plus tardive de chm_date.tif du jeu fictif (jours depuis 1970-01-01), lue dans la
+    copie figée et versionnée (tests/m3/reference/entrees), jamais dans une sortie de la chaîne ignorée par git."""
     import datetime
-    with rasterio.open(FIXTURE / "chm_date.tif") as r:
+    with rasterio.open(ENTREES_FIGEES / "chm_date.tif") as r:
         a = r.read(1)
         jours = int(a[a != r.nodata].max())
     return (datetime.date(1970, 1, 1) + datetime.timedelta(days=jours)).year
