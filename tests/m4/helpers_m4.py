@@ -94,6 +94,14 @@ def clean_asset_outputs(zone_dir: Path) -> None:
         shutil.rmtree(zone_dir / d, ignore_errors=True)
 
 
+def remove_sim(zone_dir: Path) -> None:
+    """Efface sim/ (et une écriture interrompue de simulate) : les tests de l'état initial (mission 030) tournent sur
+    une zone SANS sim/ (plan m4a-suite-temps §6, « sim/ périmé ») ; sinon, sur un poste où `make simulate` a tourné,
+    `assets` lirait le futur et ces tests jugeraient autre chose que l'état initial (mission 045)."""
+    for d in ("sim", ".sim_en_cours"):
+        shutil.rmtree(zone_dir / d, ignore_errors=True)
+
+
 def clean_chain_outputs(zone_dir: Path) -> None:
     """Efface les sorties de prepare, biomes, trees et assets (jamais les entrées ni params/)."""
     for rel in ("grid.tif", "dtm.tif", "forest_mask.tif", "ser.tif", "ser.csv", "h0.tif", "chm_date.tif",
@@ -105,6 +113,7 @@ def clean_chain_outputs(zone_dir: Path) -> None:
         (zone_dir / rel).unlink(missing_ok=True)
     shutil.rmtree(zone_dir / "trees_init", ignore_errors=True)
     clean_asset_outputs(zone_dir)
+    remove_sim(zone_dir)
 
 
 def write_config(zone_dir: Path, name: str, t0: int | None = None) -> Path:
@@ -130,7 +139,8 @@ def clone_zone(name: str, mutate=None, t0: int | None = None) -> tuple[Path, Pat
     zone_dir = ROOT / "data" / name
     if zone_dir.exists():
         shutil.rmtree(zone_dir)
-    shutil.copytree(ZONE, zone_dir, ignore=shutil.ignore_patterns(*ASSET_DIRS, "config_m4.yml", "__pycache__"))
+    shutil.copytree(ZONE, zone_dir, ignore=shutil.ignore_patterns(*ASSET_DIRS, "sim", ".sim_en_cours", "config_m4*.yml",
+                                                             "__pycache__"))
     assert zone_dir != ZONE
     if mutate is not None:
         mutate(zone_dir)

@@ -1,35 +1,62 @@
 """Module `assets` (spec §2, §9) : modèles glTF, tuiles 3D, fiches de cellule, rasters web.
 
 Étape du BRIEF codée : spec §2 (module `assets`), §9 (formats : glTF 2.0, 3D Tiles 1.1 avec
-instanciation, COG, fiche de cellule) et §10 (statut provisoire). Mission 028 : **état
-initial**. Si `sim/` est absent, `assets` lit `trees_init/trees.parquet` et l'annonce ; la
-lecture de `sim/` (années simulées) n'est pas encore faite et `sim/` présent est une erreur.
+instanciation, COG, fiche de cellule ; « une tuile par année retenue ») et §10 (statut
+provisoire). Deux modes :
+- **état initial** (mission 028) : `sim/` absent ; `assets` lit `trees_init/trees.parquet`, l'annonce
+  et écrit une seule année ;
+- **années simulées** (mission 047, plan `docs/plans/m4a-suite-temps.md`, T1 à T10) : `sim/` présent ;
+  `assets` lit `sim/` (voir `assets_lib/sim_state.py`) et écrit, pour chaque année retenue
+  (t0, puis une sur `assets.year_step`, puis la dernière), une tuile des seuls arbres vivants, puis
+  des fiches qui portent toutes les années retenues et une carte de surface terrière par année.
 
 Sorties, sous le dossier de la zone :
 - `assets/trees/{feuillu,resineux}.gltf` (+ .bin) : modèles génériques provisoires (M6) ;
 - `tiles/<année>/tileset.json` (3D Tiles 1.1) et `tiles/<année>/t_<x>_<y>.gltf` (+ .bin),
-  une instance par arbre (`EXT_mesh_gpu_instancing`) ; repère : voir `assets_lib/frame.py` ;
-- `web/cells/t_<x>_<y>.json` : fiches de cellule (volume et carbone vides, et dits) ;
-- `web/rasters/vegetation_map.tif` : COG avec aperçus.
+  une instance par arbre (vivant) (`EXT_mesh_gpu_instancing`) ; repère : voir `assets_lib/frame.py` ;
+- `tiles/index.json` : les années, leurs instances et leurs tuiles (contrat `assets.tiles_index`) ;
+- `web/cells/t_<x>_<y>.json` : fiches de cellule (version 1 à l'état initial, 2 avec `sim/`) ;
+- `web/rasters/vegetation_map.tif` : COG avec aperçus ; avec `sim/`, `web/rasters/g_<année>.tif`.
 
-Les sorties sont écrites octet pour octet à l'identique à chaque exécution. Fin de module :
-appel du validateur sur chaque contrat `assets.*`.
+Écriture atomique : tout est écrit dans `<zone>/.en_cours/`, contrôlé par le validateur (contrats
+`assets.*`), puis seulement mis à la place de `tiles/`, `web/cells/`, `web/rasters/` et
+`assets/trees/`. Un refus n'écrit rien et laisse les sorties précédentes intactes ; les années
+périmées disparaissent avec l'ancien `tiles/`. Les sorties sont identiques à l'octet près à
+chaque exécution. `assets` n'importe ni `simulate` ni `post` : il ne lit que leurs fichiers.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
 import numpy as np
+import rasterio
 
 from sylvigenese import common
 from sylvigenese.common import ModuleError, EXIT_IMPOSSIBLE, EXIT_OK
-from sylvigenese.assets_lib import altitude, cog, initial_state, cell_sheets, models, tiles
+from sylvigenese.assets_lib import altitude, cog, initial_state, cell_sheets, models, sim_state, tiles
 
 MARKER = "zone.yml"
+STAGING = ".en_cours"
+MANAGED = ("tiles", "web/cells", "web/rasters", "assets/trees")   # dossiers remplacés d'un bloc
+MENTION_SIM = "trajectoire technique, non validée écologiquement (décision du 25/11/2026)"
+INDEX_NOTES_SIM = [
+    MENTION_SIM + " : toutes les années, t0 compris, viennent de sim/ (simulate)",
+    "une année retenue sur year_step, puis toujours la dernière ; aucune interpolation entre deux années retenues",
+    "instances : arbres vivants seulement ; les morts de l'année sont comptés dans dead et ne sont pas dessinés "
+    "(bois mort non simulé)",
+    "modèles d'arbres génériques et provisoires (remplacés en M6) ; carte des types de végétation : état initial",
+    "semis non simulés ; volume et carbone non calculés (post, après M4a)",
+]
+INDEX_NOTES_INITIAL = [
+    "état initial (trees_init) : sim/ absent, aucune année simulée",
+    "résultat provisoire : surface de houppier et d130 provisoires (spec §4.3) ; modèles d'arbres génériques (M6)",
+]
 
 
 def is_fictitious_zone(zone: Path) -> bool:
@@ -45,7 +72,7 @@ def say(message: str) -> None:
     print(f"[assets] {message}", file=sys.stderr)
 
 
-def ellipsoidal_height(config: dict, zone: Path, trees: dict) -> tuple[np.ndarray, dict]:
+def ellipsoidal_height(config: dict, zone: Path, trees: dict, announce: bool = True) -> tuple[np.ndarray, dict]:
     """Hauteur ellipsoïdale du pied de chaque arbre = altitude NGF du MNT + ondulation RAF20.
 
     Sans grille RAF20 : erreur (spec §9), sauf pour une zone marquée fictive (`zone.yml`,
@@ -58,18 +85,81 @@ def ellipsoidal_height(config: dict, zone: Path, trees: dict) -> tuple[np.ndarra
         n = altitude.raf20_undulation(Path(raf20), trees["x"], trees["y"])
         return ngf + n, {"altitude": "NGF-IGN69 (dtm.tif) + ondulation RAF20", "raf20": str(raf20)}
     if is_fictitious_zone(zone):
-        say("ATTENTION : external.raf20_grid absent ; zone marquée fictive (zone.yml) : ondulation RAF20 prise égale à 0 "
-             "(hauteur ellipsoïdale = altitude NGF), écrite dans les extras. Ne pas faire ainsi sur une zone réelle.")
+        if announce:
+            say("ATTENTION : external.raf20_grid absent ; zone marquée fictive (zone.yml) : ondulation RAF20 prise égale à 0 "
+                 "(hauteur ellipsoïdale = altitude NGF), écrite dans les extras. Ne pas faire ainsi sur une zone réelle.")
         return ngf.copy(), {"altitude": "NGF-IGN69 (dtm.tif) sans conversion : ondulation RAF20 = 0 (zone marquée fictive)", "raf20": None}
     raise ModuleError("external.raf20_grid absent de config.yml : conversion NGF-IGN69 -> hauteur ellipsoïdale "
                        "impossible (spec §9, erreur voulue) ; seule une zone marquée fictive (zone.yml) en est dispensée")
 
 
-def produce_initial_state(config: dict, zone: Path) -> dict:
-    """Écrit toutes les sorties de l'état initial ; rend un résumé (chiffres)."""
+# ------------------------------------------------------------------ écriture atomique
+class Staging:
+    """Dossier d'écriture `<zone>/.en_cours/` : `nouveau/` reçoit les sorties ; `publish` les met à la place des
+    dossiers de MANAGED (l'ancien contenu passe par `ancien/` puis disparaît). Le dossier est toujours effacé à la
+    sortie, qu'il y ait refus ou non : un refus ne laisse rien derrière lui."""
+
+    def __init__(self, zone: Path):
+        self.zone = zone
+        self.base = zone / STAGING
+        self.root = self.base / "nouveau"
+
+    def __enter__(self) -> "Staging":
+        if self.base.exists():
+            say(f"{self.base} reste d'une exécution interrompue : effacé")
+            shutil.rmtree(self.base)
+        self.root.mkdir(parents=True)
+        return self
+
+    def __exit__(self, *exc) -> None:
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def publish(self) -> None:
+        old = self.base / "ancien"
+        moved: list[str] = []
+        placed: list[str] = []
+        try:
+            for rel in MANAGED:
+                if (self.zone / rel).exists():
+                    (old / rel).parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(self.zone / rel, old / rel)
+                    moved.append(rel)
+            for rel in MANAGED:
+                if (self.root / rel).exists():
+                    (self.zone / rel).parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(self.root / rel, self.zone / rel)
+                    placed.append(rel)
+        except OSError as error:  # remise en place des anciennes sorties, puis refus
+            for rel in placed:
+                shutil.rmtree(self.zone / rel, ignore_errors=True)
+            for rel in moved:
+                os.replace(old / rel, self.zone / rel)
+            raise ModuleError(f"publication des sorties impossible ({error}) ; sorties précédentes remises en place")
+
+
+def write_json(path: Path, doc: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def split_into_tiles(trees: dict, z: np.ndarray, groups: np.ndarray, radius: np.ndarray | None = None) -> list[dict]:
+    """Tuiles de 500 m (coin sud-ouest, EPSG:2154) des arbres donnés, dans l'ordre des noms."""
+    x_west, y_south = tiles.tile_corner(trees["x"], trees["y"])
+    built = []
+    for tile_x, tile_y in sorted(set(zip(x_west.tolist(), y_south.tolist()))):
+        selected = (x_west == tile_x) & (y_south == tile_y)
+        subset = {k: v[selected] for k, v in trees.items()}
+        built.append(tiles.build_tile(tile_x, tile_y, subset, z[selected], groups[selected],
+                                      radius=None if radius is None else radius[selected]))
+    return built
+
+
+# ------------------------------------------------------------------ état initial (sim/ absent)
+def write_initial_state(config: dict, zone: Path, out: Path) -> dict:
+    """Écrit sous `out` toutes les sorties de l'état initial ; rend un résumé (chiffres)."""
     if (zone / "sim").exists():
-        raise ModuleError(f"{zone / 'sim'} existe : la lecture des années simulées n'est pas encore faite "
-                           "(mission suivante) ; mode « état initial » seulement")
+        raise ModuleError(f"{zone / 'sim'} existe : l'état initial ne s'écrit que sans sim/ "
+                          "(avec sim/, assets écrit les années simulées)")
     say(f"mode état initial : sim/ absent, lecture de {zone / 'trees_init' / 'trees.parquet'}")
     trees = initial_state.read_trees(zone)
     groups = initial_state.group_of_each_tree(trees["species"], initial_state.species_groups())
@@ -77,14 +167,7 @@ def produce_initial_state(config: dict, zone: Path) -> dict:
     say(f"année affichée : {year} ({year_origin})")
     z, altitude_info = ellipsoidal_height(config, zone, trees)
 
-    # 1. tout est lu et construit en mémoire : un refus n'écrit rien (pas de tuile à moitié écrite)
-    x_west, y_south = tiles.tile_corner(trees["x"], trees["y"])
-    keys = sorted(set(zip(x_west.tolist(), y_south.tolist())))
-    built_tiles = []
-    for tile_x, tile_y in keys:
-        selected = (x_west == tile_x) & (y_south == tile_y)
-        subset = {k: v[selected] for k, v in trees.items()}
-        built_tiles.append(tiles.build_tile(tile_x, tile_y, subset, z[selected], groups[selected]))
+    built_tiles = split_into_tiles(trees, z, groups)
     docs, counts = cell_sheets.build_cell_sheets(zone, trees, year)
     if not (zone / "vegetation_map.tif").is_file():
         raise ModuleError(f"raster introuvable : {zone / 'vegetation_map.tif'} (sortie de biomes)")
@@ -92,12 +175,8 @@ def produce_initial_state(config: dict, zone: Path) -> dict:
     if expected_instances != len(trees["h"]):
         raise ModuleError(f"{expected_instances} instances prévues pour {len(trees['h'])} arbres de trees_init")
 
-    # 2. écriture
-    written_models = models.write_models(zone / "assets" / "trees")
-    tiles_dir = zone / "tiles" / str(year)
-    if tiles_dir.exists():
-        for old in list(tiles_dir.glob("*.gltf")) + list(tiles_dir.glob("*.bin")) + list(tiles_dir.glob("tileset.json")):
-            old.unlink()
+    written_models = models.write_models(out / "assets" / "trees")
+    tiles_dir = out / "tiles" / str(year)
     tiles_dir.mkdir(parents=True, exist_ok=True)
     for t in built_tiles:
         tiles.write_content(tiles_dir, t, year)
@@ -106,25 +185,140 @@ def produce_initial_state(config: dict, zone: Path) -> dict:
               "repere": "ECEF (EPSG:4978) par le transform de chaque tuile ; repère local est-nord-haut ; contenu glTF Y haut",
               **altitude_info}
     tiles.write_tileset(tiles_dir, built_tiles, year, extras)
-    written_sheets = cell_sheets.write_cell_sheets(zone / "web" / "cells", docs)
-    cog.write_cog(zone / "vegetation_map.tif", zone / "web" / "rasters" / "vegetation_map.tif")
+    write_json(out / "tiles" / "index.json", {
+        "schema_version": 1, "source": "trees_init", "t0": year, "provisoire": True, "notes": INDEX_NOTES_INITIAL,
+        "years": [{"year": year, "instances": int(len(trees["h"])), "tileset": f"{year}/tileset.json",
+                   "tiles": [{"tile": t["name"], "instances": t["n"]} for t in built_tiles]}]})
+    written_sheets = cell_sheets.write_cell_sheets(out / "web" / "cells", docs)
+    cog.write_cog(zone / "vegetation_map.tif", out / "web" / "rasters" / "vegetation_map.tif")
 
     written_instances = sum(t["n"] for t in built_tiles)
     if written_instances != len(trees["h"]):
         raise ModuleError(f"{written_instances} instances écrites pour {len(trees['h'])} arbres de trees_init")
-    return {"year": year, "trees": int(len(trees["h"])), "tiles": len(built_tiles), "models": len(written_models),
-            "sheets": len(written_sheets), "cells": counts, "tiles_dir": tiles_dir}
+    return {"mode": "initial", "year": year, "years": [year], "trees": int(len(trees["h"])), "tiles": len(built_tiles),
+            "models": len(written_models), "sheets": len(written_sheets), "cells": counts, "tiles_dir": zone / "tiles" / str(year)}
 
 
-def validate_outputs(zone: Path, year: int) -> int:
-    """Appelle le validateur sur chaque contrat `assets.*` ; rend le pire code (0 si tout conforme)."""
-    worst = 0
+def produce_initial_state(config: dict, zone: Path) -> dict:
+    """État initial écrit puis publié sous la zone (sans appel du validateur : voir `run`)."""
+    with Staging(zone) as staging:
+        summary = write_initial_state(config, zone, staging.root)
+        staging.publish()
+    return summary
+
+
+# ------------------------------------------------------------------ années simulées (sim/ présent)
+def check_sim_inputs(zone: Path, retained: list[int]) -> None:
+    """Validateur sur les seules parties de sim/ lues (plan T6) : run.json, flags, cells, trees des années retenues."""
+    batches = [("simulate.run", [zone / "sim" / "run.json"]), ("simulate.flags", [zone / "sim" / "flags.parquet"]),
+               ("simulate.cells", [zone / "sim" / "cells"]),
+               ("simulate.trees", [zone / "sim" / "trees" / f"year={y}" for y in retained])]
+    for contract, paths in batches:
+        code = common.call_validator([contract, *map(str, paths)])
+        if code != 0:
+            raise ModuleError(f"sim/ non conforme au contrat {contract} (validateur, code {code}) : sim/ n'est pas lu")
+
+
+def write_sim_state(config: dict, zone: Path, out: Path) -> dict:
+    """Écrit sous `out` les années retenues de sim/ ; rend un résumé (chiffres)."""
+    step = sim_state.year_step(config)
+    run = sim_state.read_run(zone, config)
+    t0, horizon = int(run["t0"]), int(run["years"])
+    retained = sim_state.retained_years(t0, horizon, step)
+    say(f"mode années simulées : lecture de {zone / 'sim'} (t0 {t0}, {horizon} ans) ; années retenues, "
+        f"une sur {step} et la dernière : {', '.join(map(str, retained))}")
+    sim_state.check_partitions(zone, t0, horizon, retained)
+    check_sim_inputs(zone, retained)
+    species_table = initial_state.species_groups()
+    if not (zone / "vegetation_map.tif").is_file():
+        raise ModuleError(f"raster introuvable : {zone / 'vegetation_map.tif'} (sortie de biomes)")
+
+    # 1. cellules : toutes les années (échelle fixe de la carte, Q3), années retenues pour les fiches
+    cells = sim_state.read_cells(zone, t0, horizon)
+    with rasterio.open(zone / "vegetation_map.tif") as src:
+        veg, nodata_veg, width = src.read(1), src.nodata, src.width
+    forest = {int(r * width + c) for r, c in zip(*np.nonzero(veg != nodata_veg))}
+    scale_min, scale_max = sim_state.basal_area_scale(cells, forest)
+    keep = set(retained)
+    rows: dict[tuple[int, int], list[dict]] = {}
+    for r in cells.to_pylist():
+        if r["year"] in keep:
+            rows.setdefault((r["cell_id"], r["year"]), []).append(r)
+    flags = sim_state.cell_flags(zone, retained)
+    docs, counts, g_maps = cell_sheets.build_cell_sheets_v2(zone, rows, retained, t0, flags, species_table)
+
+    # 2. une tuile par année retenue, des seuls arbres vivants (T4, T5) ; une année à la fois en mémoire
+    written_models = models.write_models(out / "assets" / "trees")
+    index_years, per_year = [], []
+    altitude_info: dict = {}
+    for n_year, year in enumerate(retained):
+        trees = sim_state.read_trees(zone, year)
+        groups_all = initial_state.group_of_each_tree(trees["species"], species_table)
+        alive = trees["status"] == "alive"
+        dead = int((~alive).sum())
+        if not alive.any():
+            raise ModuleError(f"sim/trees/year={year} : aucun arbre vivant ; une tuile vide n'est pas prévue")
+        living = {k: v[alive] for k, v in trees.items()}
+        z, altitude_info = ellipsoidal_height(config, zone, living, announce=n_year == 0)
+        built = split_into_tiles(living, z, groups_all[alive], radius=living["cw"] / 2.0)
+        tiles_dir = out / "tiles" / str(year)
+        tiles_dir.mkdir(parents=True)
+        for t in built:
+            tiles.write_content(tiles_dir, t, year, state="simulé")
+        n_alive = int(alive.sum())
+        if sum(t["n"] for t in built) != n_alive:
+            raise ModuleError(f"{year} : {sum(t['n'] for t in built)} instances pour {n_alive} arbres vivants")
+        extras = {**models.GENERIC_EXTRAS, "annee": year, "etat": "simulé", "source": f"sim/trees/year={year}",
+                  "instances": n_alive, "morts_non_dessines": dead, "run_config_sha256": run["config_sha256"],
+                  "mention": MENTION_SIM, "rayon": "cw / 2 de sim/trees ; hauteur : h de sim/trees",
+                  "repere": "ECEF (EPSG:4978) par le transform de chaque tuile ; repère local est-nord-haut ; contenu glTF Y haut",
+                  **altitude_info}
+        tiles.write_tileset(tiles_dir, built, year, extras)
+        per_year.append({t["name"]: t["n"] for t in built})
+        index_years.append({"year": year, "instances": n_alive, "dead": dead, "tileset": f"{year}/tileset.json"})
+        say(f"{year} : {n_alive} arbres vivants en {len(built)} tuile(s), {dead} mort(s) non dessiné(s)")
+        del trees, living, z, built
+
+    # 3. index (toutes les tuiles de la zone pour chaque année, 0 instance comprise), fiches, cartes
+    all_tiles = sorted(set(docs) | {name for counts_year in per_year for name in counts_year})
+    for entry, counts_year in zip(index_years, per_year):
+        entry["tiles"] = [{"tile": name, "instances": int(counts_year.get(name, 0))} for name in all_tiles]
+    write_json(out / "tiles" / "index.json", {
+        "schema_version": 1, "source": "sim", "t0": t0, "year_step": step, "run_config_sha256": run["config_sha256"],
+        "provisoire": True, "notes": INDEX_NOTES_SIM,
+        "basal_area_map": {"unit": "m2/ha", "scale_min_m2_ha": scale_min, "scale_max_m2_ha": scale_max,
+                           "mention": "surface terrière par cellule (m2/ha), web/rasters/g_<année>.tif, échelle fixe sur "
+                                      f"toutes les années simulées ({t0} à {t0 + horizon}) ; " + MENTION_SIM},
+        "years": index_years})
+    written_sheets = cell_sheets.write_cell_sheets(out / "web" / "cells", docs)
+    cog.write_cog(zone / "vegetation_map.tif", out / "web" / "rasters" / "vegetation_map.tif")
+    for year in retained:
+        cog.write_basal_area_cog(zone / "grid.tif", g_maps[year], out / "web" / "rasters" / f"g_{year}.tif")
+    return {"mode": "sim", "year": retained[0], "years": retained, "trees": sum(e["instances"] for e in index_years),
+            "dead": sum(e["dead"] for e in index_years), "tiles": len(all_tiles), "models": len(written_models),
+            "sheets": len(written_sheets), "cells": counts, "scale": (scale_min, scale_max)}
+
+
+# ------------------------------------------------------------------ contrôle et point d'entrée
+def validate_outputs(root: Path, years: int | list[int], grid: Path | None = None) -> int:
+    """Appelle le validateur sur chaque contrat `assets.*` des sorties sous `root` ; rend le pire code (0 si tout
+    conforme). `grid` : grid.tif de la zone, exigé pour contrôler les cartes g_<année>.tif."""
+    years = [years] if isinstance(years, int) else list(years)
+    rasters = root / "web" / "rasters"
     batches = [
-        ("assets.gltf", sorted((zone / "assets" / "trees").glob("*.gltf")) + sorted((zone / "tiles" / str(year)).glob("*.gltf"))),
-        ("assets.tileset", [zone / "tiles" / str(year) / "tileset.json"]),
-        ("assets.cell_sheet", sorted((zone / "web" / "cells").glob("*.json"))),
-        ("assets.web_raster", [zone / "web" / "rasters" / "vegetation_map.tif"]),
+        ("assets.gltf", sorted((root / "assets" / "trees").glob("*.gltf"))
+         + [p for y in years for p in sorted((root / "tiles" / str(y)).glob("*.gltf"))]),
+        ("assets.tileset", [root / "tiles" / str(y) / "tileset.json" for y in years]),
+        ("assets.tiles_index", [root / "tiles" / "index.json"]),
+        ("assets.cell_sheet", sorted((root / "web" / "cells").glob("*.json"))),
+        ("assets.web_raster", sorted(rasters.glob("*.tif"))),
     ]
+    g_maps = sorted(rasters.glob("g_*.tif"))
+    if g_maps:
+        if grid is None:
+            raise ModuleError("contrôle des cartes g_<année>.tif impossible sans grid.tif")
+        batches.append(("assets.basal_area_raster", ["--grid", grid, *g_maps]))
+    worst = 0
     for contract, paths in batches:
         code = common.call_validator([contract, *map(str, paths)])
         if code != 0:
@@ -136,18 +330,29 @@ def validate_outputs(zone: Path, year: int) -> int:
 def run(config_path: str) -> int:
     try:
         config = common.read_config(config_path)
+        zone = initial_state.zone_dir(config)
+        with_sim = (zone / "sim").exists()
+        if with_sim:
+            sim_state.year_step(config)  # cause nommée avant le verdict général du validateur
         code = common.call_validator(["config", str(config_path)])
         if code != 0:
             raise ModuleError(f"config.yml non conforme (validateur, code {code})")
-        zone = initial_state.zone_dir(config)
-        summary = produce_initial_state(config, zone)
-        code = validate_outputs(zone, summary["year"])
-        if code != 0:
-            raise ModuleError(f"sorties non conformes aux contrats assets.* (validateur, code {code})")
+        with Staging(zone) as staging:
+            summary = (write_sim_state if with_sim else write_initial_state)(config, zone, staging.root)
+            code = validate_outputs(staging.root, summary["years"], zone / "grid.tif")
+            if code != 0:
+                raise ModuleError(f"sorties non conformes aux contrats assets.* (validateur, code {code}) ; rien n'est publié")
+            staging.publish()
     except ModuleError as error:
         print(f"[assets] erreur : {error}", file=sys.stderr)
         return EXIT_IMPOSSIBLE
     c = summary["cells"]
+    if summary["mode"] == "sim":
+        say(f"années simulées {', '.join(map(str, summary['years']))} : {summary['trees']} instances (vivants) au total, "
+            f"{summary['dead']} morts non dessinés, {summary['tiles']} tuile(s), {summary['sheets']} fiche(s) v2 de "
+            f"{c['cells']} cellule(s), {len(summary['years'])} carte(s) de surface terrière (échelle "
+            f"{summary['scale'][0]:.3f} à {summary['scale'][1]:.3f} m2/ha) ; {MENTION_SIM} ; tous les contrats assets.* conformes")
+        return EXIT_OK
     say(f"état initial {summary['year']} : {summary['trees']} instances en {summary['tiles']} tuile(s), "
          f"{summary['models']} modèles génériques, {summary['sheets']} fiche(s) de {c['cells']} cellule(s) "
          f"(sans station : {c['without_station']}, sans type de végétation : {c['without_vegetation']}, sans H0 : {c['without_h0']}), "

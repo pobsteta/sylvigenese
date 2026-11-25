@@ -6,11 +6,10 @@ absent, le test échoue en le disant.
 Ce test ne juge QUE le moteur : `simulate` est rejoué sur des ENTRÉES FIGÉES, versionnées sous
 tests/m3/reference/entrees/ (sorties de prepare, biomes, trees et dynamics sur le jeu fictif, voir le MANIFEST.json
 qui en donne les empreintes et l'environnement qui les a produites). Raison (25/11/2026) : l'état initial produit
-par la chaîne R dépend de la plateforme. GDAL 3.11 a changé le rééchantillonnage « mode » (pondéré par la surface
-couverte) ; station_type.tif passe de 20 m à 25 m par ce mode dans prepare (R/prepare_grid.R) ; 50 cellules sur
-1600 changent de type de station entre GDAL 3.8.4 et 3.12.2, donc de biome, donc l'essence d'arbres hors polygone,
-donc leur d130. La chaîne entière jugée ici mêlait ce défaut amont au moteur. La stabilité amont est testée à part
-(test_m3_amont.py).
+par la chaîne R dépendait de la plateforme (« mode » de GDAL, changé en 3.11, pour passer station_type.tif de 20 à
+25 m). Depuis la mission 042, prepare applique sa propre règle (majorité pondérée par la surface, égalité départagée
+par le pixel du centre, décision de Pascal du 25/11/2026) ; les entrées restent figées pour que ce test ne juge que
+le moteur. La stabilité amont est testée à part (test_m3_amont.py).
 
 Les ressources versionnées ailleurs ne sont pas recopiées (un lien plutôt qu'une copie) : params/allometry.parquet
 et zone.yml viennent de tests/fixtures/zone_fictive, contracts/species.csv du dépôt.
@@ -130,17 +129,6 @@ def moteur_sur_entrees_figees(request):
     H.remove_zone(ZONE_NR)
 
 
-def test_les_entrees_figees_sont_celles_du_manifest(moteur_sur_entrees_figees):
-    """Une entrée figée ne change pas sans qu'on le voie : chaque fichier a l'empreinte du MANIFEST, et le MANIFEST
-    ne liste que les fichiers figés (ni plus, ni moins). (La fixture passe d'abord : en mode gel, elle écrit les
-    entrées et le MANIFEST.)"""
-    assert MANIFEST.is_file(), f"{MANIFEST} absent : figer les entrées avec SYLVIGENESE_M3_FREEZE_ENTREES=1"
-    m = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert set(m["fichiers"]) == set(FICHIERS_FIGES)
-    for rel, attendu in m["fichiers"].items():
-        assert sha256(ENTREES / rel) == attendu, f"{rel} : empreinte différente du MANIFEST"
-
-
 def test_le_moteur_redonne_l_empreinte_figee(moteur_sur_entrees_figees):
     r = moteur_sur_entrees_figees
     assert r["proc"].returncode == 0, H.queue(r["proc"])
@@ -152,3 +140,23 @@ def test_le_moteur_redonne_l_empreinte_figee(moteur_sur_entrees_figees):
                            "SYLVIGENESE_M3_FREEZE=1 ; référence technique, non validée écologiquement (décision de "
                            "Pascal du 25/11/2026 ; vraisemblance traitée en M3b)")
     _egal(json.loads(REF.read_text(encoding="utf-8")), json.loads(json.dumps(emp)))
+
+
+def _fichiers_sous_entrees() -> set[str]:
+    """Chemins relatifs (séparateur /) de tous les fichiers sous entrees/, MANIFEST.json excepté."""
+    return {p.relative_to(ENTREES).as_posix() for p in ENTREES.rglob("*") if p.is_file()} - {MANIFEST.name}
+
+
+def test_les_entrees_figees_sont_celles_du_manifest():
+    """Une entrée figée ne change pas sans qu'on le voie : chaque fichier a l'empreinte du MANIFEST ; le MANIFEST
+    ne liste que les fichiers figés (ni plus, ni moins) ; et aucun fichier en trop ne traîne sous entrees/.
+    Sans fixture : ce test ne lance ni la chaîne ni le moteur. Il est écrit après le test du moteur : en mode gel
+    (SYLVIGENESE_M3_FREEZE_ENTREES=1), la fixture a déjà réécrit les entrées et le MANIFEST quand il passe."""
+    assert MANIFEST.is_file(), f"{MANIFEST} absent : figer les entrées avec SYLVIGENESE_M3_FREEZE_ENTREES=1"
+    m = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert set(m["fichiers"]) == set(FICHIERS_FIGES)
+    en_trop = _fichiers_sous_entrees() - set(FICHIERS_FIGES)
+    assert not en_trop, f"fichier(s) en trop sous {ENTREES}, ni figés ni au MANIFEST : {sorted(en_trop)}"
+    for rel, attendu in m["fichiers"].items():
+        assert (ENTREES / rel).is_file(), f"{rel} : listé au MANIFEST, absent de {ENTREES}"
+        assert sha256(ENTREES / rel) == attendu, f"{rel} : empreinte différente du MANIFEST"

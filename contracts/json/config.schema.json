@@ -40,6 +40,15 @@
         "years": {"description": "horizon en années (défaut du BRIEF §8 : 100)", "type": "integer", "minimum": 1},
         "threads": {"description": "nombre de fils", "type": "integer", "minimum": 1}
       }
+    },
+    "assets": {
+      "description": "réglages de assets (plan m4a-suite-temps §3, T1) ; exigé dès que sim/ existe : sans lui, assets s'arrête (code 2), aucune valeur par défaut silencieuse. Le schéma ne peut pas savoir si sim/ existe : c'est assets qui refuse.",
+      "type": "object",
+      "required": ["year_step"],
+      "additionalProperties": false,
+      "properties": {
+        "year_step": {"description": "une année retenue sur N : t0, t0 + N, t0 + 2N… et toujours la dernière année simulée ; le dépôt écrit 10 ; 1 = toutes les années", "type": "integer", "minimum": 1}
+      }
     }
   }
 }

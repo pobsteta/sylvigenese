@@ -34,7 +34,7 @@
 
 ## Dépend de / rouge attendu jusqu'à
 
-- aucune ; 033 (testeur) écrit les tests d'acceptation correspondants en parallèle.
+- aucune ; 039 (testeur) écrit les tests d'acceptation correspondants en parallèle.
 
 ## Tests
 

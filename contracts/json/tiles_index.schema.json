@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:tiles_index",
+  "title": "tiles/index.json : index des années de tuiles (assets, mission 044)",
+  "description": "Ce que la vue lit pour savoir quelles années existent, au lieu de lister les dossiers de tiles/ (plan m4a-suite-temps §3). Deux modes. `sim` : les années viennent de sim/ (t0, t0 + N, t0 + 2N…, et toujours la dernière année simulée) ; `year_step`, `run_config_sha256` (copié de sim/run.json), `basal_area_map` et `dead` sont alors exigés, et `notes` porte la mention « non validée écologiquement ». `trees_init` : état initial sans sim/, une seule année, aucune de ces clés. Hors du schéma, par construction de assets : la suite des années (t0 + k × year_step, puis la dernière), le dossier `tiles/<année>/` de chaque année, un `web/rasters/g_<année>.tif` par année en mode `sim`, et le nom `t_<x>_<y>` (coin sud-ouest, EPSG:2154, m) de chaque tuile.",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["schema_version", "source", "t0", "provisoire", "notes", "years"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "source": {"description": "d'où viennent les arbres de toutes les années, t0 compris (plan T4)", "enum": ["sim", "trees_init"]},
+    "t0": {"description": "année de départ (t0 de config.yml)", "type": "integer"},
+    "year_step": {"description": "une année retenue sur N (bloc assets de config.yml) ; mode sim seulement", "type": "integer", "minimum": 1},
+    "run_config_sha256": {"description": "config_sha256 de sim/run.json, pour que la vue et les tests sachent de quel run vient l'index ; mode sim seulement", "type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "provisoire": {"type": "boolean"},
+    "notes": {"description": "mentions communes à toutes les années ; en mode sim, l'une dit « non validée écologiquement » (décision de Pascal, 25/11/2026)", "type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "basal_area_map": {
+      "description": "carte au sol de la surface terrière (décision de Pascal Q3, 25/11/2026) : un COG web/rasters/g_<année>.tif par année de `years`, lu avec la MÊME échelle de couleurs pour toutes les années ; mode sim seulement",
+      "type": "object",
+      "required": ["unit", "scale_min_m2_ha", "scale_max_m2_ha", "mention"],
+      "additionalProperties": false,
+      "properties": {
+        "unit": {"const": "m2/ha"},
+        "scale_min_m2_ha": {"description": "borne basse de l'échelle fixe, m2/ha ; calculée par assets sur toutes les années de sim/cells, pas sur les seules années retenues", "type": "number", "minimum": 0},
+        "scale_max_m2_ha": {"description": "borne haute de l'échelle fixe, m2/ha, calculée de même ; supérieure à la borne basse (non vérifié par le schéma)", "type": "number", "exclusiveMinimum": 0},
+        "mention": {"description": "légende de la couche, qui contient « non validée écologiquement »", "type": "string", "pattern": "non validée écologiquement"}
+      }
+    },
+    "years": {
+      "description": "années retenues, de la plus ancienne à la plus récente (ordre non vérifié par le schéma)",
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["year", "instances", "tileset", "tiles"],
+        "additionalProperties": false,
+        "properties": {
+          "year": {"type": "integer"},
+          "instances": {"description": "arbres VIVANTS dessinés cette année, toutes tuiles ; les morts n'en font pas partie (plan T5)", "type": "integer", "minimum": 0},
+          "dead": {"description": "arbres morts de cette année, non dessinés (le bois mort n'est pas simulé) ; mode sim seulement", "type": "integer", "minimum": 0},
+          "tileset": {"description": "chemin du tileset depuis tiles/", "type": "string", "pattern": "^[0-9]{4}/tileset\\.json$"},
+          "tiles": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object", "required": ["tile", "instances"], "additionalProperties": false,
+              "properties": {
+                "tile": {"description": "nom de la tuile, comme le fichier web/cells/<tuile>.json et le contenu .gltf", "type": "string", "pattern": "^t_[0-9]+_[0-9]+$"},
+                "instances": {"description": "arbres vivants de cette tuile cette année", "type": "integer", "minimum": 0}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "if": {"properties": {"source": {"const": "sim"}}, "required": ["source"]},
+  "then": {
+    "required": ["year_step", "run_config_sha256", "basal_area_map"],
+    "properties": {
+      "notes": {"contains": {"type": "string", "pattern": "non validée écologiquement"}},
+      "years": {"items": {"required": ["dead"]}}
+    }
+  },
+  "else": {
+    "additionalProperties": false,
+    "properties": {
+      "schema_version": {}, "source": {}, "t0": {}, "provisoire": {}, "notes": {},
+      "years": {
+        "maxItems": 1,
+        "items": {
+          "additionalProperties": false,
+          "properties": {"year": {}, "instances": {}, "tileset": {}, "tiles": {}}
+        }
+      }
+    }
+  }
+}

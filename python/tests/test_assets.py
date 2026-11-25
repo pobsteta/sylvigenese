@@ -237,7 +237,7 @@ def test_validateur_conforme_sur_toutes_les_sorties(zone):
 
 def test_rejouable_a_l_identique(zone, tmp_path):
     before = fingerprints(zone)
-    assert len(before) == 18  # 4 modèles, 9 fichiers de tuiles, 4 fiches, 1 COG
+    assert len(before) == 19  # 4 modèles, 9 fichiers de tuiles, tiles/index.json (mission 047), 4 fiches, 1 COG
     assets.produce_initial_state(CONFIG, zone)
     assert fingerprints(zone) == before
 
@@ -320,3 +320,24 @@ def test_nodata_sous_un_arbre_est_une_erreur(tmp_path, copy_without_outputs):
 def test_decoupage_en_tuiles_aligne_sur_500_m():
     tile_x, tile_y = tiles.tile_corner(np.array([700153.25, 700500.0, 700999.75]), np.array([6500999.75, 6500000.0, 6500499.99]))
     assert tile_x.tolist() == [700000, 700500, 700500] and tile_y.tolist() == [6500500, 6500000, 6500000]
+
+
+def test_index_de_l_etat_initial(zone):
+    """Mission 047 : sans sim/, tiles/index.json en mode trees_init, une seule année (contrat tiles_index)."""
+    index = json.loads((zone / "tiles" / "index.json").read_text(encoding="utf-8"))
+    assert index["source"] == "trees_init" and index["t0"] == SUMMARY["year"]
+    assert [(e["year"], e["instances"], e["tileset"]) for e in index["years"]] == \
+        [(SUMMARY["year"], 14080, f"{SUMMARY['year']}/tileset.json")]
+    assert sum(t["instances"] for t in index["years"][0]["tiles"]) == 14080
+
+
+def test_etat_initial_efface_les_annees_perimees(tmp_path, copy_without_outputs):
+    """Écriture atomique (mission 047) : une année et une carte g_ d'un ancien run disparaissent."""
+    directory = copy_without_outputs
+    (directory / "tiles" / "1999").mkdir(parents=True)
+    (directory / "web" / "rasters").mkdir(parents=True)
+    (directory / "web" / "rasters" / "g_1999.tif").write_bytes(b"")
+    summary = assets.produce_initial_state(CONFIG, directory)
+    assert sorted(p.name for p in (directory / "tiles").iterdir()) == [str(summary["year"]), "index.json"]
+    assert sorted(p.name for p in (directory / "web" / "rasters").iterdir()) == ["vegetation_map.tif"]
+    assert not (directory / assets.STAGING).exists()

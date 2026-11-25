@@ -25,3 +25,8 @@ simulate:
                           # l'orchestrateur du 25/11/2026) ; à fixer par zone réelle
   years: 100              # horizon (défaut du BRIEF §8)
 #  threads: 4
+
+# Bloc assets (mission 044, plan de la suite de M4a, T1) : dès que sim/ existe, assets écrit une
+# tuile et une fiche pour t0 puis toutes les `year_step` années ; sans ce bloc, il s'arrête (code 2).
+assets:
+  year_step: 10           # une année sur 10 (BRIEF §9 : « pas de 5 ou 10 ans »)

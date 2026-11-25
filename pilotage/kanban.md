@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 6 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 7 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -22,14 +22,20 @@ _Modèle de carte :_
 
 ## Validé
 
-- [042](missions/042-mode-station-25m.md) · depuis le cycle 6
-  - Homme : `dev` (opus) · Mission : type de station à 25 m par la règle de Pascal (surface, centre si égalité), premier pas de M3b · Moyens : R/prepare_grid.R, tests/m3
-  - M3b ensuite : vraisemblance de la dynamique (frein hors domaine, H/D des recrues, plafond à 45 %), durée de la suite
 
 ## Planifié
 
+- post (volume et carbone, sources citées) · depuis le cycle 7 — juste après M4a (décision de Pascal, Q2)
+- M5a, puis M6a (vue Godot) · depuis le cycle 7
+- M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
+
 
 ## Terminé
+
+- [042](missions/042-mode-station-25m.md) à [049](missions/049-reprises-relecture-m4a.md) · depuis le cycle 7
+  - Homme : `dev` ×6, `testeur`, `afficheur`, relus par `relecteur` (2 relectures)
+  - Mission : suite de M4a remplie le 2026-11-25 sur le jeu fictif (vue iTowns dans le temps, 100 000 instances comptées par l'API, images par seconde relevées) ; type de station à 25 m sans GDAL ; CI découpée en 10 jobs, 10 min au lieu de 33 à 44
+  - Moyens : PR pobsteta/sylvigenese#9
 
 - [033](missions/033-contrats-m3.md) à [041](missions/041-reprises-relecture-m3a.md) · depuis le cycle 6
   - Homme : `dev` ×6, `testeur`, relus par `relecteur` (2 allers-retours)
@@ -109,3 +115,4 @@ l'inscrit avec ce qu'elle nous apprend._
 
 - cycle 1 · livraison : jalon M0 (contrats et validateur, squelette des modules, jeu d'essai fictif, lecteur GeoTIFF Rust, CI) · pour Pascal · `make validate ZONE=<zone>` dit tout de suite si ses propres sorties nemeton, sylvostation et typopeuplement entrent dans la chaîne, ce que rien ne permettait avant
 - cycle 6 · livraison : jalon M3a (moteur simulate en Rust : 100 ans sur le massif fictif, identité au bit près de 1 à 7 fils, contrôles et codes de sortie, non-régression sur entrées figées) · pour Pascal · la chaîne va désormais jusqu'à un futur simulé ; mauvaise nouvelle apprise en même temps : la trajectoire fictive n'est pas une forêt (G 91 → 353 m²/ha), et GDAL change ses résultats selon sa version (mission 042)
+- cycle 7 · livraison : suite de M4a, la vue iTowns fait défiler les années simulées (curseur, fiche d'évolution avec la hauteur dominante face au plafond, carte de surface terrière à échelle fixe) · pour Pascal · on voit pour la première fois le futur simulé, cellule par cellule ; mauvaise nouvelle : sans carte graphique, la dernière année (402 437 arbres) ne se relève pas, le rendu réel se jugera sur le portable de Pascal (M4 b)

@@ -9,9 +9,10 @@
     {
       "name": "tree_id",
       "type": "string",
-      "description": "identifiant ; pour une recrue : (cellule, année, rang)",
+      "description": "identifiant ; pour une recrue : (cellule, année, rang). Un tree_id n'est jamais fait de chiffres seuls : il contient au moins un caractère qui n'est pas un chiffre (par exemple T0001_0307 ou r12_2030_3). Raison : sim/flags écrit aussi des cell_id en décimal dans la même colonne entity, et un identifiant en chiffres seuls serait pris pour une cellule (relecture de la PR n° 9, I4)",
       "constraints": {
         "required": true,
+        "pattern": "[0-9]*[^0-9].*",
         "minLength": 1
       }
     },

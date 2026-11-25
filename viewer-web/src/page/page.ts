@@ -1,6 +1,9 @@
-// Page de la vue web (mission 029) : GlobeView iTowns centrée sur la zone, tuile 3D des arbres,
-// carte des types de végétation (COG), terrain local (dtm.tif), fiche de cellule au clic.
-// Code navigateur : bundlé par esbuild. La logique pure est dans ../sheet.ts (testée par node --test).
+// Page de la vue web (missions 029 et 048) : GlobeView iTowns centrée sur la zone, tuile 3D des arbres de l'année
+// choisie, carte au sol (surface terrière de l'année, à échelle fixe, ou types de végétation de l'état initial),
+// terrain local (dtm.tif), fiche de cellule au clic avec l'évolution de la cellule.
+// Code navigateur : bundlé par esbuild. La logique pure est dans ../sheet.ts et ../temps.ts (testées par node --test).
+// Les années viennent de tiles/index.json (contrat tiles_index) ; un seul tileset est gardé en mémoire, l'ancien
+// reste affiché jusqu'à ce que le nouveau soit chargé (plan m4a-suite-temps T7).
 import * as THREE from "three";
 import * as itowns from "itowns";
 import { fromUrl } from "geotiff";
@@ -9,27 +12,43 @@ import {
   cellIdFromLambert, formatSheet, indexSheets,
   type Cell, type TileSheets, type Grid,
 } from "../sheet.ts";
+import {
+  chooseYear, formatEvolution, indexTiles, indexYear, legendTicks, neighbourYear, positionOfYear, rampColor, rampCss,
+  readTilesIndex, yearAtPosition, yearLabel, MENTION_ECO, TreeLayerSlots,
+  type CellV2, type TileSheetsV2, type TilesIndex,
+} from "../temps.ts";
+
+interface YearRecord {
+  instanceCount: number;
+  chargementMs: number | null;
+  fps: number | null;
+}
 
 interface State {
   ready: boolean;
   error: string | null;
   year: number | null;
+  years: number[];
   instanceCount: number;
   instancesChargees: number;
   instancesAttendues: number | null;
   meshesInstancies: number;
+  tilesetsEnMemoire: number;
   fps: number;
   chargementMs: number | null;
+  parAnnee: Record<string, YearRecord>;
   terrain: string;
   fond: string;
+  setYear: (a: number) => Promise<void>;
   openCell: (id: number) => boolean;
   mesurerFps: (ms?: number) => Promise<number>;
   placer: (range: number, tilt: number, heading: number) => Promise<void>;
 }
 
 const state: State = {
-  ready: false, error: null, year: null, instanceCount: 0, instancesChargees: 0, instancesAttendues: null,
-  meshesInstancies: 0, fps: 0, chargementMs: null, terrain: "", fond: "", openCell: () => false,
+  ready: false, error: null, year: null, years: [], instanceCount: 0, instancesChargees: 0, instancesAttendues: null,
+  meshesInstancies: 0, tilesetsEnMemoire: 0, fps: 0, chargementMs: null, parAnnee: {}, terrain: "", fond: "",
+  setYear: async () => {}, openCell: () => false,
   mesurerFps: async () => 0,
   placer: async () => {},
 };
@@ -235,36 +254,108 @@ function countInstances(root: THREE.Object3D) {
   return { meshes, loaded, drawn };
 }
 
+// ---------------------------------------------------------------- carte de surface terrière (Q3)
+// Une couleur par cellule, lue dans g_<année>.tif, sur l'échelle FIXE de tiles/index.json (mêmes couleurs pour toutes
+// les années). Hors forêt (nodata) : rien n'est dessiné.
+function basalAreaTextureLoader(r: Raster, min: number, max: number) {
+  const g = r.grid;
+  return async (url: string): Promise<THREE.Texture> => {
+    const { w, s, e, n } = extentOf(url);
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = DIM;
+    const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+    const img = ctx.createImageData(DIM, DIM);
+    const rgba = new Uint8ClampedArray(img.data.buffer);
+    for (let j = 0; j < DIM; j++) {
+      const lat = n - ((j + 0.5) / DIM) * (n - s);
+      for (let i = 0; i < DIM; i++) {
+        const lon = w + ((i + 0.5) / DIM) * (e - w);
+        const [x, y] = toL93.forward([lon, lat]) as [number, number];
+        const id = cellIdFromLambert(x, y, g);
+        if (id === null) continue;
+        const v = r.values[id] as number;
+        if (v === r.nodata || Number.isNaN(v)) continue;
+        const c = rampColor(v, min, max).rgb;
+        const k = 4 * (j * DIM + i);
+        rgba[k] = c[0]; rgba[k + 1] = c[1]; rgba[k + 2] = c[2]; rgba[k + 3] = 220;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return new THREE.CanvasTexture(canvas);
+  };
+}
+
+// Cellules hors de l'échelle fixe : ne devrait pas arriver (échelle calculée sur toutes les années) ; dit si c'est le cas.
+function countOutside(r: Raster, min: number, max: number): number {
+  let k = 0;
+  for (let i = 0; i < r.values.length; i++) {
+    const v = r.values[i] as number;
+    if (v !== r.nodata && !Number.isNaN(v) && rampColor(v, min, max).outside) k++;
+  }
+  return k;
+}
+
+function esc(t: string): string {
+  return t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+}
+
+const LOAD_TIMEOUT_MS = 280000;
+
 // ---------------------------------------------------------------- démarrage
+interface ServerConfig { zone: string; years: number[]; has_dtm: boolean; has_index?: boolean; fictitious: boolean }
+interface Tileset { root: { boundingVolume: { region: number[] }; children?: { extras?: { tile?: string } }[] }; extras?: { instances?: number } }
+
+async function readIndexIfAny(cfg: ServerConfig): Promise<TilesIndex | null> {
+  if (cfg.has_index === false) return null;
+  const r = await fetch("/zone/tiles/index.json");
+  if (r.status === 404) return null; // zone d'avant la mission 047 : une seule année, lue dans tiles/<année>/
+  if (!r.ok) throw new Error(`/zone/tiles/index.json : HTTP ${r.status}`);
+  return readTilesIndex(await r.json());
+}
+
 async function startViewer(): Promise<void> {
   const startedAt = performance.now();
-  const cfg = await json<{ zone: string; years: number[]; has_dtm: boolean; fictitious: boolean }>("/api/config.json");
-  const year = cfg.years[cfg.years.length - 1] as number;
-  state.year = year;
-  $("annee-texte").textContent = `${year} (une seule année disponible)`;
-  $("etat-source").textContent = `Source : tiles/${year}/ et web/ de la zone « ${cfg.zone} », lues le ${new Date().toLocaleDateString("fr-FR")}`;
+  const cfg = await json<ServerConfig>("/api/config.json");
+  const index = await readIndexIfAny(cfg);
+  const sim = index?.source === "sim";
+  const years = index ? index.years.map((y) => y.year) : [cfg.years[cfg.years.length - 1] as number];
+  const t0 = index?.t0 ?? (years[0] as number);
+  state.years = years;
+  const tilesetUrlOf = (a: number) => (index ? `/zone/tiles/${indexYear(index, a).tileset}` : `/zone/tiles/${a}/tileset.json`);
+  const firstYear = years[0] as number;
 
-  const tilesetUrl = `/zone/tiles/${year}/tileset.json`;
-  const tileset = await json<{ root: { boundingVolume: { region: number[] }; children?: { extras?: { tile?: string } }[] }; extras?: { instances?: number } }>(tilesetUrl);
-  state.instancesAttendues = tileset.extras?.instances ?? null;
-  const names = (tileset.root.children ?? []).map((c) => c.extras?.tile).filter((t): t is string => !!t);
-  const sheets = indexSheets(await Promise.all(names.map((t) => json<TileSheets>(`/zone/web/cells/${t}.json`))));
+  document.title = sim ? "sylvigenese — futur simulé (provisoire)" : "sylvigenese — état initial";
+  if (sim) {
+    $("bandeau-texte").innerHTML = `<small>trajectoire technique, <b>non validée écologiquement</b> (décision du 25/11/2026) ; modèles d'arbres génériques</small>`;
+  }
+  $("etat-source").textContent = `Source : tiles/${index ? "index.json" : `${firstYear}/`} et web/ de la zone « ${cfg.zone} », lues le ${new Date().toLocaleDateString("fr-FR")}`;
+
+  const firstTileset = await json<Tileset>(tilesetUrlOf(firstYear));
+  const tileNames = index ? indexTiles(index)
+    : (firstTileset.root.children ?? []).map((c) => c.extras?.tile).filter((t): t is string => !!t);
+  // Fiches : v2 dès que sim/ existe (la version 1 est alors refusée), v1 pour l'état initial.
+  const files = await Promise.all(tileNames.map((t) => json<TileSheets | TileSheetsV2>(`/zone/web/cells/${t}.json`)));
+  const sheetsV1 = sim ? new Map<number, Cell>() : indexSheets(files as TileSheets[], 1);
+  const sheetsV2 = sim ? indexSheets(files as TileSheetsV2[], 2) : new Map<number, CellV2>();
+  const sheetNotesOfFiles = sim ? (files as TileSheetsV2[]).flatMap((f) => f.notes ?? []) : [];
+  const vegetationOf = (id: number) => (sim ? sheetsV2.get(id)?.vegetation_type : sheetsV1.get(id)?.vegetation_type);
 
   const cog = await readRaster("/zone/web/rasters/vegetation_map.tif");
-  // Légende : la valeur du COG et le nom du type viennent des fiches (source unique : web/).
+  // Légende des types : la valeur du COG et le nom du type viennent des fiches (source unique : web/).
   const vegetationNames = new Map<number, string>();
   for (let id = 0; id < cog.values.length; id++) {
     const v = cog.values[id] as number;
-    const f = sheets.get(id);
-    if (v !== cog.nodata && f && !vegetationNames.has(v)) vegetationNames.set(v, f.vegetation_type);
+    const name = vegetationOf(id);
+    if (v !== cog.nodata && name && !vegetationNames.has(v)) vegetationNames.set(v, name);
   }
   const values = [...vegetationNames.keys()].sort((a, b) => a - b);
   const colors = new Map(values.map((v) => [v, colorOf(v, Math.max(...values) + 1)]));
   $("legende-corps").innerHTML = values
-    .map((v) => `<div><i style="background:${colors.get(v)}"></i>${(vegetationNames.get(v) ?? "").replace(/^type_|_fictive/g, "").replace(/_/g, " ")}</div>`)
+    .map((v) => `<div><i style="background:${colors.get(v)}"></i>${esc((vegetationNames.get(v) ?? "").replace(/^type_|_fictive/g, "").replace(/_/g, " "))}</div>`)
     .join("");
+  if (sim) $("legende-titre").textContent = "Types de végétation (état initial)";
 
-  const [w, s, e, n] = tileset.root.boundingVolume.region as [number, number, number, number];
+  const [w, s, e, n] = firstTileset.root.boundingVolume.region as [number, number, number, number];
   const rad = 180 / Math.PI;
   const center = new itowns.Coordinates("EPSG:4326", ((w + e) / 2) * rad, ((s + n) / 2) * rad, 0);
   const view = new itowns.GlobeView($("vue") as HTMLDivElement,
@@ -336,40 +427,99 @@ async function startViewer(): Promise<void> {
   }
   $("etat-fond").textContent = state.fond;
 
-  // La carte des types est une couche du sol (sous les arbres), d'opacité réglable ; défaut modéré.
+  // ------------------------------------------------------------ cartes au sol
+  // La carte des types est une couche du sol (sous les arbres), d'opacité réglable ; défaut modéré. En mode sim,
+  // la carte montrée d'abord est celle de la surface terrière de l'année ; les types restent à un clic (état initial).
   const vegetationMap = new itowns.ColorLayer("types-vegetation", {
     source: localSource(mapTextureLoader(cog, colors), 19), transparent: true, opacity: MAP_OPACITY,
   } as never);
   await view.addLayer(vegetationMap);
   const slider = $("opacite") as HTMLInputElement;
   slider.value = String(MAP_OPACITY);
-  slider.addEventListener("input", () => {
+  const groundChoice = $("carte-sol") as HTMLSelectElement;
+  let basalLayer: itowns.ColorLayer | null = null;
+  const basalScale = index?.basal_area_map;
+  const applyGround = () => {
+    const showG = sim && groundChoice.value === "g";
+    vegetationMap.visible = !showG;
     vegetationMap.opacity = Number(slider.value);
+    if (basalLayer) { basalLayer.visible = showG; basalLayer.opacity = Number(slider.value); }
+    $("legende-types").hidden = showG;
+    $("legende-g").hidden = !showG;
     view.notifyChange(vegetationMap);
-  });
+  };
+  slider.addEventListener("input", applyGround);
+  if (sim && basalScale) {
+    $("choix-carte").hidden = false;
+    groundChoice.value = "g";
+    groundChoice.addEventListener("change", applyGround);
+    const [lo, mid, hi] = legendTicks(basalScale.scale_min_m2_ha, basalScale.scale_max_m2_ha);
+    $("legende-g-barre").style.background = rampCss();
+    $("legende-g-reperes").innerHTML = `<span>${lo}</span><span>${mid}</span><span>${hi}</span>`;
+    $("legende-g-mention").textContent = `Échelle fixe : ${lo} à ${hi} m²/ha. Source : ${basalScale.mention}`;
+  }
+  const basalRasters = new Map<number, Raster>();
+  async function swapBasalArea(a: number, token: number): Promise<void> {
+    if (!sim || !basalScale) return;
+    let r = basalRasters.get(a);
+    if (!r) { r = await readRaster(`/zone/web/rasters/g_${a}.tif`); basalRasters.set(a, r); }
+    if (token !== loadToken) return;
+    const outside = countOutside(r, basalScale.scale_min_m2_ha, basalScale.scale_max_m2_ha);
+    const layer = new itowns.ColorLayer(`surface-terriere-${a}-${token}`, {
+      source: localSource(basalAreaTextureLoader(r, basalScale.scale_min_m2_ha, basalScale.scale_max_m2_ha), 19),
+      transparent: true, opacity: Number(slider.value),
+    } as never);
+    await view.addLayer(layer);
+    const old = basalLayer;
+    basalLayer = layer;
+    if (old) view.removeLayer(old.id, true);
+    $("legende-g-titre").textContent = `Surface terrière G en ${a} (m²/ha), provisoire`;
+    $("legende-g-hors").textContent = outside > 0 ? `${outside} cellule(s) hors de l'échelle fixe, dessinées à la borne.` : "";
+    applyGround();
+  }
 
-  const trees = new itowns.OGC3DTilesLayer("arbres", {
-    source: new itowns.OGC3DTilesSource({ url: tilesetUrl }), sseThreshold: 2,
-  } as never);
-  await view.addLayer(trees);
-
-  // Fiche d'une cellule
+  // ------------------------------------------------------------ fiche d'une cellule
+  let openedCell: number | null = null;
   function openSheet(id: number): boolean {
-    const c: Cell | undefined = sheets.get(id);
     const el = $("fiche");
-    if (!c) { el.hidden = true; return false; }
-    const f = formatSheet(c, year);
+    const year = state.year as number;
+    let html: string;
+    let command: string;
+    if (sim) {
+      const c = sheetsV2.get(id);
+      if (!c) { el.hidden = true; openedCell = null; return false; }
+      const f = formatEvolution(c, year, sheetNotesOfFiles);
+      command = f.command;
+      html = `<h2>${f.title} <small>(${f.year})</small></h2>` +
+        `<div class="prov">Résultat provisoire : ${esc(MENTION_ECO)}</div>` +
+        `<div class="tete">${esc(f.headline)}</div>` +
+        `<dl>${f.rows.map((l) => `<dt>${esc(l.label)}</dt><dd>${esc(l.value)}</dd>`).join("")}</dl>` +
+        `<table class="evolution"><caption>Évolution de la cellule, chiffres provisoires (H_dom ↑ : au-dessus du plafond, signalé, jamais corrigé)</caption>` +
+        `<thead><tr><th>Année</th><th>Tiges/ha</th><th>G m²/ha</th><th>d moyen cm</th><th>H_dom m (${esc(f.ceiling)})</th><th>Essences (part des tiges)</th><th>Signalements</th></tr></thead><tbody>` +
+        f.table.map((r) => `<tr${r.selected ? ' class="choisie"' : ""}><td>${r.year}</td><td>${r.stems}</td><td>${r.basalArea}</td><td>${r.d130}</td>` +
+          `<td${r.aboveCeiling ? ' class="haut"' : ""}>${r.hdom}${r.aboveCeiling ? " ↑" : ""}</td><td>${esc(r.composition)}</td><td>${esc(r.flags.join(" ; "))}</td></tr>`).join("") +
+        `</tbody></table>` +
+        `<ul>${f.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    } else {
+      const c = sheetsV1.get(id);
+      if (!c) { el.hidden = true; openedCell = null; return false; }
+      const f = formatSheet(c, year);
+      command = f.command;
+      html = `<h2>${f.title} <small>(${f.year})</small></h2>` +
+        (f.provisional ? `<div class="prov">Résultat provisoire</div>` : "") +
+        `<dl>${f.rows.map((l) => `<dt>${esc(l.label)}</dt><dd>${esc(l.value)}</dd>`).join("")}</dl>` +
+        `<div>Composition (essences) : ${f.composition.join(" ; ") || "aucune"}</div>` +
+        `<ul>${f.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    }
+    openedCell = id;
     el.hidden = false;
-    el.setAttribute("data-cell-id", String(c.cell_id));
-    el.innerHTML = `<button class="fermer" type="button">×</button><h2>${f.title} <small>(${f.year})</small></h2>` +
-      (f.provisional ? `<div class="prov">Résultat provisoire</div>` : "") +
-      `<dl>${f.rows.map((l) => `<dt>${l.label}</dt><dd>${l.value}</dd>`).join("")}</dl>` +
-      `<div>Composition (essences) : ${f.composition.join(" ; ") || "aucune"}</div>` +
-      `<ul>${f.notes.map((x) => `<li>${x}</li>`).join("")}</ul>` +
-      `<div>Commande à copier pour la vue massif :</div><code>${f.command}</code>` +
+    el.classList.toggle("large", sim);
+    el.setAttribute("data-cell-id", String(id));
+    el.innerHTML = `<button class="fermer" type="button">×</button>` + html +
+      `<div>Commande à copier pour la vue massif :</div><code>${command}</code>` +
       `<button class="copier" type="button">Copier la commande</button>`;
-    el.querySelector(".fermer")?.addEventListener("click", () => { el.hidden = true; });
-    el.querySelector(".copier")?.addEventListener("click", () => { void navigator.clipboard?.writeText(f.command); });
+    el.querySelector(".fermer")?.addEventListener("click", () => { el.hidden = true; openedCell = null; });
+    el.querySelector(".copier")?.addEventListener("click", () => { void navigator.clipboard?.writeText(command); });
     return true;
   }
   state.openCell = openSheet;
@@ -389,52 +539,157 @@ async function startViewer(): Promise<void> {
     view.notifyChange(view.camera3D);
   };
 
-  // Mesure continue des images par seconde : force un rendu par image pendant la durée demandée.
+  // Mesure des images par seconde : force un rendu par image pendant la durée demandée ; rangée sous l'année affichée.
   let images = 0;
   view.addFrameRequester(itowns.MAIN_LOOP_EVENTS.AFTER_RENDER, () => { images++; });
   state.mesurerFps = (ms = 3000) => new Promise((ok) => {
-    const t0 = performance.now(), i0 = images;
+    const t0m = performance.now(), i0 = images;
     const frame = () => {
       view.notifyChange(view.camera3D);
-      if (performance.now() - t0 < ms) requestAnimationFrame(frame);
-      else { state.fps = Math.round(((images - i0) * 10000) / (performance.now() - t0)) / 10; ok(state.fps); }
+      if (performance.now() - t0m < ms) requestAnimationFrame(frame);
+      else {
+        state.fps = Math.round(((images - i0) * 10000) / (performance.now() - t0m)) / 10;
+        const rec = state.year === null ? undefined : state.parAnnee[String(state.year)];
+        if (rec) rec.fps = state.fps;
+        ok(state.fps);
+      }
     };
     frame();
   });
 
-  // Instances : relevé par l'API three sur les objets de la couche (champ vivant).
-  const root = (trees as unknown as { tilesRenderer: { group: THREE.Object3D } }).tilesRenderer.group;
-  const update = () => {
-    const c = countInstances(root);
-    state.instanceCount = c.drawn;
-    state.instancesChargees = c.loaded;
-    state.meshesInstancies = c.meshes;
-    $("etat-arbres").textContent = `Arbres dessinés : ${c.drawn.toLocaleString("fr-FR")}`;
+  // ------------------------------------------------------------ arbres : une couche par année, une seule gardée
+  type TreesLayer = itowns.OGC3DTilesLayer & { tilesRenderer: { group: THREE.Object3D; stats: Record<string, number> } };
+  const slots = new TreeLayerSlots<TreesLayer>(); // jamais plus de deux couches : l'affichée et celle en chargement
+  let adding: Promise<unknown> = Promise.resolve();
+  let loadToken = 0;
+  const sched = (view as unknown as { mainLoop: { scheduler: { commandsWaitingExecutionCount: () => number; commandsRunningCount: () => number } } }).mainLoop.scheduler;
+  const groundLoaded = () => sched.commandsWaitingExecutionCount() + sched.commandsRunningCount() === 0;
+  const expectedOf = async (a: number): Promise<number | null> => {
+    if (index) return indexYear(index, a).instances;
+    return (a === firstYear ? firstTileset : await json<Tileset>(tilesetUrlOf(a))).extras?.instances ?? null;
   };
-  const tr = (trees as unknown as { tilesRenderer: { stats: Record<string, number> } }).tilesRenderer;
-  let stable = 0;
-  const watcher = setInterval(() => {
-    update();
-    const s = tr.stats;
-    const busy = (s["downloading"] ?? 0) + (s["parsing"] ?? 0) + (s["queued"] ?? 0);
-    const expected = state.instancesAttendues;
-    // Les couches du sol (carte, terrain, fond) doivent aussi avoir fini : plus aucune commande iTowns en attente.
-    const sched = (view as unknown as { mainLoop: { scheduler: { commandsWaitingExecutionCount: () => number; commandsRunningCount: () => number } } }).mainLoop.scheduler;
-    const groundLoaded = sched.commandsWaitingExecutionCount() + sched.commandsRunningCount() === 0;
-    if (!busy && groundLoaded && state.instancesChargees > 0 && (expected === null || state.instancesChargees === expected)) stable++;
-    else stable = 0;
-    if (stable >= 3 && !state.ready) {
-      state.chargementMs = Math.round(performance.now() - startedAt);
-      state.ready = true;
-      $("message").hidden = true;
-    }
-    if (performance.now() - startedAt > 150000 && !state.ready) {
-      state.error = `Arbres : ${state.instancesChargees} instances chargées sur ${expected ?? "?"} attendues après 150 s ; voir la console du navigateur.`;
+  const refreshCount = () => {
+    const c = slots.shown ? countInstances(slots.shown.tilesRenderer.group) : { drawn: 0, loaded: 0, meshes: 0 };
+    state.instanceCount = c.drawn;
+    state.meshesInstancies = c.meshes;
+    $("etat-arbres").textContent = `Arbres dessinés : ${c.drawn.toLocaleString("fr-FR")}${state.ready ? "" : " (chargement…)"}`;
+  };
+  setInterval(refreshCount, 500);
+
+  // Retire une couche d'arbres et libère sa mémoire : tuiles (3d-tiles-renderer), tampons d'instances (three),
+  // et son groupe dans la scène (removeLayer d'iTowns ne l'en retire pas).
+  function dropTrees(layer: TreesLayer): void {
+    const meshes: THREE.InstancedMesh[] = [];
+    layer.tilesRenderer.group.traverse((o: THREE.Object3D) => { if ((o as THREE.InstancedMesh).isInstancedMesh) meshes.push(o as THREE.InstancedMesh); });
+    view.removeLayer(layer.id, true);
+    for (const m of meshes) m.dispose();
+    (layer as unknown as { object3d: THREE.Object3D }).object3d.removeFromParent();
+  }
+
+  function showYearInPage(a: number): void {
+    const label = sim ? yearLabel(a, t0) : `${a} (état initial, une seule année disponible)`;
+    $("annee-texte").textContent = label;
+    $("annee-grand").textContent = String(a);
+    const range = $("annee") as HTMLInputElement;
+    range.value = String(positionOfYear(years, a));
+  }
+
+  // Charge l'année a ; l'ancienne couche reste dessinée jusqu'à ce que la nouvelle soit entièrement chargée, puis
+  // elle est retirée et sa mémoire libérée. Un nouvel appel abandonne le chargement en cours (le dernier gagne).
+  async function loadYear(a: number): Promise<void> {
+    const token = ++loadToken;
+    const started = performance.now();
+    state.ready = false;
+    state.error = null;
+    state.year = a;
+    showYearInPage(a);
+    say(`Chargement de ${a}…`);
+    if (openedCell !== null) openSheet(openedCell);
+    const expected = await expectedOf(a);
+    state.instancesAttendues = expected;
+    await swapBasalArea(a, token);
+    if (token !== loadToken) return;
+    await adding.catch(() => undefined); // une couche encore en train de s'ajouter ne se retire pas en cours de route
+    if (token !== loadToken) return;
+    for (const abandoned of slots.beforeAdd()) dropTrees(abandoned); // retirée avant d'en ajouter une autre
+    const layer = new itowns.OGC3DTilesLayer(`arbres-${a}-${token}`, {
+      source: new itowns.OGC3DTilesSource({ url: tilesetUrlOf(a) }), sseThreshold: 2,
+    } as never) as TreesLayer;
+    const group = layer.tilesRenderer.group;
+    if (slots.shown) group.visible = false; // chargée en retrait : l'ancienne année reste à l'écran
+    slots.added(layer);
+    adding = view.addLayer(layer);
+    await adding;
+    state.tilesetsEnMemoire = slots.count;
+    let stable = 0;
+    await new Promise<void>((done, fail) => {
+      const timer = setInterval(() => {
+        if (token !== loadToken) { clearInterval(timer); done(); return; }
+        const c = countInstances(group);
+        state.instancesChargees = c.loaded;
+        const st = layer.tilesRenderer.stats;
+        const busy = (st["downloading"] ?? 0) + (st["parsing"] ?? 0) + (st["queued"] ?? 0);
+        if ((st["failed"] ?? 0) > 0) { clearInterval(timer); fail(new Error(`${st["failed"]} tuile(s) de ${a} illisible(s)`)); return; }
+        const complete = expected === null ? c.loaded > 0 : c.loaded === expected;
+        if (!busy && groundLoaded() && complete) stable++;
+        else stable = 0;
+        if (stable >= 3) { clearInterval(timer); done(); return; }
+        if (performance.now() - started > LOAD_TIMEOUT_MS) {
+          clearInterval(timer);
+          fail(new Error(`Arbres de ${a} : ${c.loaded} instances chargées sur ${expected ?? "?"} attendues après ${LOAD_TIMEOUT_MS / 1000} s ; voir la console du navigateur.`));
+        }
+      }, 300);
+    });
+    if (token !== loadToken) { for (const l of slots.abandon(layer)) dropTrees(l); return; }
+    group.visible = true;
+    for (const old of slots.commit(layer)) dropTrees(old);
+    state.tilesetsEnMemoire = slots.count;
+    view.notifyChange(view.camera3D);
+    refreshCount();
+    state.chargementMs = Math.round(performance.now() - started);
+    state.parAnnee[String(a)] = { instanceCount: state.instanceCount, chargementMs: state.chargementMs, fps: null };
+    state.ready = true;
+    $("message").hidden = true;
+    refreshCount();
+  }
+
+  let pending: Promise<void> = Promise.resolve();
+  state.setYear = (a: number) => {
+    let year: number;
+    try {
+      year = chooseYear(years, a);
+    } catch (err) {
+      state.error = (err as Error).message;
       say(state.error, true);
-      clearInterval(watcher);
+      return Promise.resolve();
     }
-  }, 300);
-  say("Chargement des arbres…");
+    if (year === state.year && state.error === null) return pending; // déjà affichée, ou en cours de chargement
+    pending = loadYear(year).catch((err: Error) => {
+      state.error = err.message;
+      say(state.error, true);
+    });
+    return pending;
+  };
+
+  // Curseur d'années : un cran par année de l'index ; boutons voisins pour avancer d'un cran.
+  const range = $("annee") as HTMLInputElement;
+  range.min = "0";
+  range.max = String(years.length - 1);
+  range.step = "1";
+  range.disabled = years.length < 2;
+  ($("annee-prec") as HTMLButtonElement).disabled = years.length < 2;
+  ($("annee-suiv") as HTMLButtonElement).disabled = years.length < 2;
+  $("annees-liste").innerHTML = years.map((y, i) => `<option value="${i}" label="${y}"></option>`).join("");
+  range.addEventListener("input", () => {
+    const a = yearAtPosition(years, Number(range.value));
+    $("annee-texte").textContent = sim ? yearLabel(a, t0) : String(a);
+  });
+  range.addEventListener("change", () => { void state.setYear(yearAtPosition(years, Number(range.value))); });
+  $("annee-prec").addEventListener("click", () => { if (state.year !== null) void state.setYear(neighbourYear(years, state.year, -1)); });
+  $("annee-suiv").addEventListener("click", () => { if (state.year !== null) void state.setYear(neighbourYear(years, state.year, 1)); });
+
+  await state.setYear(firstYear);
+  state.chargementMs = Math.round(performance.now() - startedAt);
 }
 
 startViewer().catch((err: Error) => {

@@ -23,23 +23,34 @@ env:
   PLAYWRIGHT_VERSION: "1.65.1"
 
 jobs:
-  test:
+  # Découpage en jobs parallèles (mission 043). Chaque job prépare ses outils lui-même et ne lit
+  # la sortie d'aucun autre. La liste des tests est celle de tools/ci/run_tests.sh, répartie en sections.
+  # Le workflow « CI » ne conclut qu'après tous ses jobs et reste rouge si l'un échoue (c'est ce que lit release.yml).
+
+  # Scripts de release : à préserver (release.yml s'appuie sur eux). Sans dépendance.
+  scripts-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Tester la décision de release
+        run: .github/scripts/test-release-necessaire.sh
+
+      - name: Tester le calcul de version calendaire
+        run: .github/scripts/test-version-calendaire.sh
+
+
+  # R (testthat). Python sert au validateur appelé par les tests R.
+  r:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-
-      - name: Noter l'heure de départ
-        run: echo "CI_START=$(date +%s)" >> "$GITHUB_ENV"
-
-      # Scripts de release : à préserver (release.yml s'appuie sur eux).
-      - name: Tester la décision de release
-        run: .github/scripts/test-release-necessaire.sh
-
-      - name: Tester le calcul de version calendaire
-        run: .github/scripts/test-version-calendaire.sh
 
       # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
       - name: R (r2u)
@@ -58,7 +69,113 @@ jobs:
             Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets", "arrow")) cat(p, as.character(packageVersion(p)), "\n")'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # Rust : chaîne figée par rustup, cache du registre et de la compilation.
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh r)
+        run: |
+          echo "### Durées des sections (r)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh r
+
+
+  # pytest des contrats, fixtures et python (make test-python, puis la session pytest des contrats).
+  contrats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
+
+      # terra : sans lui, deux tests pytest sont sautés (test_real_files, test_review_rules).
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets", "arrow"))'
+
+      # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
+      # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
+      - name: Versions de R et des paquets (résumé)
+        run: |
+          {
+            echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets", "arrow")) cat(p, as.character(packageVersion(p)), "\n")'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh python contrats)
+        run: |
+          echo "### Durées des sections (python contrats)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh python contrats
+
+
+  # cargo test (dont le bout en bout de 100 ans). Python sert au validateur appelé par simulate.
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # R : le bout en bout de simulate (tests/integration.rs) construit la zone fictive par make prepare biomes trees dynamics.
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
+
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets", "arrow"))'
+
+      # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
+      # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
+      - name: Versions de R et des paquets (résumé)
+        run: |
+          {
+            echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets", "arrow")) cat(p, as.character(packageVersion(p)), "\n")'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Rust : chaîne figée par rustup, cache du registre et de la compilation (une clé par job :
+      # les jobs tournent en parallèle et ne se disputent pas la même entrée).
       - name: Rust (rustup)
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal
@@ -72,8 +189,44 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             simulate/target
-          key: cargo-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('simulate/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-${{ env.RUST_VERSION }}-
+          key: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('simulate/Cargo.lock') }}
+          restore-keys: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh rust)
+        run: |
+          echo "### Durées des sections (rust)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh rust
+
+
+  # Typage et tests node de la vue web. Python sert au vrai validateur du test d'intégration.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
 
       # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
       - name: Python (uv)
@@ -106,26 +259,283 @@ jobs:
         run: npm ci
         working-directory: viewer-web
 
+      - name: Typage de la vue web
+        run: npm run typecheck
+        working-directory: viewer-web
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh web)
+        run: |
+          echo "### Durées des sections (web)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh web
+
+
+  # Acceptation du jalon M1a (chaîne R sur le jeu fictif et ses variantes).
+  m1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
+
+      # terra : sans lui, deux tests pytest sont sautés (test_real_files, test_review_rules).
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets", "arrow"))'
+
+      # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
+      # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
+      - name: Versions de R et des paquets (résumé)
+        run: |
+          {
+            echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets", "arrow")) cat(p, as.character(packageVersion(p)), "\n")'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh m1)
+        run: |
+          echo "### Durées des sections (m1)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh m1
+
+
+  # Acceptation du jalon M2a.
+  m2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
+
+      # terra : sans lui, deux tests pytest sont sautés (test_real_files, test_review_rules).
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets", "arrow"))'
+
+      # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
+      # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
+      - name: Versions de R et des paquets (résumé)
+        run: |
+          {
+            echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets", "arrow")) cat(p, as.character(packageVersion(p)), "\n")'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh m2)
+        run: |
+          echo "### Durées des sections (m2)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh m2
+
+
+  # Acceptation du jalon M3 (runs de 100 ans de simulate, compilé en release), puis validateur sur le jeu fictif régénéré.
+  m3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
+
+      # terra : sans lui, deux tests pytest sont sautés (test_real_files, test_review_rules).
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets", "arrow"))'
+
+      # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
+      # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
+      - name: Versions de R et des paquets (résumé)
+        run: |
+          {
+            echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets", "arrow")) cat(p, as.character(packageVersion(p)), "\n")'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Rust : chaîne figée par rustup, cache du registre et de la compilation (une clé par job :
+      # les jobs tournent en parallèle et ne se disputent pas la même entrée).
+      - name: Rust (rustup)
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc --version
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            simulate/target
+          key: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('simulate/Cargo.lock') }}
+          restore-keys: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh m3 validate)
+        run: |
+          echo "### Durées des sections (m3 validate)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh m3 validate
+
+
+  # Acceptation du jalon M4 (tuiles et vue, Chromium).
+  m4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # R : r2u fournit R et les paquets CRAN en binaires (apt), donc sans compilation.
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
+
+      # terra : sans lui, deux tests pytest sont sautés (test_real_files, test_review_rules).
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets", "arrow"))'
+
+      # r2u installe les binaires de CRAN au jour du build : une version exacte n'est pas garantie.
+      # On la relève donc ici, pour que le résumé dise ce qui a réellement tourné.
+      - name: Versions de R et des paquets (résumé)
+        run: |
+          {
+            echo "### Versions R (binaires r2u, CRAN du jour du build : non figées)"
+            Rscript -e 'cat(R.version.string, "\n"); for (p in c("testthat", "yaml", "terra", "sf", "targets", "arrow")) cat(p, as.character(packageVersion(p)), "\n")'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Rust : chaîne figée par rustup, cache du registre et de la compilation (une clé par job :
+      # les jobs tournent en parallèle et ne se disputent pas la même entrée).
+      - name: Rust (rustup)
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc --version
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            simulate/target
+          key: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('simulate/Cargo.lock') }}
+          restore-keys: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      # Node : npm ci à partir de package-lock.json, cache npm.
+      - name: Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: viewer-web/package-lock.json
+
+      - name: Dépendances Node
+        run: npm ci
+        working-directory: viewer-web
+
       # Chromium pour les tests de la vue (tests/m4/test_m4_vue.py) ; version du paquet = PLAYWRIGHT_VERSION.
       - name: Navigateur des tests de la vue (Chromium)
         run: npx playwright install --with-deps chromium
         working-directory: viewer-web
 
-      - name: Typage de la vue web
-        run: npm run typecheck
-        working-directory: viewer-web
-
-      # Une seule source de la commande de tests : .claude/test-command (une ligne).
-      # Elle échoue si pytest saute un test (-rs et contrôle de la ligne de résumé).
-      - name: Tests du projet (tools/ci/run_tests.sh, comme .claude/test-command)
-        run: bash tools/ci/run_tests.sh
-
-      - name: Durée de la CI
-        if: always()
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      # validate après m4 : le validateur voit aussi les sorties d'assets (tuiles, web/), que le job m3 ne produit pas.
+      # (validate reste aussi dans le job m3, qui valide le jeu fictif régénéré.)
+      - name: Tests (run_tests.sh m4 validate)
         run: |
-          S=$(( $(date +%s) - CI_START ))
-          echo "### Durée du job « test » : $((S / 60)) min $((S % 60)) s (${S} s)" >> "$GITHUB_STEP_SUMMARY"
-          echo "Objectif du brief : parcours rejouable en moins de 30 min sur un portable." >> "$GITHUB_STEP_SUMMARY"
+          echo "### Durées des sections (m4 validate)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh m4 validate
+
 
   # Vérifie seulement que Godot 4.6 et Playwright s'installent (spec §11, M0).
   # Non bloquant : un échec ici ne fait pas échouer la CI, donc ne bloque pas la release.

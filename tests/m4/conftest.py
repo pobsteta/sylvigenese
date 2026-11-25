@@ -58,6 +58,7 @@ def chaine():
         return res
     if os.environ.get("SYLVIGENESE_M4_REUSE") == "1":
         H.clean_asset_outputs(H.ZONE)
+        H.remove_sim(H.ZONE)
         res = {"make": H.run_make("assets")}
     else:
         H.clean_chain_outputs(H.ZONE)
@@ -286,3 +287,202 @@ def refus(request, chaine):
         yield request.param, d, p, mots
     finally:
         H.remove_zone_copy(nom)
+
+
+# ================================================================== suite de M4a : la vue dans le temps (mission 045)
+# Zones sous data/ (hors dépôt), supprimées en fin de session. Aucun saut : si `simulate` ou `assets` échoue,
+# chaque test qui en dépend échoue en disant la commande et sa sortie.
+import json  # noqa: E402
+import shutil  # noqa: E402
+
+import pyarrow as pa  # noqa: E402
+
+import helpers_m4_temps as T  # noqa: E402
+
+TEMPS = "m4_temps"
+
+
+_queue = T.queue
+exige_temps = T.exige_temps
+exige_charge = T.exige_charge
+
+
+@pytest.fixture(scope="session")
+def temps(chaine):
+    """Copie du jeu fictif après la chaîne ; `make dynamics simulate` sur 15 ans (2022 à 2037, plan §6 point 3) ;
+    des années périmées plantées (tiles/2021, g_2021.tif) ; puis `assets` au pas de 5, au pas de 10, et encore au pas
+    de 10 (rejeu). L'état final est celui du pas de 10 (config.yml du dépôt)."""
+    import rasterio
+    try:
+        zdir, _ = H.clone_zone(TEMPS)
+        cfg10 = T.write_config(zdir, TEMPS, T.sim_block(), {"year_step": T.STEP}, "config_m4_pas10.yml")
+        cfg5 = T.write_config(zdir, TEMPS, T.sim_block(), {"year_step": T.STEP_FIN}, "config_m4_pas5.yml")
+        res = {"dir": zdir, "name": TEMPS, "config": cfg10, "config_5": cfg5}
+        res["make"] = H.run_make("dynamics", "simulate", zone=TEMPS, config=cfg10)
+        # années périmées : t0 valait 2021 avant le 25/11/2026 (plan §1, point 6)
+        (zdir / "tiles" / "2021").mkdir(parents=True)
+        (zdir / "tiles" / "2021" / "tileset.json").write_text('{"asset": {"version": "1.1"}}', encoding="utf-8")
+        (zdir / "web" / "rasters").mkdir(parents=True)
+        with rasterio.open(zdir / "grid.tif") as g:
+            prof = {**g.profile, "dtype": "float32", "count": 1, "nodata": -1.0}
+        with rasterio.open(zdir / "web" / "rasters" / "g_2021.tif", "w", **prof) as w:
+            w.write(np.zeros((H.NROWS, H.NCOLS), dtype="float32"), 1)
+        res["assets_5"] = H.run_assets(cfg5)
+        res["apres_5"] = {"tiles": sorted(p.name for p in (zdir / "tiles").iterdir()) if (zdir / "tiles").is_dir() else [],
+                          "rasters": sorted(p.name for p in (zdir / "web" / "rasters").glob("g_*.tif")),
+                          "index": (json.loads((zdir / "tiles" / "index.json").read_text(encoding="utf-8"))
+                                    if (zdir / "tiles" / "index.json").is_file() else None)}
+        res["assets_10"] = H.run_assets(cfg10)
+        res["sorties_10a"] = snapshot(zdir)
+        res["assets_10b"] = H.run_assets(cfg10)
+        res["sorties_10b"] = snapshot(zdir)
+        yield res
+    finally:
+        H.remove_zone_copy(TEMPS)
+
+
+@pytest.fixture(scope="session")
+def temps_index(temps):
+    return T.read_index(exige_temps(temps))
+
+
+@pytest.fixture(scope="session")
+def temps_sheets(temps):
+    sh = H.read_sheets(exige_temps(temps))
+    assert sh, "aucune fiche web/cells/*.json"
+    return sh
+
+
+@pytest.fixture(scope="session")
+def temps_cells(temps):
+    zdir = exige_temps(temps)
+    return T.cell_year_table(T.cells_rows(zdir))
+
+
+@pytest.fixture(scope="session")
+def temps_instances(temps):
+    """Par année retenue : arbres de la partition, instances du tileset de l'année, appariement."""
+    zdir = exige_temps(temps)
+    out = {}
+    for y in T.retained_years(T.T0, T.YEARS, T.STEP):
+        tr = T.trees_of_year(zdir, y)
+        ts = zdir / "tiles" / str(y) / "tileset.json"
+        assert ts.is_file(), f"tiles/{y}/tileset.json absent"
+        inst = T.collect_tileset(ts)
+        out[y] = {"trees": tr, "inst": inst, "match": T.nearest_match(inst["world"], tr["x"], tr["y"])}
+    return out
+
+
+# ------------------------------------------------------------------ refus de assets en mode sim (code 2)
+def _cfg_sim(**kw):
+    return lambda zdir, nom: T.write_config(zdir, nom, T.sim_block(**kw), {"year_step": T.STEP}, "config_m4_refus.yml")
+
+
+def _cfg_nominale(zdir, nom):
+    return T.write_config(zdir, nom, T.sim_block(), {"year_step": T.STEP}, "config_m4_refus.yml")
+
+
+def _sans_run_json(zdir):
+    (zdir / "sim" / "run.json").unlink()
+
+
+def _sans_partition(kind, year):
+    def f(zdir):
+        shutil.rmtree(zdir / "sim" / kind / f"year={year}")
+    return f
+
+
+def _sans_h_dom_m(zdir):
+    for p in sorted((zdir / "sim" / "cells").rglob("*.parquet")):
+        T.rewrite_parquet(p, lambda t: t.drop_columns([c for c in ("h_dom_m",) if c in t.schema.names]))
+
+
+def _arbres_2032(fn):
+    def f(zdir):
+        for p in sorted((zdir / "sim" / "trees" / "year=2032").glob("*.parquet")):
+            T.rewrite_parquet(p, fn)
+    return f
+
+
+def _essence_99(t):
+    i = t.schema.get_field_index("species")
+    v = t.column("species").to_pylist()
+    v[0] = "99"
+    return t.set_column(i, t.schema.field(i), pa.array(v, t.schema.field(i).type))
+
+
+def _tree_id_double(t):
+    i = t.schema.get_field_index("tree_id")
+    v = t.column("tree_id").to_pylist()
+    v[1] = v[0]
+    return t.set_column(i, t.schema.field(i), pa.array(v, t.schema.field(i).type))
+
+
+# nom : (mutation de la copie, config, mots dont l'un doit être dans le message, code exigé)
+REFUS_TEMPS = {
+    "run_json_absent": (_sans_run_json, _cfg_nominale, ("run.json",), 2),
+    "partition_trees_2032_absente": (_sans_partition("trees", 2032), _cfg_nominale, ("2032",), 2),
+    "partition_cells_2032_absente": (_sans_partition("cells", 2032), _cfg_nominale, ("2032",), 2),
+    "graine_differente_du_run": (None, _cfg_sim(seed=43), ("seed", "graine"), 2),
+    "t0_different_du_run": (None, _cfg_sim(t0=2023), ("t0",), 2),
+    "years_different_du_run": (None, _cfg_sim(years=14), ("years",), 2),
+    "sans_bloc_assets": (None, lambda zdir, nom: T.write_config(zdir, nom, T.sim_block(), None, "config_m4_refus.yml"),
+                         ("year_step", "bloc assets", "bloc « assets »", "bloc `assets`"), 2),
+    "year_step_nul": (None, lambda zdir, nom: T.write_config(zdir, nom, T.sim_block(), {"year_step": 0}, "config_m4_refus.yml"),
+                      ("year_step",), 2),
+    "sans_colonne_h_dom_m": (_sans_h_dom_m, _cfg_nominale, ("h_dom_m",), 2),
+    # cas du terrain sans code fixé par le plan : un refus (code non nul) qui nomme la cause
+    "essence_hors_referentiel": (_arbres_2032(_essence_99), _cfg_nominale, ("99",), None),
+    "tree_id_en_double": (_arbres_2032(_tree_id_double), _cfg_nominale, ("tree_id", "double", "doublon", "unique"), None),
+}
+
+
+@pytest.fixture(scope="module", params=list(REFUS_TEMPS))
+def refus_temps(request, temps):
+    """Copie (liens physiques) de la zone `temps` sans sorties de assets, une seule chose cassée, puis assets."""
+    assert temps["make"].returncode == 0, "make dynamics simulate en échec :\n" + _queue(temps["make"])
+    # nom de zone NEUTRE : le message de refus cite le chemin de la zone, qui ne doit contenir aucun des mots attendus
+    nom = f"m4_refus_t{sorted(REFUS_TEMPS).index(request.param):02d}"
+    mutate, config, mots, code = REFUS_TEMPS[request.param]
+    zdir = H.ROOT / "data" / nom
+    try:
+        T.link_copy(temps["dir"], zdir)
+        if mutate is not None:
+            mutate(zdir)
+        p = H.run_assets(config(zdir, nom))
+        yield {"cas": request.param, "dir": zdir, "proc": p, "mots": mots, "code": code}
+    finally:
+        H.remove_zone_copy(nom)
+
+
+@pytest.fixture(scope="module")
+def refus_atomique(temps):
+    """Copie de la zone `temps` AVEC ses sorties valides (tiles/, web/ copiés), puis une partition retenue retirée :
+    le refus doit laisser les sorties précédentes intactes (écriture atomique, T6)."""
+    zdir = exige_temps(temps)
+    nom = "m4_refus_tat"
+    d = H.ROOT / "data" / nom
+    try:
+        T.link_copy(zdir, d, copy_dirs=("tiles", "web", "assets", "massif"))
+        cfg = _cfg_nominale(d, nom)
+        avant = snapshot(d)
+        shutil.rmtree(d / "sim" / "trees" / "year=2032")
+        p = H.run_assets(cfg)
+        yield {"dir": d, "proc": p, "avant": avant, "apres": snapshot(d)}
+    finally:
+        H.remove_zone_copy(nom)
+
+
+# ------------------------------------------------------------------ zone de charge synthétique (T8)
+@pytest.fixture(scope="session")
+def charge(chaine, oracle):
+    try:
+        zdir, _ = H.clone_zone(T.CHARGE)
+        cfg = T.write_config(zdir, T.CHARGE, {"level": "massif", "seed": 42, "t0": 2022, "years": 1, "threads": 1},
+                             {"year_step": T.STEP}, "config_m4_charge.yml")
+        info = T.build_charge_sim(zdir, cfg, sorted(oracle.forest_cells()))
+        res = {"dir": zdir, "name": T.CHARGE, "config": cfg, **info}
+        res["assets"] = H.run_assets(cfg)
+        yield res
+    finally:
+        H.remove_zone_copy(T.CHARGE)

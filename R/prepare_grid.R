@@ -19,7 +19,12 @@
 # Règles (spec §7) :
 #  - la grille : EPSG:2154, maille de config.yml (25 m, ADR 0001), alignée sur des multiples
 #    de la maille ; emprise = celle du masque forestier, arrondie vers l'extérieur ;
-#  - bilinéaire pour les entrées continues de maille proche, mode pour les catégorielles ;
+#  - bilinéaire pour les entrées continues de maille proche ; pour les catégorielles (type de
+#    station), majorité pondérée par la surface couverte, à égalité le pixel du centre, chaque
+#    égalité au rapport (décision de Pascal du 25/11/2026, mission 042) : règle écrite ici,
+#    indépendante de GDAL (dont le « mode » a changé en 3.11). Une égalité que le pixel du centre
+#    ne départage pas (centre NA, posé sur une limite de pixels, ou d'un type qui n'est pas ex
+#    aequo) laisse la cellule sans type (NA), signalée au rapport (décision du 25/11/2026) ;
 #  - le MNH à 50 cm n'est JAMAIS rééchantillonné : il est agrégé en h0.tif (percentile 95).
 #    Le percentile 95 est PROVISOIRE (spec §5) : il sera remplacé par l'estimateur h_dom de
 #    typopeuplement ;
@@ -180,12 +185,208 @@ resample_continuous <- function(r, tmpl, report, label) {
   terra::resample(r, tmpl, method = method)
 }
 
-#' Entrée catégorielle -> grille : mode (spec §7).
+# Réseau des surfaces exactes du rééchantillonnage catégoriel : le centimètre. Les origines et les
+# mailles des deux grilles doivent en être des multiples ; les surfaces se comptent alors en cm²
+# entiers (exacts en double), sans erreur d'arrondi : une égalité est une vraie égalité.
+CATEGORICAL_UNITS_PER_M <- 100
+# Écart admis (en cm) entre une coordonnée lue et le centimètre le plus proche (bruit de lecture).
+CATEGORICAL_LATTICE_TOL_CM <- 1e-4
+
+#' Coordonnées en mètres vers le réseau du centimètre (entiers portés par des doubles). Arrête si
+#' l'une n'y tombe pas : les surfaces couvertes ne se calculeraient pas exactement.
+to_lattice <- function(v, what) {
+  u <- v * CATEGORICAL_UNITS_PER_M
+  k <- round(u)
+  if (any(!is.finite(u)) || any(abs(u - k) > CATEGORICAL_LATTICE_TOL_CM)) {
+    stop(sprintf("%s : origine ou maille hors du centimètre (%s m) ; grilles non alignées comme attendu, les surfaces couvertes ne se calculent pas exactement",
+                 what, paste(format(v, digits = 15), collapse = " ; ")), call. = FALSE)
+  }
+  k
+}
+
+#' Sur un axe, en unités entières du réseau : chevauchements entre les intervalles cibles
+#' [t0 + j rt, t0 + (j + 1) rt] (j de 0 à nt - 1) et sources [s0 + i rs, s0 + (i + 1) rs]
+#' (i de 0 à ns - 1). Rend une liste :
+#'   overlaps  data.frame (target, source, width), indices en base 1, largeurs positives seules
+#'   center    pour chaque intervalle cible, l'indice source (base 1) qui contient strictement son
+#'             centre ; NA hors de la source ou si le centre tombe sur une limite de pixels.
+#' Les divisions sont faites par le reste (%%) : exactes sur des entiers.
+axis_overlaps <- function(t0, rt, nt, s0, rs, ns) {
+  j <- seq_len(nt) - 1
+  a <- t0 + j * rt
+  b <- a + rt
+  d <- a - s0
+  first <- (d - d %% rs) / rs            # pixel source (base 0) qui contient le début a
+  n_cand <- ceiling(rt / rs) + 2         # du pixel d'avant à celui qui contient la fin b
+  src <- rep(first, each = n_cand) + rep(seq_len(n_cand) - 2, times = nt)
+  lo <- pmax(rep(a, each = n_cand), s0 + src * rs)
+  hi <- pmin(rep(b, each = n_cand), s0 + (src + 1) * rs)
+  keep <- src >= 0 & src < ns & hi > lo
+  overlaps <- data.frame(target = rep(j, each = n_cand)[keep] + 1, source = src[keep] + 1,
+                         width = hi[keep] - lo[keep])
+  # centre en demi-unités, pour rester entier : 2 (a - s0) + rt
+  c2 <- 2 * d + rt
+  m <- c2 %% (2 * rs)
+  ci <- (c2 - m) / (2 * rs)
+  center <- ifelse(ci >= 0 & ci < ns & m != 0, ci + 1, NA_real_)
+  list(overlaps = overlaps, center = center)
+}
+
+#' Règle de Pascal (25/11/2026, mission 042) pour passer une entrée catégorielle sur la grille,
+#' écrite ici pour ne dépendre d'aucune version de GDAL (le « mode » de GDAL a changé en 3.11) :
+#'  - chaque cellule reçoit le type qui couvre la plus grande surface de la cellule ; les surfaces
+#'    sont calculées exactement par l'intersection des emprises des pixels (pas de
+#'    `resample(method = "mode")`) ;
+#'  - un pixel sans valeur (NA) ne vote pas ; sans aucun vote, la cellule reste NA ;
+#'  - à égalité de surface, le type du pixel qui couvre le centre de la cellule l'emporte ; si ce
+#'    pixel n'est pas l'un des ex aequo (sans valeur, hors de la source, d'un autre type) ou si le
+#'    centre tombe sur une limite de pixels, la règle ne tranche pas : la cellule reste NA.
+#' Arrête (grilles non alignées comme attendu) si les SCR diffèrent, si la source a plusieurs
+#' bandes, si une origine ou une maille n'est pas sur le centimètre, si une valeur n'est pas
+#' entière, ou si la source ne recouvre pas la grille.
+#' Rend une liste :
+#'   raster   le résultat, de la géométrie exacte de `tmpl`
+#'   ties     une ligne par cellule à égalité : cell_id (base 0, ligne x largeur + colonne, comme
+#'            simulate), row et col (base 1, depuis le coin nord-ouest), x et y (centre, EPSG:2154),
+#'            types (les ex aequo, triés), area_m2 (surface de chacun), center_type (type du pixel
+#'            du centre, NA s'il n'y en a pas), value (type retenu, NA si la règle ne tranche pas)
+#'   no_vote  nombre de cellules sans aucun vote (restées NA)
+#'   partial  nombre de cellules votées dont une partie de la surface ne vote pas (bord de la
+#'            source ou pixels NA)
+categorical_majority <- function(r, tmpl, label = "entrée catégorielle") {
+  if (terra::nlyr(r) != 1L) {
+    stop(sprintf("%s : %d bandes, une seule attendue pour une entrée catégorielle", label, terra::nlyr(r)),
+         call. = FALSE)
+  }
+  if (!isTRUE(terra::same.crs(r, tmpl))) {
+    stop(sprintf("%s : système de coordonnées différent de celui de la grille ; grilles non alignées comme attendu", label),
+         call. = FALSE)
+  }
+  if (terra::xmax(r) <= terra::xmin(tmpl) || terra::xmin(r) >= terra::xmax(tmpl) ||
+      terra::ymax(r) <= terra::ymin(tmpl) || terra::ymin(r) >= terra::ymax(tmpl)) {
+    stop(sprintf("%s ne recouvre pas la grille", label), call. = FALSE)
+  }
+  r <- terra::crop(r, terra::ext(tmpl), snap = "out")
+  sx <- to_lattice(c(terra::xmin(r), terra::res(r)[1]), label)
+  sy <- to_lattice(c(terra::ymax(r), terra::res(r)[2]), label)
+  gx <- to_lattice(c(terra::xmin(tmpl), terra::res(tmpl)[1]), "grille")
+  gy <- to_lattice(c(terra::ymax(tmpl), terra::res(tmpl)[2]), "grille")
+  ncs <- terra::ncol(r); nrs <- terra::nrow(r)
+  nct <- terra::ncol(tmpl); nrt <- terra::nrow(tmpl)
+  # x vers l'est ; les lignes se comptent vers le sud depuis le bord nord : axe -y
+  ox <- axis_overlaps(gx[1], gx[2], nct, sx[1], sx[2], ncs)
+  oy <- axis_overlaps(-gy[1], gy[2], nrt, -sy[1], sy[2], nrs)
+  sv <- terra::values(r, mat = FALSE)
+  bad <- !is.na(sv) & sv != round(sv)
+  if (any(bad)) {
+    stop(sprintf("%s : valeur(s) non entière(s) (par exemple %s) ; ce n'est pas une entrée catégorielle",
+                 label, format(sv[which(bad)[1]], digits = 15)), call. = FALSE)
+  }
+
+  # un vote par couple (pixel source, cellule cible) qui se recouvrent : surface en cm² entiers
+  X <- ox$overlaps; Y <- oy$overlaps
+  iy <- rep(seq_len(nrow(Y)), times = nrow(X))
+  ix <- rep(seq_len(nrow(X)), each = nrow(Y))
+  cell <- as.integer((Y$target[iy] - 1) * nct + X$target[ix])
+  val <- sv[(Y$source[iy] - 1) * ncs + X$source[ix]]
+  area <- Y$width[iy] * X$width[ix]
+  ncell <- nct * nrt
+  full <- gx[2] * gy[2]
+
+  vote <- !is.na(val)
+  cell <- cell[vote]; val <- val[vote]; area <- area[vote]
+  voted <- numeric(ncell)
+  if (length(cell) > 0L) {
+    s <- rowsum(area, cell)
+    voted[as.integer(rownames(s))] <- s[, 1]
+  }
+  # surface par (cellule, type)
+  o <- order(cell, val)
+  cell <- cell[o]; val <- val[o]; area <- area[o]
+  n <- length(cell)
+  start <- if (n == 0L) logical() else c(TRUE, cell[-1] != cell[-n] | val[-1] != val[-n])
+  garea <- if (n == 0L) numeric() else as.vector(rowsum(area, cumsum(start), reorder = FALSE))
+  gcell <- cell[start]; gval <- val[start]
+  # plus grande surface de chaque cellule, et combien de types l'atteignent
+  best <- numeric(ncell)
+  o2 <- order(gcell, -garea)
+  first <- !duplicated(gcell[o2])
+  best[gcell[o2][first]] <- garea[o2][first]
+  top <- garea == best[gcell]
+  n_top <- tabulate(gcell[top], nbins = ncell)
+  out <- rep(NA_real_, ncell)
+  single <- top & n_top[gcell] == 1L
+  out[gcell[single]] <- gval[single]
+
+  # égalités : le pixel du centre départage, s'il est l'un des ex aequo
+  tie_cells <- which(n_top >= 2L)
+  ties <- data.frame(cell_id = integer(), row = integer(), col = integer(), x = numeric(),
+                     y = numeric(), types = character(), area_m2 = numeric(),
+                     center_type = numeric(), value = numeric(), stringsAsFactors = FALSE)
+  if (length(tie_cells) > 0L) {
+    rows <- (tie_cells - 1) %/% nct + 1
+    cols <- (tie_cells - 1) %% nct + 1
+    cr <- oy$center[rows]; cc <- ox$center[cols]
+    center_type <- ifelse(is.na(cr) | is.na(cc), NA_real_, sv[(cr - 1) * ncs + cc])
+    in_tie <- top & n_top[gcell] >= 2L
+    tied <- split(gval[in_tie], gcell[in_tie])
+    tied <- tied[as.character(tie_cells)]
+    value <- vapply(seq_along(tie_cells), function(k) {
+      if (!is.na(center_type[k]) && center_type[k] %in% tied[[k]]) center_type[k] else NA_real_
+    }, numeric(1))
+    out[tie_cells] <- value
+    res_x <- terra::res(tmpl)[1]; res_y <- terra::res(tmpl)[2]
+    ties <- data.frame(
+      cell_id = as.integer(tie_cells - 1), row = as.integer(rows), col = as.integer(cols),
+      x = terra::xmin(tmpl) + (cols - 0.5) * res_x, y = terra::ymax(tmpl) - (rows - 0.5) * res_y,
+      types = vapply(tied, function(t) paste(sort(t), collapse = " et "), character(1)),
+      area_m2 = best[tie_cells] / CATEGORICAL_UNITS_PER_M^2,
+      center_type = center_type, value = value, stringsAsFactors = FALSE)
+    rownames(ties) <- NULL
+  }
+
+  res <- terra::rast(tmpl, nlyrs = 1)
+  terra::values(res) <- out
+  names(res) <- names(r)
+  terra::compareGeom(res, tmpl, stopOnError = TRUE)
+  list(raster = res, ties = ties, no_vote = sum(voted == 0),
+       partial = sum(voted > 0 & voted < full))
+}
+
+#' Entrée catégorielle -> grille par la règle de Pascal (categorical_majority) ; le rapport dit la
+#' règle, le nombre d'égalités, puis chaque cellule à égalité sur sa ligne (jamais en silence),
+#' et les cellules sans vote ou au bord.
 resample_categorical <- function(r, tmpl, report, label) {
   report_add(report, "Rééchantillonnage", sprintf(
-    "%s : maille %s m vers %s m, méthode mode", label, fr_num(terra::res(r)[1]),
-    fr_num(terra::res(tmpl)[1])))
-  terra::resample(r, tmpl, method = "mode")
+    "%s : maille %s m vers %s m, majorité pondérée par la surface couverte (surfaces exactes par intersection des pixels, règle écrite par le projet et indépendante de GDAL, décision de Pascal du 25/11/2026) ; à égalité, le type du pixel qui couvre le centre de la cellule ; si le pixel du centre ne départage pas l'égalité (centre NA, sur une limite de pixels, ou d'un type qui n'est pas ex aequo), la cellule reste sans type (NA) et figure au rapport (décision de Pascal du 25/11/2026)",
+    label, fr_num(terra::res(r)[1]), fr_num(terra::res(tmpl)[1])))
+  m <- categorical_majority(r, tmpl, label)
+  section <- "Égalités de surface (rééchantillonnage catégoriel)"
+  ties <- m$ties
+  n_undecided <- sum(is.na(ties$value))
+  report_add(report, section, sprintf(
+    "%s : %d cellule(s) à égalité de surface entre types, dont %d départagée(s) par le pixel du centre et %d laissée(s) sans valeur (le pixel du centre ne départage pas)",
+    label, nrow(ties), nrow(ties) - n_undecided, n_undecided))
+  for (k in seq_len(nrow(ties))) {
+    t <- ties[k, ]
+    report_add(report, section, sprintf(
+      "%s : cellule %d (ligne %d, colonne %d ; centre x = %s, y = %s, EPSG:2154) : types %s à égalité, %s m² chacun ; pixel du centre : %s ; %s",
+      label, t$cell_id, t$row, t$col, fr_num(t$x, 1), fr_num(t$y, 1), t$types, fr_num(t$area_m2),
+      if (is.na(t$center_type)) "sans valeur ou indéterminé" else sprintf("type %s", fr_num(t$center_type)),
+      if (is.na(t$value)) "cellule laissée sans valeur, la règle ne tranche pas"
+      else sprintf("type %s retenu", fr_num(t$value))))
+  }
+  if (m$no_vote > 0L) {
+    report_add(report, "Rééchantillonnage", sprintf(
+      "%s : %d cellule(s) sans aucun pixel source avec valeur (aucun vote) ; laissées au nodata",
+      label, m$no_vote))
+  }
+  if (m$partial > 0L) {
+    report_add(report, "Rééchantillonnage", sprintf(
+      "%s : %d cellule(s) dont une partie de la surface n'a pas de valeur source (bord de la source ou pixels sans valeur) ; seuls les pixels avec valeur votent",
+      label, m$partial))
+  }
+  m$raster
 }
 
 #' H0 par cellule : percentile 95 du MNH à 50 cm sur la cellule (PROVISOIRE, spec §5).

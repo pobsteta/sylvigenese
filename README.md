@@ -31,8 +31,11 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 - **M3a** (moteur `simulate` en Rust : 100 ans sur le massif fictif, identité au bit près quel
   que soit le nombre de fils, contrôles) : rempli sur son critère technique. **La trajectoire
   n'est pas encore celle d'une forêt** (référence technique, non validée écologiquement).
-- Suivant : **M3b** (type de station à 25 m indépendant de GDAL, puis vraisemblance de la
-  dynamique), puis la vue iTowns dans le temps.
+- **Vue iTowns dans le temps** (suite de M4a) : livrée. Un curseur fait défiler les années
+  simulées ; la fiche d'une cellule montre son évolution, et le sol la surface terrière de
+  l'année. Chiffres provisoires, trajectoire non validée écologiquement.
+- Suivant : `post` (volume et carbone), puis **M5a** et **M6a** (vue Godot). M3b attend les
+  données réelles.
 - En attente de Pascal (données réelles) : M1b, M2b.
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).

@@ -2,54 +2,395 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sylvigenese:cell_sheet",
   "title": "Fiches de cellule d'une tuile (web/cells/<tuile>.json, assets)",
-  "description": "Ce que la vue web affiche pour une cellule : station, type de végétation, composition, volume, carbone, mention provisoire, par année (spec §1, §9, §10). La commande viewer-massif se construit dans la vue à partir de x, y et de l'année.",
+  "description": "Ce que la vue web affiche pour une cellule (spec §1, §9, §10). Deux versions : la version 1 (état initial, sans sim/, une année) ne change pas ; la version 2 (mission 044, plan m4a-suite-temps §3) porte l'évolution de la cellule sur les années retenues, lues dans sim/, et ne s'écrit que si sim/ existe. La commande viewer-massif se construit dans la vue à partir de x, y et de l'année.",
   "x-schema-version": "0.1",
   "type": "object",
-  "required": ["schema_version", "tile", "cells"],
-  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tile",
+    "cells"
+  ],
   "properties": {
-    "schema_version": {"const": 1},
-    "tile": {"type": "string", "minLength": 1},
-    "cells": {
-      "type": "array", "minItems": 1,
+    "schema_version": {
+      "description": "1 : état initial ; 2 : évolution simulée (sim/)",
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "tile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "description": "version 2 seulement : toutes les années viennent de sim/ (T4), t0 compris",
+      "const": "sim"
+    },
+    "notes": {
+      "description": "version 2 seulement : mentions communes à toute la fiche, écrites une fois (non répétées par cellule ni par année) ; elles disent « volume et carbone non calculés » et « non validée écologiquement »",
+      "type": "array",
+      "minItems": 1,
       "items": {
-        "type": "object",
-        "x-lambert93": true,
-        "required": ["cell_id", "x", "y", "station_type", "vegetation_type", "years"],
-        "additionalProperties": false,
-        "properties": {
-          "cell_id": {"description": "rang de la cellule dans grid.tif", "type": "integer", "minimum": 0},
-          "x": {"description": "x Lambert-93 du centre de la cellule (est), m", "type": "number"},
-          "y": {"description": "y Lambert-93 du centre de la cellule (nord), m", "type": "number"},
-          "station_type": {"type": "string", "minLength": 1},
-          "vegetation_type": {"type": "string", "minLength": 1},
-          "years": {
-            "type": "array", "minItems": 1,
-            "items": {
-              "type": "object",
-              "required": ["year", "provisoire", "composition", "volume_m3_ha", "carbon_t_ha"],
-              "additionalProperties": false,
-              "properties": {
-                "year": {"type": "integer"},
-                "provisoire": {"type": "boolean"},
-                "composition": {
-                  "type": "array",
-                  "items": {
-                    "type": "object", "required": ["species", "share"], "additionalProperties": false,
-                    "properties": {
-                      "species": {"type": "string", "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"},
-                      "share": {"type": "number", "minimum": 0, "maximum": 1}
+        "type": "string",
+        "minLength": 1
+      },
+      "allOf": [
+        {
+          "contains": {
+            "type": "string",
+            "pattern": "non validée écologiquement"
+          }
+        },
+        {
+          "contains": {
+            "type": "string",
+            "pattern": "volume et carbone non calculés"
+          }
+        }
+      ]
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 1
+    }
+  },
+  "if": {
+    "properties": {
+      "schema_version": {
+        "const": 2
+      }
+    },
+    "required": [
+      "schema_version"
+    ]
+  },
+  "then": {
+    "required": [
+      "source",
+      "notes"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "schema_version": {},
+      "tile": {},
+      "source": {},
+      "notes": {},
+      "cells": {
+        "items": {
+          "$ref": "#/$defs/cell_v2"
+        }
+      }
+    }
+  },
+  "else": {
+    "additionalProperties": false,
+    "properties": {
+      "schema_version": {},
+      "tile": {},
+      "cells": {
+        "items": {
+          "$ref": "#/$defs/cell_v1"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "cell_v1": {
+      "type": "object",
+      "x-lambert93": true,
+      "required": [
+        "cell_id",
+        "x",
+        "y",
+        "station_type",
+        "vegetation_type",
+        "years"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cell_id": {
+          "description": "rang de la cellule dans grid.tif",
+          "type": "integer",
+          "minimum": 0
+        },
+        "x": {
+          "description": "x Lambert-93 du centre de la cellule (est), m",
+          "type": "number"
+        },
+        "y": {
+          "description": "y Lambert-93 du centre de la cellule (nord), m",
+          "type": "number"
+        },
+        "station_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vegetation_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "years": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "year",
+              "provisoire",
+              "composition",
+              "volume_m3_ha",
+              "carbon_t_ha"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer"
+              },
+              "provisoire": {
+                "type": "boolean"
+              },
+              "composition": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "species",
+                    "share"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "species": {
+                      "type": "string",
+                      "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+                    },
+                    "share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
                     }
                   }
-                },
-                "volume_m3_ha": {"description": "null = non calculé (post, après la simulation) ; la fiche le dit dans notes", "type": ["number", "null"], "minimum": 0},
-                "carbon_t_ha": {"description": "null = non calculé (post, après la simulation) ; la fiche le dit dans notes", "type": ["number", "null"], "minimum": 0},
-                "h0_m": {"description": "hauteur dominante de la cellule (h0.tif), m", "type": "number", "minimum": 0},
-                "density_trees_ha": {"description": "arbres détectés par hectare", "type": "number", "minimum": 0},
-                "notes": {"description": "mentions affichées avec la fiche (valeurs vides, statut provisoire)", "type": "array", "items": {"type": "string", "minLength": 1}}
+                }
+              },
+              "volume_m3_ha": {
+                "description": "null = non calculé (post, après la simulation) ; la fiche le dit dans notes",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "carbon_t_ha": {
+                "description": "null = non calculé (post, après la simulation) ; la fiche le dit dans notes",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "h0_m": {
+                "description": "hauteur dominante de la cellule (h0.tif), m",
+                "type": "number",
+                "minimum": 0
+              },
+              "density_trees_ha": {
+                "description": "arbres détectés par hectare",
+                "type": "number",
+                "minimum": 0
+              },
+              "notes": {
+                "description": "mentions affichées avec la fiche (valeurs vides, statut provisoire)",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
+        }
+      }
+    },
+    "cell_v2": {
+      "type": "object",
+      "x-lambert93": true,
+      "required": [
+        "cell_id",
+        "x",
+        "y",
+        "station_type",
+        "vegetation_type",
+        "h_ceiling_m",
+        "years"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cell_id": {
+          "description": "rang de la cellule dans grid.tif",
+          "type": "integer",
+          "minimum": 0
+        },
+        "x": {
+          "description": "x Lambert-93 du centre de la cellule (est), m",
+          "type": "number"
+        },
+        "y": {
+          "description": "y Lambert-93 du centre de la cellule (nord), m",
+          "type": "number"
+        },
+        "station_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vegetation_type": {
+          "description": "type de végétation à l'état initial : il n'évolue pas dans simulate",
+          "type": "string",
+          "minLength": 1
+        },
+        "h_ceiling_m": {
+          "description": "plafond de hauteur de la station (site_potential.tif), m ; null = plafond inconnu, que la fiche dit",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "years": {
+          "description": "toutes les années retenues de tiles/index.json, une entrée par année",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/year_v2"
+          }
+        }
+      }
+    },
+    "year_v2": {
+      "description": "Une année retenue (tiles/index.json) : recalcul arithmétique exact de sim/cells (stems_ha, basal_area_m2_ha, d130_mean_cm, composition) et de sim/flags.parquet (flags) ; aucune valeur interpolée entre deux années.",
+      "type": "object",
+      "required": [
+        "year",
+        "provisoire",
+        "stems_ha",
+        "basal_area_m2_ha",
+        "d130_mean_cm",
+        "h_dom_m",
+        "composition",
+        "flags",
+        "volume_m3_ha",
+        "carbon_t_ha"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "year": {
+          "type": "integer"
+        },
+        "provisoire": {
+          "description": "vrai : la trajectoire est technique, non validée écologiquement (décision de Pascal, 25/11/2026)",
+          "type": "boolean"
+        },
+        "stems_ha": {
+          "type": "number",
+          "minimum": 0,
+          "description": "tiges de 7,5 cm et plus, toutes essences (somme des lignes de sim/cells), tiges/ha"
+        },
+        "basal_area_m2_ha": {
+          "type": "number",
+          "minimum": 0,
+          "description": "surface terrière G, toutes essences (somme des lignes de sim/cells), m2/ha"
+        },
+        "d130_mean_cm": {
+          "description": "diamètre moyen à 1,30 m pondéré par les tiges (somme des d130_mean × stems_ha sur la somme des stems_ha), cm ; null sans tige",
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "h_dom_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "hauteur dominante de la cellule pour cette année (colonne h_dom_m de sim/cells, décision de Pascal Q1 du 25/11/2026), m ; jamais corrigée, même au-dessus du plafond ; null quand la cellule n'a aucun arbre vivant cette année-là (aucune ligne dans sim/cells, décision de l'orchestrateur du 25/11/2026, mission 046)"
+        },
+        "h0_m": {
+          "type": "number",
+          "minimum": 0,
+          "description": "hauteur dominante mesurée (h0.tif), m ; réservée à l'année t0"
+        },
+        "composition": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "species",
+              "stems_ha",
+              "basal_area_m2_ha",
+              "share"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "species": {
+                "type": "string",
+                "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+              },
+              "stems_ha": {
+                "type": "number",
+                "minimum": 0,
+                "description": "tiges/ha de l'essence"
+              },
+              "basal_area_m2_ha": {
+                "type": "number",
+                "minimum": 0,
+                "description": "surface terrière de l'essence, m2/ha"
+              },
+              "share": {
+                "description": "part des TIGES de l'essence dans les tiges de la cellule (et non de la surface terrière), de 0 à 1",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "flags": {
+          "description": "signalements de sim/flags.parquet pour cette cellule et cette année (hdom_au_dessus_du_plafond avec sa valeur, trouee_sans_recrue…) ; tableau vide : rien à signaler",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "description": "sorte de signalement, comme sim/flags.parquet",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "description": "valeur en cause, dans l'unité du message ; absente ou null sans valeur",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "volume_m3_ha": {
+          "description": "toujours null : volume non calculé (post, mission à part après M4a ; décision de Pascal Q2 du 25/11/2026)",
+          "type": "null"
+        },
+        "carbon_t_ha": {
+          "description": "toujours null : carbone non calculé (post, mission à part après M4a ; décision de Pascal Q2 du 25/11/2026)",
+          "type": "null"
         }
       }
     }

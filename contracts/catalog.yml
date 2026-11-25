@@ -311,6 +311,22 @@ contracts:
     kind: geotiff
     options: {variant: cog}
     paths: [web/rasters/*.tif]
+  # surface terrière par cellule et par année retenue (mission 044, décision de Pascal Q3 du
+  # 25/11/2026) : un COG Float32 sur la maille de 25 m, g_<année>.tif, m2/ha. Les fichiers
+  # g_*.tif sont aussi contrôlés par assets.web_raster (le motif y est plus large).
+  assets.basal_area_raster:
+    aliases: [basal_area_raster]
+    kind: geotiff
+    options: {variant: cog, sample_types: [Float32], bands: 1, pixel_size_m: 25}
+    paths: [web/rasters/g_*.tif]
+    required: false
+  # index des années de tuiles (mission 044) : lu par la vue à la place d'un listage de tiles/
+  assets.tiles_index:
+    aliases: [tiles_index]
+    kind: json
+    schema: json/tiles_index.schema.json
+    paths: [tiles/index.json]
+    required: false
   assets.massif_block:
     aliases: [massif_block]
     kind: json

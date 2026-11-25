@@ -20,7 +20,7 @@
   "ser.tif": "e66e6ff67c2d337d80fed055ec69f635979ce58ed041badafc710bcba9ec889f",
   "site_potential.tif": "408548e7004a0873884d8d25ca69a0efa62f0a660f4e7c32613692bde90c98d3",
   "station_gradients.tif": "b955ad53c509c958f46958ed395fdedb71b5f337183a4790f44169224b31561a",
-  "trees_init/trees.parquet": "fd8089f9220b73b995efbd2a7a307aa153b82116ad02d3382c7cf8a59312da2d"
+  "trees_init/trees.parquet": "b5f9c577bd1b04efcfb466a3c85d1a6c5f24a80f0cb3dac92064388db30b7439"
  },
  "objet": "entrées de simulate figées pour la non-régression du moteur (tests/m3/test_m3_non_regression.py)",
  "produites_par": "make prepare biomes trees dynamics sur une copie de tests/fixtures/zone_fictive (chaîne de tests/m3)",
