@@ -85,3 +85,6 @@
 | [025-dynamics](missions/025-dynamics.md) | `dev` | opus | prendre (plan d'abord) | non à la 2e : plan d'abord | M2a |
 | [026-tests-m2](missions/026-tests-m2.md) | `testeur` | sonnet | donner | 3 oui après 022 | M2a |
 | [027-dettes-m1a](missions/027-dettes-m1a.md) | `dev` | sonnet | donner | 3 oui | M2a |
+| [028-assets-etat-initial](missions/028-assets-etat-initial.md) | `dev` | sonnet | donner | 3 oui | M4a (état initial) |
+| [029-viewer-web-etat-initial](missions/029-viewer-web-etat-initial.md) | `afficheur` | sonnet | donner | 3 oui après 028 | M4a (état initial) |
+| [030-tests-m4-etat-initial](missions/030-tests-m4-etat-initial.md) | `testeur` | sonnet | donner | 3 oui | M4a (état initial) |
