@@ -307,9 +307,12 @@
           "exclusiveMinimum": 0
         },
         "h_dom_m": {
-          "type": "number",
+          "type": [
+            "number",
+            "null"
+          ],
           "minimum": 0,
-          "description": "hauteur dominante de la cellule pour cette année (colonne h_dom_m de sim/cells, décision de Pascal Q1 du 25/11/2026), m ; jamais corrigée, même au-dessus du plafond"
+          "description": "hauteur dominante de la cellule pour cette année (colonne h_dom_m de sim/cells, décision de Pascal Q1 du 25/11/2026), m ; jamais corrigée, même au-dessus du plafond ; null quand la cellule n'a aucun arbre vivant cette année-là (aucune ligne dans sim/cells, décision de l'orchestrateur du 25/11/2026, mission 046)"
         },
         "h0_m": {
           "type": "number",
