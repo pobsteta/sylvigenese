@@ -17,7 +17,7 @@ from sylvigenese.commun import ErreurModule, lire_config
 
 RACINE = Path(__file__).resolve().parents[2]
 CONFIG = RACINE / "config.yml"
-MODULES = [import_tarif, post, assets]
+MODULES = [import_tarif, post, assets]  # import_tarif : voir aussi test_import_tarif.py (mission 027)
 
 
 def faux_validateur(dossier: Path, code: int) -> Path:

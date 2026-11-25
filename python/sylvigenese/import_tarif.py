@@ -219,8 +219,15 @@ def importer(config: dict) -> Path:
     """Lit tarif-nemeton, écrit params/allometry.parquet, le fait valider ; rend son chemin."""
     externe = (config.get("external") or {}).get("tarif_nemeton_dir")
     if not externe:
-        raise ErreurModule("config.yml : external.tarif_nemeton_dir absent, aucun tarif-nemeton à lire "
-                           "(rien n'est inventé)")
+        # Rien à importer : aucun coefficient n'est inventé. Si params/allometry.parquet existe déjà
+        # (jeu fictif versionné), il est laissé tel quel et le module le dit ; sinon, code 2.
+        existant = dossier_zone(config) / "params" / "allometry.parquet"
+        if existant.is_file():
+            print(f"[{NOM}] external.tarif_nemeton_dir absent de config.yml : rien à importer, "
+                  f"{existant} existant conservé tel quel", file=sys.stderr)
+            return existant
+        raise ErreurModule("config.yml : external.tarif_nemeton_dir absent et aucun "
+                           f"params/allometry.parquet existant ({existant}) : rien n'est inventé")
     dossier = Path(externe)
     if not dossier.is_dir():
         raise ErreurModule(f"external.tarif_nemeton_dir : dossier introuvable : {dossier}")

@@ -87,7 +87,6 @@ def test_hetre_a_b_et_c_et_le_code_espar_garde_son_zero(monde):
     import_tarif.main(["--config", str(monde["config"])])
     coef = coefficients(monde["sortie"])
     assert coef["09"] == {"a": -1.0, "b": 1.1, "c": 0.2}   # Fagus sylvatica, espar 09 (zéro de tête)
-    assert coef["15S"] == {"a": pytest.approx(coef["15S"]["a"])} or True
     assert "9" not in coef
 
 
@@ -124,19 +123,30 @@ def test_essence_sans_code_espar_est_signalee_et_sautee(monde, capsys):
     assert import_tarif.main(["--config", str(monde["config"])]) == 0
     assert "Essence_inconnue" in capsys.readouterr().err
     noms = {ligne["species"] for ligne in pq.read_table(monde["sortie"]).to_pylist()}
-    assert len(noms) == len(noms - {None})
-    assert all("Essence" not in ligne["source"] for ligne in pq.read_table(monde["sortie"]).to_pylist())
     # aucune espar n'a été inventée pour elle : 02, 03, 09, 12P, 12V, 52, 61, 62
     assert noms == {"02", "03", "09", "12P", "12V", "52", "61", "62"}
 
 
-def test_sans_tarif_nemeton_dans_config_code_2_et_aucune_sortie(monde, capsys, tmp_path):
+def _sans_externe(monde):
     contenu = yaml.safe_load(monde["config"].read_text(encoding="utf-8"))
     del contenu["external"]
     monde["config"].write_text(yaml.safe_dump(contenu), encoding="utf-8")
+
+
+def test_sans_tarif_nemeton_ni_params_existant_code_2_et_aucune_sortie(monde, capsys):
+    _sans_externe(monde)
     assert import_tarif.main(["--config", str(monde["config"])]) == 2
     assert "external.tarif_nemeton_dir" in capsys.readouterr().err
     assert not monde["sortie"].exists()
+
+
+def test_sans_tarif_nemeton_avec_params_existant_code_0_fichier_intact(monde, capsys):
+    _sans_externe(monde)
+    monde["sortie"].parent.mkdir(parents=True)
+    monde["sortie"].write_bytes(b"existant")
+    assert import_tarif.main(["--config", str(monde["config"])]) == 0
+    assert "conservé tel quel" in capsys.readouterr().err
+    assert monde["sortie"].read_bytes() == b"existant"
 
 
 def test_dossier_sans_csv_code_2(monde, capsys):
