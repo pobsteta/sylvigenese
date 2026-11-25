@@ -193,16 +193,17 @@ ifn_tables <- function(plots_raw, trees_raw, flora_raw, precision_m = 700, taxre
       "colonne PRELEV5 absente de PLACETTE.csv : harvest_5y vide (NA) ; un prélèvement entre les",
       "deux visites ne peut pas être détecté par cette colonne"))
   }
-  # DATEPOINT : JJ/MM/AAAA -> AAAA-MM-JJ ; absente ou vide : vide et dit, jamais complétée.
+  # DATEPOINT : JJ/MM/AAAA -> AAAA-MM-JJ ; absente ou vide : vide et dit, jamais complétée ;
+  # impossible (31/02) ou illisible : entrée refusée (code 2).
   date_point <- rep(NA_character_, n_plots)
   if ("DATEPOINT" %in% names(plots_raw)) {
     raw_d <- trimws(plots_raw$DATEPOINT)
     parsed <- as.Date(ifelse(raw_d == "", NA_character_, raw_d), format = "%d/%m/%Y")
     bad_d <- raw_d != "" & is.na(parsed)
     if (any(bad_d)) {
-      add("IFN : placettes", sprintf(
-        "%d DATEPOINT illisible(s) (attendu JJ/MM/AAAA), mises à vide (NA), ex. « %s »",
-        sum(bad_d), raw_d[bad_d][1]))
+      stop(sprintf(
+        "PLACETTE.csv : %d DATEPOINT impossible(s) ou illisible(s) (attendu une date réelle JJ/MM/AAAA), ex. « %s » : entrée refusée, aucune date n'est devinée",
+        sum(bad_d), raw_d[bad_d][1]), call. = FALSE)
     }
     date_point <- format(parsed, "%Y-%m-%d")
   } else {

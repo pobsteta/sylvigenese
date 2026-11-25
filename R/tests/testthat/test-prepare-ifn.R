@@ -60,7 +60,7 @@ test_that("ifn_tables sur le jeu fictif : colonnes, effectifs, clés", {
   expect_equal(sum(r$plots$visit == 1L), 120)
   expect_equal(sum(r$plots$visit == 2L), 108)
   expect_equal(nrow(r$trees), 2286)              # une ligne par arbre et par visite
-  expect_equal(nrow(r$flora), 516)               # flore de la 1re visite seule
+  expect_equal(nrow(r$flora), 626)               # flore de la 1re visite seule
   expect_false(anyDuplicated(r$trees[, c("plot_id", "campaign", "tree_id")]) > 0)
   expect_true(all(r$trees$d130 > 0, na.rm = TRUE))
 })
@@ -79,12 +79,12 @@ test_that("la 2e visite d'un point garde son IDP et tombe 5 campagnes plus tard"
 test_that("un point du terrain tombe au bon endroit : placette 9000001, x est, y nord, EPSG:2154", {
   r <- tables_fictives()
   p <- r$plots[r$plots$plot_id == "9000001" & r$plots$visit == 1L, ]
-  expect_equal(p$x, 698757.7)    # est, Lambert-93
-  expect_equal(p$y, 6498503.2)   # nord, Lambert-93
+  expect_equal(p$x, 699794.4)    # est, Lambert-93
+  expect_equal(p$y, 6500485.4)   # nord, Lambert-93
   expect_equal(p$campaign, 2015L)
   # la 2e visite recopie les mêmes coordonnées floutées
   p2 <- r$plots[r$plots$plot_id == "9000001" & r$plots$visit == 2L, ]
-  expect_equal(c(p2$x, p2$y, p2$campaign), c(698757.7, 6498503.2, 2020))
+  expect_equal(c(p2$x, p2$y, p2$campaign), c(699794.4, 6500485.4, 2020))
   expect_true(all(r$plots$x > 0 & r$plots$x < 1300000))
   expect_true(all(r$plots$y > 6000000 & r$plots$y < 7200000))
 })
@@ -296,13 +296,16 @@ test_that("hors modalités ou vide : mis à vide et compté, jamais remplacé", 
   expect_true(is.na(r$trees$veg_state[1]))
   expect_equal(r$trees$veg_state[2], "0")
   # hors modalités de placette
-  p2 <- transform(m$p, NINCID = c("9", ""), DEF5 = c("", "7"), DATEPOINT = c("hier", "20/06/2020"))
+  p2 <- transform(m$p, NINCID = c("9", ""), DEF5 = c("", "7"))
   r2 <- ifn_tables(p2, m$a, m$f)
   expect_true(any(grepl("1 valeur.*NINCID hors modalit.*0 .* 5", r2$report$text)))
   expect_true(any(grepl("1 valeur.*DEF5 hors modalit.*0 .* 5", r2$report$text)))
-  expect_true(any(grepl("1 DATEPOINT illisible", r2$report$text)))
-  expect_true(is.na(r2$plots$incident_nature[1]) && is.na(r2$plots$clearing_5y[2]) &&
-                is.na(r2$plots$date_point[1]))
+  expect_true(is.na(r2$plots$incident_nature[1]) && is.na(r2$plots$clearing_5y[2]))
+  # DATEPOINT impossible (31/02) ou illisible : entrée refusée, jamais devinée
+  for (d in c("31/02/2015", "hier")) {
+    expect_error(ifn_tables(transform(m$p, DATEPOINT = c(d, "20/06/2020")), m$a, m$f),
+                 "DATEPOINT impossible")
+  }
   # arbre de 1re visite sans VEGET, ligne de 2e visite sans VEGET5
   a3 <- transform(m$a, VEGET = c("", "0", "", "", ""), VEGET5 = c("", "", "", "6", "0"))
   r3 <- ifn_tables(m$p, a3, m$f)

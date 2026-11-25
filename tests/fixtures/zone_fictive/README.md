@@ -47,11 +47,22 @@ Carré de 1 000 m de côté, EPSG:2154 : coin sud-ouest (700 000 ; 6 500 000), c
 | `inputs/lidar_tiles.gpkg` | `inputs.lidar_tiles` | 4 dalles de 500 m, deux dates de vol (2021-08-03, 2022-06-21) |
 | `inputs/forest_mask.gpkg` | `inputs.forest_mask` | massif moins la trouée |
 | `inputs/ser.gpkg` | `inputs.ser` | forme brute de l'IGN : `ser_code` seul ; `H10` sur deux polygones, `L3` (alluvions) sur un couloir de 100 m entre eux (3 polygones sans recouvrement) |
-| `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` | `inputs.ifn_*` | 120 placettes de 1re visite et 108 revisites 5 ans après ; `C13` et `IR5` en **mètres** comme l'export réel ; coordonnées floutées (écart ≤ 700 m) ; voir « IFN fictif pour la dynamique » |
+| `inputs/ifn/PLACETTE.csv`, `ARBRE.csv`, `FLORE.csv` | `inputs.ifn_*` | 120 placettes de 1re visite et 108 revisites 5 ans après ; `C13` et `IR5` en **mètres** comme l'export réel ; positions vraies dans le massif, coordonnées floutées (écart ≤ 700 m) ; voir « IFN fictif pour la dynamique » |
+| `params/indicator_values.csv` | `params.indicator_values` | valeurs indicatrices (réaction, nutriments) de 17 des 18 taxons de `FLORE.csv` ; **synthétiques** (`synthetic = true`, `provisoire = true`), produites par le générateur ; `CD_REF` 125816 laissé sans valeur (cas du comptage de prepare) |
 | `params/tarif.parquet`, `params/allometry.parquet` | `import_tarif.*` | format long, `provisoire: true` ; `allometry` porte les termes a, b et c (houppier), tous fictifs |
 
-Les `CD_REF` de `FLORE.csv` sont ceux de `contracts/species.csv` (arbres), faute de table de
-flore ; ils sont en v18 alors que l'IFN réel est en v13.
+Les `CD_REF` de `FLORE.csv` sont de deux sortes (18 taxons, 4 à 8 par placette, 1re visite seule) :
+les 8 des essences de `contracts/species.csv` (v18 alors que l'IFN réel est en v13), et 10 taxons du
+sous-bois forestier, `CD_REF` réels de TAXREF v18 lus dans l'extrait `taxref_v18_extrait.csv` de
+sylvostation : 100787 *Hedera helix*, 128345 *Vaccinium myrtillus*, 108361 *Mercurialis perennis*,
+111859 *Oxalis acetosella*, 106863 *Luzula sylvatica*, 116265 *Pteridium aquilinum*, 82637 *Anemone
+nemorosa*, 119097 *Rubus fruticosus*, 99488 *Galium odoratum*, 88905 *Carex sylvatica*. Les valeurs
+indicatrices associées sont tirées au hasard (graine 42) : elles n'ont aucun sens écologique.
+
+**Placettes IFN et station (mission 023, aller-retour 1).** La position vraie de chaque placette est
+tirée dans le massif (marge de 20 m), puis floutée de 700 m au plus : le point flouté reste à moins de
+700 m du raster `station_gradients.tif`, donc le disque de 700 m de chaque placette contient des mailles
+de station et `prepare` renseigne `trophic`, `coarse_*_700m` et `ser_code` sur les 120 placettes.
 
 ## IFN fictif pour la dynamique (mission 023)
 

@@ -380,16 +380,42 @@ def write_fertilite(inputs):
 # inventés pour que `dynamics` ait de quoi ajuster un modèle simple par essence (mission 023) ;
 # ils seront remplacés par l'IFN réel en M2b. Les noms de colonnes et les codes sont ceux de
 # docs/referentiels/ifn-dynamique-colonnes.csv ; C13 et IR5 sont en MÈTRES comme dans l'export.
-S_IFN_FATE, S_IFN_GROW, S_IFN_RECRUIT, S_IFN_DATE = 11, 12, 13, 14
+S_IFN_FATE, S_IFN_GROW, S_IFN_RECRUIT, S_IFN_DATE, S_IFN_INDIC = 11, 12, 13, 14, 15
 IFN_N_PLOTS = 120                # 120 placettes de 1re visite ; une sur dix n'est pas revisitée
 IFN_MORT_5Y = {"09": 0.10, "61": 0.10, "62": 0.12, "03": 0.10, "64": 0.08}      # provisoire
 IFN_GROWTH_5Y_M = {"09": 0.022, "61": 0.026, "62": 0.020, "03": 0.018, "64": 0.028}  # provisoire
 
 
+# Flore fictive : 8 CD_REF d'essences de contracts/species.csv (v18) puis 10 taxons du sous-bois forestier,
+# CD_REF réels de TAXREF v18 (extrait taxref_v18_extrait.csv de sylvostation, colonnes CD_REF et LB_NOM) :
+IFN_UNDERSTORY = [(100787, "Hedera helix"), (128345, "Vaccinium myrtillus"), (108361, "Mercurialis perennis"),
+                  (111859, "Oxalis acetosella"), (106863, "Luzula sylvatica"), (116265, "Pteridium aquilinum"),
+                  (82637, "Anemone nemorosa"), (119097, "Rubus fruticosus"), (99488, "Galium odoratum"),
+                  (88905, "Carex sylvatica")]
+IFN_FLORA_TAXA = [97947, 79319, 113432, 116216, 89304, 125816, 116759, 139584] + [c for c, _ in IFN_UNDERSTORY]
+IFN_TAXON_WITHOUT_VALUE = 125816   # reste sans valeur indicatrice : cas du comptage de prepare
+
+
+def write_indicator_values(zone, seed):
+    """params/indicator_values.csv (contrat params.indicator_values) : valeurs de réaction et de nutriments
+    SYNTHÉTIQUES (tirées, 1 à 9), `synthetic = true`, `provisoire = true` ; aucun sens écologique. Un taxon
+    reste sans valeur (vide), pour que prepare le compte."""
+    lines = ["cd_ref;taxref_version;reaction;nutrients;source;synthetic;provisoire"]
+    for i, cd in enumerate(sorted(IFN_FLORA_TAXA)):
+        if cd == IFN_TAXON_WITHOUT_VALUE:
+            continue
+        rea = 1 + int(9 * float(u(seed, S_IFN_INDIC, cd, 0)))
+        nut = 1 + int(9 * float(u(seed, S_IFN_INDIC, cd, 1)))
+        lines.append(f"{cd};13;{rea};{nut};{SOURCE_PARAMS};true;true")
+    write_text(zone / "params" / "indicator_values.csv", "\n".join(lines) + "\n")
+
+
 def ifn_true_positions(seed, n_plots=IFN_N_PLOTS):
-    """Positions vraies (avant flou) des placettes IFN fictives : 6 km x 6 km autour du massif."""
-    return [(X0 - 2500 + 6000 * float(u(seed, S_IFN_POS, p, 0)),
-             Y0 - 2500 + 6000 * float(u(seed, S_IFN_POS, p, 1))) for p in range(n_plots)]
+    """Positions vraies (avant flou) des placettes IFN fictives : DANS le massif (marge de 20 m), de sorte que
+    le point flouté (écart <= 700 m) soit à moins de 700 m d'une maille de station et que son disque de
+    700 m en recouvre (coarse_*_700m et ser_code toujours renseignés, mission 023 aller-retour 1)."""
+    return [(X0 + 20 + 960 * float(u(seed, S_IFN_POS, p, 0)),
+             Y0 + 20 + 960 * float(u(seed, S_IFN_POS, p, 1))) for p in range(n_plots)]
 
 
 def _ifn_date(seed, camp, stream_key):
@@ -415,7 +441,7 @@ def write_ifn(inputs, seed):
     (docs/referentiels/ifn-placettes.md, bornes 0,235 / 0,705 / 1,175 m)."""
     n_plots, blur_m = IFN_N_PLOTS, 700.0
     # CD_REF : ceux de contracts/species.csv (taxref_cd_ref non vides)
-    taxa = [97947, 79319, 113432, 116216, 89304, 125816, 116759, 139584]
+    taxa = IFN_FLORA_TAXA
     plot_lines = ["CAMPAGNE;IDP;XL;YL;VISITE;DATEPOINT;NINCID;INCID;PRELEV5;DEF5;INSTP5"]
     tree_lines = ["CAMPAGNE;IDP;ESPAR;C13;A;VEGET;VEGET5;IR5;HTOT;V;W"]
     flora_lines = ["CAMPAGNE;IDP;CD_REF;ABOND"]
@@ -511,7 +537,7 @@ def write_ifn(inputs, seed):
         tree_lines.extend(rows2)
         seen = set()
         for j in range(4 + int(5 * float(u(seed, S_IFN_FLORA, p, 0)))):
-            cd = taxa[int(8 * float(u(seed, S_IFN_FLORA, p * 100 + j, 1))) % 8]
+            cd = taxa[int(len(taxa) * float(u(seed, S_IFN_FLORA, p * 100 + j, 1))) % len(taxa)]
             ab = 1 + int(3 * float(u(seed, S_IFN_FLORA, p * 100 + j, 2)))
             if cd not in seen:      # un taxon une seule fois par placette ; flore de 1re visite seule
                 seen.add(cd)
@@ -548,6 +574,7 @@ def generate(out_dir, seed=42):
     write_fertilite(inputs)
     write_ifn(inputs, seed)
     write_params(zone)
+    write_indicator_values(zone, seed)
     return zone
 
 
