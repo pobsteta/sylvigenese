@@ -86,7 +86,7 @@ def test_une_cellule_dont_le_type_change_change_une_seule_fiche(chaine, zone_veg
     assert avant[zone_vegetation["cell_id"]]["vegetation_type"] == oracle.veg_names[zone_vegetation["avant"]]
 
 
-def test_un_polygone_dont_l_essence_change_change_ses_cellules(chaine, zone_stand, oracle):
+def test_un_polygone_dont_l_essence_change_a_la_source_change_ses_cellules(chaine, zone_stand, oracle):
     _ok(zone_stand)
     avant = H.sheet_cells(H.read_sheets(H.ZONE))
     apres = H.sheet_cells(H.read_sheets(zone_stand["dir"]))

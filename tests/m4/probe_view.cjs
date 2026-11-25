@@ -18,7 +18,7 @@ const path = require("path");
 const { execSync } = require("child_process");
 
 function loadPlaywright() {
-  const roots = [process.env.NODE_PATH, "/opt/node-tools/node_modules"];
+  const roots = [process.env.NODE_PATH, path.resolve(__dirname, "../../viewer-web/node_modules"), path.resolve(__dirname, "../../node_modules"), "/opt/node-tools/node_modules"];
   try { roots.push(execSync("npm root -g", { encoding: "utf8" }).trim()); } catch (e) { /* ignoré */ }
   for (const r of roots.filter(Boolean).flatMap((x) => x.split(path.delimiter))) {
     try { return require(path.join(r, "playwright")); } catch (e) { /* suivant */ }

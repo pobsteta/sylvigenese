@@ -88,10 +88,11 @@ def sheets(chaine):
 
 
 # ------------------------------------------------------------------ zones variantes
-def _build(name, mutate, t0=None):
+def _build(name, mutate, t0=None, etapes=None):
+    """Copie de la zone, mutation, puis `assets` seul, ou `make <etapes>` (ex. trees assets) si demandé."""
     zone_dir, cfg = H.clone_zone(name, mutate, t0)
     res = {"dir": zone_dir, "config": cfg, "name": name}
-    res["run"] = H.run_assets(cfg)
+    res["run"] = H.run_make(*etapes, zone=name, config=cfg) if etapes else H.run_assets(cfg)
     return res
 
 
@@ -212,17 +213,24 @@ def zone_vegetation(chaine, oracle):
 
 @pytest.fixture(scope="session")
 def zone_stand(chaine):
-    """L'essence du polygone S02 passe de 61 à 62 dans stands.parquet : les cellules de S02 le disent."""
+    """L'essence du polygone S02 passe de 61 à 62 À LA SOURCE (inputs/nemeton_stands.gpkg et stands.parquet,
+    que `trees` lit), puis `make trees assets` : les arbres de S02 prennent 62 (spec §4.1), donc les fiches aussi."""
+    import sqlite3
+
     import pyarrow.parquet as pq
 
     def mut(d):
+        c = sqlite3.connect(d / "inputs" / "nemeton_stands.gpkg")
+        c.execute("update stands set species_espar = '62' where species_espar = '61'")
+        c.commit()
+        c.close()
         t = pq.read_table(d / "stands.parquet")
         sp = [("62" if s == "61" else s) for s in t.column("species").to_pylist()]
         i = t.schema.get_field_index("species")
         pq.write_table(t.set_column(i, t.schema.field(i), [sp]), d / "stands.parquet")
 
     try:
-        yield _build("m4_stand", mut)
+        yield _build("m4_stand", mut, etapes=("trees", "assets"))
     finally:
         H.remove_zone_copy("m4_stand")
 
