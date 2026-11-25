@@ -17,6 +17,7 @@
 #   web      node --test (make test-web)
 #   contrats pytest tests/contracts, contracts/tests, tools/fixtures/tests et python
 #   m1 m2 m4 m3   tests d'acceptation des jalons, une session pytest chacun
+#            (m3 et m4 compilent d'abord simulate en release : leurs tests tournent sans réseau)
 #   validate le validateur sur le jeu fictif
 # Chaque section écrit sa durée (sortie standard et, en CI, résumé du job).
 set -euo pipefail
@@ -58,6 +59,17 @@ run_pytest() {
   fi
 }
 
+# Compile simulate en release (la cible de `make simulate`), avec le réseau.
+# Les tests de M3 et M4 lancent `make simulate` sans réseau : offline_env() de tests/m3/helpers_m3.py
+# et tests/m4/helpers_m4.py met http_proxy, https_proxy, HTTP_PROXY, HTTPS_PROXY, ALL_PROXY et all_proxy
+# à http://127.0.0.1:9 (proxy mort, cas terrain « absence de réseau »). cargo n'y peut pas télécharger
+# les crates. Dans le parcours complet, make test-rust remplissait le registre avant ; un job qui ne
+# lance que m3 ou m4 (CI découpée, mission 043) partait d'un registre vide : tous ses tests échouaient.
+build_simulate() {
+  cargo fetch --locked --manifest-path simulate/Cargo.toml
+  cargo build --release --locked --manifest-path simulate/Cargo.toml
+}
+
 run_section() {
   case "$1" in
     r)        make test-r ;;
@@ -71,8 +83,8 @@ run_section() {
     # d'aide portent le même nom que ceux des contrats (helpers.py).
     m1)       run_pytest tests/m1 ;;
     m2)       run_pytest tests/m2 ;;
-    m4)       run_pytest tests/m4 ;;
-    m3)       run_pytest tests/m3 ;;
+    m4)       build_simulate; run_pytest tests/m4 ;;
+    m3)       build_simulate; run_pytest tests/m3 ;;
     validate) make validate ZONE=zone_fictive ;;
     *)
       echo "run_tests.sh : section inconnue « $1 » (attendu : ${ALL_SECTIONS[*]})." >&2
