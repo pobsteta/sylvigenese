@@ -123,25 +123,24 @@ def test_variante_retraits_l_effectif_de_l_essence_diminue_d_autant(zone_retrait
           f"effectif à risque de l'essence {code}")
 
 
-def _distance(a, b):
-    va, vb = H.param_vector(a), H.param_vector(b)
-    cles = set(va) & set(vb)
-    assert cles, "aucun coefficient commun entre les deux ajustements"
-    return sum(abs(va[k] - vb[k]) for k in cles)
-
-
 def test_variante_un_arbre_coupe_ne_compte_pas_comme_un_arbre_mort(zone_retraits, zone_morts, params):
     # Mêmes arbres, deux sorts : retirés (coupés, non retrouvés, perdus) ou morts sur pied (M). Si les
-    # retirés étaient comptés morts, les deux ajustements de la mortalité seraient les mêmes ; retirés, ils
-    # ne bougent pas la mortalité de la même façon que des morts.
+    # retirés étaient comptés morts, la mortalité prédite de l'essence serait la même dans les deux
+    # variantes ; retirés, elle bouge moins que pour des morts. On compare la prédiction de l'essence
+    # (propre ou de son groupe : l'essence peut changer de ligne en passant le seuil d'effectif), pas
+    # les clés des lignes.
     _bloc_variante(zone_retraits), _bloc_variante(zone_morts)
     base = params["mortality"]
     retires = H.read_parquet(zone_retraits["dir"] / "params" / "mortality.parquet")
     morts = H.read_parquet(zone_morts["dir"] / "params" / "mortality.parquet")
-    d_morts, d_retires = _distance(morts, base), _distance(retires, base)
-    assert d_morts > 0, "la mortalité n'a pas bougé quand 40 % des arbres de l'essence sont morts : test vide"
-    assert d_retires < d_morts, (f"des arbres retirés pèsent autant que des morts sur la mortalité "
-                                 f"(écart au jeu de base : retirés {d_retires:.4g}, morts {d_morts:.4g})")
+    ref = H.reference_points(base)
+    eta = {n: H.linear_predictor(r, H.ESSENCE_CIBLE, ref) for n, r in
+           (("base", base), ("retires", retires), ("morts", morts))}
+    d_morts, d_retires = abs(eta["morts"] - eta["base"]), abs(eta["retires"] - eta["base"])
+    assert d_morts > 0.05, f"la mortalité prédite n'a pas bougé quand 40 % des arbres sont morts : {eta}"
+    assert d_retires < d_morts, (f"des arbres retirés pèsent autant que des morts sur la mortalité de "
+                                 f"{H.ESSENCE_CIBLE} (écart au jeu de base : retirés {d_retires:.3g}, "
+                                 f"morts {d_morts:.3g})")
 
 
 # ------------------------------------------------------------------ placettes à incident

@@ -67,14 +67,20 @@ def test_chaque_essence_du_jeu_est_ajustee_seule_ou_en_groupe(params, rapport, i
 
 
 @pytest.mark.parametrize("nom", H.PARAMS)
-def test_params_provisoires_et_sources_comme_issus_du_jeu_fictif(params, nom):
-    # Spec §10 : chaque paramètre porte `provisoire` et sa source ; CLAUDE.md : jamais un coefficient
-    # ajusté sur le jeu fictif présenté comme écologique.
+def test_params_provisoires_et_sources_ajuste_sur_fictif_ou_cite(params, nom):
+    # Spec §10 : chaque paramètre porte `provisoire` et sa source. CLAUDE.md : jamais un coefficient ajusté
+    # sur le jeu fictif présenté comme écologique. Deux sortes de lignes : ajustées par dynamics (la source
+    # dit « fictif » ou « synthétique ») ; citées d'une source bibliographique (Chapman-Richards de nemeton :
+    # la source la nomme et dit qu'elle n'est pas ajustée sur le jeu fictif).
     for r in params[nom]:
-        assert r["provisoire"] is True, f"{nom} : coefficient non provisoire ajusté sur le jeu fictif : {r}"
+        assert r["provisoire"] is True, f"{nom} : valeur non provisoire : {r}"
         src = H.sans_accent(r["source"] or "")
-        assert "synthet" in src or "fictif" in src, \
-            f"{nom} : la source ne dit pas que le jeu est fictif : {r['source']!r}"
+        if r["model"] == "chapman_richards":
+            assert "non ajuste" in src and ("nemeton" in src or "http" in src), \
+                f"{nom} : valeur citée sans source nommée ni « non ajusté » : {r['source']!r}"
+        else:
+            assert "synthet" in src or "fictif" in src, \
+                f"{nom} : valeur ajustée dont la source ne dit pas que le jeu est fictif : {r['source']!r}"
 
 
 def test_deux_lancements_donnent_des_params_identiques(chaine):

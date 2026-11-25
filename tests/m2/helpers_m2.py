@@ -406,3 +406,41 @@ def read_params(zone_dir: Path) -> dict[str, list[dict]]:
 
 def param_vector(rows: list[dict]) -> dict[tuple, float]:
     return {(r.get("species"), r.get("species_group"), r["model"], r["term"]): r["value"] for r in rows}
+
+
+def species_group_of(code: str) -> str | None:
+    with open(SPECIES_CSV, encoding="utf-8", newline="") as f:
+        return next((r["groupe"] for r in csv.DictReader(f) if r["espar"] == code), None)
+
+
+def reference_points(rows: list[dict]) -> dict[str, float]:
+    """Abscisse de référence par covariable : médiane des nœuds de la table (contrat dynamics_params)."""
+    import statistics
+    xs: dict[str, list[float]] = defaultdict(list)
+    for r in rows:
+        if r.get("variable") and r.get("x") is not None:
+            xs[r["variable"]].append(r["x"])
+    return {v: statistics.median(x) for v, x in xs.items()}
+
+
+def linear_predictor(rows: list[dict], code: str, ref: dict[str, float]) -> float:
+    """eta d'une essence au point `ref`, que la ligne qui la porte soit propre à l'essence ou celle de son
+    groupe (feuillu, resineux, toutes_essences) : intercept + somme des termes lisses lus par
+    interpolation linéaire entre nœuds (bornée aux nœuds extrêmes)."""
+    import numpy as np
+    propres = [r for r in rows if r.get("species") == code]
+    if not propres:
+        for g in (species_group_of(code), "toutes_essences"):
+            propres = [r for r in rows if r.get("species_group") == g and not r.get("species")]
+            if propres:
+                break
+    assert propres, f"aucune ligne (propre ou de groupe) ne porte l'essence {code}"
+    eta = sum(r["value"] for r in propres if r["term"] == "intercept")
+    noeuds: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for r in propres:
+        if r.get("variable") and r.get("x") is not None:
+            noeuds[r["variable"]].append((r["x"], r["value"]))
+    for v, pts in noeuds.items():
+        pts.sort()
+        eta += float(np.interp(ref.get(v, pts[len(pts) // 2][0]), [x for x, _ in pts], [y for _, y in pts]))
+    return eta
