@@ -7,9 +7,11 @@
 
 pub mod alea;
 pub mod config;
+pub mod entrees;
 pub mod erreurs;
 pub mod etat;
 pub mod geotiff;
+pub mod grille;
 pub mod memoire;
 pub mod parametres;
 pub mod validateur;
