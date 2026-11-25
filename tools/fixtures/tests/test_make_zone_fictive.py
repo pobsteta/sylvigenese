@@ -153,22 +153,34 @@ def test_peuplement_s03_depasse_le_plafond_h_pot(zone):
 def test_ifn_coordonnees_floutees_a_700_m(zone):
     lignes = (zone / "inputs" / "ifn" / "PLACETTE.csv").read_text().splitlines()[1:]
     vraies = gen.ifn_true_positions(42)
-    assert len(lignes) == len(vraies)
+    visite1 = [l.split(";") for l in lignes if l.split(";")[4] == "1"]
+    visite2 = [l.split(";") for l in lignes if l.split(";")[4] == "2"]
+    assert len(visite1) == len(vraies)
     ecarts = []
-    for ligne, (tx, ty) in zip(lignes, vraies):
-        _, _, xl, yl = ligne.split(";")
+    for (_, _, xl, yl, *_), (tx, ty) in zip(visite1, vraies):
         ecarts.append(math.hypot(float(xl) - tx, float(yl) - ty))
     assert max(ecarts) <= 700.0 + 0.2          # arrondi au dixième de mètre
     assert max(ecarts) > 100.0                  # les points sont bien déplacés
+    # la 2e visite garde l'IDP et les coordonnées floutées de la 1re, 5 campagnes plus tard
+    par_idp = {v[1]: v for v in visite1}
+    assert visite2
+    for v in visite2:
+        premiere = par_idp[v[1]]
+        assert (v[2], v[3]) == (premiere[2], premiere[3])
+        assert int(v[0]) == int(premiere[0]) + 5
 
 
-def test_ifn_c13_en_mm_et_espar_avec_zero_de_tete(zone):
+def test_ifn_c13_en_metres_et_espar_avec_zero_de_tete(zone):
     lignes = (zone / "inputs" / "ifn" / "ARBRE.csv").read_text().splitlines()
-    assert lignes[0] == "CAMPAGNE;IDP;ESPAR;C13;HTOT;V;W"
+    assert lignes[0] == "CAMPAGNE;IDP;ESPAR;C13;A;VEGET;VEGET5;IR5;HTOT;V;W"
+    n = 0
     for ligne in lignes[1:]:
         _, _, espar, c13, *_ = ligne.split(";")
         assert espar in gen.SPECIES_USED and len(espar) == 2
-        assert 235 <= int(c13) <= 2600          # seuil de recensabilité, en mm
+        if c13:                                  # vide : arbre coupé ou non retrouvé en 2e visite
+            n += 1
+            assert 0.235 <= float(c13) <= 2.6    # seuil de recensabilité, en mètres
+    assert n > 0.9 * (len(lignes) - 1)
 
 
 def test_codes_essence_dans_la_table_des_especes(zone):

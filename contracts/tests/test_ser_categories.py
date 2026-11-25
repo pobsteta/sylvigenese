@@ -75,3 +75,63 @@ def test_un_couple_ser_alluvions_en_double_est_refuse(rows, tmp_path, capsys):
     sont refusées, que le code d'alluvions soit rempli ou vide."""
     code, out = run(capsys, ["prepare.ser_categories", str(ser_csv(tmp_path, rows))])
     assert code == 3 and "doublon" in out and "ligne 4" in out
+
+
+# --- clé primaire (name, alluvium_code) avec une valeur nulle (dette M1a, mission 027) ---------
+# Table Schema compare les clés comme des tuples : (H10, vide) en double est un doublon.
+
+def test_doublon_h10_sans_alluvions_est_refuse(tmp_path, capsys):
+    path = ser_csv(tmp_path, [[1, "H10", ""], [2, "H10", ""]])
+    code, out = run(capsys, ["prepare.ser_categories", str(path)])
+    assert code == 3 and "doublon" in out
+
+
+def test_doublon_avec_alluvions_reste_refuse(tmp_path, capsys):
+    path = ser_csv(tmp_path, [[1, "H10", "L3"], [2, "H10", "L3"]])
+    assert run(capsys, ["prepare.ser_categories", str(path)])[0] == 3
+
+
+def test_un_vide_et_un_code_ne_sont_pas_un_doublon(tmp_path, capsys):
+    path = ser_csv(tmp_path, [[1, "H10", ""], [2, "H10", "L3"], [3, "H10", "L4"]])
+    assert run(capsys, ["prepare.ser_categories", str(path)])[0] == 0
+
+
+def _check_arrow(keys_a, keys_b):
+    """Chemin Arrow (Parquet) : même schéma que ser.csv, clé primaire (name, alluvium_code)."""
+    import json
+    from pathlib import Path
+
+    import pyarrow as pa
+    from validator import tables
+    from validator.report import Findings
+
+    schema = json.loads((Path(__file__).resolve().parents[1]
+                         / "tables/prepare/ser_categories.schema.json").read_text(encoding="utf-8"))
+    findings = Findings()
+    tables.check_table(schema, pa.table({"value": list(range(1, len(keys_a) + 1)),
+                                         "name": pa.array(keys_a, pa.string()),
+                                         "alluvium_code": pa.array(keys_b, pa.string())}),
+                       findings)
+    return findings.errors
+
+
+def test_arrow_doublon_h10_nul_refuse():
+    errors = _check_arrow(["H10", "H10"], [None, None])
+    assert any("doublon" in e and "(vide)" in e for e in errors), errors
+
+
+def test_arrow_h10_nul_puis_code_accepte():
+    assert _check_arrow(["H10", "H10", "B21"], [None, "L3", None]) == []
+
+
+def test_arrow_cle_entierement_nulle_refusee():
+    import pyarrow as pa
+    from validator import tables
+    from validator.report import Findings
+
+    schema = {"fields": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}],
+              "primaryKey": ["a", "b"]}
+    findings = Findings()
+    tables.check_table(schema, pa.table({"a": pa.array(["x", None], pa.string()),
+                                         "b": pa.array([None, None], pa.string())}), findings)
+    assert any("entièrement nulle" in e for e in findings.errors), findings.errors

@@ -444,6 +444,39 @@ test_that("stand_map_values : valeur par rang du stand_id, doublon ou manque ref
   expect_error(stand_map_values(sprintf("S%05d", seq_len(65535L))), "65534 que stand_map.tif")
 })
 
+test_that("stand_map : plus de 65 534 polygones, prepare rend 2 avant toute écriture, aucune sortie", {
+  # Racine temporaire : le dépôt n'est pas touché. 65 535 polygones nemeton (copies du premier,
+  # stand_id distincts) : la garde de stand_map_values doit agir avant grid.tif.
+  racine_t <- tempfile("racine_65535_")
+  zone_t <- file.path(racine_t, "tests", "fixtures", "zone_fictive")
+  dir.create(zone_t, recursive = TRUE)
+  src <- file.path(racine, "tests", "fixtures", "zone_fictive")
+  file.copy(file.path(src, c("inputs", "params")), zone_t, recursive = TRUE)
+  dir.create(file.path(racine_t, "contracts"))
+  file.copy(file.path(racine, "contracts", "species.csv"), file.path(racine_t, "contracts"))
+  gpkg <- file.path(zone_t, "inputs", "nemeton_stands.gpkg")
+  st <- sf::st_read(gpkg, layer = "stands", quiet = TRUE)
+  st$age_yr <- as.integer(st$age_yr)
+  gros <- st[rep(1L, 65535L), ]
+  gros$stand_id <- sprintf("S%05d", seq_len(65535L))
+  sf::st_write(gros, gpkg, layer = "stands", delete_dsn = TRUE, quiet = TRUE)
+  ancien_wd <- setwd(racine)
+  ancienne_racine <- Sys.getenv("SYLVIGENESE_ROOT", unset = NA)
+  on.exit({
+    setwd(ancien_wd)
+    if (is.na(ancienne_racine)) Sys.unsetenv("SYLVIGENESE_ROOT") else Sys.setenv(SYLVIGENESE_ROOT = ancienne_racine)
+  }, add = TRUE)
+  Sys.setenv(SYLVIGENESE_ROOT = racine_t)
+  msgs <- character()
+  status <- avec_vrai_validateur(withCallingHandlers(
+    run_prepare(file.path(racine, "config.yml")),
+    message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") }))
+  expect_equal(status, 2L)
+  expect_match(paste(msgs, collapse = "\n"), "65534 que stand_map.tif")
+  # aucune sortie : seuls inputs/ et params/ (copiés) restent dans la zone
+  expect_equal(sort(list.files(zone_t, all.files = TRUE, no.. = TRUE)), c("inputs", "params"))
+})
+
 test_that("stand_map : deux polygones qui se recouvrent, règle déterministe et rapport chiffré", {
   z <- copie_zone()
   st <- sf::st_read(file.path(z, "inputs", "nemeton_stands.gpkg"), layer = "stands", quiet = TRUE)

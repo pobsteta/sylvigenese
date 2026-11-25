@@ -18,6 +18,7 @@ nord-ouest (X0, Y0 + 1000) et couvrent au moins le massif.
 Mailles (spec §3) : MNH 0,5 m ; gradients et type de station 20 m ; MNT 25 m ; h_pot 26,6 m.
 """
 import argparse
+import datetime
 import math
 import sqlite3
 import struct
@@ -374,30 +375,96 @@ def write_fertilite(inputs):
     write_text(inputs / "fertilite.csv", "\n".join(lines) + "\n")
 
 
-def ifn_true_positions(seed, n_plots=40):
-    """Positions vraies (avant flou) des placettes IFN fictives : 6 km x 6 km autour du massif."""
-    return [(X0 - 2500 + 6000 * float(u(seed, S_IFN_POS, p, 0)),
-             Y0 - 2500 + 6000 * float(u(seed, S_IFN_POS, p, 1))) for p in range(n_plots)]
+# --- IFN fictif : visite 1, revisite 5 ans après, valeurs SYNTHÉTIQUES et PROVISOIRES ---------
+# Rien de ce qui suit n'est écologique : taux de mortalité, de coupe, croissances et recrues sont
+# inventés pour que `dynamics` ait de quoi ajuster un modèle simple par essence (mission 023) ;
+# ils seront remplacés par l'IFN réel en M2b. Les noms de colonnes et les codes sont ceux de
+# docs/referentiels/ifn-dynamique-colonnes.csv ; C13 et IR5 sont en MÈTRES comme dans l'export.
+S_IFN_FATE, S_IFN_GROW, S_IFN_RECRUIT, S_IFN_DATE, S_IFN_INDIC = 11, 12, 13, 14, 15
+IFN_N_PLOTS = 120                # 120 placettes de 1re visite ; une sur dix n'est pas revisitée
+IFN_MORT_5Y = {"09": 0.10, "61": 0.10, "62": 0.12, "03": 0.10, "64": 0.08}      # provisoire
+IFN_GROWTH_5Y_M = {"09": 0.022, "61": 0.026, "62": 0.020, "03": 0.018, "64": 0.028}  # provisoire
+
+
+# Flore fictive : 8 CD_REF d'essences de contracts/species.csv (v18) puis 10 taxons du sous-bois forestier,
+# CD_REF réels de TAXREF v18 (extrait taxref_v18_extrait.csv de sylvostation, colonnes CD_REF et LB_NOM) :
+IFN_UNDERSTORY = [(100787, "Hedera helix"), (128345, "Vaccinium myrtillus"), (108361, "Mercurialis perennis"),
+                  (111859, "Oxalis acetosella"), (106863, "Luzula sylvatica"), (116265, "Pteridium aquilinum"),
+                  (82637, "Anemone nemorosa"), (119097, "Rubus fruticosus"), (99488, "Galium odoratum"),
+                  (88905, "Carex sylvatica")]
+IFN_FLORA_TAXA = [97947, 79319, 113432, 116216, 89304, 125816, 116759, 139584] + [c for c, _ in IFN_UNDERSTORY]
+IFN_TAXON_WITHOUT_VALUE = 125816   # reste sans valeur indicatrice : cas du comptage de prepare
+
+
+def write_indicator_values(zone, seed):
+    """params/indicator_values.csv (contrat params.indicator_values) : valeurs de réaction et de nutriments
+    SYNTHÉTIQUES (tirées, 1 à 9), `synthetic = true`, `provisoire = true` ; aucun sens écologique. Un taxon
+    reste sans valeur (vide), pour que prepare le compte."""
+    lines = ["cd_ref;taxref_version;reaction;nutrients;source;synthetic;provisoire"]
+    for i, cd in enumerate(sorted(IFN_FLORA_TAXA)):
+        if cd == IFN_TAXON_WITHOUT_VALUE:
+            continue
+        rea = 1 + int(9 * float(u(seed, S_IFN_INDIC, cd, 0)))
+        nut = 1 + int(9 * float(u(seed, S_IFN_INDIC, cd, 1)))
+        lines.append(f"{cd};13;{rea};{nut};{SOURCE_PARAMS};true;true")
+    write_text(zone / "params" / "indicator_values.csv", "\n".join(lines) + "\n")
+
+
+def ifn_true_positions(seed, n_plots=IFN_N_PLOTS):
+    """Positions vraies (avant flou) des placettes IFN fictives : DANS le massif (marge de 20 m), de sorte que
+    le point flouté (écart <= 700 m) soit à moins de 700 m d'une maille de station et que son disque de
+    700 m en recouvre (coarse_*_700m et ser_code toujours renseignés, mission 023 aller-retour 1)."""
+    return [(X0 + 20 + 960 * float(u(seed, S_IFN_POS, p, 0)),
+             Y0 + 20 + 960 * float(u(seed, S_IFN_POS, p, 1))) for p in range(n_plots)]
+
+
+def _ifn_date(seed, camp, stream_key):
+    """Date (JJ/MM/AAAA) dans la campagne `camp` : de novembre camp-1 à octobre camp."""
+    day = int(364 * float(u(seed, S_IFN_DATE, stream_key, 0)))
+    return (datetime.date(camp - 1, 11, 1) + datetime.timedelta(days=day)).strftime("%d/%m/%Y")
+
+
+def _ifn_veget5_code(kind):
+    """Code VEGET5 (unité VEGET59, campagnes 2019 et après ; toutes les 2es visites du jeu)."""
+    return {"alive": "0", "cut_cleared": "6", "cut": "7", "dead": "M", "dead_windthrow": "2",
+            "not_found": "N", "broken": "T"}[kind]
+
+
+def _fmt(v, nd):
+    return "" if v is None else f"{v:.{nd}f}"
 
 
 def write_ifn(inputs, seed):
-    """IFN brut fictif : 40 placettes, coordonnées floutées (disque de 700 m), C13 en mm,
-    poids selon le cercle de la classe de C13 en mm (docs/referentiels/ifn-placettes.md)."""
-    n_plots, blur_m = 40, 700.0
+    """IFN brut fictif : 120 placettes de 1re visite (coordonnées floutées, disque de 700 m), 108
+    revisitées 5 ans après (CAMPAGNE + 5), arbres revus vivants, morts, coupés, non retrouvés,
+    recrues ; C13 et IR5 en mètres comme l'export réel. Poids selon le cercle de la classe de C13
+    (docs/referentiels/ifn-placettes.md, bornes 0,235 / 0,705 / 1,175 m)."""
+    n_plots, blur_m = IFN_N_PLOTS, 700.0
     # CD_REF : ceux de contracts/species.csv (taxref_cd_ref non vides)
-    taxa = [97947, 79319, 113432, 116216, 89304, 125816, 116759, 139584]
-    plot_lines = ["CAMPAGNE;IDP;XL;YL"]
-    tree_lines = ["CAMPAGNE;IDP;ESPAR;C13;HTOT;V;W"]
+    taxa = IFN_FLORA_TAXA
+    plot_lines = ["CAMPAGNE;IDP;XL;YL;VISITE;DATEPOINT;NINCID;INCID;PRELEV5;DEF5;INSTP5"]
+    tree_lines = ["CAMPAGNE;IDP;ESPAR;C13;A;VEGET;VEGET5;IR5;HTOT;V;W"]
     flora_lines = ["CAMPAGNE;IDP;CD_REF;ABOND"]
+
+    def weight(c13_m):
+        radius = 6.0 if c13_m < 0.705 else (9.0 if c13_m < 1.175 else 15.0)
+        return 10000.0 / (math.pi * radius ** 2)
+
     for p, (tx, ty) in enumerate(ifn_true_positions(seed, n_plots)):
         idp = f"{9000001 + p}"
-        camp = 2015 + p % 10
+        camp = 2015 + p % 6                       # 2015 à 2020 : la 2e visite tombe de 2020 à 2025
+        revisited = p % 10 != 9
+        incident = p % 10 == 4                    # incident (tempête) dans les 5 ans avant la 1re visite
+        clearing = p % 10 == 6                    # défrichement partiel entre les deux visites
         rho = blur_m * math.sqrt(float(u(seed, S_IFN_BLUR, p, 0)))
         ang = 2 * math.pi * float(u(seed, S_IFN_BLUR, p, 1))
-        plot_lines.append(f"{camp};{idp};{tx + rho * math.cos(ang):.1f};"
-                          f"{ty + rho * math.sin(ang):.1f}")
+        xl, yl = tx + rho * math.cos(ang), ty + rho * math.sin(ang)
+        plot_lines.append(f"{camp};{idp};{xl:.1f};{yl:.1f};1;{_ifn_date(seed, camp, 2 * p)};"
+                          f"{4 if incident else 0};{2 if incident else 0};;;")
         main = SPECIES_USED[int(5 * float(u(seed, S_PLOT, p, 0))) % 5]
-        for t in range(5 + int(10 * float(u(seed, S_PLOT, p, 1)))):
+        rows1, rows2 = [], []
+        n_trees = 5 + int(10 * float(u(seed, S_PLOT, p, 1)))
+        for t in range(n_trees):
             k = p * 100 + t
             sp = main if float(u(seed, S_IFN_TREE, k, 0)) < 0.75 else \
                 SPECIES_USED[int(5 * float(u(seed, S_IFN_TREE, k, 1))) % 5]
@@ -405,18 +472,74 @@ def write_ifn(inputs, seed):
             h = 1.3 + 32.0 * (1.0 - math.exp(-0.045 * d)) ** 1.1 * \
                 (0.9 + 0.2 * float(u(seed, S_IFN_TREE, k, 3)))
             vol = 0.45 * math.pi / 4.0 * (d / 100.0) ** 2 * h        # coefficient de forme fictif
-            c13 = int(round(math.pi * d * 10))   # circonférence en mm, la grandeur mesurée
-            # cercle selon C13 en mm (IMOT 2025 p. 61, tableau DIMESS) : < 705 : 6 m ;
-            # 705 à < 1175 : 9 m ; 1175 et plus : 15 m
-            radius = 6.0 if c13 < 705 else (9.0 if c13 < 1175 else 15.0)
-            weight = 10000.0 / (math.pi * radius ** 2)
-            tree_lines.append(f"{camp};{idp};{sp};{c13};{h:.1f};"
-                              f"{vol:.4f};{weight:.2f}")
+            c13 = int(round(math.pi * d * 10)) / 1000.0   # circonférence en MÈTRES (export réel)
+            a = t + 1
+            # état à la 1re visite : 4 % morts sur pied (5), 2 % chablis vivants (A avant 2019, 1 après)
+            r_state = float(u(seed, S_IFN_FATE, k, 0))
+            veget = "5" if r_state < 0.04 else (("A" if camp < 2019 else "1") if r_state < 0.06 else "0")
+            # IR5 de la 1re visite (5 cernes avant la visite) sur la moitié des vivants seulement
+            g_true = IFN_GROWTH_5Y_M[sp] * max(0.15, 1.0 - d / 120.0)
+            ir1 = None
+            if veget in ("0", "1", "A") and float(u(seed, S_IFN_GROW, k, 0)) < 0.5:
+                ir1 = g_true * (0.7 + 0.6 * float(u(seed, S_IFN_GROW, k, 1)))
+            rows1.append(f"{camp};{idp};{sp};{c13:.3f};{a};{veget};;{_fmt(ir1, 4)};{h:.1f};"
+                         f"{vol:.4f};{weight(c13):.2f}")
+            if not revisited:
+                continue
+            # sort à la 2e visite
+            if veget != "0":
+                kind = "dead" if veget == "5" else "dead_windthrow"
+            else:
+                p_mort = IFN_MORT_5Y[sp] * (1.0 + 2.0 * math.exp(-d / 10.0)) * (3.0 if incident else 1.0)
+                p_cut = (0.06 if d >= 20.0 else 0.01) * (5.0 if clearing else 1.0)
+                p_nf, p_br = 0.02, (0.08 if incident else 0.0)
+                r = float(u(seed, S_IFN_FATE, k, 1))
+                if r < p_mort:
+                    kind = "dead"
+                elif r < p_mort + p_cut:
+                    kind = "cut_cleared" if float(u(seed, S_IFN_FATE, k, 2)) < 0.5 else "cut"
+                elif r < p_mort + p_cut + p_nf:
+                    kind = "not_found"
+                elif r < p_mort + p_cut + p_nf + p_br:
+                    kind = "broken"
+                else:
+                    kind = "alive"
+            code = _ifn_veget5_code(kind)
+            if kind == "alive":
+                noise = 0.97 + 0.06 * float(u(seed, S_IFN_GROW, k, 2))
+                c13_2 = c13 + 2.0 * math.pi * g_true * noise + \
+                    0.004 * (float(u(seed, S_IFN_GROW, k, 3)) - 0.5)          # bruit de mesure
+                ir2 = g_true * noise if float(u(seed, S_IFN_GROW, k, 4)) < 0.55 else None
+                c13_txt = f"{c13_2:.3f}"
+                w2 = weight(round(c13_2, 3))
+            elif kind in ("dead", "dead_windthrow"):
+                c13_txt, ir2, w2 = f"{c13:.3f}", None, weight(c13)
+            else:                                 # coupé, non retrouvé, cassé : plus de C13 mesuré
+                c13_txt, ir2, w2 = "", None, None
+            rows2.append(f"{camp + 5};{idp};{sp};{c13_txt};{a};;{code};{_fmt(ir2, 4)};;;{_fmt(w2, 2)}")
+        if revisited:
+            # recrues : 2e visite sans 1re (C13 juste au-dessus du seuil 0,235 m), numéros après les anciens
+            for r_i in range(int(4 * float(u(seed, S_IFN_RECRUIT, p, 0)))):
+                k = p * 100 + 50 + r_i
+                sp = main if float(u(seed, S_IFN_RECRUIT, k, 1)) < 0.75 else \
+                    SPECIES_USED[int(5 * float(u(seed, S_IFN_RECRUIT, k, 2))) % 5]
+                c13_r = 0.235 + 0.08 * float(u(seed, S_IFN_RECRUIT, k, 3)) ** 2
+                ir_r = IFN_GROWTH_5Y_M[sp] * 0.8 * (0.7 + 0.6 * float(u(seed, S_IFN_RECRUIT, k, 4))) \
+                    if float(u(seed, S_IFN_RECRUIT, k, 5)) < 0.5 else None
+                # W de la recrue : 6 m, sauf 8 % laissées vides (poids non documenté, à signaler)
+                w_r = weight(c13_r) if float(u(seed, S_IFN_RECRUIT, k, 6)) >= 0.08 else None
+                rows2.append(f"{camp + 5};{idp};{sp};{c13_r:.3f};{n_trees + 1 + r_i};;0;"
+                             f"{_fmt(ir_r, 4)};;;{_fmt(w_r, 2)}")
+            def_5 = 2 if clearing else 0
+            plot_lines.append(f"{camp + 5};{idp};{xl:.1f};{yl:.1f};2;{_ifn_date(seed, camp + 5, 2 * p + 1)};"
+                              f";;;{def_5};0")
+        tree_lines.extend(rows1)
+        tree_lines.extend(rows2)
         seen = set()
         for j in range(4 + int(5 * float(u(seed, S_IFN_FLORA, p, 0)))):
-            cd = taxa[int(8 * float(u(seed, S_IFN_FLORA, p * 100 + j, 1))) % 8]
+            cd = taxa[int(len(taxa) * float(u(seed, S_IFN_FLORA, p * 100 + j, 1))) % len(taxa)]
             ab = 1 + int(3 * float(u(seed, S_IFN_FLORA, p * 100 + j, 2)))
-            if cd not in seen:      # un taxon une seule fois par placette
+            if cd not in seen:      # un taxon une seule fois par placette ; flore de 1re visite seule
                 seen.add(cd)
                 flora_lines.append(f"{camp};{idp};{cd};{ab}")
     write_text(inputs / "ifn" / "PLACETTE.csv", "\n".join(plot_lines) + "\n")
@@ -451,6 +574,7 @@ def generate(out_dir, seed=42):
     write_fertilite(inputs)
     write_ifn(inputs, seed)
     write_params(zone)
+    write_indicator_values(zone, seed)
     return zone
 
 

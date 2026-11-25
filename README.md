@@ -24,11 +24,11 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 ## État
 
 - **M0** (squelette du dépôt, contrats, validateur, jeu d'essai fictif, CI) : livré.
-- **M1a** (module `prepare` sur le jeu fictif : grille SER à 25 m, placettes IFN sous garde de
-  précision, peuplements, carte des biomes, arbres initiaux avec leur houppier) : rempli
-  sur le jeu fictif, [pull request n° 4](https://github.com/pobsteta/sylvigenese/pull/4)
-  soumise à Pascal.
-- Suivant : **M1b** (données réelles du massif test, catalogue des biomes sourcé).
+- **M1a** (`prepare`, `biomes`, arbres initiaux avec leur houppier) : rempli sur le jeu fictif.
+- **M2a** (`dynamics` : accroissement, mortalité, recrutement et hauteur ajustés sur l'IFN
+  fictif, validation croisée par blocs, rapport par essence) : rempli sur le jeu fictif.
+- Suivant : la **vue iTowns de l'état initial**, puis **M3a** (moteur `simulate`, 100 ans).
+- En attente de Pascal (données réelles) : M1b, M2b.
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).
 

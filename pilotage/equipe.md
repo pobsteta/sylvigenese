@@ -34,6 +34,11 @@
   Correction du 2026-11-24 (journal) : la **fusion vers `main` reste à Pascal**. Elle
   déclenche une release publique automatique, ce qui touche l'extérieur (skill `boucle`,
   étape 5).
+- **Parole de Pascal (25/11/2026), recopiée mot pour mot :** « Fusionne et continue. Valide les
+  jalons sans mon autorisation ». Extension de la portée : la **validation des jalons** (critères
+  a, sur le jeu fictif) et la **fusion vers `main`** de leurs PR, release publique automatique
+  comprise, passent à l'orchestrateur, avec la CI verte et la relecture du `relecteur` comme
+  conditions. La correction du 2026-11-24 sur la fusion est levée par cette parole.
 - **Jusqu'à :** la v1, c'est-à-dire les jalons M0 à M6 du BRIEF §11 remplis, ou le premier
   retour de Pascal qui la reprend ou la restreint.
 - **Réservé à Pascal :**
@@ -74,3 +79,12 @@
 | [019-prepare-ifn](missions/019-prepare-ifn.md) | `dev` | sonnet | donner | 3 oui | M1 |
 | [020-biomes](missions/020-biomes.md) | `dev` | sonnet | donner | 3 oui | M1 |
 | [021-tests-m1](missions/021-tests-m1.md) | `testeur` | sonnet | donner | 3 oui | M1 |
+| [022-referentiel-ifn-dynamique](missions/022-referentiel-ifn-dynamique.md) | `acquereur` | sonnet | donner | 3 oui | M2a |
+| [023-ifn-dynamique-contrats-fictif](missions/023-ifn-dynamique-contrats-fictif.md) | `dev` | sonnet | donner | 3 oui après 022 | M2a |
+| [024-station-aux-placettes](missions/024-station-aux-placettes.md) | `dev` | opus | donner | 3 oui après 022 et 023 | M2a |
+| [025-dynamics](missions/025-dynamics.md) | `dev` | opus | prendre (plan d'abord) | non à la 2e : plan d'abord | M2a |
+| [026-tests-m2](missions/026-tests-m2.md) | `testeur` | sonnet | donner | 3 oui après 022 | M2a |
+| [027-dettes-m1a](missions/027-dettes-m1a.md) | `dev` | sonnet | donner | 3 oui | M2a |
+| [028-assets-etat-initial](missions/028-assets-etat-initial.md) | `dev` | sonnet | donner | 3 oui | M4a (état initial) |
+| [029-viewer-web-etat-initial](missions/029-viewer-web-etat-initial.md) | `afficheur` | sonnet | donner | 3 oui après 028 | M4a (état initial) |
+| [030-tests-m4-etat-initial](missions/030-tests-m4-etat-initial.md) | `testeur` | sonnet | donner | 3 oui | M4a (état initial) |

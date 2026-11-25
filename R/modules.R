@@ -8,6 +8,23 @@
 # validation, Parquet), R/config.R et R/validateur.R sont les outils communs à tous les modules R
 # (spec §2) ; aucun module n'appelle le code d'un autre.
 
+#' Dit un message sur la sortie d'erreur, en UTF-8 lisible quelle que soit la locale.
+#' `message()` écrit sous LC_ALL=C les caractères accentués en octets échappés (entr\303\251e) ;
+#' ici le texte part tel quel, en octets UTF-8. Reste un vrai message R : `suppressMessages()` et
+#' les gestionnaires `message =` des tests le voient comme avant.
+say_utf8 <- function(text) {
+  # Sous LC_ALL=C, les littéraux accentués du code source n'ont pas d'encodage déclaré mais sont
+  # de l'UTF-8 valide : on les déclare tels quels ; enc2utf8() les écrirait <c3><a9>.
+  text <- paste(text, collapse = "")
+  if (identical(Encoding(text), "unknown") && validUTF8(text)) Encoding(text) <- "UTF-8"
+  text <- enc2utf8(text)
+  withRestarts({
+    signalCondition(simpleMessage(paste0(text, "\n"), call = NULL))
+    writeLines(text, con = stderr(), useBytes = TRUE)
+  }, muffleMessage = function() NULL)
+  invisible(NULL)
+}
+
 #' Exécute un module et renvoie 0 ou 2.
 #' `depends_on` ne sert qu'à ordonner les cibles de `_targets.R`.
 #' `work` : fonction(config, config_path) du module ; absente, le module est un squelette.
@@ -19,14 +36,14 @@ run_module <- function(name, config_path = "config.yml", depends_on = NULL, work
       stop(sprintf("config.yml non conforme (validateur, code %d)", status), call. = FALSE)
     }
     if (is.null(work)) {
-      message(sprintf("[%s] config.yml lu et conforme ; rien d'autre à faire (squelette).", name))
+      say_utf8(sprintf("[%s] config.yml lu et conforme ; rien d'autre à faire (squelette).", name))
     } else {
       cfg <- read_config(config_path)
       work(cfg, config_path)
     }
     0L
   }, error = function(e) {
-    message(sprintf("[%s] erreur : %s", name, conditionMessage(e)))
+    say_utf8(sprintf("[%s] erreur : %s", name, conditionMessage(e)))
     2L
   })
 }
@@ -46,7 +63,10 @@ run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
     ifn <- prepare_ifn_check(zone_dir, report)
     stands <- prepare_stands_check(zone_dir)
     prepare_grid(zone_dir, cfg, report = report)
-    prepare_ifn(zone_dir, checked = ifn)
+    # Station aux placettes (mission 024) : après la grille, dont elle lit ser.tif et ser.csv ; ses
+    # lignes « IFN : station » s'ajoutent au même rapport, réécrit ensuite.
+    prepare_ifn(zone_dir, checked = ifn, report = report)
+    write_prepare_report(report, file.path(zone_dir, "rapport_prepare.html"))
     prepare_stands(zone_dir, cfg, checked = stands)
   })
 }
@@ -74,8 +94,16 @@ run_trees <- function(config_path = "config.yml", depends_on = NULL) {
   })
 }
 
+# dynamics : accroissement, mortalité, recrutement et hauteur ajustés sur ifn/ (mission 025,
+# R/dynamics.R). Ne lit que ifn/ et contracts/species.csv.
 run_dynamics <- function(config_path = "config.yml", depends_on = NULL) {
-  run_module("dynamics", config_path, depends_on)
+  run_module("dynamics", config_path, depends_on, work = function(cfg, config_path) {
+    zone_dir <- prepare_zone_dir(cfg)
+    if (!dir.exists(zone_dir)) {
+      stop(sprintf("dossier de la zone introuvable : %s", zone_dir), call. = FALSE)
+    }
+    dynamics_run(zone_dir, zone = cfg$zone)
+  })
 }
 
 #' Pour `targets` : arrête le pipeline si un module n'a pas rendu 0.

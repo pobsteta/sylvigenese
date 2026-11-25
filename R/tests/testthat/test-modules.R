@@ -95,3 +95,24 @@ test_that("intégration : le vrai validateur accepte config.yml", {
   on.exit(setwd(ancien_wd), add = TRUE)
   expect_equal(suppressMessages(run_prepare(file.path(racine, "config.yml"))), 0L)
 })
+
+test_that("un message d'erreur accentué sort en UTF-8 lisible sous LC_ALL=C (dette M1a)", {
+  ancien_wd <- setwd(racine)
+  on.exit(setwd(ancien_wd), add = TRUE)
+  err <- tempfile(fileext = ".err")
+  script <- tempfile(fileext = ".R")
+  writeLines(c(
+    'for (f in list.files("R", pattern = "[.]R$", full.names = TRUE)) source(f)',
+    'status <- run_module("essai", "config.yml", work = function(cfg, p) stop("entrée refusée : essence « 99 »", call. = FALSE))',
+    "quit(status = status)"), script, useBytes = TRUE)
+  status <- system2(file.path(R.home("bin"), "Rscript"), script, stdout = FALSE, stderr = err,
+                    env = c("LC_ALL=C", "LANG=C"))
+  octets <- readBin(err, "raw", file.size(err))
+  entree_utf8 <- as.raw(c(0x65, 0x6e, 0x74, 0x72, 0xc3, 0xa9, 0x65))  # e n t r + U+00E9 + e
+  trouve <- any(vapply(seq_len(length(octets) - length(entree_utf8) + 1L),
+                       function(i) identical(octets[i:(i + length(entree_utf8) - 1L)], entree_utf8),
+                       logical(1)))
+  expect_equal(status, 2L)
+  expect_true(trouve)
+  expect_false(grepl("\\\\303|<c3>", rawToChar(octets)))
+})

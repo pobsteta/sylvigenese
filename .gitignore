@@ -7,3 +7,9 @@ tests/fixtures/zone_fictive/*
 !tests/fixtures/zone_fictive/inputs/
 !tests/fixtures/zone_fictive/params/
 !tests/fixtures/zone_fictive/README.md
+# Sorties de dynamics sur le jeu fictif (régénérées par make dynamics)
+tests/fixtures/zone_fictive/params/growth.parquet
+tests/fixtures/zone_fictive/params/mortality.parquet
+tests/fixtures/zone_fictive/params/recruitment.parquet
+tests/fixtures/zone_fictive/params/height_curve.parquet
+tests/fixtures/zone_fictive/rapport_dynamics.html

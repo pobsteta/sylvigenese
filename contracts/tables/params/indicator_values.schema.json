@@ -1,0 +1,78 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Valeurs indicatrices de la flore (params/indicator_values.csv)",
+  "description": "Une ligne par taxon de la flore IFN (CD_REF) : valeurs indicatrices de réaction et de nutriments de type Ellenberg, échelle ordinale de 1 à 9, d'où prepare tire `trophic` à la placette (moyenne de la réaction, moyenne des nutriments, puis moyenne des deux : méthode de sylvostation, R/placettes.R, commit 2864d70 ; spec §6). Source attendue en zone réelle : Tichý et al. 2023 (Zenodo 10.5281/zenodo.7427088), licence réservée à Pascal (journal du 25/11/2026, Q9). Une valeur absente reste vide : le taxon est alors compté au rapport, jamais complété. La jointure se fait sur le CD_REF tel quel, dans la version TAXREF de `taxref_version`. Une table `synthetic = true` n'a aucun sens écologique (jeu fictif seulement). CSV séparé par des points-virgules, décimale point.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 024 (dev, par délégation de l'orchestrateur) ; colonnes REACTION et NUTRIENTS de Tichý et al. 2023, lues par sylvostation R/indicateurs.R l.46-56",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "cd_ref",
+      "type": "integer",
+      "description": "CD_REF du taxon, comme FLORE.csv",
+      "constraints": {
+        "required": true,
+        "unique": true,
+        "minimum": 1
+      }
+    },
+    {
+      "name": "taxref_version",
+      "type": "string",
+      "description": "version TAXREF des CD_REF de la table (« 13 » : celle de l'IFN)",
+      "constraints": {
+        "required": true,
+        "pattern": "[0-9]{1,2}"
+      }
+    },
+    {
+      "name": "reaction",
+      "type": "number",
+      "description": "valeur indicatrice de réaction (REACTION de Tichý ; « ph » chez sylvostation), indice ordinal",
+      "constraints": {
+        "minimum": 1,
+        "maximum": 9
+      }
+    },
+    {
+      "name": "nutrients",
+      "type": "number",
+      "description": "valeur indicatrice de nutriments (NUTRIENTS de Tichý ; « azote » chez sylvostation), indice ordinal",
+      "constraints": {
+        "minimum": 1,
+        "maximum": 9
+      }
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "d'où viennent les valeurs (référence, ou synthetique_jeu_fictif)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "synthetic",
+      "type": "boolean",
+      "description": "vrai si les valeurs sont fabriquées pour le jeu fictif (aucun sens écologique)",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "provisoire",
+      "type": "boolean",
+      "description": "vrai si la valeur n'est pas encore sourcée ou pas encore autorisée (spec §10)",
+      "constraints": {
+        "required": true
+      }
+    }
+  ],
+  "primaryKey": [
+    "cd_ref"
+  ],
+  "x-csv": {
+    "delimiter": ";"
+  }
+}

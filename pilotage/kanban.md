@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 2 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 4 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -24,11 +24,15 @@ _Modèle de carte :_
 
 ## Planifié
 
-
-
-
+- [028](missions/028-assets-etat-initial.md), [029](missions/029-viewer-web-etat-initial.md), [030](missions/030-tests-m4-etat-initial.md) · depuis le cycle 4
+  - Homme : `dev`, `afficheur`, `testeur` · Mission : vue iTowns de l'état initial · Moyens : sorties de M1a, contrats 3D Tiles
 
 ## Terminé
+
+- [022](missions/022-referentiel-ifn-dynamique.md) à [027](missions/027-dettes-m1a.md) · depuis le cycle 4
+  - Homme : `acquereur`, `dev` ×4, `testeur`, relus par `relecteur`
+  - Mission : jalon M2a rempli le 2026-11-25 sur le jeu fictif (CI verte à 37fde55 ; tests/m2 93/93)
+  - Moyens : PR pobsteta/sylvigenese#5
 
 - [017-prepare-grille](missions/017-prepare-grille.md), [018-prepare-arbres](missions/018-prepare-arbres.md), [019-prepare-ifn](missions/019-prepare-ifn.md), [020-biomes](missions/020-biomes.md), [021-tests-m1](missions/021-tests-m1.md) · depuis le cycle 2
   - Homme : `dev` ×4, `testeur`, relues deux fois par `relecteur`, 3 allers-retours

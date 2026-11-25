@@ -1,0 +1,112 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Paramètres de dynamics (params/growth, mortality, recruitment, height_curve .parquet)",
+  "description": "Format long, un nombre par ligne, avec son statut provisoire et sa source (spec §10). Par essence (species) ou par groupe d'essences (species_group) : au moins l'un des deux ; pour une essence sans ligne propre, prendre son groupe (colonne groupe de contracts/species.csv : feuillu, resineux), sinon toutes_essences. Représentation A (mission 025, décision du 25/11/2026), à relire sans R : (1) PRÉDICTEUR. η = intercept + Σ_v f_v(x_v) + b_ser, où intercept est la ligne term = intercept ; f_v le terme lisse de la variable v (lignes term = s(v)[NN], variable = v, abscisse x, valeur value) ; b_ser la valeur de la ligne term = ser_code=<code de la SER> (SER absente des lignes : 0). Une variable sans ligne ne compte pas. (2) TERME LISSE. Trier les n nœuds par x croissant : x_1 < … < x_n, valeurs y_1 … y_n (n ≥ 2). f_v est la spline cubique naturelle passant par les nœuds (dérivée seconde nulle aux deux bouts). Avec h_i = x_{i+1} − x_i, les dérivées secondes M_1 … M_n vérifient M_1 = M_n = 0 et, pour i = 2 … n−1, le système tridiagonal h_{i−1} M_{i−1} + 2 (h_{i−1} + h_i) M_i + h_i M_{i+1} = 6 [ (y_{i+1} − y_i) / h_i − (y_i − y_{i−1}) / h_{i−1} ] (algorithme de Thomas). Pour évaluer en x : borner d'abord x à [x_1, x_n] (hors des nœuds extrêmes, la valeur au bord est tenue : c'est le domaine de validité) ; trouver i tel que x_i ≤ x ≤ x_{i+1} (i = n−1 si x = x_n) ; a = x_{i+1} − x, b = x − x_i ; f(x) = (M_i a³ + M_{i+1} b³) / (6 h_i) + (y_i / h_i − M_i h_i / 6) a + (y_{i+1} / h_i − M_{i+1} h_i / 6) b. Cette relecture redonne predict.gam de mgcv à 1e-10 près à l'intérieur des nœuds (R/dynamics.R, dyn_ncs ; R/tests/testthat/test-dynamics.R). (3) LIENS ET DÉCALAGES PAR MODÈLE. growth_gam : accroissement radial annuel (cm/an) = exp(η) ; variables d130 (cm), ba_plot et bal (surface terrière de la placette et des arbres plus gros, m²/ha), trophic, coarse_hydric_700m, coarse_bioclim_700m ; pour le diamètre, doubler. mortality_gam : lien cloglog avec décalage log(Δt) : probabilité de mort sur Δt années = 1 − exp(−exp(η) Δt), exp(η) est le risque annuel (sur un an : 1 − exp(−exp(η))) ; mêmes variables. recruitment_gam : recrues franchissant C13 = 0,235 m (7,5 cm), en tiges/ha/an = exp(η) (sur Δt années : exp(η) Δt) ; variables ba_plot, ba_species (surface terrière de l'essence, m²/ha), trophic, coarse_*. relative_height_gam : lien identité, h / H_dom = η, variable rel_d = d130 / d_dom (H_dom, d_dom : hauteur moyenne pondérée et diamètre quadratique des 100 plus gros arbres par hectare). chapman_richards : H(t) = A (1 − exp(−k t))^p, termes A_class1 à A_class5 (m), k (1/an), p. (4) DISPERSION. scale : paramètre d'échelle du modèle (1 en binomiale) ; tweedie_p : puissance de la loi de Tweedie (variance = scale × μ^p) pour growth_gam et recruitment_gam.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 025 (orchestrateur, par délégation de Pascal)",
+  "fieldsMatch": "equal",
+  "primaryKey": [
+    "species",
+    "species_group",
+    "model",
+    "term"
+  ],
+  "fields": [
+    {
+      "name": "species",
+      "type": "string",
+      "description": "code espar de l'IFN en chaîne, avec son zéro de tête (spec §8, contracts/species.csv)",
+      "constraints": {
+        "pattern": "[0-9]{2}[A-Z0-9]{0,3}"
+      }
+    },
+    {
+      "name": "species_group",
+      "type": "string",
+      "description": "groupe d'essences quand l'effectif d'une essence est sous le seuil : colonne groupe de contracts/species.csv, ou toutes les essences",
+      "constraints": {
+        "enum": [
+          "feuillu",
+          "resineux",
+          "toutes_essences"
+        ]
+      }
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "description": "nom du modèle (voir la description du contrat)",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "growth_gam",
+          "mortality_gam",
+          "recruitment_gam",
+          "relative_height_gam",
+          "chapman_richards"
+        ]
+      }
+    },
+    {
+      "name": "term",
+      "type": "string",
+      "description": "nom du nombre, unique par essence ou groupe et modèle : intercept ; s(<variable>)[NN] (valeur au nœud NN) ; ser_code=<code> ; scale ; tweedie_p ; A_class1 à A_class5, k, p",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "variable",
+      "type": "string",
+      "description": "covariable du terme : d130 (cm), ba_plot, bal, ba_species (m²/ha), trophic, coarse_hydric_700m, coarse_bioclim_700m, rel_d, ser_code ; vide pour intercept, scale, tweedie_p et Chapman-Richards",
+      "constraints": {
+        "enum": [
+          "d130",
+          "ba_plot",
+          "bal",
+          "ba_species",
+          "trophic",
+          "coarse_hydric_700m",
+          "coarse_bioclim_700m",
+          "rel_d",
+          "ser_code"
+        ]
+      }
+    },
+    {
+      "name": "x",
+      "type": "number",
+      "description": "abscisse du nœud (dans l'unité de la variable) pour un terme s(<variable>)[NN] ; vide sinon"
+    },
+    {
+      "name": "value",
+      "type": "number",
+      "description": "valeur : coefficient, valeur du terme au nœud ou au niveau, dispersion, puissance",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "provisoire",
+      "type": "boolean",
+      "description": "vrai si la valeur n'est pas encore sourcée ou validée (spec §10)",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "source citée de la valeur",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    }
+  ],
+  "x-require-one-of": [
+    "species",
+    "species_group"
+  ]
+}

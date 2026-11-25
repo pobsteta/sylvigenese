@@ -70,6 +70,15 @@ def fertilite(tmp, fault):
     return h.csv(tmp / "fertilite.csv", header, rows, sep=";")
 
 
+def indicator_values(tmp, fault):
+    # valeurs indicatrices de type Ellenberg, échelle ordinale de 1 à 9 (mission 024)
+    header = ["cd_ref", "taxref_version", "reaction", "nutrients", "source", "synthetic",
+              "provisoire"]
+    rows = [[97947, "13", 12 if fault else 5, 5, "synthetique_jeu_fictif", "true", "true"],
+            [79319, "13", 3, "", "synthetique_jeu_fictif", "true", "true"]]
+    return h.csv(tmp / "indicator_values.csv", header, rows, sep=";")
+
+
 def station_types(tmp, fault):
     header = ["id", "type", "area_ha", "part_surface", "trophic", "hydric", "bioclim",
               "n_placettes"]
@@ -80,13 +89,19 @@ def station_types(tmp, fault):
 
 def ifn_placette(tmp, fault):
     x, y = (h.PARIS_Y, h.PARIS_X) if fault else (h.PARIS_X, h.PARIS_Y)
-    return h.csv(tmp / "PLACETTE.csv", ["IDP", "CAMPAGNE", "XL", "YL"],
-                 [["1001", 2020, x, y]], sep=";")
+    header = ["IDP", "CAMPAGNE", "XL", "YL", "VISITE", "DATEPOINT", "NINCID", "INCID",
+              "PRELEV5", "DEF5", "INSTP5"]
+    return h.csv(tmp / "PLACETTE.csv", header,
+                 [["1001", 2015, x, y, 1, "10/03/2015", 0, 0, "", "", ""],
+                  ["1001", 2020, x, y, 2, "20/06/2020", "", "", "", 0, 0]], sep=";")
 
 
 def ifn_arbre(tmp, fault):
-    return h.csv(tmp / "ARBRE.csv", ["IDP", "A", "ESPAR", "C13", "HTOT", "V", "W"],
-                 [["1001", 1, "9" if fault else "09", 950, 22.5, 0.8, 14.1]], sep=";")
+    # C13 et IR5 en mètres, comme l'export des données brutes (metadonnees.csv l. 35 et 203)
+    header = ["IDP", "CAMPAGNE", "A", "ESPAR", "C13", "VEGET", "VEGET5", "IR5", "HTOT", "V", "W"]
+    return h.csv(tmp / "ARBRE.csv", header,
+                 [["1001", 2015, 1, "9" if fault else "09", 0.950, 0, "", 0.0123, 22.5, 0.8, 14.1],
+                  ["1001", 2020, 1, "09", 0.990, "", 0, "", "", "", 14.1]], sep=";")
 
 
 def ifn_flore(tmp, fault):
@@ -147,16 +162,32 @@ def trees_init_dir(tmp, fault):
     return tmp / "trees_init"
 
 
+# colonnes entièrement vides dans les exemples : le type Arrow doit être dit
+IFN_PLOTS_TYPES = {"harvest_5y": pa.string(), "incident_nature": pa.int32(),
+                   "incident_intensity": pa.int32(), "clearing_5y": pa.int32(),
+                   "planting_5y": pa.int32(), "date_point": pa.string()}
+IFN_TREES_TYPES = {"d130": pa.float64(), "h": pa.float64(), "weight_ha": pa.float64(),
+                   "veg_state": pa.string(), "veg_state_5y": pa.string(),
+                   "radial_incr_5y_m": pa.float64()}
+
+
 def ifn_plots():
-    return {"plot_id": ["1001"], "campaign": [2020], "x": [h.PARIS_X], "y": [h.PARIS_Y],
-            "loc_precision_m": [700.0], "source": ["ifn"], "ser_code": ["B10"],
-            "trophic": [0.3], "coarse_hydric_700m": [-0.2], "coarse_bioclim_700m": [0.1]}
+    return {"plot_id": ["1001", "1001"], "campaign": [2015, 2020], "x": [h.PARIS_X] * 2,
+            "y": [h.PARIS_Y] * 2, "loc_precision_m": [700.0] * 2, "source": ["ifn"] * 2,
+            "ser_code": ["B10"] * 2, "trophic": [0.3] * 2, "coarse_hydric_700m": [-0.2] * 2,
+            "coarse_bioclim_700m": [0.1] * 2, "visit": [1, 2],
+            "date_point": ["2015-03-10", "2020-06-20"], "incident_nature": [0, None],
+            "incident_intensity": [0, None], "harvest_5y": [None, None],
+            "clearing_5y": [None, 0], "planting_5y": [None, 0]}
 
 
 def ifn_trees():
-    return {"plot_id": ["1001", "1001"], "campaign": [2020, 2020], "tree_id": ["1", "2"],
-            "species": ["09", "02"], "d130": [30.2, 18.0], "h": [22.5, None],
-            "weight_ha": [14.1, 39.3]}
+    # 1re visite (2015) : VEGET, IR5 ; 2e visite (2020) : VEGET5, arbre 2 coupé sans C13
+    return {"plot_id": ["1001", "1001", "1001"], "campaign": [2015, 2020, 2020],
+            "tree_id": ["1", "1", "2"], "species": ["09", "09", "02"],
+            "d130": [30.2, 31.5, None], "h": [22.5, None, None], "weight_ha": [14.1, 14.1, None],
+            "veg_state": ["0", None, None], "veg_state_5y": [None, "0", "6"],
+            "radial_incr_5y_m": [0.0123, None, None]}
 
 
 def ifn_flora():
@@ -223,6 +254,10 @@ def set_first(key, value):
 
 
 # contrat -> (fabrique, motif du message attendu sur le fichier fautif)
+# Colonnes vides en partie : types explicites (une colonne toute nulle serait « null »).
+DYN_TYPES = {"species": pa.string(), "species_group": pa.string(), "variable": pa.string(),
+             "x": pa.float64()}
+
 CASES = {
     "inputs.nemeton_stands": (stands, r"species_espar"),
     "inputs.inventaire_video": (inventaire, r"dbh_source"),
@@ -235,6 +270,7 @@ CASES = {
     "inputs.station_type": (raster("st.tif", {"nodata": None}, dtype="uint16"), r"nodata"),
     "inputs.station_types": (station_types, r"id"),
     "inputs.fertilite": (fertilite, r"n_plots"),
+    "params.indicator_values": (indicator_values, r"reaction"),
     "inputs.h_pot": (raster("h_pot.tif", {"bigtiff": True}), r"BigTIFF"),
     "inputs.ifn_placette": (ifn_placette, r"emprise"),
     "inputs.ifn_arbre": (ifn_arbre, r"ESPAR"),
@@ -257,10 +293,11 @@ CASES = {
     "prepare.stand_map": (aligned("stand_map.tif", dtype="uint16"), r"aligné"),
     "prepare.stand_map_categories": (categories("stand_map.csv"), r"name"),
     "prepare.trees_init": (trees_init_dir, r"species_source"),
-    "prepare.ifn_plots": (table("plots.parquet", ifn_plots, set_first("loc_precision_m", 0.0)),
-                          r"loc_precision_m"),
-    "prepare.ifn_trees": (table("trees.parquet", ifn_trees, set_first("tree_id", "2")),
-                          r"doublon"),
+    "prepare.ifn_plots": (table("plots.parquet", ifn_plots, set_first("loc_precision_m", 0.0),
+                                types=IFN_PLOTS_TYPES), r"loc_precision_m"),
+    "prepare.ifn_trees": (table("trees.parquet", ifn_trees,
+                                lambda d: d["tree_id"].__setitem__(2, "1"),
+                                types=IFN_TREES_TYPES), r"doublon"),
     "prepare.ifn_flora": (table("flora.parquet", ifn_flora, set_first("cd_ref", 0)),
                           r"cd_ref"),
     "prepare.stands": (table("stands.parquet", prepared_stands, setitem("species", [9])),
@@ -272,13 +309,15 @@ CASES = {
                            r"species, species_group"),
     "import_tarif.allometry": (table("a.parquet", h.parameters, setitem("provisoire", [1, 1])),
                                r"provisoire"),
-    "dynamics.growth": (table("g.parquet", h.parameters, set_first("source", "")), r"source"),
-    "dynamics.mortality": (table("m.parquet", h.parameters, lambda d: d.pop("term")),
-                           r"term"),
-    "dynamics.recruitment": (table("r.parquet", h.parameters, set_first("species", "9")),
-                             r"species"),
-    "dynamics.height_curve": (table("hc.parquet", h.parameters,
-                                    set_first("value", float("inf"))), r"value"),
+    "dynamics.growth": (table("g.parquet", h.dynamics_params, setitem("model", ["gam"] * 5),
+                              types=DYN_TYPES), r"model"),
+    "dynamics.mortality": (table("m.parquet", h.dynamics_params,
+                                 lambda d: d["term"].__setitem__(2, "s(d130)[01]"),
+                                 types=DYN_TYPES), r"doublon"),
+    "dynamics.recruitment": (table("r.parquet", h.dynamics_params, set_first("species", "9"),
+                                   types=DYN_TYPES), r"species"),
+    "dynamics.height_curve": (table("hc.parquet", h.dynamics_params,
+                                    set_first("value", float("inf")), types=DYN_TYPES), r"value"),
     "biomes.biome": (document("hetraie.yml", h.biome,
                               lambda d: d["strates"]["arboree"]["composition"].update(sapin=0.5),
                               h.write_yaml), r"sapin"),

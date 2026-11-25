@@ -1,9 +1,9 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "IFN brut, ARBRE.csv",
-  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises ; W peut manquer. C13 : circonférence à 1,30 m en mm (docs/referentiels/ifn-placettes.md §2). Colonnes réelles à vérifier au jalon M1b.",
+  "description": "Colonnes lues par sylvigenese ; les autres colonnes de l'IFN sont admises ; W peut manquer. C13 : circonférence à 1,30 m en MÈTRES, comme dans l'export des données brutes (metadonnees.csv l. 35 et 203 ; docs/referentiels/ifn-dynamique.md §3) : seuil de recensabilité 0,235 m ; cercles 6 m (0,235 à moins de 0,705 m), 9 m (0,705 à moins de 1,175 m), 15 m (1,175 m et plus). Une ligne par arbre et par visite : la 1re visite porte VEGET, la 2e visite porte VEGET5 (docs/referentiels/ifn-dynamique.md §2) ; VEGET5 manque avant 2010 (colonne facultative), VEGET et VEGET5 sont vides sur la visite où ils ne s'appliquent pas. Les codes de VEGET5 changent selon la campagne : l'enum ci-dessous est l'union des périodes, la période est contrôlée par prepare.",
   "x-schema-version": "0.1",
-  "x-names-fixed-by": "IFN, données brutes ; sylvostation R/placettes.R:121-123",
+  "x-names-fixed-by": "IFN, données brutes ; docs/referentiels/ifn-dynamique-colonnes.csv ; sylvostation R/placettes.R:121-123",
   "fieldsMatch": "subset",
   "fields": [
     {
@@ -13,6 +13,24 @@
       "constraints": {
         "required": true,
         "minLength": 1
+      }
+    },
+    {
+      "name": "CAMPAGNE",
+      "type": "integer",
+      "description": "campagne annuelle d'inventaire (ifn-dynamique-colonnes.csv, ligne CAMPAGNE) ; la 2e visite d'un point est à la campagne de la 1re plus 5",
+      "constraints": {
+        "required": true,
+        "minimum": 2005
+      }
+    },
+    {
+      "name": "A",
+      "type": "integer",
+      "description": "numéro de l'arbre, à associer avec IDP (ifn-dynamique-colonnes.csv, ligne A ; metadonnees.csv l. 19)",
+      "constraints": {
+        "required": true,
+        "minimum": 1
       }
     },
     {
@@ -27,8 +45,52 @@
     {
       "name": "C13",
       "type": "number",
-      "description": "circonférence à 1,30 m",
-      "x-unit": "mm",
+      "description": "circonférence à 1,30 m (ifn-dynamique-colonnes.csv, ligne C13 ; metadonnees.csv l. 35 et 203)",
+      "x-unit": "m",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "VEGET",
+      "type": "string",
+      "description": "état de végétation à la 1re visite ; vide sur une ligne de 2e visite (ifn-dynamique-colonnes.csv, ligne VEGET ; DOM8M2 depuis 2019 : 0 vivant, 1 chablis vivant, 5 mort sur pied, C mort cassé ; DOM8M1 de 2008 à 2018 : 0, A chablis, 5, C) ; la période est contrôlée par prepare",
+      "constraints": {
+        "enum": [
+          "0",
+          "1",
+          "5",
+          "A",
+          "C"
+        ]
+      }
+    },
+    {
+      "name": "VEGET5",
+      "type": "string",
+      "description": "état de l'arbre revu à la 2e visite, vide sur une ligne de 1re visite (ifn-dynamique-colonnes.csv, ligne VEGET5 ; MD l. 6075-6099) : 0 vivant, 1 chablis vivant, 2 chablis mort, 5 mort sur pied (2010-2014), 6 coupé (vidangé), 7 coupé non vidangé, A chablis, C mort cassé (2010-2014), M mort sur pied, N non retrouvé, T cassé sous C13 ou non retrouvé à cause d'un incident ; colonne absente des exports d'avant 2010 ; les codes valables dépendent de la campagne, contrôlés par prepare",
+      "constraints": {
+        "enum": [
+          "0",
+          "1",
+          "2",
+          "5",
+          "6",
+          "7",
+          "A",
+          "C",
+          "M",
+          "N",
+          "T"
+        ]
+      },
+      "x-optional": true
+    },
+    {
+      "name": "IR5",
+      "type": "number",
+      "description": "accroissement radial sur 5 ans : épaisseur cumulée des 5 derniers cernes (ifn-dynamique-colonnes.csv, ligne IR5 ; metadonnees.csv l. 87 et 274) ; vide si non mesuré (arbres simplifiés, une partie des arbres seulement)",
+      "x-unit": "m",
       "constraints": {
         "minimum": 0
       }
