@@ -41,13 +41,17 @@ def test_plots_precision_de_localisation_jamais_fine(plots):
         assert p["source"] == "ifn", (p["plot_id"], p["source"])
 
 
-def test_plots_ser_code_est_null_en_m1a_et_jamais_une_alluvion(plots):
-    # Règle attendue en M1a (à relire si elle change) : la placette IFN est floutée (~700 m) et ne
-    # se croise pas avec ser.tif, raster fin (garde IFN, CLAUDE.md) : ser_code est donc NULL pour
-    # toutes les placettes. S'il était renseigné, il ne serait jamais un code L1-L5 (spec §3).
-    # Ce test vérifie la règle NULL ; il n'est pas une preuve de rattachement des alluvions.
-    non_null = [(p["plot_id"], p["ser_code"]) for p in plots if p["ser_code"] is not None]
-    assert not non_null, f"ser_code renseigné pour des placettes IFN floutées : {non_null[:5]}"
+def test_plots_ser_code_jamais_une_alluvion_et_toujours_un_code_de_ser_csv(plots):
+    # 024 rattache la placette IFN, par une règle grossière à 700 m, à sa SER sous-jacente : ser_code est
+    # renseigné ou vide, jamais un code d'alluvions L1-L5 (spec §3, §7), et toujours un code de ser.csv.
+    codes_ser = set(H.read_ser_table(H.ZONE / "ser.csv").values())
+    codes_ser = {c for c, _alluvion in codes_ser}
+    for p in plots:
+        c = p["ser_code"]
+        if c is None:
+            continue
+        assert not H.L_CODE.match(c), f"ser_code est une alluvion : {p['plot_id']} {c}"
+        assert c in codes_ser, f"ser_code {c} absent de ser.csv ({sorted(codes_ser)})"
 
 
 def _mm(texte):

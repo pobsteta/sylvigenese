@@ -225,21 +225,19 @@ class Ifn:
     def treated_plots(self) -> set[str]:
         """Placettes à défrichement (DEF5 >= 1) ou installation de peuplement (INSTP5 = 1) entre les
         deux visites. La spec dit « incident ou prélèvement » : ranger ces deux colonnes dans les
-        placettes écartées est une lecture possible, non certaine (voir `definitions`)."""
+        placettes écartées (arbitrage du 25/11/2026)."""
         return {i for i in self.plot_rows
                 if self._flag(i, ("DEF5", "INSTP5"), lambda v: v not in ("", "0"))}
 
+    def travaux_ou_incident(self) -> set[str]:
+        """Placettes écartées pour incident (NINCID != 0), défrichement (DEF5 >= 1) ou plantation
+        (INSTP5 = 1) : arbitrage du 25/11/2026, spec §6. PRELEV5 est gardée et signalée, pas écartée."""
+        return self.incident_plots() | self.treated_plots()
+
     def definitions(self) -> dict[str, set[str]]:
-        """Lectures admises des placettes écartées de l'ajustement : incidents seuls, ou incidents et
-        travaux (DEF5, INSTP5) ; et, tant que des placettes n'ont aucune valeur de station (disque de
-        700 m hors du raster), les mêmes lectures sans ces placettes."""
-        inc = self.incident_plots()
-        tr = inc | self.treated_plots()
-        d = {"incidents": inc, "incidents_et_travaux": tr}
-        if self.sans_station:
-            d["incidents+sans_station"] = inc | self.sans_station
-            d["incidents_et_travaux+sans_station"] = tr | self.sans_station
-        return d
+        """Placettes exclues de l'ajustement : celles ci-dessus, et celles sans aucune valeur de
+        station (disque de 700 m hors du raster), exclues et comptées (arbitrage du 25/11/2026)."""
+        return {"ecartees": self.travaux_ou_incident() | self.sans_station}
 
     # --- mortalité
     def at_risk(self, excluded: set[str]) -> list[tuple[dict, dict]]:

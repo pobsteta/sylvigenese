@@ -84,7 +84,7 @@ def _plots_libres(zone_dir):
     valeur de station d'abord (jeu fictif sans placette hors du raster : toutes). Les variantes y
     prennent leurs arbres, pour que leurs comptes bougent quelle que soit la lecture de la règle."""
     ifn = H.ifn_de(zone_dir)
-    ecartees = ifn.definitions()["incidents_et_travaux"]
+    ecartees = ifn.travaux_ou_incident()
     libres = [i for i in ifn.revisited_plots() if i not in ecartees]
     return sorted(libres, key=lambda i: (i in ifn.sans_station, int(i))), ifn
 

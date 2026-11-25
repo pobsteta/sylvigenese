@@ -5,9 +5,9 @@ helpers_m2.Ifn) sur le jeu fictif, puis une zone variante qui change ce compte d
 le rapport doit suivre. Un rapport figé, ou une règle ignorée, ne passe pas la variante.
 
 Le format du rapport n'est pas imposé par la spec : un compte est « au rapport » s'il figure comme
-entier dans un bloc (ligne de tableau, item, paragraphe) qui porte les mots de la règle. Les lectures
-admises des placettes écartées sont deux (incidents seuls, ou incidents et travaux DEF5/INSTP5) ;
-pour les retraits, un troisième (comptés avant d'écarter les placettes). La variante doit suivre la
+entier dans un bloc (ligne de tableau, item, paragraphe) qui porte les mots de la règle. Placettes écartées
+(arbitrage du 25/11/2026) : incident NINCID, défrichement DEF5, plantation INSTP5, et sans valeur de
+station ; pour les retraits, une lecture de plus (comptés avant d'écarter les placettes). La variante doit suivre la
 MÊME lecture que le jeu de base.
 """
 import pytest
@@ -20,6 +20,14 @@ def _lectures(ifn, avec_toutes=False):
     if avec_toutes:
         d["toutes_les_placettes"] = set()
     return d
+
+
+def _ecartees(ifn):
+    """Placettes revues écartées : pour incident ou travaux seuls, ou avec celles sans station (le
+    rapport peut les compter ensemble ou à part)."""
+    rev = ifn.revisited_plots()
+    return {"incident_travaux": len(ifn.travaux_ou_incident() & rev),
+            "avec_sans_station": len(ifn.definitions()["ecartees"] & rev)}
 
 
 def _comptes(ifn, fonction, avec_toutes=False):
@@ -65,8 +73,8 @@ def test_coupes_non_retrouves_et_perdus_sont_retires_et_comptes(rapport, ifn, cl
 
 
 def test_placettes_a_incident_ecartees_et_comptees(rapport, ifn):
-    cand = {nom: len(pl & ifn.revisited_plots()) for nom, pl in _lectures(ifn).items()}
-    assert cand["incidents"] > 0, "jeu fictif sans placette à incident"
+    cand = _ecartees(ifn)
+    assert cand["incident_travaux"] > 0, "jeu fictif sans placette à incident"
     assert H.matching_definitions(rapport, ("placette", "ecart"), cand), \
         f"placettes écartées : compte attendu parmi {cand}, absent des blocs « placette » + « écart »"
 
@@ -140,8 +148,7 @@ def test_variante_un_arbre_coupe_ne_compte_pas_comme_un_arbre_mort(zone_retraits
 def test_variante_incidents_placettes_ecartees_et_effectifs_suivent(zone_incidents, rapport, ifn):
     blocs = _bloc_variante(zone_incidents)
     var = H.ifn_de(zone_incidents["dir"])
-    cb = {n: len(pl & ifn.revisited_plots()) for n, pl in _lectures(ifn).items()}
-    cv = {n: len(pl & var.revisited_plots()) for n, pl in _lectures(var).items()}
+    cb, cv = _ecartees(ifn), _ecartees(var)
     assert all(cv[k] > cb[k] for k in cb), (cb, cv)
     _suit(rapport, blocs, ("placette", "ecart"), cb, cv, "placettes écartées")
     for code in sorted({t["ESPAR"] for t in ifn.trees}):
