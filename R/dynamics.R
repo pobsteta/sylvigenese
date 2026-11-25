@@ -18,7 +18,9 @@
 #   - recruitment_gam : recrues (C13 ≥ 0,235 m) en tiges/ha, par placette revue et essence ;
 #     Tweedie, lien log, décalage log(Δt) : exp(η) en tiges/ha/an ;
 #   - relative_height_gam : h / H_dom selon d130 / d_dom ; gaussienne, identité ;
-#   - chapman_richards : H(t) = A (1 − exp(−k t))^p, paramètres lus dans nemeton (cités).
+#   - chapman_richards : H(t) = A (1 − exp(−k t))^p, paramètres lus dans nemeton (cités) ;
+#   - korf (hêtre 09 seul) : hauteur dominante qui avance d'un an, forme de Bontemps et al. 2007,
+#     paramètres lus dans nemeton (cités, décision de Pascal du 25/11/2026, mission 034).
 #
 # Représentation portable (décision du 25/11/2026, représentation A) : une spline `cr` de mgcv est
 # une spline cubique naturelle sur ses nœuds. On écrit, pour chaque terme lisse, ses valeurs aux
@@ -83,8 +85,8 @@ dyn_family <- function(kind) {
 # Forme de Chapman-Richards de la hauteur dominante, lue dans nemeton (projet de Pascal, GPL-3),
 # commit bd6fbe5, data-raw/site_index_curves.R, table `site_index_params` (asymptotes a1 à a5 par
 # classe de fertilité, k, p) ; références telles que nemeton les cite. Transcription, pas de copie
-# de code. FASY (hêtre) n'y est pas en Chapman-Richards (modèle de Korf, Bontemps et al. 2007) :
-# il n'est pas repris et le rapport le signale.
+# de code. FASY (hêtre) n'y est pas en Chapman-Richards mais en modèle de Korf (Bontemps et al.
+# 2007) : voir DYN_KORF_NEMETON plus bas.
 DYN_CR_SOURCE <- paste0("nemeton bd6fbe5 (https://github.com/pobsteta/nemeton, GPL-3), ",
                         "data-raw/site_index_curves.R, site_index_params")
 DYN_CR_NEMETON <- data.frame(
@@ -102,7 +104,29 @@ DYN_CR_NEMETON <- data.frame(
                 "Lemoine 1991 (Landes)", "CNPF 2013"),
   stringsAsFactors = FALSE
 )
-DYN_CR_NOT_TAKEN <- c(FASY = "modèle de Korf (Bontemps et al. 2007) dans nemeton, pas une forme de Chapman-Richards : non repris")
+DYN_CR_NOT_TAKEN <- character()   # aucune essence de nemeton n'est laissée de côté pour sa forme
+
+# Modèle de Korf du hêtre (FASY), forme récursive de Bontemps, Duplat, Hervé et Dhôte (2007),
+# « Croissance en hauteur dominante du hêtre dans le Nord de la France », Rendez-Vous Techniques
+# ONF, HS2, 39-47, annexe 2 (HAL hal-00823732), telle que nemeton la reprend (commit bd6fbe5,
+# data-raw/site_index_curves.R, blocs `fasy_regions` et `build_fasy_block`) ; transcription des
+# nombres, pas de copie de code. Deux régions chez nemeton : NO (nord-ouest) et NE (nord-est).
+# `p_f_min` et `p_f_max` : fertilité de la classe 5 (la pire) et de la classe 1 (la meilleure),
+# classes de nemeton réparties à pas égal entre les deux. t0 et H0 (âge et hauteur de départ de
+# nemeton) sont écrits au contrat sous les noms t_ref0 et h_ref0 (mission 040), avec age_ref (âge
+# de référence, DYN_KORF_REF_AGE) : simulate s'en sert pour choisir la classe p_f d'après
+# site_potential ; la hauteur de départ des arbres reste celle de h0.tif.
+DYN_KORF_SOURCE <- paste0("nemeton bd6fbe5 (https://github.com/pobsteta/nemeton, GPL-3), data-raw/site_index_curves.R, ",
+                          "fasy_regions (NO et NE) ; Bontemps et al. 2007, RFF HS2, annexe 2")
+DYN_KORF_REGIONS <- data.frame(
+  region = c("NO", "NE"),
+  a = c(44.2, 68.7), b = c(0.032, 0.028), c = c(1.647, 0.823),
+  t0 = c(6, 6), H0 = c(1.40, 1.35), p_f_min = c(0.29, 0.21), p_f_max = c(0.58, 0.53),
+  stringsAsFactors = FALSE
+)
+DYN_KORF_NEMETON_CODES <- c("FASY")   # essences de nemeton à la forme de Korf (contracts/species.csv)
+DYN_KORF_REF_AGE <- 100               # âge du point de référence de nemeton pour le hêtre (H(100), classe 3)
+DYN_KORF_REF_H_CLASS3 <- 29.2         # m, point cité par nemeton (site_index_reference_points) : moyenne NO et NE
 
 # ------------------------------------------------------------------ outils numériques
 
@@ -812,6 +836,59 @@ dyn_chapman_richards <- function(species, species_ref) {
   list(rows = if (length(rows)) do.call(rbind, rows) else NULL, missing = missing, info = info)
 }
 
+#' Un an de la courbe de Korf du contrat dynamics_params (modèle `korf`) :
+#' H = a · exp(−(p_f · b + [ln(a / H_prec)]^(−1/c))^(−c)), H_prec dans ]0 ; a[ (sinon erreur).
+dyn_korf_step <- function(h_prev, a, b, c, p_f) {
+  if (anyNA(h_prev) || any(h_prev <= 0) || any(h_prev >= a)) {
+    stop("Korf : la hauteur de l'année précédente doit être strictement entre 0 et l'asymptote a", call. = FALSE)
+  }
+  a * exp(-(p_f * b + log(a / h_prev)^(-1 / c))^(-c))
+}
+
+#' Hauteur de Korf à l'âge `age` pour une classe, en partant de (t0, H0) par `dyn_korf_step` :
+#' sert à l'illustration du rapport et aux tests, jamais au moteur (qui part de h0.tif).
+dyn_korf_height <- function(age, a, b, c, t0, H0, p_f) {
+  if (age < t0) stop("Korf : l'âge demandé est inférieur à l'âge de départ", call. = FALSE)
+  h <- H0
+  for (i in seq_len(age - t0)) h <- dyn_korf_step(h, a, b, c, p_f)
+  h
+}
+
+#' Paramètres de Korf du hêtre : la moyenne des deux régions de nemeton, terme à terme (a, b, c,
+#' p_f_min, p_f_max), décision de l'orchestrateur du 25/11/2026 (moyenne NO et NE citée par
+#' nemeton). Une moyenne des paramètres n'est pas la moyenne des hauteurs de nemeton : l'écart est
+#' mesuré et écrit au rapport.
+dyn_korf_params <- function(regions = DYN_KORF_REGIONS) {
+  m <- colMeans(regions[, c("a", "b", "c", "t0", "H0", "p_f_min", "p_f_max")])
+  list(a = m[["a"]], b = m[["b"]], c = m[["c"]], t0 = m[["t0"]], H0 = m[["H0"]],
+       age_ref = DYN_KORF_REF_AGE,
+       p_f = seq(m[["p_f_max"]], m[["p_f_min"]], length.out = 5L))   # classe 1 = la meilleure
+}
+
+#' Lignes `korf` (contrat dynamics_params) pour les essences des données qui en ont une dans
+#' nemeton (FASY), par la correspondance nemeton_code de contracts/species.csv.
+dyn_korf <- function(species, species_ref) {
+  rows <- list()
+  info <- list()
+  kp <- dyn_korf_params()
+  for (sp in species) {
+    code <- species_ref$nemeton_code[match(sp, species_ref$espar)]
+    if (is.na(code) || !code %in% DYN_KORF_NEMETON_CODES) next
+    src <- sprintf(paste0("%s : moyenne terme à terme des régions NO et NE, telle que nemeton la cite ; ",
+                          "p_f de la classe 1 (meilleure) à 5 à pas égal entre la moyenne des p_f_max et celle des ",
+                          "p_f_min ; t_ref0 et h_ref0 : moyenne des t0 et H0 de nemeton (6 ans, 1,40 et 1,35 m) ; age_ref : ",
+                          "âge du point de référence de nemeton (H(100), classe 3) ; chprod = 1 ; non ajusté sur le jeu fictif ; provisoire, à vérifier sur la source"),
+                   DYN_KORF_SOURCE)
+    rows[[sp]] <- data.frame(
+      species = sp, species_group = NA_character_, model = "korf",
+      term = c("a", "b", "c", "t_ref0", "h_ref0", "age_ref", paste0("p_f_class", 1:5)),
+      variable = NA_character_, x = NA_real_,
+      value = c(kp$a, kp$b, kp$c, kp$t0, kp$H0, kp$age_ref, kp$p_f), provisoire = TRUE, source = src, stringsAsFactors = FALSE)
+    info[[sp]] <- list(code = code, a = kp$a, b = kp$b, c = kp$c, p_f = kp$p_f, t0 = kp$t0, H0 = kp$H0)
+  }
+  list(rows = if (length(rows)) do.call(rbind, rows) else NULL, info = info)
+}
+
 # ------------------------------------------------------------------ écriture
 
 DYN_PARAM_COLUMNS <- c("species", "species_group", "model", "term", "variable", "x", "value",
@@ -890,7 +967,42 @@ dyn_ul <- function(items) list(type = "ul", items = items)
 dyn_h3 <- function(text) list(type = "h3", text = text)
 dyn_table <- function(header, rows) list(type = "table", header = header, rows = rows)
 
-dyn_report <- function(zone, prep, res, cr, units_all) {
+#' Éléments du rapport pour la courbe de Korf (tableau des paramètres, hauteurs à l'âge de référence,
+#' écart à la moyenne des hauteurs de nemeton). Vide s'il n'y a aucune essence à Korf.
+dyn_korf_report_items <- function(korf) {
+  if (!length(korf$info)) return(list())
+  items <- list()
+  rows <- lapply(names(korf$info), function(sp) {
+    i <- korf$info[[sp]]
+    c(sp, i$code, dyn_fmt(i$a, 2), dyn_fmt(i$b, 4), dyn_fmt(i$c, 3), paste(dyn_fmt(i$p_f, 3), collapse = " ; "))
+  })
+  items[[1L]] <- dyn_p("Hêtre, forme de Korf (Bontemps et al. 2007, annexe 2) : H = a · exp(−(p_f · b + [ln(a / H_prec)]^(−1/c))^(−c)), ",
+                       "paramètres lus dans ", DYN_KORF_SOURCE, " ; provisoire (décision de Pascal du 25/11/2026). Moyenne terme à terme ",
+                       "des régions NO et NE de nemeton.")
+  items[[2L]] <- dyn_table(c("Essence", "Code nemeton", "a (m)", "b (1/an)", "c", "p_f, classes 1 à 5"), rows)
+  sp <- names(korf$info)[1L]
+  i <- korf$info[[sp]]
+  reg <- DYN_KORF_REGIONS
+  at_ref <- function(a, b, c, t0, H0, pf) dyn_korf_height(DYN_KORF_REF_AGE, a, b, c, t0, H0, pf)
+  h_param <- vapply(1:5, function(k) at_ref(i$a, i$b, i$c, i$t0, i$H0, i$p_f[k]), numeric(1))
+  h_reg <- sapply(seq_len(nrow(reg)), function(r) {
+    pf <- seq(reg$p_f_max[r], reg$p_f_min[r], length.out = 5L)
+    vapply(1:5, function(k) at_ref(reg$a[r], reg$b[r], reg$c[r], reg$t0[r], reg$H0[r], pf[k]), numeric(1))
+  })
+  h_mean <- rowMeans(h_reg)
+  hrows <- lapply(1:5, function(k) c(as.character(k), dyn_fmt(h_reg[k, 1L], 1), dyn_fmt(h_reg[k, 2L], 1),
+                                    dyn_fmt(h_mean[k], 1), dyn_fmt(h_param[k], 1), dyn_fmt(h_param[k] - h_mean[k], 1)))
+  items[[3L]] <- dyn_p("Hauteur à ", DYN_KORF_REF_AGE, " ans, en partant de l'âge ", dyn_fmt(reg$t0[1L], 0), " et des hauteurs H0 de nemeton ",
+                       "(illustration ; ce sont aussi les termes t_ref0, h_ref0 et age_ref du contrat, par lesquels simulate choisit la classe). Le point de référence de nemeton pour le hêtre est ",
+                       dyn_fmt(DYN_KORF_REF_H_CLASS3, 1), " m en classe 3 (moyenne des hauteurs NO et NE). La courbe retenue ici, à un seul jeu ",
+                       "de paramètres, s'en écarte de ", dyn_fmt(h_param[3L] - h_mean[3L], 1), " m en classe 3 : écart connu, à trancher ",
+                       "avant tout usage hors du jeu fictif.")
+  items[[4L]] <- dyn_table(c("Classe de fertilité", "NO (m)", "NE (m)", "Moyenne des hauteurs NO et NE (m)",
+                             "Courbe retenue (m)", "Écart (m)"), hrows)
+  items
+}
+
+dyn_report <- function(zone, prep, res, cr, units_all, korf = list(rows = NULL, info = list())) {
   cnt <- prep$counts
   fa <- cnt$fates_all; fk <- cnt$fates_kept
   sections <- list()
@@ -932,12 +1044,12 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
             dyn_int(fk[["vivant"]] + fk[["mort"]] + fk[["chablis"]])),
     sprintf("Plage de campagnes de 2e visite de la mortalité : %s à %s (toutes les revisites des placettes retenues, %s placettes).",
             cnt$camp2_range_mortality[1], cnt$camp2_range_mortality[2], dyn_int(cnt$fit_rev)),
-    sprintf("Plage de campagnes de 2e visite du recrutement : %s à %s (%s placettes) ; écartées du recrutement : %s placettes revues retenues dont la 2e visite date d'avant %d (revisites de 2010 à 2014, qui ne relèvent pas les nouveaux arbres) et leurs %s recrues, qui ne servent qu'à la mortalité.",
+    sprintf("Plage de campagnes de 2e visite du recrutement : %s à %s (%s placettes retenues pour le recrutement) ; écartées du recrutement : %s placettes revues retenues dont la 2e visite date d'avant %d (revisites de 2010 à 2014, qui ne relèvent pas les nouveaux arbres) ; ces placettes ne servent qu'à la mortalité, et leurs %s recrues ne sont pas comptées.",
             cnt$camp2_range_recruitment[1], cnt$camp2_range_recruitment[2], dyn_int(cnt$fit_rec),
             dyn_int(cnt$rec_excluded_plots), DYN_RECRUIT_FIRST_CAMPAIGN, dyn_int(cnt$recruits_old_campaign)),
-    sprintf("Recrues (arbres de 2e visite sans 1re visite, C13 ≥ 0,235 m) : %s sur toutes les placettes revues, dont %s sur les placettes retenues ; lignes sous le seuil, non comptées : %s.",
+    sprintf("Recrues (arbres de 2e visite sans 1re visite, C13 ≥ 0,235 m) : %s sur toutes les placettes revues, dont %s sur les placettes retenues pour le recrutement ; lignes sous le seuil, non comptées : %s.",
             dyn_int(cnt$recruits_all), dyn_int(cnt$recruits_kept), dyn_int(cnt$recruits_below)),
-    sprintf("Recrues sans poids (W absent de l'export) : %s sur toutes les placettes revues, dont %s sur les placettes retenues ; le poids n'est jamais deviné : les couples placette × essence concernés (%s) sont exclus du recrutement.",
+    sprintf("Recrues sans poids (W absent de l'export) : %s sur toutes les placettes revues, dont %s sur les placettes retenues pour le recrutement ; le poids n'est jamais deviné : les couples placette × essence concernés (%s) sont exclus du recrutement.",
             dyn_int(cnt$recruits_no_w_all), dyn_int(cnt$recruits_no_w_kept), dyn_int(cnt$recruit_cells_no_w)),
     sprintf("Arbres vivants sans poids, absents de la surface terrière : %s ; lignes avec IR5 : %s.",
             dyn_int(cnt$alive_no_weight), dyn_int(cnt$ir5_lines)),
@@ -1088,6 +1200,7 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
     cr_items[[length(cr_items) + 1L]] <- dyn_ul(sprintf("Essence %s sans courbe de Chapman-Richards, signalée et non inventée : %s.",
                                                     names(cr$missing), cr$missing))
   }
+  cr_items <- c(cr_items, dyn_korf_report_items(korf))
   sections[[length(sections) + 1L]] <- list(title = "Courbe de hauteur", items = cr_items)
 
   sections[[length(sections) + 1L]] <- list(title = "Limites connues", items = list(dyn_ul(c(
@@ -1103,6 +1216,7 @@ dyn_report <- function(zone, prep, res, cr, units_all) {
             dyn_fmt(100 * max(res$mortality$block_counts) / sum(res$mortality$block_counts), 1)),
     "Chablis comptés comme morts : les arbres en chablis (code A de VEGET5, campagnes 2010 à 2018) restent dans la population à risque et comptent comme morts, qu'ils aient été vivants ou morts au sol (règle de Pascal du 25/11/2026) ; à partir de 2019, les chablis vivants (code 1) restent vivants.",
     "Chapman-Richards : paramètres reconstitués par nemeton et recalés sur un point de référence publié, pas les paramètres publiés eux-mêmes ; à vérifier sur les sources.",
+    "Korf du hêtre : moyenne des paramètres des régions NO et NE de nemeton, pas la moyenne de leurs hauteurs (celle que nemeton cite) ; l'écart de hauteur est donné dans la section « Courbe de hauteur » ; à vérifier sur la source (Bontemps et al. 2007) avant tout usage hors du jeu fictif.",
     "Jeu fictif : en M2a, aucune erreur ni comparaison au modèle nul ne dit quoi que ce soit de la forêt réelle ; le critère de M2b (RMSE sous celle du modèle nul sur la SER pilote) reste à passer avec Pascal."
   ))))
   dyn_html(sections)
@@ -1138,10 +1252,11 @@ dynamics_run <- function(zone_dir, zone = basename(zone_dir), root = dyn_root(),
     res[[k]] <- dyn_run_model(k, data, prep$species, species_ref, fold_of_block, source)
   }
   cr <- dyn_chapman_richards(prep$species, species_ref)
+  korf <- dyn_korf(prep$species, species_ref)
   tables <- list(growth = res$growth$params, mortality = res$mortality$params,
                  recruitment = res$recruitment$params,
-                 height_curve = rbind(res$height$params[, DYN_PARAM_COLUMNS], cr$rows))
-  html <- dyn_report(zone, prep, res, cr, lapply(res, function(r) r$units))
+                 height_curve = rbind(res$height$params[, DYN_PARAM_COLUMNS], cr$rows, korf$rows))
+  html <- dyn_report(zone, prep, res, cr, lapply(res, function(r) r$units), korf)
 
   # Écriture dans un dossier temporaire, validation, puis déplacement : tout ou rien.
   tmp <- file.path(zone_dir, "params", ".dynamics_tmp")
@@ -1157,5 +1272,5 @@ dynamics_run <- function(zone_dir, zone = basename(zone_dir), root = dyn_root(),
   dyn_write_html(html, out[["report"]])
   message(sprintf("[dynamics] params/{%s}.parquet et rapport_dynamics.html écrits (%s)",
                   paste(DYN_PARAMS, collapse = ","), zone_dir))
-  invisible(list(prep = prep, res = res, cr = cr, tables = tables))
+  invisible(list(prep = prep, res = res, cr = cr, korf = korf, tables = tables))
 }

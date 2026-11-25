@@ -2,10 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sylvigenese:run",
   "title": "sim/run.json (simulate)",
-  "description": "Compte rendu d'une exécution : graine, horizon, valeurs mises à zéro (spec §6) et part des paramètres provisoires (spec §10).",
+  "description": "Compte rendu d'une exécution de simulate : graine, horizon, fils, mémoire estimée, durée, empreinte de config.yml, valeurs mises à zéro (spec §6), part des paramètres provisoires (spec §10) et comptes de ce que le moteur a dû borner, signaler ou tirer (plan M3a, mission 033). Tous les comptes sont des entiers sur toute la simulation (de t0 à t0 + years), sans valeur par défaut : un compte à zéro s'écrit 0, un compte absent est une erreur. Ils alimentent rapport_simulation.html.",
   "x-schema-version": "0.1",
   "type": "object",
-  "required": ["schema_version", "level", "seed", "t0", "years", "threads", "zeroed_values", "provisional_share"],
+  "required": [
+    "schema_version", "level", "seed", "t0", "years", "threads",
+    "memory_estimate_bytes", "duration_s", "config_sha256",
+    "zeroed_values", "provisional_share",
+    "domain_outputs", "cells_at_height_ceiling", "edge_disks", "mixed_cells", "recruits", "deaths"
+  ],
   "additionalProperties": false,
   "properties": {
     "schema_version": {"const": 1},
@@ -13,11 +18,31 @@
     "seed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
     "t0": {"type": "integer"},
     "years": {"type": "integer", "minimum": 1},
-    "threads": {"type": "integer", "minimum": 1},
+    "threads": {"description": "nombre de fils de calcul (le résultat ne dépend pas de ce nombre, plan M3a)", "type": "integer", "minimum": 1},
+    "memory_estimate_bytes": {"description": "mémoire estimée avant le premier pas (spec §6), en octets ; comparée à MemAvailable × 0,9", "type": "integer", "minimum": 0},
+    "duration_s": {"description": "durée de la simulation, en secondes", "type": "number", "minimum": 0},
+    "config_sha256": {"description": "empreinte SHA-256 de config.yml, en hexadécimal minuscule", "type": "string", "pattern": "^[0-9a-f]{64}$"},
     "zeroed_values": {"description": "nombre de valeurs |Q| < 1e-9 × max(Q) mises à zéro (spec §6)", "type": "integer", "minimum": 0},
     "provisional_share": {"description": "part des paramètres utilisés marqués provisoires, de 0 à 1 (spec §10)", "type": "number", "minimum": 0, "maximum": 1},
-    "memory_estimate_bytes": {"description": "mémoire estimée avant le premier pas (spec §6)", "type": "integer", "minimum": 0},
-    "duration_s": {"type": "number", "minimum": 0},
-    "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    "domain_outputs": {
+      "description": "sorties de domaine : par variable d'un terme lisse (celles de dynamics_params), nombre de relectures où la valeur est sortie de l'intervalle des nœuds [x_1, x_n] et a été bornée (la valeur au bord est tenue). Toutes les variables lues par le moteur sont présentes, à 0 si aucune sortie.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"enum": ["d130", "ba_plot", "bal", "ba_species", "trophic", "coarse_hydric_700m", "coarse_bioclim_700m", "rel_d"]},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["below", "above"],
+        "additionalProperties": false,
+        "properties": {
+          "below": {"description": "valeur sous le premier nœud x_1", "type": "integer", "minimum": 0},
+          "above": {"description": "valeur au-dessus du dernier nœud x_n", "type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "cells_at_height_ceiling": {"description": "nombre de couples (cellule, année) où la hauteur dominante est au plafond de hauteur (site_potential) ; une hauteur au-dessus du plafond est signalée, jamais corrigée", "type": "integer", "minimum": 0},
+    "edge_disks": {"description": "nombre de couples (arbre, année) dont le disque de concurrence de 15 m déborde de la grille ; le bord est compté tel quel, sans correction", "type": "integer", "minimum": 0},
+    "mixed_cells": {"description": "nombre de couples (cellule, année) à plusieurs essences, dont la courbe de hauteur est celle de l'essence de plus forte surface terrière (T5)", "type": "integer", "minimum": 0},
+    "recruits": {"description": "nombre total de recrues ajoutées (arrondi aléatoire, Q4)", "type": "integer", "minimum": 0},
+    "deaths": {"description": "nombre total d'arbres morts (écrits une fois, l'année de leur mort)", "type": "integer", "minimum": 0}
   }
 }

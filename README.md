@@ -27,7 +27,12 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 - **M1a** (`prepare`, `biomes`, arbres initiaux avec leur houppier) : rempli sur le jeu fictif.
 - **M2a** (`dynamics` : accroissement, mortalité, recrutement et hauteur ajustés sur l'IFN
   fictif, validation croisée par blocs, rapport par essence) : rempli sur le jeu fictif.
-- Suivant : la **vue iTowns de l'état initial**, puis **M3a** (moteur `simulate`, 100 ans).
+- **Vue iTowns de l'état initial** (M4a, première partie) : livrée.
+- **M3a** (moteur `simulate` en Rust : 100 ans sur le massif fictif, identité au bit près quel
+  que soit le nombre de fils, contrôles) : rempli sur son critère technique. **La trajectoire
+  n'est pas encore celle d'une forêt** (référence technique, non validée écologiquement).
+- Suivant : **M3b** (type de station à 25 m indépendant de GDAL, puis vraisemblance de la
+  dynamique), puis la vue iTowns dans le temps.
 - En attente de Pascal (données réelles) : M1b, M2b.
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).

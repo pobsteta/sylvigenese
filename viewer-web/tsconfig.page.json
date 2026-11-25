@@ -17,8 +17,7 @@
     }
   },
   "include": [
-    "src/page",
-    "src/fiche.ts"
+    "src/page"
   ],
   "exclude": []
 }

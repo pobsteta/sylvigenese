@@ -88,6 +88,16 @@ CHENE_VIDEO = "chene_sessile"     # code libre nemeton cité dans entrees-extern
 # ils ne viennent d'aucune source écologique, seulement de quoi exercer le code.
 ALLOMETRY = {"09": (0.10, 1.12, 0.20), "61": (0.15, 1.10, 0.17), "62": (0.20, 1.08, 0.15),
              "03": (0.05, 1.14, 0.22), "64": (0.12, 1.10, 0.18)}
+# Allométries de houppier (mission 034, contrat params/allometry, modèles hcb et cw), SYNTHÉTIQUES
+# et provisoires, sans lien avec une mesure : de quoi exercer simulate, rien de plus. d130 en cm,
+# comme les vraies (tarif-nemeton, vérifié par import_tarif).
+#   hcb : CR = CR_a + CR_b ln(d130), borné à [CR_min ; CR_max] ; hcb = h (1 − CR).
+#   cw  : cw = 2 E, ln(E) = R_a + R_b ln(d130).
+# Valeurs (CR_a, CR_b, CR_min, CR_max) et (R_a, R_b) par essence du jeu fictif.
+HCB = {"09": (1.10, -0.15, 0.20, 0.90), "61": (0.95, -0.08, 0.20, 0.90), "62": (0.95, -0.08, 0.20, 0.90),
+       "03": (1.05, -0.13, 0.20, 0.90), "64": (0.90, -0.06, 0.20, 0.90)}
+CROWN_WIDTH = {"09": (-0.30, 0.55), "61": (-0.90, 0.60), "62": (-0.90, 0.60),
+               "03": (-0.60, 0.62), "64": (-0.80, 0.58)}
 TARIF = {"09": (4.0e-5, 1.90, 1.00), "61": (4.2e-5, 1.88, 1.00), "62": (4.5e-5, 1.86, 1.02),
          "03": (3.8e-5, 1.92, 1.00), "64": (4.1e-5, 1.89, 1.01)}   # V = a D^b H^c
 
@@ -548,7 +558,7 @@ def write_ifn(inputs, seed):
 
 
 def write_params(zone):
-    """Paramètres de tarif et d'allométrie : format long, provisoire: true, source synthétique."""
+    """Paramètres de tarif et d'allométrie (étage B, houppier hcb et cw) : format long, provisoire: true, source synthétique."""
     schema = pa.schema([("species", pa.string()), ("species_group", pa.string()),
                         ("model", pa.string()), ("term", pa.string()), ("value", pa.float64()),
                         ("provisoire", pa.bool_()), ("source", pa.string())])
@@ -561,7 +571,13 @@ def write_params(zone):
 
     (zone / "params").mkdir(parents=True, exist_ok=True)
     pq.write_table(table("tarif_dbh_h", TARIF, ("a", "b", "c")), zone / "params" / "tarif.parquet")
-    pq.write_table(table("etage_b", ALLOMETRY, ("a", "b", "c")), zone / "params" / "allometry.parquet")
+    # allometry.parquet : étage B, puis houppier (hcb, cw) ; un seul fichier au contrat params/allometry
+    allometry = pa.concat_tables([
+        table("etage_b", ALLOMETRY, ("a", "b", "c")),
+        table("hcb", HCB, ("CR_a", "CR_b", "CR_min", "CR_max")),
+        table("cw", CROWN_WIDTH, ("R_a", "R_b")),
+    ])
+    pq.write_table(allometry, zone / "params" / "allometry.parquet")
 
 
 def write_zone_marker(zone):

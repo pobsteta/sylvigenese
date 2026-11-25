@@ -14,10 +14,14 @@ management: none          # aucune gestion sylvicole en v1 (spec §6)
 #   tarif_nemeton_dir: /chemin/vers/tarif-nemeton   # lu par import_tarif seul
 #   raf20_grid: /chemin/vers/RAF20.gtx
 
-# Facultatif : réglages de simulate (spec §1, §6).
-# simulate:
-#   level: massif
-#   seed: 42
-#   t0: 2026
-#   years: 100
-#   threads: 4
+# Réglages de simulate (spec §1, §6). Le bloc est exigé quand simulate tourne : sans lui, ou sans
+# l'une de ses quatre clés level, seed, t0, years, simulate s'arrête (code 2) ; aucune valeur par
+# défaut n'est prise en silence. `threads` reste facultatif (sans lui : un fil).
+simulate:
+  level: massif
+  seed: 42                # graine du générateur à compteur (bench/SPEC.md)
+  t0: 2022                # année de départ ; jeu fictif : année du vol le plus récent de chm_date.tif
+                          # (vols de 2021 et 2022 ; la hauteur ne se recule pas, décision de
+                          # l'orchestrateur du 25/11/2026) ; à fixer par zone réelle
+  years: 100              # horizon (défaut du BRIEF §8)
+#  threads: 4

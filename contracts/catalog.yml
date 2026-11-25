@@ -274,6 +274,11 @@ contracts:
     kind: json
     schema: json/run.schema.json
     paths: [sim/run.json]
+  simulate.flags:
+    aliases: [sim_flags, flags]
+    kind: parquet
+    schema: tables/sim/flags.schema.json
+    paths: [sim/flags.parquet]
   post.summary:
     aliases: [summary]
     kind: parquet

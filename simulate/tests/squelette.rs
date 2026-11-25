@@ -1,43 +1,69 @@
-//! Tests du squelette `simulate` (mission 012).
+//! Tests de l'appel du validateur par `simulate` (mission 012, réécrits en 037/038).
 //!
-//! Le validateur est remplacé par un faux script pour les cas 0 / 3 / absent. Le test
-//! d'intégration appelle le vrai validateur : rouge tant que `contracts/validate`
-//! (mission 009) n'est pas dans l'arbre, sauf si `SYLVIGENESE_VALIDATE` le désigne.
+//! Chaque lancement se fait avec `SYLVIGENESE_ROOT` sur une **racine temporaire vide** : aucun
+//! test ne lit ni n'écrit une sortie ignorée par git du dépôt (copie `git archive` suffisante).
+//! Le validateur est remplacé par un faux script (codes 0, 3, absent), ou c'est le vrai
+//! (`contracts/validate`, versionné).
+//!
+//! Le cas nominal (code 0 avec le vrai validateur, sorties `sim/` acceptées) demande une zone
+//! construite par la chaîne : il est couvert par `tests/integration.rs`
+//! (`la_chaine_du_jeu_fictif_simule_100_ans_et_le_validateur_l_accepte`), qui la construit
+//! lui-même. Ici, on vérifie que config.yml passe par le validateur **avant** toute lecture de
+//! la zone, et que son refus ou son absence donnent le code 2.
 
 use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 
-fn racine() -> PathBuf {
+fn depot() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
-/// Dossier temporaire propre à un test.
+/// Dossier temporaire propre à un test, vidé d'abord.
 fn dossier_temporaire(nom: &str) -> PathBuf {
-    let dossier = std::env::temp_dir().join(format!("simulate-test-{}-{nom}", std::process::id()));
+    let dossier =
+        std::env::temp_dir().join(format!("simulate-squelette-{}-{nom}", std::process::id()));
+    let _ = fs::remove_dir_all(&dossier);
     fs::create_dir_all(&dossier).unwrap();
     dossier
 }
 
-fn faux_validateur(dossier: &PathBuf, code: i32) -> PathBuf {
+/// Un faux validateur qui écrit ses arguments dans `appels.txt` puis sort avec `code`.
+fn faux_validateur(dossier: &Path, code: i32) -> PathBuf {
     let chemin = dossier.join("validate");
-    fs::write(&chemin, format!("import sys\nsys.exit({code})\n")).unwrap();
+    let journal = dossier.join("appels.txt");
+    fs::write(
+        &chemin,
+        format!(
+            "import sys\nwith open({journal:?}, 'a') as f:\n    f.write(' '.join(sys.argv[1:]) + '\\n')\nsys.exit({code})\n"
+        ),
+    )
+    .unwrap();
     chemin
 }
 
-/// Lance l'exécutable `simulate` avec une config donnée et un validateur donné.
-fn lancer(config: &PathBuf, validateur: Option<&PathBuf>) -> i32 {
+/// Lance `simulate` sur une config, avec une racine de données vide et un validateur donné
+/// (sans validateur imposé : le vrai, `contracts/validate` depuis la racine du dépôt).
+fn lancer(config: &Path, racine_donnees: &Path, validateur: Option<&Path>) -> Output {
     let mut commande = Command::new(env!("CARGO_BIN_EXE_simulate"));
-    commande.current_dir(racine()).arg("--config").arg(config);
-    // Sans validateur imposé, l'environnement du test est transmis tel quel.
+    commande
+        .current_dir(depot())
+        .env("SYLVIGENESE_ROOT", racine_donnees)
+        .env_remove("SYLVIGENESE_VALIDATE")
+        .arg("--config")
+        .arg(config);
     if let Some(v) = validateur {
         commande.env("SYLVIGENESE_VALIDATE", v);
     }
-    commande.output().unwrap().status.code().unwrap()
+    commande.output().unwrap()
 }
 
 fn config_du_depot() -> PathBuf {
-    racine().join("config.yml")
+    depot().join("config.yml")
+}
+
+fn erreur(sortie: &Output) -> String {
+    String::from_utf8_lossy(&sortie.stderr).to_string()
 }
 
 #[test]
@@ -55,34 +81,76 @@ fn config_absent_donne_une_erreur() {
 }
 
 #[test]
-fn sortie_0_si_le_validateur_dit_0() {
-    let dossier = dossier_temporaire("ok");
+fn le_validateur_est_appele_sur_config_yml_avant_la_zone() {
+    // Faux validateur qui accepte : config.yml passe, puis la zone (absente de la racine vide)
+    // est refusée, code 2. Le validateur n'a été appelé que pour config.yml : rien n'est écrit.
+    let dossier = dossier_temporaire("accepte");
+    let racine = dossier.join("racine");
+    fs::create_dir_all(&racine).unwrap();
     let v = faux_validateur(&dossier, 0);
-    assert_eq!(lancer(&config_du_depot(), Some(&v)), 0);
+    let sortie = lancer(&config_du_depot(), &racine, Some(&v));
+    assert_eq!(sortie.status.code(), Some(2), "{}", erreur(&sortie));
+    assert!(
+        !erreur(&sortie).contains("non conforme"),
+        "{}",
+        erreur(&sortie)
+    );
+    let appels = fs::read_to_string(dossier.join("appels.txt")).unwrap();
+    let config = config_du_depot().to_string_lossy().to_string();
+    assert_eq!(appels, format!("config {config}\n"));
+    assert!(!racine.join("tests").exists() && !racine.join("data").exists());
+    fs::remove_dir_all(&dossier).unwrap();
 }
 
 #[test]
 fn sortie_2_si_le_validateur_refuse() {
     let dossier = dossier_temporaire("refus");
     let v = faux_validateur(&dossier, 3);
-    assert_eq!(lancer(&config_du_depot(), Some(&v)), 2);
+    let sortie = lancer(&config_du_depot(), &dossier, Some(&v));
+    assert_eq!(sortie.status.code(), Some(2));
+    assert!(
+        erreur(&sortie).contains("config.yml non conforme"),
+        "{}",
+        erreur(&sortie)
+    );
+    fs::remove_dir_all(&dossier).unwrap();
 }
 
 #[test]
 fn sortie_2_si_le_validateur_est_absent() {
+    let dossier = dossier_temporaire("absent");
     let absent = PathBuf::from("/nulle/part/validate");
-    assert_eq!(lancer(&config_du_depot(), Some(&absent)), 2);
+    let sortie = lancer(&config_du_depot(), &dossier, Some(&absent));
+    assert_eq!(sortie.status.code(), Some(2));
+    assert!(
+        erreur(&sortie).contains("validateur introuvable"),
+        "{}",
+        erreur(&sortie)
+    );
+    fs::remove_dir_all(&dossier).unwrap();
 }
 
 #[test]
 fn sortie_2_si_config_absent() {
     let dossier = dossier_temporaire("sans-config");
     let v = faux_validateur(&dossier, 0);
-    assert_eq!(lancer(&PathBuf::from("/nulle/part/config.yml"), Some(&v)), 2);
+    let sortie = lancer(Path::new("/nulle/part/config.yml"), &dossier, Some(&v));
+    assert_eq!(sortie.status.code(), Some(2));
+    // Le validateur n'est pas appelé sur un fichier qui n'existe pas.
+    assert!(!dossier.join("appels.txt").exists());
+    fs::remove_dir_all(&dossier).unwrap();
 }
 
 #[test]
-fn integration_le_vrai_validateur_accepte_config_yml() {
-    // Rouge tant que contracts/validate (mission 009) est absent de l'arbre.
-    assert_eq!(lancer(&config_du_depot(), None), 0);
+fn le_vrai_validateur_accepte_config_yml_du_depot() {
+    // Le vrai contracts/validate juge config.yml conforme : simulate passe la validation et ne
+    // s'arrête qu'à la zone, absente de la racine vide (code 2, sans « non conforme »).
+    let dossier = dossier_temporaire("vrai");
+    let sortie = lancer(&config_du_depot(), &dossier, None);
+    assert_eq!(sortie.status.code(), Some(2), "{}", erreur(&sortie));
+    let texte = erreur(&sortie);
+    assert!(!texte.contains("non conforme"), "{texte}");
+    assert!(!texte.contains("validateur introuvable"), "{texte}");
+    assert!(!texte.contains("config.yml introuvable"), "{texte}");
+    fs::remove_dir_all(&dossier).unwrap();
 }

@@ -70,6 +70,9 @@
   `prepare` l'appelle aussi à l'entrée. C'est un passage par fichiers, pas un import. Rust
   vérifie en plus le profil GeoTIFF à la lecture.
 - Le volume, la biomasse et le carbone sont calculés par `post`, en post-traitement.
+- **Semis** : les colonnes de semis des sorties de cellule de `simulate` (`seedlings_ha`,
+  `seedling_h_mean`) sont **facultatives jusqu'à M5** ; le rapport et la fiche de cellule disent
+  « semis non simulés » (décision de Pascal du 25/11/2026, M3a, question 3 ; journal).
 
 ## 3. Entrées externes
 
@@ -113,7 +116,7 @@
    houppier segmentée dans un MNH aéroporté n'est pas celle mesurée au TLS, d'où le statut
    provisoire. Les colonnes `species_source` et `d130_source` sont remplies.
 4. **Hauteur** : celle du MNH à la date de vol (`chm_date`, en jours depuis le 1970-01-01),
-   avancée jusqu'à `t0` par la courbe de hauteur.
+   avancée jusqu'à la fin de l'année `t0` (décision du 25/11/2026) par la courbe de hauteur.
 5. **Polygones `source = synthetic_ml`** : leur hauteur vient déjà du MNH. Le MNH n'est pas
    compté une seconde fois, et le rapport le signale.
 6. En v1, le niveau massif ne contient que les **arbres détectés**. Les arbres dominés
@@ -128,11 +131,34 @@
 - **Plafond** : `h_pot` de typopeuplement, attribué par famille d'essences.
 - **Courbe** : forme différentielle autonome de Chapman-Richards, qui n'a pas besoin de l'âge.
   nemeton l'utilise déjà (`data-raw/site_index_curves.R`). Ses paramètres sont calés sur la
-  fertilité de sylvostation. Elle est **provisoire** (BRIEF §14.5).
+  fertilité de sylvostation. Elle est **provisoire** (BRIEF §14.5). Dans `simulate`, son
+  asymptote A est `site_potential` (décision de l'orchestrateur sur 037, 25/11/2026, journal).
+- **Hêtre (09) : courbe de Korf** (décision de Pascal du 25/11/2026, M3a, question 1) : la courbe
+  de Korf de nemeton, citée et provisoire, est une deuxième forme de courbe (contrat
+  `dynamics_params`, modèle `korf`). L'asymptote `a` est fixe ; `simulate` choisit la classe de
+  fertilité `p_f_class1` à `p_f_class5` dont la hauteur à `age_ref` (calculée depuis le point de
+  départ `t_ref0`, `h_ref0`) est la plus proche de `site_potential` ; à égalité, la classe de plus
+  petit numéro. Règle provisoire, dite au rapport (décision sur 033 et 037 du 25/11/2026 ;
+  `t_ref0`, `h_ref0`, `age_ref` : décision sur 037, mission 040). Chapman-Richards (A =
+  `site_potential`) et Korf (classe la plus proche du plafond) traitent donc le plafond
+  différemment : l'asymétrie est dite au rapport.
+- **Date de départ t0** : l'état initial est l'état à la **fin de l'année t0** (décision sur 037,
+  25/11/2026). Pour le jeu fictif, t0 = 2022, année du vol le plus récent, car la hauteur ne se
+  recule pas (décision de l'orchestrateur, 25/11/2026). Une date de vol après la fin de t0 est
+  refusée (code 2).
+- **Trouées** : tant que la hauteur dominante d'une cellule est nulle, aucune recrue n'y est
+  créée ; chaque cas est compté (`total_trouees_sans_recrue`) et signalé (`trouee_sans_recrue`).
+  La recolonisation des trouées viendra en M5 par les cohortes (décision de Pascal du
+  25/11/2026, M3a, trouées).
 - **Au-dessus du plafond** : on écrit `si dH < 0 alors dH = 0`, sans fonction `min`. Chaque
   cas est une ligne de `rapport_hauteur.html`. Environ 10 % des cas sont attendus, par
   construction de `h_pot`.
-- **Hauteur d'un arbre** : elle se déduit de H0 et du rang de l'arbre en diamètre.
+- **Hauteur d'un arbre** (décision de Pascal du 25/11/2026, M3a, question 2) : la hauteur mesurée
+  par le MNH reste l'ancre ; l'arbre grandit de sa part de la croissance de la hauteur
+  dominante, h += f(rel_d) × ΔH_dom, avec rel_d = d130 / d_dom (rang en diamètre) et f la
+  hauteur relative ajustée (`relative_height_gam`), sans saut au départ. `simulate` avance
+  aussi la hauteur de la date de vol (`chm_date.tif`) jusqu'à la fin de t0 (§4, point 4). f(1)
+  n'est pas forcément 1 (valeur ajustée, provisoire).
 
 ## 6. Dynamique
 
@@ -175,8 +201,15 @@
   qui n'est pas préfixée `coarse_` est traitée comme fine, et le seuil de précision d'un point
   est de 25 m.
 - **Recrutement** :
-  - M3 : modèle IFN direct ;
+  - M3 : modèle IFN direct ; le nombre de recrues d'une cellule est l'arrondi aléatoire de
+    l'espérance (décision de Pascal du 25/11/2026, M3a, question 4) ; pas de recrue tant que la
+    hauteur dominante de la cellule est nulle (§5, trouées) ; les recrues comptent dès 7,48 cm
+    (arrondi du seuil IFN C13 = 0,235 m, décision de l'orchestrateur du 25/11/2026) ;
   - M5 : cohortes calées sur ce modèle. Le `tree_id` d'une recrue est (cellule, année, rang).
+- **Accroissement et mortalité** (décision de Pascal du 25/11/2026, M3a, question 4) :
+  l'accroissement est la **moyenne** du modèle, sans bruit ; la mort est **tirée** selon le
+  risque annuel p = −expm1(−exp η) (η : prédicteur cloglog, décalage log Δt de 1 an). La
+  variabilité est donc sous-estimée, et le rapport le dit ; tout est reproductible par la graine.
 - **Gestion** : `management: none`.
 - **Aléa** : `u(seed, year, entity, species, draw_kind)`, sur le principe du générateur à
   compteur du banc (`bench/SPEC.md` §2). Sorties identiques au bit près quel que soit le
@@ -185,6 +218,13 @@
   - une valeur telle que |Q| < 1e-9 × max(Q), due à l'arrondi de la FFT, est mise à zéro et
     comptée dans `run.json` ;
   - au-delà : arrêt, code 3, message en français.
+- **Non-régression de M3a** (décision de Pascal du 25/11/2026, fusion sur le critère technique) :
+  la trajectoire du massif fictif (G de 91 à 353 m²/ha et de 141 à 4 025 tiges/ha en 100 ans)
+  est figée dans `tests/m3/reference/nominal.json`, jugée **sur entrées figées**
+  (`tests/m3/reference/entrees`, pas sur la chaîne R, dont le rééchantillonnage dépend de la
+  version de GDAL). C'est une **référence technique, non validée écologiquement** ; la
+  vraisemblance (frein hors domaine, H/D des recrues, plafond dépassé dans environ 45 % des
+  cellules) est le premier chantier de M3b.
 - **Codes de sortie** : 2 pour une entrée refusée, 3 pour un contrôle échoué, 4 pour une
   mémoire insuffisante. Avant le premier pas, le moteur estime la mémoire nécessaire et la
   compare à `MemAvailable`. Le noyau Linux tue un programme qui sur-alloue (code 137) : le
@@ -227,7 +267,8 @@
   - aligné sur `grid.tif`.
 
   Des fichiers d'essai écrits par `terra` et par `rasterio` sont relus par les tests Rust.
-- **Parquet** : partitions `year=AAAA`.
+- **Parquet** : partitions `year=AAAA`. Dans `sim/cells`, les colonnes de semis sont facultatives
+  jusqu'à M5 (« semis non simulés », décision de Pascal du 25/11/2026, M3a, question 3 ; §2).
 - **3D** :
   - glTF 2.0, un fichier par niveau de détail ;
   - 3D Tiles 1.1 avec instanciation, ou i3dm en repli, selon l'examen du code d'iTowns (mission

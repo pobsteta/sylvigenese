@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 5 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 6 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -22,14 +22,22 @@ _Modèle de carte :_
 
 ## Validé
 
-- [031](missions/031-dynamics-reponses-pascal.md), [032](missions/032-identifiants-en-anglais.md) · depuis le cycle 5
-  - Homme : `dev` ×2, `testeur` · Mission : réponses de Pascal dans dynamics ; identifiants en anglais · Moyens : suites de tests existantes
+- [042](missions/042-mode-station-25m.md) · depuis le cycle 6
+  - Homme : `dev` (opus) · Mission : type de station à 25 m par la règle de Pascal (surface, centre si égalité), premier pas de M3b · Moyens : R/prepare_grid.R, tests/m3
+  - M3b ensuite : vraisemblance de la dynamique (frein hors domaine, H/D des recrues, plafond à 45 %), durée de la suite
 
 ## Planifié
 
-- M3a (moteur simulate, 100 ans sur le massif fictif) · depuis le cycle 5
 
 ## Terminé
+
+- [033](missions/033-contrats-m3.md) à [041](missions/041-reprises-relecture-m3a.md) · depuis le cycle 6
+  - Homme : `dev` ×6, `testeur`, relus par `relecteur` (2 allers-retours)
+  - Mission : jalon M3a rempli le 2026-11-25 sur le jeu fictif, sur son critère technique (CI verte à 62a5056 ; tests/m3 178/178) ; trajectoire « technique, non validée écologiquement » (décision de Pascal)
+  - Moyens : PR pobsteta/sylvigenese#8
+
+- [031](missions/031-dynamics-reponses-pascal.md), [032](missions/032-identifiants-en-anglais.md) · depuis le cycle 6
+  - Homme : `dev` ×2, `testeur` · Mission : réponses de Pascal dans dynamics ; identifiants en anglais · Moyens : PR pobsteta/sylvigenese#7 et reprises dans #8
 
 - [028](missions/028-assets-etat-initial.md), [029](missions/029-viewer-web-etat-initial.md), [030](missions/030-tests-m4-etat-initial.md) · depuis le cycle 5
   - Homme : `dev`, `afficheur`, `testeur`, relus par `relecteur` · Mission : vue iTowns de l'état initial, fusionnée le 2026-11-25 · Moyens : PR pobsteta/sylvigenese#6
@@ -100,3 +108,4 @@ l'inscrit avec ce qu'elle nous apprend._
 ```
 
 - cycle 1 · livraison : jalon M0 (contrats et validateur, squelette des modules, jeu d'essai fictif, lecteur GeoTIFF Rust, CI) · pour Pascal · `make validate ZONE=<zone>` dit tout de suite si ses propres sorties nemeton, sylvostation et typopeuplement entrent dans la chaîne, ce que rien ne permettait avant
+- cycle 6 · livraison : jalon M3a (moteur simulate en Rust : 100 ans sur le massif fictif, identité au bit près de 1 à 7 fils, contrôles et codes de sortie, non-régression sur entrées figées) · pour Pascal · la chaîne va désormais jusqu'à un futur simulé ; mauvaise nouvelle apprise en même temps : la trajectoire fictive n'est pas une forêt (G 91 → 353 m²/ha), et GDAL change ses résultats selon sa version (mission 042)

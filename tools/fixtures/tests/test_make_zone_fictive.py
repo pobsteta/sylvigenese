@@ -199,6 +199,45 @@ def test_parametres_provisoires_et_sources(zone):
         assert set(t["species"]) == set(gen.SPECIES_USED)
 
 
+def test_allometries_de_houppier_hcb_et_cw_synthetiques_pour_chaque_essence(zone):
+    """Mission 034 : hcb (CR_a, CR_b, CR_min, CR_max) et cw (R_a, R_b) par essence, synthétiques et provisoires."""
+    import math
+    import pyarrow.parquet as pq
+    rows = pq.read_table(zone / "params" / "allometry.parquet").to_pylist()
+    by = {}
+    for r in rows:
+        by.setdefault(r["model"], {}).setdefault(r["species"], {})[r["term"]] = r["value"]
+        if r["model"] in ("hcb", "cw"):
+            assert r["provisoire"] is True and r["source"] == "synthetique_jeu_fictif"
+    assert set(by) == {"etage_b", "hcb", "cw"}
+    for sp in gen.SPECIES_USED:
+        assert set(by["hcb"][sp]) == {"CR_a", "CR_b", "CR_min", "CR_max"}
+        assert set(by["cw"][sp]) == {"R_a", "R_b"}
+        h, c = by["hcb"][sp], by["cw"][sp]
+        assert 0 < h["CR_min"] < h["CR_max"] < 1
+        # d130 en cm, de 7,5 à 120 cm : CR brut dans les bornes (le jeu n'a pas besoin de les appliquer),
+        # et un houppier croissant avec le diamètre, de 1 m à 25 m de large
+        widths = []
+        for d130 in (7.5, 20.0, 40.0, 80.0, 120.0):
+            cr = h["CR_a"] + h["CR_b"] * math.log(d130)
+            assert h["CR_min"] <= cr <= h["CR_max"], (sp, d130, cr)
+            widths.append(2 * math.exp(c["R_a"] + c["R_b"] * math.log(d130)))
+        assert widths == sorted(widths) and 1.0 < widths[0] and widths[-1] < 25.0, (sp, widths)
+
+
+def test_allometries_de_houppier_point_du_terrain_hetre_40_cm(zone):
+    """Hêtre (09) de 40 cm et 28 m : CR = 1,10 - 0,15 ln 40 = 0,5467 ; hcb = 28 (1 - CR) = 12,69 m ;
+    cw = 2 exp(-0,30 + 0,55 ln 40) = 2 x 5,63 = 11,3 m (calculés à la main)."""
+    import math
+    import pyarrow.parquet as pq
+    t = {(r["species"], r["model"], r["term"]): r["value"] for r in
+         pq.read_table(zone / "params" / "allometry.parquet").to_pylist()}
+    cr = t[("09", "hcb", "CR_a")] + t[("09", "hcb", "CR_b")] * math.log(40)
+    assert abs(cr - 0.5467) < 1e-3
+    assert abs(28 * (1 - cr) - 12.69) < 0.01
+    assert abs(2 * math.exp(t[("09", "cw", "R_a")] + t[("09", "cw", "R_b")] * math.log(40)) - 11.26) < 0.05
+
+
 # ------------------------------------------------------------------ le validateur de 009
 @pytest.mark.skipif(not VALIDATE.exists(), reason="contracts/validate absent (mission 009 non fusionnée)")
 def test_le_validateur_accepte_le_jeu(zone):
