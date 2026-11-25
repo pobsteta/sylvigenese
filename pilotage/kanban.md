@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 2 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 3 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -22,7 +22,13 @@ _Modèle de carte :_
 
 ## Validé
 
+- [022-referentiel-ifn-dynamique](missions/022-referentiel-ifn-dynamique.md), [027-dettes-m1a](missions/027-dettes-m1a.md) · depuis le cycle 3
+  - Homme : `acquereur`, `dev` · Mission : vague 1 de M2a · Moyens : documentation IFN déposée, tarif-nemeton
+
 ## Planifié
+
+- [023](missions/023-ifn-dynamique-contrats-fictif.md), [026](missions/026-tests-m2.md) après 022 ; [024](missions/024-station-aux-placettes.md) après 023 ; [025](missions/025-dynamics.md) après 024 · depuis le cycle 3
+  - Homme : `dev` ×3, `testeur` · Mission : vagues 2 à 4 de M2a · Moyens : jeu fictif, mgcv
 
 
 
