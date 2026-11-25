@@ -251,6 +251,16 @@ def tileset():
                      "content": {"uri": "trees.glb"}}}
 
 
+def gltf_json():
+    """glTF 2.0 en JSON (.gltf + .bin externe), minimal et conforme au contrat assets.gltf."""
+    return {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}],
+            "nodes": [{"mesh": 0}], "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+            "buffers": [{"uri": "feuillu.bin", "byteLength": 36}],
+            "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36}],
+            "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}],
+            "extras": {"generique": True, "provisoire": True}}
+
+
 def cell_sheet():
     return {"schema_version": 1, "tile": "t_0_0",
             "cells": [{"cell_id": 0, "x": PARIS_X, "y": PARIS_Y,

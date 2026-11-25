@@ -37,5 +37,6 @@ run_pytest tests/contracts contracts/tests tools/fixtures/tests python ${SYLVIGE
 # d'aide portent le même nom que ceux des contrats (helpers.py).
 run_pytest tests/m1
 run_pytest tests/m2
+run_pytest tests/m4
 
 make validate ZONE=zone_fictive

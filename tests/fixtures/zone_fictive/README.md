@@ -104,3 +104,10 @@ incident ou défrichement, c'est-à-dire ce que `dynamics` garde) :
 Tous les arbres à risque ne sont pas ceux de la 1re visite : 66 arbres vus morts ou chablis à la
 1re visite (`VEGET` différent de 0) sont revus et doivent être écartés de la population à risque.
 
+
+## Marqueur de zone
+
+`zone.yml` (contrat `zone_marker`, `fictive: true` et sa raison) dit que le jeu est fictif. Les
+copies de la zone en héritent. `assets` s'en sert : seule une zone marquée fictive peut se passer
+de la grille RAF20 (ondulation prise égale à 0, annoncée et écrite dans les extras) ; une zone
+réelle sans marqueur et sans RAF20 est une erreur (spec §9).
