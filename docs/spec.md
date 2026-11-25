@@ -240,7 +240,10 @@
   - pour les entrées catégorielles (type de station), majorité pondérée par la surface que
     chaque pixel source couvre dans la cellule ; à égalité, le type du pixel qui couvre le
     centre de la cellule ; chaque cellule à égalité est une ligne de `rapport_prepare.html`.
-    Règle écrite par le projet, indépendante de GDAL (décision de Pascal du 25/11/2026) ;
+    Règle écrite par le projet, indépendante de GDAL (décision de Pascal du 25/11/2026). Une
+    égalité que le pixel du centre ne départage pas (centre NA, posé sur une limite de pixels,
+    ou d'un type qui n'est pas ex aequo) laisse la cellule sans type (NA), signalée au rapport
+    (décision de Pascal du 25/11/2026) ;
   - le MNH à 50 cm n'est **jamais** rééchantillonné : `prepare` l'agrège en `h0.tif`.
 - **Zone tampon** de la largeur du noyau de dispersion. Ses cellules sont sources de graines
   seulement, et le bord est absorbant.

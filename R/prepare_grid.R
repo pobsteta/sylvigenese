@@ -22,7 +22,9 @@
 #  - bilinéaire pour les entrées continues de maille proche ; pour les catégorielles (type de
 #    station), majorité pondérée par la surface couverte, à égalité le pixel du centre, chaque
 #    égalité au rapport (décision de Pascal du 25/11/2026, mission 042) : règle écrite ici,
-#    indépendante de GDAL (dont le « mode » a changé en 3.11) ;
+#    indépendante de GDAL (dont le « mode » a changé en 3.11). Une égalité que le pixel du centre
+#    ne départage pas (centre NA, posé sur une limite de pixels, ou d'un type qui n'est pas ex
+#    aequo) laisse la cellule sans type (NA), signalée au rapport (décision du 25/11/2026) ;
 #  - le MNH à 50 cm n'est JAMAIS rééchantillonné : il est agrégé en h0.tif (percentile 95).
 #    Le percentile 95 est PROVISOIRE (spec §5) : il sera remplacé par l'estimateur h_dom de
 #    typopeuplement ;
@@ -356,7 +358,7 @@ categorical_majority <- function(r, tmpl, label = "entrée catégorielle") {
 #' et les cellules sans vote ou au bord.
 resample_categorical <- function(r, tmpl, report, label) {
   report_add(report, "Rééchantillonnage", sprintf(
-    "%s : maille %s m vers %s m, majorité pondérée par la surface couverte (surfaces exactes par intersection des pixels, règle écrite par le projet et indépendante de GDAL, décision de Pascal du 25/11/2026) ; à égalité, le type du pixel qui couvre le centre de la cellule",
+    "%s : maille %s m vers %s m, majorité pondérée par la surface couverte (surfaces exactes par intersection des pixels, règle écrite par le projet et indépendante de GDAL, décision de Pascal du 25/11/2026) ; à égalité, le type du pixel qui couvre le centre de la cellule ; si le pixel du centre ne départage pas l'égalité (centre NA, sur une limite de pixels, ou d'un type qui n'est pas ex aequo), la cellule reste sans type (NA) et figure au rapport (décision de Pascal du 25/11/2026)",
     label, fr_num(terra::res(r)[1]), fr_num(terra::res(tmpl)[1])))
   m <- categorical_majority(r, tmpl, label)
   section <- "Égalités de surface (rééchantillonnage catégoriel)"

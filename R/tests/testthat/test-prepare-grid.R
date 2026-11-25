@@ -727,6 +727,19 @@ test_that("égalité que le centre ne départage pas (centre d'un autre type) : 
   expect_true(contient(textes, "types 1 et 2 à égalité, 200 m² chacun ; pixel du centre : type 3 ; cellule laissée sans valeur, la règle ne tranche pas"))
 })
 
+test_that("égalité avec le centre sur une limite de pixels : NA, et le rapport le dit", {
+  # pixels de 12,5 m en 2 x 2 (types 1 1 / 2 2) sous une cellule de 25 m : 312,5 m² chacun ; le
+  # centre (x = 700012,5 ; y = 6500017,5, EPSG:2154) est le coin commun des quatre pixels
+  src <- source_2154(X0, Y_TOP, 12.5, rbind(c(1, 1), c(2, 2)))
+  rap <- new_report()
+  r <- suppressMessages(resample_categorical(src, grille_2154(X0, Y_TOP), rap, "station_type.tif"))
+  expect_true(is.na(valeurs(r)))
+  textes <- lignes_du_rapport(rap)
+  expect_true(contient(textes, "dont 0 départagée(s) par le pixel du centre et 1 laissée(s) sans valeur"))
+  expect_true(contient(textes, "types 1 et 2 à égalité, 312,5 m² chacun ; pixel du centre : sans valeur ou indéterminé ; cellule laissée sans valeur, la règle ne tranche pas"))
+  expect_true(contient(textes, "si le pixel du centre ne départage pas l'égalité"))
+})
+
 test_that("bord de zone : seule la partie couverte par la source vote ; une cellule hors source reste NA, comptée", {
   # source de 20 m sur (700000-700040 ; 6500000-6500040) ; grille de 3 x 2 cellules de 25 m depuis
   # (700000 ; 6500040) : elle déborde à l'est et au sud
