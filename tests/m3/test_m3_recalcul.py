@@ -11,10 +11,6 @@ T0 = H.SIM_NOMINAL["t0"]
 SEED = H.SIM_NOMINAL["seed"]
 
 
-def _initiaux(chaine):
-    return H.read_trees_init(chaine["dir"]).sort_values("tree_id", kind="stable").reset_index(drop=True)
-
-
 def _aire_concordante(obs, pred_fn):
     """Si le d130 observé ne concorde pas avec l'aire du plan (706,858), dit si π × 15² concorde."""
     exact = pred_fn(H.AIRE_DISQUE_EXACTE)
@@ -26,19 +22,19 @@ def test_d130_de_t0_plus_1_recalcule_a_1e_9(chaine, grid, params, init, arbres):
     """η = intercept + Σ f_v(x_v) + b_ser ; d130 += 2 exp(η), en moyenne, sans bruit (plan M3a §2, Q4). Les
     arbres dont le voisinage est ambigu dans le texte (voisin à 1 µm du rayon, diamètre égal) ne sont pas jugés."""
     p = H.predict_step(grid, params, init)
-    a1 = arbres[arbres["year"] == T0 + 1].set_index("tree_id").loc[init["tree_id"]]
-    vivants = (a1["status"] == "alive").to_numpy()
+    a1 = arbres.where(arbres["year"] == T0 + 1).align(init["tree_id"])
+    vivants = a1["status"] == "alive"
     jug = p["ok"] & vivants
     assert jug.sum() > 12_000, f"trop peu d'arbres jugés : {jug.sum()}"
-    ecart = np.abs(a1["d130"].to_numpy() - p["d130"])
+    ecart = np.abs(a1["d130"] - p["d130"])
     pire = float(ecart[jug].max())
     if pire > H.TOL_D130:
         def alt(aire):
             return H.predict_step(grid, params, init, aire=aire)["d130"][jug]
-        e_alt = _aire_concordante(a1["d130"].to_numpy()[jug], alt)
+        e_alt = _aire_concordante(a1["d130"][jug], alt)
         i = int(np.argmax(np.where(jug, ecart, 0)))
         pytest.fail(f"d130 en t0+1 : écart max {pire:.3e} (> {H.TOL_D130}) sur {int((ecart[jug] > H.TOL_D130).sum())} "
-                    f"arbres, par exemple {init['tree_id'][i]} observé {a1['d130'].iloc[i]!r} attendu {p['d130'][i]!r} ; "
+                    f"arbres, par exemple {init['tree_id'][i]} observé {a1['d130'][i]!r} attendu {p['d130'][i]!r} ; "
                     f"avec π × 15² au lieu de {H.AIRE_DISQUE} l'écart max serait {e_alt:.3e}")
 
 
@@ -46,7 +42,7 @@ def test_le_recalcul_discrimine_les_variables_du_modele(grid, params, init):
     """Garde-fou de l'oracle : sans la concurrence (bal et ba_plot à 0) ou sans la station, la prédiction change
     de plus que la tolérance, donc le test ci-dessus ne passerait pas avec un moteur qui les oublie."""
     p = H.predict_step(grid, params, init)
-    x, y, d, sp = (init[c].to_numpy() for c in ("x", "y", "d130", "species"))
+    x, y, d, sp = (init[c] for c in ("x", "y", "d130", "species"))
     st = grid.station(x, y)
     ser = grid.ser_code(x, y)
     s = sp == "61"
@@ -65,9 +61,9 @@ def test_le_statut_de_t0_plus_1_recalcule_avec_ma_fonction_u(chaine, grid, param
     """Meurt si u(seed, année, numéro d'arbre, essence, MORT) < p, p = 1 − exp(−exp(η)) (plan M3a §4 et « Aléa »).
     Ici la fonction u est celle du plan (SplitMix64 chaîné), écrite dans helpers_m3 ; aucune lecture du moteur."""
     p = H.predict_step(grid, params, init)
-    a1 = arbres[arbres["year"] == T0 + 1].set_index("tree_id").loc[init["tree_id"]]
-    obs_mort = (a1["status"] == "dead").to_numpy()
-    sp = init["species"].to_numpy()
+    a1 = arbres.where(arbres["year"] == T0 + 1).align(init["tree_id"])
+    obs_mort = a1["status"] == "dead"
+    sp = init["species"]
 
     def attendu(annee, base, big):
         return np.array([H.u_chained(SEED, annee, base + i, H.pack_species(sp[i], big), H.SORTES["MORT"]) < p["p_mort"][i]
@@ -91,7 +87,7 @@ def test_le_statut_de_t0_plus_1_recalcule_avec_ma_fonction_u(chaine, grid, param
 def test_les_morts_de_t0_plus_1_suivent_la_probabilite_attendue(grid, params, init, arbres):
     """Indépendant de u : le nombre de morts observé est celui de Σ p (écart de 5 écarts-types au plus)."""
     p = H.predict_step(grid, params, init)
-    a1 = arbres[arbres["year"] == T0 + 1].set_index("tree_id").loc[init["tree_id"]]
+    a1 = arbres.where(arbres["year"] == T0 + 1).align(init["tree_id"])
     n = int((a1["status"] == "dead").sum())
     mu = float(p["p_mort"].sum())
     sd = float(np.sqrt((p["p_mort"] * (1 - p["p_mort"])).sum()))
@@ -100,8 +96,7 @@ def test_les_morts_de_t0_plus_1_suivent_la_probabilite_attendue(grid, params, in
 
 # ------------------------------------------------------------------ arbres fabriqués (géométrie connue)
 def _etat_initial(zu):
-    import pandas as pd
-    return pd.DataFrame(zu["rows"]).sort_values("tree_id", kind="stable").reset_index(drop=True)
+    return H.Tab.from_records(zu["rows"]).order("tree_id")
 
 
 def test_simulate_tourne_sur_les_arbres_fabriques(zone_unitaire):
@@ -113,10 +108,10 @@ def test_d130_des_arbres_fabriques_recalcule_a_1e_9(zone_unitaire):
     ini = _etat_initial(zu)
     params = H.Params(zu["dir"])
     p = H.predict_step(zu["grid"], params, ini)
-    a1 = H.read_year(zu["dir"], "trees", T0 + 1).set_index("tree_id").loc[ini["tree_id"]]
-    jug = p["ok"] & (a1["status"] == "alive").to_numpy()
+    a1 = H.read_year(zu["dir"], "trees", T0 + 1).align(ini["tree_id"])
+    jug = p["ok"] & (a1["status"] == "alive")
     assert jug.sum() >= len(ini) * 0.9
-    ecart = np.abs(a1["d130"].to_numpy() - p["d130"])
+    ecart = np.abs(a1["d130"] - p["d130"])
     assert ecart[jug].max() < H.TOL_D130, \
         f"écart max {ecart[jug].max():.3e} sur {ini['tree_id'][int(np.argmax(np.where(jug, ecart, 0)))]}"
 
@@ -127,11 +122,11 @@ def test_le_disque_de_15_m_compte_14_9_et_pas_15_1(zone_unitaire):
     zu = zone_unitaire
     ini = _etat_initial(zu)
     params = H.Params(zu["dir"])
-    a1 = H.read_year(zu["dir"], "trees", T0 + 1).set_index("tree_id")
+    a1 = H.read_year(zu["dir"], "trees", T0 + 1)
+    avec = H.predict_step(zu["grid"], params, ini)
     for g in zu["meta"]["grappes"]:
-        seul = ini[ini["tree_id"] == g["focal"]].reset_index(drop=True)
-        avec = H.predict_step(zu["grid"], params, ini)
-        i = int(ini.index[ini["tree_id"] == g["focal"]][0])
+        i = ini["tree_id"].tolist().index(g["focal"])
+        seul = ini.take([i])
         d_seul = H.predict_step(zu["grid"], params, seul)["d130"][0]
         d_avec = avec["d130"][i]
         dedans = g["nom"].endswith("dedans") and not g["nom"].endswith("dehors")
@@ -139,7 +134,7 @@ def test_le_disque_de_15_m_compte_14_9_et_pas_15_1(zone_unitaire):
             assert abs(d_avec - d_seul) > 1e-8, f"{g['nom']} : test non discriminant (voisin sans effet)"
         else:
             assert abs(d_avec - d_seul) < 1e-12, f"{g['nom']} : le voisin à 15,1 m devrait être hors disque"
-        obs = a1.loc[g["focal"], "d130"]
+        obs = a1.at(g["focal"], "d130")
         assert abs(obs - d_avec) < H.TOL_D130, \
             f"{g['nom']} : observé {obs!r}, attendu {d_avec!r} ({'avec' if dedans else 'sans'} le voisin), " \
             f"sans voisin {d_seul!r}"
@@ -152,13 +147,13 @@ def test_une_valeur_hors_des_noeuds_est_bornee_et_comptee(zone_unitaire):
     cid = zu["meta"]["hors_domaine"]
     assert cid is not None, "arbre hors domaine non fabriqué"
     ini = _etat_initial(zu)
-    row = ini[ini["d130"] > 300].iloc[0]
+    i = int(np.flatnonzero(ini["d130"] > 300)[0])
+    tid = ini["tree_id"][i]
     params = H.Params(zu["dir"])
     p = H.predict_step(zu["grid"], params, ini)
-    i = int(ini.index[ini["tree_id"] == row["tree_id"]][0])
-    a1 = H.read_year(zu["dir"], "trees", T0 + 1).set_index("tree_id")
-    if a1.loc[row["tree_id"], "status"] == "alive":
-        assert abs(a1.loc[row["tree_id"], "d130"] - p["d130"][i]) < H.TOL_D130
+    a1 = H.read_year(zu["dir"], "trees", T0 + 1)
+    if a1.at(tid, "status") == "alive":
+        assert abs(a1.at(tid, "d130") - p["d130"][i]) < H.TOL_D130
     run = H.read_run_json(zu["dir"])
     assert run["domain_outputs"]["d130"]["above"] >= 1, run["domain_outputs"]["d130"]
 
@@ -175,34 +170,40 @@ def test_les_coins_de_la_grille_tombent_dans_les_bonnes_cellules(zone_unitaire):
         assert (coins[cid]["x"], coins[cid]["y"]) == (x, y)
     c0 = H.read_year(zu["dir"], "cells", T0)
     for cid, (x, y) in attendus.items():
-        lignes = c0[(c0["cell_id"] == cid) & (c0["species"] == "61")]
+        lignes = c0.where((c0["cell_id"] == cid) & (c0["species"] == "61"))
         assert len(lignes) == 1, f"cell_id {cid} : {len(lignes)} lignes pour l'essence 61 en t0"
-        assert abs(lignes["stems_ha"].iloc[0] - 1 / H.AIRE_CELLULE_HA) < 1e-9, lignes.to_dict("records")
+        assert abs(lignes["stems_ha"][0] - 1 / H.AIRE_CELLULE_HA) < 1e-9, lignes.records()
         g = np.pi * (45.0 / 200.0) ** 2 / H.AIRE_CELLULE_HA
-        assert abs(lignes["basal_area_m2_ha"].iloc[0] - g) < 1e-9
-        assert abs(lignes["d130_mean"].iloc[0] - 45.0) < 1e-9
+        assert abs(lignes["basal_area_m2_ha"][0] - g) < 1e-9
+        assert abs(lignes["d130_mean"][0] - 45.0) < 1e-9
 
 
 def test_toutes_les_cellules_de_t0_sont_celles_des_arbres_fabriques(zone_unitaire):
     zu = zone_unitaire
     ini = _etat_initial(zu)
-    ini["cell_id"] = zu["grid"].cell_id(ini["x"], ini["y"])
-    attendu = ini.groupby(["cell_id", "species"]).size() / H.AIRE_CELLULE_HA
+    cid = zu["grid"].cell_id(ini["x"], ini["y"]).tolist()
+    attendu = {}
+    for k in zip(cid, ini["species"].tolist()):
+        attendu[k] = attendu.get(k, 0) + 1 / H.AIRE_CELLULE_HA
     c0 = H.read_year(zu["dir"], "cells", T0)
-    c0 = c0[c0["stems_ha"] > 0].set_index(["cell_id", "species"])["stems_ha"]
-    assert set(c0.index) == set(attendu.index), (len(c0), len(attendu))
-    assert np.abs(c0.loc[attendu.index].to_numpy() - attendu.to_numpy()).max() < 1e-9
+    lu = {(int(i), str(s)): float(v) for i, s, v in zip(c0["cell_id"], c0["species"], c0["stems_ha"]) if v > 0}
+    assert set(lu) == set(attendu), (len(lu), len(attendu))
+    assert max(abs(lu[k] - attendu[k]) for k in attendu) < 1e-9
 
 
 def test_un_arbre_de_la_chaine_tombe_dans_la_cellule_de_la_formule(chaine, grid, arbres):
     """Sur la zone réelle de la chaîne, chaque arbre de t0 est compté dans le cell_id de la formule
     (ligne × largeur + colonne, ligne depuis le nord) : somme des tiges par cellule = celle des arbres."""
-    a0 = arbres[arbres["year"] == T0]
-    attendu = a0.groupby(grid.cell_id(a0["x"], a0["y"]).tolist()).size() / H.AIRE_CELLULE_HA
-    c0 = H.read_year(chaine["dir"], "cells", T0).groupby("cell_id")["stems_ha"].sum()
-    c0 = c0[c0 > 0]
-    assert set(c0.index) == set(attendu.index)
-    assert np.abs(c0.loc[attendu.index].to_numpy() - attendu.to_numpy()).max() < 1e-9
+    a0 = arbres.where(arbres["year"] == T0)
+    cid, n = np.unique(grid.cell_id(a0["x"], a0["y"]), return_counts=True)
+    attendu = dict(zip(cid.tolist(), (n / H.AIRE_CELLULE_HA).tolist()))
+    c0 = H.read_year(chaine["dir"], "cells", T0)
+    lu = {}
+    for i, v in zip(c0["cell_id"].tolist(), c0["stems_ha"].tolist()):
+        lu[i] = lu.get(i, 0.0) + v
+    lu = {i: v for i, v in lu.items() if v > 0}
+    assert set(lu) == set(attendu)
+    assert max(abs(lu[k] - attendu[k]) for k in attendu) < 1e-9
 
 
 def test_le_niveau_de_ser_est_relu_par_le_code_de_ser_pas_par_l_alluvion(zone_unitaire):
@@ -212,12 +213,12 @@ def test_le_niveau_de_ser_est_relu_par_le_code_de_ser_pas_par_l_alluvion(zone_un
     zu = zone_unitaire
     ini = _etat_initial(zu)
     params = H.Params(zu["dir"])
-    assert (params.df["term"] == "ser_code=H10").sum() >= 5
-    ser = zu["grid"].ser_code(ini["x"].to_numpy(), ini["y"].to_numpy())
+    assert params.count_term("ser_code=H10") >= 5
+    ser = zu["grid"].ser_code(ini["x"], ini["y"])
     assert set(ser) == {"H10"}, set(ser)
-    s = ini["species"].to_numpy() == "61"
-    st = zu["grid"].station(ini["x"].to_numpy(), ini["y"].to_numpy())
-    v = {"d130": ini["d130"].to_numpy()[s], "ba_plot": np.full(s.sum(), 20.0), "bal": np.full(s.sum(), 5.0),
+    s = ini["species"] == "61"
+    st = zu["grid"].station(ini["x"], ini["y"])
+    v = {"d130": ini["d130"][s], "ba_plot": np.full(s.sum(), 20.0), "bal": np.full(s.sum(), 5.0),
          **{k: a[s] for k, a in st.items()}}
     avec = params.eta("growth_gam", "61", v, ser[s])
     sans = params.eta("growth_gam", "61", v, np.array([""] * s.sum(), dtype=object))

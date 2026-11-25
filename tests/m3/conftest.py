@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pyarrow as pa
 import pytest
 import rasterio
 
@@ -32,11 +33,13 @@ ESSENCES = ["09", "61", "62", "03", "64"]
 JOUR_T0 = None  # jours depuis 1970-01-01 du 1er janvier de t0, calculé à l'usage
 
 
-def jours_du_31_decembre(annee: int) -> int:
-    """Jours depuis 1970-01-01 du 31 décembre de `annee` : l'état initial est la fin de l'année t0 (journal du
-    25/11/2026), donc une date de vol au 31 décembre de t0 n'a rien à avancer."""
+def jours_de_fin_d_annee(annee: int) -> int:
+    """Jours depuis 1970-01-01 du 1er janvier de `annee` + 1, instant de « la fin de l'année t0 » (journal du
+    25/11/2026) : une date de vol à cet instant n'a rien à avancer. Mesuré sur le moteur : une date au 31 décembre
+    laisse une avance d'un jour (écart de hauteur de l'ordre de 1e-3 m), au 1er janvier suivant l'avance est nulle
+    (7e-15 m) et le moteur accepte la date (code 0)."""
     import datetime
-    return (datetime.date(annee, 12, 31) - datetime.date(1970, 1, 1)).days
+    return (datetime.date(annee + 1, 1, 1) - datetime.date(1970, 1, 1)).days
 
 
 # ------------------------------------------------------------------ chaîne nominale
@@ -76,14 +79,14 @@ def params(chaine):
 
 @pytest.fixture(scope="session")
 def arbres(chaine):
-    """Toutes les lignes de sim/trees (pandas), colonne part_year = la partition."""
+    """Toutes les lignes de sim/trees (Tab), `year` = la partition (jeu de données Hive, pas une colonne des fichiers)."""
     return H.read_all_trees(chaine["dir"])
 
 
 @pytest.fixture(scope="session")
 def init(chaine):
     """trees_init de la zone de la chaîne, trié par tree_id (numéro stable d'arbre, plan M3a)."""
-    return H.read_trees_init(chaine["dir"]).sort_values("tree_id", kind="stable").reset_index(drop=True)
+    return H.read_trees_init(chaine["dir"]).order("tree_id")
 
 
 # ------------------------------------------------------------------ rejeux de simulate seul
@@ -187,7 +190,7 @@ def _construire_arbres(grid, params):
 @pytest.fixture(scope="session")
 def zone_unitaire(chaine, grid, params):
     """Copie préparée où trees_init est REMPLACÉ par les arbres fabriqués, et où la date de vol de chm_date est
-    le 31 décembre de t0, fin de l'année t0 (la hauteur n'a alors rien à avancer de la date de vol à t0 : H_dom(t0) = h0)."""
+    le 1er janvier de t0 + 1, fin de l'année t0 (la hauteur n'a alors rien à avancer de la date de vol à t0 : H_dom(t0) = h0)."""
     rows, meta = _construire_arbres(grid, params)
     t0 = H.SIM_NOMINAL["t0"]
 
@@ -196,7 +199,7 @@ def zone_unitaire(chaine, grid, params):
         H.add_ser_effect(zdir)
         with rasterio.open(zdir / "chm_date.tif", "r+") as r:
             a = r.read(1)
-            a[a != r.nodata] = jours_du_31_decembre(t0)
+            a[a != r.nodata] = jours_de_fin_d_annee(t0)
             r.write(a, 1)
 
     res = _rejouer("m3_unitaire", {**H.SIM_NOMINAL, "years": 3}, mutate)
@@ -215,13 +218,13 @@ def _retirer_fichier(nom):
 
 
 def _arbre_hors_grille(zdir):
-    rows = H.read_trees_init(zdir).to_dict("records")
+    rows = H.trees_init_records(zdir)
     rows[0].update(x=702_000.0, y=6_500_500.0)       # 1 km à l'est du massif
     H.write_trees_init(zdir, rows)
 
 
 def _doublon(zdir):
-    rows = H.read_trees_init(zdir).to_dict("records")
+    rows = H.trees_init_records(zdir)
     rows.append(dict(rows[0]))
     H.write_trees_init(zdir, rows)
 
@@ -238,10 +241,10 @@ def _sans_essence(code):
     modèle qui la rattraperait : pour `code`, la recherche essence, groupe, toutes_essences n'a plus rien à trouver
     en croissance. Les autres essences gardent leurs paramètres et leurs groupes."""
     def f(zdir):
-        def fn(nom, df):
+        def fn(nom, t):
             if nom != "growth":
-                return df
-            return df[df["species"].notna() & (df["species"] != code)]
+                return t
+            return t.filter(pa.array([s is not None and s != code for s in t["species"].to_pylist()]))
         H.rewrite_params(zdir, fn)
     return f
 
@@ -249,10 +252,11 @@ def _sans_essence(code):
 def _essence_hors_referentiel(zdir):
     """Une essence « 99 », absente de contracts/species.csv : ni essence propre ni groupe ; en croissance, plus de
     ligne de groupe ni de toutes_essences pour la rattraper."""
-    rows = H.read_trees_init(zdir).to_dict("records")
+    rows = H.trees_init_records(zdir)
     rows[0].update(species="99")
     H.write_trees_init(zdir, rows)
-    H.rewrite_params(zdir, lambda nom, df: df[df["species"].notna()] if nom == "growth" else df)
+    H.rewrite_params(zdir, lambda nom, t: t.filter(pa.array([s is not None for s in t["species"].to_pylist()]))
+                     if nom == "growth" else t)
 
 
 REFUS = {
@@ -304,7 +308,7 @@ def run_memoire(chaine):
 
 @pytest.fixture(scope="session")
 def run_date_incoherente(chaine):
-    """t0 = 2015 : avant les dates de vol du jeu fictif (2021-08-03 et 2022-06-21)."""
+    """t0 = 2015 : avant les dates de vol du jeu fictif (2021 et 2022 ; t0 du dépôt = 2022, le vol le plus récent)."""
     res = _rejouer("m3_date", {**H.SIM_NOMINAL, "t0": 2015, "years": 3})
     yield res
     H.remove_zone(res["name"])
@@ -312,7 +316,8 @@ def run_date_incoherente(chaine):
 
 @pytest.fixture(scope="session")
 def run_depot(chaine):
-    """La config du dépôt (t0 de config.yml, 034) sur le jeu fictif, 3 ans : `make simulate` doit y tourner."""
+    """La config du dépôt (t0 = 2022 de config.yml, l'année du vol le plus récent du jeu fictif) sur le jeu fictif, 3 ans :
+    `make simulate` doit y tourner."""
     res = _rejouer("m3_depot", {**H.DEPOT, "threads": 1, "years": 3})
     yield res
     H.remove_zone(res["name"])

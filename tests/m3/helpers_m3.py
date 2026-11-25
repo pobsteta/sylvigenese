@@ -6,6 +6,10 @@ run.json), de l'ADR 0004 et des décisions du journal du 25/11/2026 (Q1 à Q4, T
 simulate/src, ni R/, ni python/. Une sortie absente est un échec, jamais un « skip » (la CI refuse tout
 test sauté).
 
+DÉPENDANCES : pyarrow, numpy, rasterio et pyyaml seulement (contracts/requirements-tests.lock) ; ni pandas ni scipy.
+Les tables sont lues en `Tab` (colonnes numpy), les sorties partitionnées de simulate comme des jeux de données Hive
+(pyarrow.dataset) : la colonne `year` vient du nom du dossier year=AAAA, elle n'est pas dans les fichiers.
+
 Principe de l'oracle : tout ce que `simulate` doit produire (accroissement, mortalité, hauteur, cellules,
 comptes) est recalculé ICI, en Python, depuis les entrées de la zone (trees_init, rasters de prepare,
 params/*.parquet) et le seul texte des contrats et du plan. Rien n'est lu dans le code du moteur.
@@ -34,9 +38,9 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 import rasterio
-from scipy.spatial import cKDTree
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "zone_fictive"
@@ -48,11 +52,12 @@ CHAIN_TARGETS = ("prepare", "biomes", "trees", "dynamics", "simulate")
 DYNAMICS_OUT = ("params/growth.parquet", "params/mortality.parquet", "params/recruitment.parquet",
                 "params/height_curve.parquet", "rapport_dynamics.html")
 GAMMA = 0x9E3779B97F4A7C15
-AIRE_DISQUE = 706.858          # m2, plan M3a §1 (le texte, pas pi x 225)
+AIRE_DISQUE = math.pi * 15.0 ** 2   # m2 : décision du 25/11/2026, 706,858 du plan en est l'arrondi
 AIRE_DISQUE_EXACTE = math.pi * 15.0 ** 2
 RAYON = 15.0
 AIRE_CELLULE_HA = 0.0625       # plan M3a §5 : 25 m x 25 m
-D130_RECRUE = 7.48             # plan M3a §5 (cm)
+D130_RECRUE = 7.48             # plan M3a §5 (cm) : « 7,48 », arrondi de 23,5 / π = 7,4803 (seuil IFN C13 = 0,235 m)
+TOL_D130_RECRUE = 5e-3         # le plan donne 7,48 à deux décimales : 7,48 et 7,4803 sont admis, 7,5 ne l'est pas
 SEUIL_TIGE = 7.5               # contrat sim.cells : « tiges de 7,5 cm et plus »
 SORTES = {"MORT": 1, "NB_RECRUES": 2, "RECRUE_X": 3, "RECRUE_Y": 4}   # plan M3a, aléa
 BANDES = ("trophic", "coarse_hydric_700m", "coarse_bioclim_700m")      # bandes 1, 2, 3 de station_gradients.tif
@@ -78,13 +83,137 @@ def _simulate_du_depot() -> dict:
 
 
 DEPOT = _simulate_du_depot()
-# Configuration nominale des tests : level, graine et horizon du dépôt ; t0 = l'année du dernier vol du jeu fictif.
-# Pourquoi pas le t0 du dépôt : « la hauteur ne se recule pas » (le moteur refuse un t0 antérieur à une date de vol, journal
-# du 25/11/2026) et le jeu fictif a des dalles de 2022, alors que config.yml dit t0 = 2021 : ce désaccord est un test
-# à part (test_la_config_du_depot_tourne_sur_le_jeu_fictif), pas une raison de fausser les 100 ans.
+# Configuration nominale des tests : level, graine et horizon du dépôt ; t0 = le t0 du dépôt (2022, décision du
+# 25/11/2026 : l'année du vol le plus récent, car « la hauteur ne se recule pas »). Le max() ne sert qu'à garder des
+# 100 ans lisibles si config.yml se désaccordait du jeu fictif : ce désaccord est un test à part
+# (test_le_t0_du_depot_est_l_annee_du_dernier_vol), pas une raison de fausser les 100 ans.
 SIM_NOMINAL = {"level": DEPOT["level"], "seed": DEPOT["seed"], "t0": max(DEPOT["t0"], _annee_du_dernier_vol()),
                "years": DEPOT["years"], "threads": 1}
 
+
+
+# ------------------------------------------------------------------ tables (colonnes numpy, sans pandas)
+def isnull(a: np.ndarray) -> np.ndarray:
+    """Valeurs manquantes d'une colonne : None (objet) ou NaN (flottant)."""
+    a = np.asarray(a)
+    if a.dtype == object:
+        return np.array([v is None or (isinstance(v, float) and math.isnan(v)) for v in a], dtype=bool)
+    if a.dtype.kind == "f":
+        return np.isnan(a)
+    return np.zeros(len(a), dtype=bool)
+
+
+def _colonne(arr) -> np.ndarray:
+    a = pa.concat_arrays(arr.chunks) if isinstance(arr, pa.ChunkedArray) and arr.num_chunks else \
+        (arr if isinstance(arr, pa.Array) else pa.array([], arr.type))
+    if pa.types.is_string(a.type) or pa.types.is_large_string(a.type):
+        v = a.to_pylist()
+        return np.array(v, dtype=str) if a.null_count == 0 else np.array(v, dtype=object)
+    return np.asarray(a.to_numpy(zero_copy_only=False))
+
+
+class Tab:
+    """Table minimale : un dict de colonnes numpy de même longueur. Chaînes sans valeur manquante : dtype str ;
+    avec valeurs manquantes : dtype object (None) ; nombres manquants : NaN."""
+
+    def __init__(self, cols: dict):
+        self.cols = {k: np.asarray(v) for k, v in cols.items()}
+        tailles = {len(v) for v in self.cols.values()}
+        assert len(tailles) <= 1, f"colonnes de longueurs différentes : {tailles}"
+        self.n = tailles.pop() if tailles else 0
+        self._idx: dict = {}
+
+    @classmethod
+    def from_arrow(cls, t: "pa.Table") -> "Tab":
+        return cls({n: _colonne(t.column(n)) for n in t.schema.names})
+
+    @classmethod
+    def from_records(cls, rows: list[dict]) -> "Tab":
+        cols = {}
+        for k in rows[0]:
+            v = [r.get(k) for r in rows]
+            cols[k] = np.array(v, dtype=str) if all(isinstance(x, str) for x in v) else np.array(v)
+        return cls(cols)
+
+    @classmethod
+    def concat(cls, tabs: list["Tab"]) -> "Tab":
+        return cls({k: np.concatenate([t.cols[k] for t in tabs]) for k in tabs[0].cols})
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, k: str) -> np.ndarray:
+        return self.cols[k]
+
+    @property
+    def names(self) -> list[str]:
+        return list(self.cols)
+
+    def take(self, idx) -> "Tab":
+        return Tab({k: v[idx] for k, v in self.cols.items()})
+
+    def where(self, mask) -> "Tab":
+        return self.take(np.asarray(mask, dtype=bool))
+
+    def order(self, *keys: str) -> "Tab":
+        """Tri stable, la première clé est la principale."""
+        return self.take(np.lexsort(tuple(self.cols[k] for k in reversed(keys))))
+
+    def _index(self, by: str) -> dict:
+        if by not in self._idx:
+            self._idx[by] = {v: i for i, v in enumerate(self.cols[by].tolist())}
+        return self._idx[by]
+
+    def has(self, key, by: str = "tree_id") -> bool:
+        return key in self._index(by)
+
+    def at(self, key, col: str, by: str = "tree_id"):
+        return self.cols[col][self._index(by)[key]]
+
+    def align(self, ids, by: str = "tree_id") -> "Tab":
+        """Les lignes rangées dans l'ordre de `ids` (KeyError si un identifiant manque)."""
+        ix = self._index(by)
+        return self.take(np.array([ix[i] for i in ids], dtype=np.int64))
+
+    def records(self) -> list[dict]:
+        l = {k: v.tolist() for k, v in self.cols.items()}
+        return [{k: l[k][i] for k in l} for i in range(self.n)]
+
+    def equals(self, other: "Tab") -> bool:
+        if set(self.cols) != set(other.cols) or self.n != other.n:
+            return False
+        for k, a in self.cols.items():
+            b = other.cols[k]
+            if a.dtype.kind == "f" or b.dtype.kind == "f":
+                if not np.array_equal(a.astype("float64"), b.astype("float64"), equal_nan=True):
+                    return False
+            elif not np.array_equal(a, b):
+                return False
+        return True
+
+
+def commence_par(a: np.ndarray, prefixe: str) -> np.ndarray:
+    return np.char.startswith(np.asarray(a, dtype=str), prefixe)
+
+
+def cles_en_double(*cols) -> int:
+    """Nombre de lignes dont la clé (tuple de colonnes) apparaît plusieurs fois."""
+    ordre = np.lexsort(tuple(reversed([np.asarray(c) for c in cols])))
+    triees = [np.asarray(c)[ordre] for c in cols]
+    egal_prec = np.ones(len(ordre) - 1, dtype=bool)
+    for c in triees:
+        egal_prec &= c[1:] == c[:-1]
+    dup = np.zeros(len(ordre), dtype=bool)
+    dup[1:] |= egal_prec
+    dup[:-1] |= egal_prec
+    return int(dup.sum())
+
+
+def debuts_de_groupe(a: np.ndarray) -> np.ndarray:
+    """Pour une colonne déjà triée : vrai à la première ligne de chaque valeur."""
+    d = np.ones(len(a), dtype=bool)
+    d[1:] = a[1:] != a[:-1]
+    return d
 
 
 # ------------------------------------------------------------------ processus
@@ -186,27 +315,45 @@ def remove_zone(name: str) -> None:
 
 
 def rewrite_params(zdir: Path, fn) -> None:
-    """fn(nom_modele_fichier, table pandas) -> table pandas, pour growth, mortality, recruitment, height_curve."""
+    """fn(nom_modele_fichier, pa.Table) -> pa.Table, pour growth, mortality, recruitment, height_curve (schéma conservé)."""
     for n in ("growth", "mortality", "recruitment", "height_curve"):
         p = zdir / "params" / f"{n}.parquet"
-        df = pq.read_table(p).to_pandas()
-        out = fn(n, df)
-        pq.write_table(pa.Table.from_pandas(out, preserve_index=False, schema=pq.read_schema(p)), p)
+        schema = pq.read_schema(p)
+        out = fn(n, pq.read_table(p))
+        pq.write_table(out.cast(schema), p)
+
+
+def set_provisional(zdir: Path, value: bool, only=None) -> int:
+    """Marque `provisoire = value` dans TOUS les fichiers de params/*.parquet qui portent cette colonne (growth,
+    mortality, recruitment, height_curve, mais aussi allometry : hcb et cw, et tarif), ou seulement ceux de `only`
+    (noms sans extension). Renvoie le nombre de fichiers réécrits."""
+    n = 0
+    for p in sorted((zdir / "params").glob("*.parquet")):
+        if only is not None and p.stem not in only:
+            continue
+        t = pq.read_table(p)
+        if "provisoire" not in t.schema.names:
+            continue
+        i = t.schema.get_field_index("provisoire")
+        t = t.set_column(i, t.schema.field(i), pa.array([value] * t.num_rows, type=t.schema.field(i).type))
+        pq.write_table(t, p)
+        n += 1
+    return n
 
 
 def add_ser_effect(zdir: Path, code: str = "H10", growth: float = 0.15, mortality: float = 0.4) -> None:
     """Ajoute le niveau `ser_code=<code>` aux modèles de croissance et de mortalité (le jeu fictif n'en a
     aucun) : sans lui, la lecture de b_ser (ser.tif + ser.csv, contrat dynamics_params) ne serait pas testée."""
-    import pandas as pd
 
-    def fn(nom, df):
+    def fn(nom, t):
         val = {"growth": growth, "mortality": mortality}.get(nom)
         if val is None:
-            return df
-        base = df[df["term"] == "intercept"][["species", "species_group", "model"]].copy()
-        base["term"], base["variable"], base["x"] = f"ser_code={code}", "ser_code", np.nan
-        base["value"], base["provisoire"], base["source"] = val, True, "essai tests/m3 (niveau de SER fabriqué)"
-        return pd.concat([df, base], ignore_index=True)
+            return t
+        rows = t.to_pylist()
+        nouveaux = [{"species": r["species"], "species_group": r["species_group"], "model": r["model"],
+                     "term": f"ser_code={code}", "variable": "ser_code", "x": None, "value": val, "provisoire": True,
+                     "source": "essai tests/m3 (niveau de SER fabriqué)"} for r in rows if r["term"] == "intercept"]
+        return pa.Table.from_pylist(rows + nouveaux, schema=t.schema)
 
     rewrite_params(zdir, fn)
 
@@ -227,34 +374,32 @@ def partitions(zdir: Path, kind: str) -> dict[int, list[Path]]:
     return out
 
 
-def read_year(zdir: Path, kind: str, year: int):
-    """Table pandas d'une partition (toutes les parties) ; `year` vient du nom du dossier year=AAAA si le fichier ne la porte pas (le validateur la refuse dans le fichier, convention Hive)."""
-    files = partitions(zdir, kind).get(year, [])
-    assert files, f"partition sim/{kind}/year={year} absente"
-    import pandas as pd
-    frames = []
-    for f in files:
-        df = pq.read_table(f).to_pandas()
-        if "year" in df.columns:
-            assert (df["year"] == year).all(), f"{f} : year différent de la partition"
-        else:                       # convention Hive du validateur : l'année n'est que dans le nom du dossier
-            df["year"] = year
-        frames.append(df)
-    return pd.concat(frames, ignore_index=True)
+def dataset(zdir: Path, kind: str):
+    """sim/<kind>/ comme un jeu de données partitionné Hive : `year` est lue du nom du dossier year=AAAA."""
+    base = sim_dir(zdir) / kind
+    assert base.is_dir(), f"sim/{kind} absent"
+    return ds.dataset(base, format="parquet", partitioning="hive")
 
 
-def read_all_trees(zdir: Path):
-    import pandas as pd
-    frames = []
-    for y, files in sorted(partitions(zdir, "trees").items()):
-        for f in files:
-            df = pq.read_table(f).to_pandas()
-            df["year_dans_fichier"] = df["year"] if "year" in df.columns else np.nan
-            df["year"] = y
-            df["part_year"] = y
-            frames.append(df)
-    assert frames, "aucune partition sim/trees"
-    return pd.concat(frames, ignore_index=True)
+def fichiers_sans_year(zdir: Path, kind: str) -> list[str]:
+    """Les fichiers dont le schéma porte une colonne `year` (le contrat et le validateur l'interdisent)."""
+    return [str(f.relative_to(zdir)) for fs in partitions(zdir, kind).values() for f in fs
+            if "year" in pq.read_schema(f).names]
+
+
+def read_year(zdir: Path, kind: str, year: int) -> "Tab":
+    """Une année de sim/<kind> en Tab, `year` venant de la partition."""
+    assert year in partitions(zdir, kind), f"partition sim/{kind}/year={year} absente"
+    t = dataset(zdir, kind).to_table(filter=ds.field("year") == year)
+    assert t.num_rows > 0, f"partition sim/{kind}/year={year} sans ligne"
+    return Tab.from_arrow(t)
+
+
+def read_all_trees(zdir: Path) -> "Tab":
+    """Toutes les lignes de sim/trees (toutes les années), `year` = la partition."""
+    t = dataset(zdir, "trees").to_table()
+    assert t.num_rows > 0, "aucune partition sim/trees"
+    return Tab.from_arrow(t)
 
 
 def read_run_json(zdir: Path) -> dict:
@@ -265,14 +410,19 @@ def read_run_json(zdir: Path) -> dict:
 
 def sim_digest(zdir: Path, ignore_run_keys=("threads", "duration_s", "memory_estimate_bytes", "config_sha256")) -> dict:
     """Empreinte de tout sim/ : SHA-256 des octets de chaque fichier ; run.json compare ses valeurs, sans les
-    champs qui disent le calcul (fils, durée, mémoire estimée, empreinte de la config) et non le résultat."""
+    champs qui disent le calcul (fils, durée, mémoire estimée, empreinte de la config) et non le résultat.
+    flags.parquet nomme la zone (entity d'un signalement qui porte sur tout le massif) : les copies de test ont des
+    noms différents, donc ses lignes sont comparées avec le nom de la zone remplacé par « <zone> » (ordre conservé)."""
     out = {}
     base = sim_dir(zdir)
     for p in sorted(base.rglob("*")):
         if not p.is_file():
             continue
         rel = str(p.relative_to(base))
-        if rel == "run.json":
+        if rel == "flags.parquet":
+            lignes = json.dumps(pq.read_table(p).to_pylist(), sort_keys=True, ensure_ascii=False)
+            out[rel] = hashlib.sha256(lignes.replace(zdir.name, "<zone>").encode("utf-8")).hexdigest()
+        elif rel == "run.json":
             j = json.loads(p.read_text(encoding="utf-8"))
             out[rel] = json.dumps({k: v for k, v in j.items() if k not in ignore_run_keys}, sort_keys=True)
         else:
@@ -418,15 +568,26 @@ class Params:
     """params/{growth,mortality,recruitment,height_curve}.parquet d'une zone, relus selon le contrat."""
 
     def __init__(self, zdir: Path):
-        import pandas as pd
-        frames = []
-        for n in ("growth", "mortality", "recruitment", "height_curve"):
-            frames.append(pq.read_table(zdir / "params" / f"{n}.parquet").to_pandas())
-        self.df = pd.concat(frames, ignore_index=True)
+        self.df = Tab.concat([Tab.from_arrow(pq.read_table(zdir / "params" / f"{n}.parquet"))
+                              for n in ("growth", "mortality", "recruitment", "height_curve")])
         self.groups = species_groups()
         self._eta_cache: dict = {}
         self._rows_cache: dict = {}
         self._scalar_cache: dict = {}
+
+    # -- requêtes simples sur la table
+    def species_set(self) -> set:
+        return {v for v in self.df["species"].tolist() if v is not None}
+
+    def all_provisional(self) -> bool:
+        return bool(np.all(self.df["provisoire"]))
+
+    def count_term(self, term: str) -> int:
+        return int((self.df["term"] == term).sum())
+
+    def smooth_variables(self, model: str) -> set:
+        sel = (self.df["model"] == model) & np.array([str(t).startswith("s(") for t in self.df["term"]])
+        return {v for v in self.df["variable"][sel].tolist() if v is not None}
 
     def rows(self, model: str, species: str):
         """Lignes du modèle : essence, sinon son groupe, sinon toutes_essences (contrat) ; None si rien."""
@@ -435,17 +596,19 @@ class Params:
         return self._rows_cache[(model, species)]
 
     def _rows(self, model: str, species: str):
-        d = self.df[self.df["model"] == model]
-        sp = d[d["species"] == species]
-        if len(sp):
-            return sp
+        d = self.df
+        dm = d["model"] == model
+        sp_nul = isnull(d["species"])
+        propre = dm & ~sp_nul & (d["species"] == species)
+        if propre.any():
+            return d.where(propre)
         grp = self.groups.get(species)
         if grp is not None:
-            g = d[(d["species"].isna()) & (d["species_group"] == grp)]
-            if len(g):
-                return g
-        t = d[(d["species"].isna()) & (d["species_group"] == "toutes_essences")]
-        return t if len(t) else None
+            g = dm & sp_nul & (d["species_group"] == grp)
+            if g.any():
+                return d.where(g)
+        t = dm & sp_nul & (d["species_group"] == "toutes_essences")
+        return d.where(t) if t.any() else None
 
     def scalar(self, model: str, species: str, term: str) -> float:
         key = (model, species, term)
@@ -456,13 +619,13 @@ class Params:
     def _scalar(self, model: str, species: str, term: str) -> float:
         r = self.rows(model, species)
         assert r is not None, f"aucun paramètre {model} pour l'essence {species}"
-        v = r[r["term"] == term]["value"]
+        v = r["value"][r["term"] == term]
         assert len(v) == 1, f"terme {term} de {model} ({species}) : {len(v)} lignes"
-        return float(v.iloc[0])
+        return float(v[0])
 
     def variables(self, model: str, species: str) -> list[str]:
         r = self.rows(model, species)
-        return sorted(set(r["variable"].dropna()) - {"ser_code"}) if r is not None else []
+        return sorted({v for v in r["variable"].tolist() if v is not None} - {"ser_code"}) if r is not None else []
 
     def eta(self, model: str, species: str, variables: dict[str, np.ndarray], ser_code) -> np.ndarray:
         """η = intercept + Σ f_v(x_v) + b_ser (contrat, §1 de sa description)."""
@@ -470,15 +633,17 @@ class Params:
         assert r is not None, f"aucun paramètre {model} pour l'essence {species}"
         key = (model, species)
         if key not in self._eta_cache:
-            inter = r[r["term"] == "intercept"]["value"]
+            terme, var, val, xs = r["term"], r["variable"], r["value"], r["x"].astype("float64")
+            inter = val[terme == "intercept"]
             assert len(inter) == 1, f"{model}/{species} : intercept absent ou double"
+            est_s = np.array([str(t).startswith("s(") for t in terme])
             splines = {}
-            for v in sorted(set(r["variable"].dropna()) - {"ser_code"}):
-                k = r[(r["variable"] == v) & r["term"].str.startswith("s(")]
-                if len(k):
-                    splines[v] = natural_spline(k["x"].to_numpy(), k["value"].to_numpy())
-            ser = {t.split("=", 1)[1]: float(val) for t, val in zip(r["term"], r["value"]) if t.startswith("ser_code=")}
-            self._eta_cache[key] = (float(inter.iloc[0]), splines, ser)
+            for v in sorted({v for v in var.tolist() if v is not None} - {"ser_code"}):
+                k = est_s & (var == v)
+                if k.any():
+                    splines[v] = natural_spline(xs[k], val[k])
+            ser = {t.split("=", 1)[1]: float(x) for t, x in zip(terme.tolist(), val.tolist()) if t.startswith("ser_code=")}
+            self._eta_cache[key] = (float(inter[0]), splines, ser)
         inter, splines, ser = self._eta_cache[key]
         n = len(next(iter(variables.values())))
         eta = np.full(n, inter, dtype="float64")
@@ -500,21 +665,28 @@ def competition(x, y, d130, alive=None, aire=AIRE_DISQUE, rayon=RAYON):
     """ba_plot et bal (m²/ha) de chaque arbre : Σ π (d/200)² × 10 000 / aire sur les arbres vivants du
     disque de `rayon` (lui compris) ; bal sur les seuls arbres STRICTEMENT plus gros. Somme en ordre
     de tableau (la tolérance des tests absorbe l'ordre). Renvoie aussi `ambigu` : un arbre dont un voisin
-    est à 1e-6 m du rayon, ou de diamètre égal à 1e-12 près (la spec ne tranche pas) n'est pas jugé."""
+    est à 1e-6 m du rayon, ou de diamètre égal à 1e-12 près (la spec ne tranche pas) n'est pas jugé.
+    Voisinage par casiers carrés de (rayon + 1) m, 3 × 3 casiers : numpy seul, sans arbre k-d."""
     x, y, d = map(lambda a: np.asarray(a, dtype="float64"), (x, y, d130))
     vivant = np.ones(len(x), bool) if alive is None else np.asarray(alive, bool)
     g = np.pi * (d / 200.0) ** 2 * 10_000.0 / aire
     g = np.where(vivant, g, 0.0)
-    pts = np.column_stack([x, y])
-    tree = cKDTree(pts)
-    voisins = tree.query_ball_point(pts, r=rayon + 1e-6)
+    taille = rayon + 1.0
+    bx = np.floor(x / taille).astype(np.int64).tolist()
+    by = np.floor(y / taille).astype(np.int64).tolist()
+    casiers: dict = {}
+    for i, k in enumerate(zip(bx, by)):
+        casiers.setdefault(k, []).append(i)
+    casiers = {k: np.array(v, dtype=np.int64) for k, v in casiers.items()}
     ba = np.zeros(len(x))
     bal = np.zeros(len(x))
     ambigu = np.zeros(len(x), bool)
-    for i, nb in enumerate(voisins):
-        nb = np.array(sorted(nb))
+    for i in range(len(x)):
+        cand = [casiers[(bx[i] + a, by[i] + b)] for a in (-1, 0, 1) for b in (-1, 0, 1) if (bx[i] + a, by[i] + b) in casiers]
+        nb = np.sort(np.concatenate(cand))
         nb = nb[vivant[nb]]
         dist = np.hypot(x[nb] - x[i], y[nb] - y[i])
+        nb, dist = nb[dist <= rayon + 1e-6], dist[dist <= rayon + 1e-6]
         if np.any(np.abs(dist - rayon) <= 1e-6):
             ambigu[i] = True
         nb = nb[dist < rayon + 1e-12]
@@ -529,7 +701,7 @@ def competition(x, y, d130, alive=None, aire=AIRE_DISQUE, rayon=RAYON):
 def predict_step(grid: Grid, params: Params, trees, aire=AIRE_DISQUE):
     """État de début de pas (`trees` : tree_id, species, x, y, d130, vivants) -> d130 après un an, risque
     de mort et variables lues. Accroissement : d130 += 2 exp(η), en moyenne, sans bruit (Q4)."""
-    x, y, d, sp = (trees[c].to_numpy() for c in ("x", "y", "d130", "species"))
+    x, y, d, sp = (np.asarray(trees[c]) for c in ("x", "y", "d130", "species"))
     ba, bal, ambigu = competition(x, y, d, aire=aire)
     st = grid.station(x, y)
     ser = grid.ser_code(x, y)
@@ -583,6 +755,12 @@ def chapman_richards_step(h, a, k, p):
     return np.where(h >= a, h, nouveau)
 
 
+def part_arbre_seul(params, essence: str) -> float:
+    """f(rel_d) d'un arbre seul dans sa cellule (rel_d = d130 / d_dom = 1) : relative_height_gam, lien identité,
+    relue aux nœuds (décision de Pascal, Q2) ; sa hauteur grandit de f × ΔH_dom."""
+    return float(params.eta("relative_height_gam", essence, {"rel_d": np.array([1.0])}, [""])[0])
+
+
 def korf_step(h, a, b, c, p_f):
     """Pas d'un an de la courbe de Korf du contrat dynamics_params :
     H = a exp(-(p_f b + [ln(a/H_prec)]^(-1/c))^(-c)), H_prec dans ]0, a[."""
@@ -627,9 +805,13 @@ def write_trees_init(zdir: Path, rows: list[dict]) -> None:
     pq.write_table(pa.table(cols, schema=schema), p)
 
 
-def read_trees_init(zdir: Path):
-    df = pq.read_table(zdir / "trees_init" / "trees.parquet").to_pandas()
-    return df
+def read_trees_init(zdir: Path) -> Tab:
+    return Tab.from_arrow(pq.read_table(zdir / "trees_init" / "trees.parquet"))
+
+
+def trees_init_records(zdir: Path) -> list[dict]:
+    """Les lignes de trees_init (valeurs manquantes conservées en None), pour les réécrire modifiées."""
+    return pq.read_table(zdir / "trees_init" / "trees.parquet").to_pylist()
 
 
 def sha256_file(p: Path) -> str:

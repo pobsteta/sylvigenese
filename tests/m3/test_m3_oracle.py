@@ -32,18 +32,48 @@ def test_u_chaine_est_uniforme():
     assert abs(u.mean() - 0.5) < 0.01 and abs((u < 0.1).mean() - 0.1) < 0.01
 
 
-def test_la_spline_naturelle_redonne_scipy():
-    from scipy.interpolate import CubicSpline
+def _seconde_derivee(f, v, e=1e-3):
+    return (f(v + e) - 2 * f(v) + f(v - e)) / e ** 2
+
+
+def test_la_spline_naturelle_a_les_proprietes_d_une_spline_cubique_naturelle():
+    """Sans scipy : la spline écrite à la main (algorithme de Thomas) passe par les nœuds, a une dérivée seconde
+    nulle aux extrémités, est de classe C2 aux nœuds intérieurs, et reproduit exactement une droite."""
     rng = np.random.default_rng(1)
     x = np.sort(rng.uniform(0, 80, 9))
     y = rng.normal(size=9)
     f = H.natural_spline(x, y)
-    xs = np.linspace(x[0], x[-1], 200)
-    ref = CubicSpline(x, y, bc_type="natural")(xs)
-    assert np.abs(f(xs) - ref).max() < 1e-10
     assert np.allclose(f(x), y, atol=1e-12)                        # passe par les nœuds
     assert f(x[-1] + 50) == pytest.approx(y[-1], abs=1e-12)       # tenue au bord
     assert f(x[0] - 50) == pytest.approx(y[0], abs=1e-12)
+    e = 1e-3
+    for bord, sens in ((x[0], 1), (x[-1], -1)):                    # M0 = Mn = 0 : seconde nulle au bord (extrapolée)
+        s1, s2 = _seconde_derivee(f, bord + sens * e, e / 2), _seconde_derivee(f, bord + sens * 2 * e, e / 2)
+        assert abs(2 * s1 - s2) < 1e-4, (bord, 2 * s1 - s2)
+    for k in x[1:-1]:                                               # classe C2 : dérivées première et seconde continues
+        g, d = 1e-3, 1e-4
+        assert abs((f(k + g + d) - f(k + g - d)) / (2 * d) - (f(k - g + d) - f(k - g - d)) / (2 * d)) < 1e-2
+        gauche, droite_ = _seconde_derivee(f, k - g, g / 2), _seconde_derivee(f, k + g, g / 2)
+        assert abs(gauche - droite_) < 1e-2 * (1 + abs(gauche)), (k, gauche, droite_)
+    droite = H.natural_spline(x, 3.0 - 0.5 * x)
+    xs = np.linspace(x[0], x[-1], 50)
+    assert np.abs(droite(xs) - (3.0 - 0.5 * xs)).max() < 1e-10
+
+
+def test_la_spline_naturelle_redonne_un_cas_calcule_a_la_main():
+    """Nœuds 0, 1, 2 ; valeurs 0, 1, 0 : M1 = 6 × ((0 − 1) − (1 − 0)) / (2 × (1 + 1)) = −3, M0 = M2 = 0 ; sur [0, 1],
+    f(1/2) = M1 × (1/2)^3 / 6 + y0 × 1/2 + (y1 − M1/6) × 1/2 = −0,0625 + 0 + 0,75 = 0,6875."""
+    f = H.natural_spline([0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
+    assert f(0.5) == pytest.approx(0.6875, abs=1e-12)
+    assert f(1.5) == pytest.approx(0.6875, abs=1e-12)
+
+
+def test_la_spline_est_independante_de_l_ordre_des_noeuds():
+    x = np.array([0.0, 10.0, 25.0, 40.0, 80.0])
+    y = np.array([0.1, 0.5, -0.2, 0.3, 0.0])
+    p = np.array([3, 0, 4, 1, 2])
+    xs = np.linspace(0, 80, 41)
+    assert np.abs(H.natural_spline(x, y)(xs) - H.natural_spline(x[p], y[p])(xs)).max() < 1e-12
 
 
 def test_la_spline_a_deux_noeuds_est_une_droite():

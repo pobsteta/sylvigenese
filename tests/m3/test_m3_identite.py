@@ -43,8 +43,8 @@ def test_l_horizon_n_influence_pas_les_annees_communes(chaine, run_graine42_cour
     trois premières années sont les mêmes."""
     assert run_graine42_court["proc"].returncode == 0, queue(run_graine42_court["proc"])
     for y in range(T0, T0 + 4):
-        a = H.read_year(chaine["dir"], "trees", y).sort_values("tree_id").reset_index(drop=True)
-        b = H.read_year(run_graine42_court["dir"], "trees", y).sort_values("tree_id").reset_index(drop=True)
+        a = H.read_year(chaine["dir"], "trees", y).order("tree_id")
+        b = H.read_year(run_graine42_court["dir"], "trees", y).order("tree_id")
         assert a.equals(b), f"année {y} différente entre 100 ans et 3 ans"
 
 
@@ -52,8 +52,9 @@ def test_l_horizon_n_influence_pas_les_annees_communes(chaine, run_graine42_cour
 def test_une_autre_graine_donne_d_autres_morts(run_graine, run_graine42_court):
     assert run_graine["proc"].returncode == 0, queue(run_graine["proc"])
     for y in range(T0 + 1, T0 + 4):
-        m42 = set(H.read_year(run_graine42_court["dir"], "trees", y).query("status == 'dead'")["tree_id"])
-        m43 = set(H.read_year(run_graine["dir"], "trees", y).query("status == 'dead'")["tree_id"])
+        t42, t43 = (H.read_year(r["dir"], "trees", y) for r in (run_graine42_court, run_graine))
+        m42 = set(t42["tree_id"][t42["status"] == "dead"].tolist())
+        m43 = set(t43["tree_id"][t43["status"] == "dead"].tolist())
         assert len(m42) > 20 and len(m43) > 20, (len(m42), len(m43))
         assert m42 != m43, f"mêmes morts avec deux graines en {y}"
         inter = len(m42 & m43)
@@ -64,21 +65,27 @@ def test_une_autre_graine_donne_d_autres_morts(run_graine, run_graine42_court):
 def test_une_autre_graine_donne_d_autres_recrues(run_graine, run_graine42_court):
     r42 = H.read_year(run_graine42_court["dir"], "trees", T0 + 1)
     r43 = H.read_year(run_graine["dir"], "trees", T0 + 1)
-    p42 = r42[r42["tree_id"].str.startswith("r")][["x", "y"]].round(6).drop_duplicates()
-    p43 = r43[r43["tree_id"].str.startswith("r")][["x", "y"]].round(6).drop_duplicates()
+    def positions(t):
+        r = t.where(H.commence_par(t["tree_id"], "r"))
+        return set(zip(np.round(r["x"], 6).tolist(), np.round(r["y"], 6).tolist()))
+    p42, p43 = positions(r42), positions(r43)
     assert len(p42) > 100 and len(p43) > 100
-    commun = len(p42.merge(p43))
+    commun = len(p42 & p43)
     assert commun < 0.05 * len(p42), f"{commun} recrues aux mêmes positions avec deux graines"
 
 
 def test_l_accroissement_est_sans_bruit_donc_independant_de_la_graine(run_graine, run_graine42_court):
     """Q4 : accroissement en moyenne, sans bruit. En t0+1, tout arbre vivant dans les deux runs a le même d130
     (la concurrence de début d'année est la même) ; seules la mort et les recrues dépendent de la graine."""
-    a = H.read_year(run_graine42_court["dir"], "trees", T0 + 1).set_index("tree_id")
-    b = H.read_year(run_graine["dir"], "trees", T0 + 1).set_index("tree_id")
-    communs = a.index.intersection(b.index)
-    communs = [t for t in communs if not t.startswith("r")]
-    assert len(communs) > 10_000
-    assert np.abs(a.loc[communs, "d130"].to_numpy() - b.loc[communs, "d130"].to_numpy()).max() < 1e-12
-    assert np.abs(a.loc[communs, "h"].to_numpy() - b.loc[communs, "h"].to_numpy()).max() < 1e-12
+    a = H.read_year(run_graine42_court["dir"], "trees", T0 + 1)
+    b = H.read_year(run_graine["dir"], "trees", T0 + 1)
+    communs = [t for t in a["tree_id"].tolist() if not t.startswith("r") and b.has(t)]
+    ac, bc = a.align(communs), b.align(communs)
+    # un arbre mort dans l'un des deux est écrit avec ses valeurs du 1er janvier, sans croissance : on ne compare
+    # que les arbres vivants dans les deux
+    vivants = (ac["status"] == "alive") & (bc["status"] == "alive")
+    assert vivants.sum() > 10_000
+    ac, bc = ac.where(vivants), bc.where(vivants)
+    assert np.abs(ac["d130"] - bc["d130"]).max() < 1e-12
+    assert np.abs(ac["h"] - bc["h"]).max() < 1e-12
     assert H.read_run_json(run_graine["dir"])["seed"] == H.SIM_NOMINAL["seed"] + 1

@@ -38,5 +38,6 @@ run_pytest tests/contracts contracts/tests tools/fixtures/tests python ${SYLVIGE
 run_pytest tests/m1
 run_pytest tests/m2
 run_pytest tests/m4
+run_pytest tests/m3
 
 make validate ZONE=zone_fictive

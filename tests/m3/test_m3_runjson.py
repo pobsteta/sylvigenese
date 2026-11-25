@@ -40,7 +40,7 @@ def test_l_empreinte_change_avec_la_config(chaine, run_graine):
 
 def test_tout_est_provisoire_dans_le_jeu_fictif(chaine, run, params):
     """Spec §10 : toutes les lignes de paramètres du jeu fictif sont `provisoire: true` ; la part vaut 1."""
-    assert params.df["provisoire"].all(), "précondition : le jeu fictif ne doit porter que des paramètres provisoires"
+    assert params.all_provisional(), "précondition : le jeu fictif ne doit porter que des paramètres provisoires"
     assert run["provisional_share"] == 1
 
 
@@ -51,9 +51,12 @@ def test_rien_n_est_mis_a_zero_en_m3a(run):
 
 @pytest.fixture(scope="module")
 def zone_definitive(chaine):
-    """Mêmes paramètres, tous marqués provisoire = False : la part provisoire doit tomber à 0."""
+    """Mêmes paramètres, TOUS les jeux marqués provisoire = False (growth, mortality, recruitment, height_curve, et
+    allometry : hcb et cw, avec tarif) : la part provisoire doit tomber à 0. Un jeu oublié la laisserait au-dessus."""
     def mut(zdir):
-        H.rewrite_params(zdir, lambda n, df: df.assign(provisoire=False))
+        n = H.set_provisional(zdir, False)
+        assert n >= 6, f"{n} jeux de params/ rendus définitifs : allometry (hcb, cw) compris, il en faut 6 au moins"
+        assert (zdir / "params" / "allometry.parquet").is_file()
     res = _rejouer("m3_definitive", {**SIM, "years": 2}, mut)
     yield res
     H.remove_zone(res["name"])
@@ -63,7 +66,7 @@ def zone_definitive(chaine):
 def zone_partielle(chaine):
     """Seule la croissance est marquée définitive : la part est strictement entre 0 et 1."""
     def mut(zdir):
-        H.rewrite_params(zdir, lambda n, df: df.assign(provisoire=False) if n == "growth" else df)
+        assert H.set_provisional(zdir, False, only=("growth",)) == 1
     res = _rejouer("m3_partielle", {**SIM, "years": 2}, mut)
     yield res
     H.remove_zone(res["name"])
@@ -81,7 +84,7 @@ def test_la_part_provisoire_est_fractionnaire_si_une_partie_l_est(zone_partielle
 
 
 def test_deaths_et_recruits_sont_comptes_sur_toute_la_simulation(chaine, run, arbres):
-    nr = arbres[arbres["tree_id"].str.startswith("r")]["tree_id"].nunique()
+    nr = len(np.unique(arbres["tree_id"][H.commence_par(arbres["tree_id"], "r")]))
     assert run["recruits"] == nr and run["deaths"] == int((arbres["status"] == "dead").sum())
     assert run["recruits"] > 0 and run["deaths"] > 0
 
@@ -90,7 +93,7 @@ def test_les_disques_de_bord_sont_comptes(chaine, run, arbres, grid):
     """edge_disks : couples (arbre, année) dont le disque de 15 m déborde de la grille ; les arbres de l'état de
     début de chaque pas (partitions t0 à t0 + years − 1, arbres vivants). Borne basse : disque strictement
     sorti ; borne haute : disque tangent compris."""
-    a = arbres[(arbres["year"] < T0 + SIM["years"]) & (arbres["status"] == "alive")]
+    a = arbres.where((arbres["year"] < T0 + SIM["years"]) & (arbres["status"] == "alive"))
     d = np.minimum.reduce([a["x"] - grid.x0, grid.x1 - a["x"], a["y"] - grid.y1, grid.y0 - a["y"]])
     bas, haut = int((d < H.RAYON - 1e-9).sum()), int((d <= H.RAYON + 1e-9).sum())
     assert bas > 0
@@ -101,7 +104,7 @@ def test_les_sorties_de_domaine_couvrent_toutes_les_variables_lues(run, params):
     """Toutes les variables des termes lisses des quatre modèles lus sont présentes, à 0 si aucune sortie."""
     lues = set()
     for m in ("growth_gam", "mortality_gam", "recruitment_gam", "relative_height_gam"):
-        lues |= set(params.df[(params.df["model"] == m) & params.df["term"].str.startswith("s(")]["variable"])
+        lues |= params.smooth_variables(m)
     assert lues <= set(run["domain_outputs"]), f"variables absentes de domain_outputs : {lues - set(run['domain_outputs'])}"
     for v, c in run["domain_outputs"].items():
         assert isinstance(c["below"], int) and isinstance(c["above"], int) and c["below"] >= 0 and c["above"] >= 0, (v, c)
@@ -111,7 +114,7 @@ def test_les_sorties_de_domaine_depassent_le_compte_du_premier_pas(run, grid, pa
     """Borne basse indépendante : au premier pas, l'accroissement relit d130 (arbres de plus de 81 cm), trophic
     (valeurs au-dessus de 6,375) : chaque valeur hors nœuds est comptée au moins une fois (la mortalité les relit)."""
     p = H.predict_step(grid, params, init)
-    x, y, d, sp = (init[c].to_numpy() for c in ("x", "y", "d130", "species"))
+    x, y, d, sp = (init[c] for c in ("x", "y", "d130", "species"))
     st = grid.station(x, y)
     bas, haut = {}, {}
     for s in sorted(set(sp)):

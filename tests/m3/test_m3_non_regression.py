@@ -22,11 +22,11 @@ def empreinte(zdir):
     out = {"annees": {}}
     for y in ANNEES:
         t = H.read_year(zdir, "trees", y)
-        vivants = t[t["status"] == "alive"]
+        vivants = t.where(t["status"] == "alive")
         c = H.read_year(zdir, "cells", y)
         out["annees"][str(y)] = {
             "lignes": int(len(t)), "vivants": int(len(vivants)), "morts": int((t["status"] == "dead").sum()),
-            "recrues": int(t["tree_id"].str.startswith("r").sum()),
+            "recrues": int(H.commence_par(t["tree_id"], "r").sum()),
             "somme_d130": float(vivants["d130"].sum()), "somme_h": float(vivants["h"].sum()),
             "somme_x": float(vivants["x"].sum()), "somme_y": float(vivants["y"].sum()),
             "g_total_m2_ha": float(c["basal_area_m2_ha"].sum()), "stems_total_ha": float(c["stems_ha"].sum()),
