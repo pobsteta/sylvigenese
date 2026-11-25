@@ -106,6 +106,11 @@ jobs:
         run: npm ci
         working-directory: viewer-web
 
+      # Chromium pour les tests de la vue (tests/m4/test_m4_vue.py) ; version du paquet = PLAYWRIGHT_VERSION.
+      - name: Navigateur des tests de la vue (Chromium)
+        run: npx playwright install --with-deps chromium
+        working-directory: viewer-web
+
       - name: Typage de la vue web
         run: npm run typecheck
         working-directory: viewer-web
