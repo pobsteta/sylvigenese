@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Cellules simulées (sim/cells/year=AAAA/*.parquet, simulate)",
-  "description": "Par cellule, année et essence : tiges/ha, surface terrière, d moyen, semis/ha et hauteur des semis (BRIEF §4) ; les deux colonnes de semis sont FACULTATIVES jusqu'à M5 (décision de Pascal, 25/11/2026) : sans elles, les semis ne sont pas simulés et le rapport et la fiche disent « semis non simulés ». cell_id : rang de la cellule dans grid.tif, ligne par ligne depuis le coin nord-ouest, à partir de 0.",
+  "description": "Par cellule, année et essence : tiges/ha, surface terrière, d moyen, semis/ha et hauteur des semis (BRIEF §4) ; les deux colonnes de semis sont FACULTATIVES jusqu'à M5 (décision de Pascal, 25/11/2026) : sans elles, les semis ne sont pas simulés et le rapport et la fiche disent « semis non simulés ». cell_id : rang de la cellule dans grid.tif, ligne par ligne depuis le coin nord-ouest, à partir de 0. Une ligne n'existe que pour un couple (cellule, essence) qui a au moins un arbre vivant à la fin de l'année : une cellule absente d'une année n'a aucun arbre vivant cette année-là (tiges et surface terrière nulles, h_dom_m non défini) ; un lecteur (assets) le dit ainsi, sans inventer de ligne (décision de l'orchestrateur par délégation, 25/11/2026, mission 046).",
   "x-schema-version": "0.1",
   "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
   "fieldsMatch": "equal",

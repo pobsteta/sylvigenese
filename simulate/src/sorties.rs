@@ -12,8 +12,12 @@
 //!   ADR 0002 : le validateur refuse une année écrite deux fois) ;
 //! - `cells/year=AAAA/part-00000.parquet` : par cellule et essence, les seuls arbres **vivants** :
 //!   tiges/ha, surface terrière (m²/ha) et d130 moyen **arithmétique** (T8) ; une ligne par couple
-//!   (cellule, essence) qui a au moins un arbre vivant. Les colonnes de semis ne sont pas écrites :
-//!   **semis non simulés** jusqu'à M5 (décision de Pascal, Q3), dit par un signalement ;
+//!   (cellule, essence) qui a au moins un arbre vivant. S'y ajoute `h_dom_m`, la hauteur dominante
+//!   de la cellule à la fin de l'année, en m, **telle que le moteur la calcule** (mission 046,
+//!   décision de Pascal du 25/11/2026) : la même valeur sur les lignes de toutes les essences d'une
+//!   cellule ; vide (null) si elle n'est pas finie, jamais 0 en silence. Les colonnes de semis ne
+//!   sont pas écrites : **semis non simulés** jusqu'à M5 (décision de Pascal, Q3), dit par un
+//!   signalement ;
 //! - `flags.parquet` : les signalements du pas ([`crate::controles`]) puis ceux de ce module ;
 //! - `run.json` : réglages, mémoire estimée, durée, empreinte de `config.yml`, comptes.
 //!
@@ -653,7 +657,7 @@ fn ecrire_annee(
     )?;
     ecrire_lot(
         &dossier_cellules.join(FICHIER_PARTITION),
-        table_cellules(&resultat.etat, geometrie)?,
+        table_cellules(&resultat.etat, &resultat.cellules.h_dom, geometrie)?,
     )?;
     Ok(resultat.etat.len() as u64)
 }
@@ -718,8 +722,12 @@ pub fn resumer_cellules(etat: &EtatArbres) -> BTreeMap<(u64, String), LigneCellu
 }
 
 /// La table `sim.cells` d'une année (sans `year`, sans les colonnes de semis).
+///
+/// `h_dom` : la H_dom de chaque cellule à la fin de l'année, en m (ordre de `cell_id`). Elle est
+/// écrite dans `h_dom_m` ; une valeur non finie, ou une cellule hors de `h_dom`, donne null.
 pub fn table_cellules(
     etat: &EtatArbres,
+    h_dom: &[f64],
     geometrie: &GeometrieGrille,
 ) -> Result<RecordBatch, Erreur> {
     let aire_ha = geometrie.aire_cellule_ha();
@@ -729,7 +737,9 @@ pub fn table_cellules(
     let mut tiges_ha: Vec<f64> = Vec::with_capacity(lignes.len());
     let mut surface_ha: Vec<f64> = Vec::with_capacity(lignes.len());
     let mut d130_moyen: Vec<Option<f64>> = Vec::with_capacity(lignes.len());
+    let mut h_dom_m: Vec<Option<f64>> = Vec::with_capacity(lignes.len());
     for ((cellule, code), ligne) in lignes {
+        h_dom_m.push(h_dom.get(cellule as usize).copied().filter(|h| h.is_finite()));
         cell_id.push(cellule as i64);
         espece.push(code);
         tiges_ha.push(ligne.tiges as f64 / aire_ha);
@@ -742,6 +752,7 @@ pub fn table_cellules(
         Field::new("stems_ha", DataType::Float64, false),
         Field::new("basal_area_m2_ha", DataType::Float64, false),
         Field::new("d130_mean", DataType::Float64, true),
+        Field::new("h_dom_m", DataType::Float64, true),
     ];
     let colonnes: Vec<ArrayRef> = vec![
         Arc::new(Int64Array::from(cell_id)),
@@ -749,6 +760,7 @@ pub fn table_cellules(
         Arc::new(Float64Array::from(tiges_ha)),
         Arc::new(Float64Array::from(surface_ha)),
         Arc::new(Float64Array::from(d130_moyen)),
+        Arc::new(Float64Array::from(h_dom_m)),
     ];
     lot(champs, colonnes, "sim.cells")
 }

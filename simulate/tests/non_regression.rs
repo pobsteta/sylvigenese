@@ -570,7 +570,8 @@ fn les_partitions_vont_de_t0_a_t0_plus_years_sans_colonne_year() {
             "species",
             "stems_ha",
             "basal_area_m2_ha",
-            "d130_mean"
+            "d130_mean",
+            "h_dom_m"
         ]
     );
     assert!(dossier.join("flags.parquet").is_file() && dossier.join("run.json").is_file());
@@ -782,4 +783,55 @@ fn la_part_provisoire_compte_les_jeux_utilises() {
     assert_eq!(total - provisoires, 2);
     let part = sorties::part_provisoire(&modeles);
     assert!((part - provisoires as f64 / total as f64).abs() < 1e-15 && part > 0.0 && part < 1.0);
+}
+
+#[test]
+fn h_dom_m_est_la_h_dom_de_la_cellule_et_vide_si_elle_n_est_pas_finie() {
+    // Trois cellules : 3 (H_dom 17,25 m, deux essences), 4 (H_dom non finie), 5 (sans arbre).
+    let arbre = |id: &str, espece: &str, cellule: u64| ArbreNouveau {
+        tree_id: id.to_string(),
+        espece: espece.to_string(),
+        cellule,
+        x: 700_012.5,
+        y: 6_500_987.5,
+        d130: 30.0,
+        h: 18.0,
+    };
+    let etat = EtatArbres::depuis_initiaux(vec![
+        arbre("a", "03", 3),
+        arbre("b", "09", 3),
+        arbre("c", "03", 4),
+    ])
+    .unwrap();
+    let h_dom = vec![0.0, 0.0, 0.0, 17.25, f64::NAN, 12.0];
+    let geometrie =
+        simulate::concurrence::GeometrieGrille::nouvelle(LARGEUR, HAUTEUR, X0, Y0, 25.0).unwrap();
+    let lot = sorties::table_cellules(&etat, &h_dom, &geometrie).unwrap();
+    assert_eq!(entiers(&lot, "cell_id"), vec![3, 3, 4]);
+    assert_eq!(
+        nombres(&lot, "h_dom_m"),
+        vec![Some(17.25), Some(17.25), None],
+        "H_dom connue écrite à l'identique, non finie : null, jamais 0"
+    );
+}
+
+#[test]
+fn h_dom_m_de_chaque_annee_est_celle_du_moteur() {
+    let dossier = dossier_neuf("hdom");
+    sorties::simuler_et_ecrire(&zone_d_essai(4), &lancement(2), &dossier).unwrap();
+    for annee in T0..=T0 + 4 {
+        let cellules = partition(&dossier, "cells", annee);
+        let ids = entiers(&cellules, "cell_id");
+        let h = nombres(&cellules, "h_dom_m");
+        assert!(!ids.is_empty());
+        for rang in 0..ids.len() {
+            let valeur = h[rang].expect("H_dom définie pour une cellule qui a des arbres");
+            assert!(valeur > 0.0 && valeur < 60.0, "année {annee} : {valeur}");
+            // Même valeur pour toutes les essences d'une cellule.
+            if rang > 0 && ids[rang] == ids[rang - 1] {
+                assert_eq!(h[rang], h[rang - 1]);
+            }
+        }
+    }
+    std::fs::remove_dir_all(&dossier).unwrap();
 }
