@@ -5,8 +5,13 @@
 //!
 //! Règle de lisibilité (CLAUDE.md) : pas de macros maison ni de génériques avancés.
 
+pub mod alea;
 pub mod config;
+pub mod erreurs;
+pub mod etat;
 pub mod geotiff;
+pub mod memoire;
+pub mod parametres;
 pub mod validateur;
 
 use std::path::Path;

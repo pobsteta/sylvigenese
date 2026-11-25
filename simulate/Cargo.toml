@@ -9,7 +9,21 @@ license = "GPL-3.0-only"
 # simulate/ est sa propre racine d'espace cargo.
 [workspace]
 
+# Toutes les crates directes sont figées par « = » (mission 035, docs/plans/m3a-simulate.md) ;
+# Cargo.lock est versionné et la compilation se fait avec --locked. Les licences du graphe
+# complet sont vérifiées par tests/licences.rs contre une liste admise (compatibles GPL-3).
 [dependencies]
-flate2 = { version = "1.1.11", default-features = false, features = ["rust_backend"] }
-serde = { version = "1", features = ["derive"] }
-serde_norway = "0.9"
+flate2 = { version = "=1.1.11", default-features = false, features = ["rust_backend"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_norway = "=0.9.42"
+# Parquet : lecture des params et écriture des sorties (Snappy, T2) ; sans les autres codecs,
+# sans async ni outils en ligne de commande.
+parquet = { version = "=60.2.0", default-features = false, features = ["arrow", "snap"] }
+arrow-array = { version = "=60.2.0", default-features = false }
+arrow-schema = { version = "=60.2.0", default-features = false }
+snap = "=1.1.2"
+# Fonctions pures en parallèle, sommes en ordre fixe (T1).
+rayon = "=1.12.0"
+# run.json (mission 038) et SHA-256 des sorties (preuve d'identité entre nombres de fils).
+serde_json = "=1.0.154"
+sha2 = "=0.11.1"
