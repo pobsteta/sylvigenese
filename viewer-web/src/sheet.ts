@@ -44,11 +44,15 @@ export interface Grid {
 export class SheetError extends Error {}
 
 // Rassemble les fiches de plusieurs tuiles ; refuse un cell_id en double (deux tuiles ne partagent pas de cellule).
-export function indexSheets(tiles: TileSheets[]): Map<number, Cell> {
-  const index = new Map<number, Cell>();
+// La version attendue est dictée par tiles/index.json : 1 pour l'état initial, 2 dès que sim/ existe (mission 048 ;
+// la vue refuse alors la version 1, plan m4a-suite-temps §3).
+export function indexSheets<C extends { cell_id: number }>(
+  tiles: { schema_version: number; tile: string; cells: C[] }[], version: 1 | 2 = 1,
+): Map<number, C> {
+  const index = new Map<number, C>();
   for (const tile of tiles) {
-    if (tile.schema_version !== 1 || !Array.isArray(tile.cells)) {
-      throw new SheetError(`fiches de la tuile ${tile.tile ?? "?"} : schema_version 1 attendu`);
+    if (tile.schema_version !== version || !Array.isArray(tile.cells)) {
+      throw new SheetError(`fiches de la tuile ${tile.tile ?? "?"} : schema_version ${version} attendu`);
     }
     for (const c of tile.cells) {
       if (index.has(c.cell_id)) {
@@ -94,7 +98,7 @@ export interface DisplayedSheet {
   year: number;
 }
 
-// Choisit l'année demandée, sinon la première ; la vue n'a qu'une année pour l'instant.
+// Choisit l'année demandée, sinon la première (fiche v1 : une seule année, l'état initial).
 export function yearOf(c: Cell, year?: number): YearSheet {
   const a = year === undefined ? c.years[0] : c.years.find((y) => y.year === year);
   if (!a) throw new SheetError(`cellule ${c.cell_id} : pas de fiche pour l'année ${year}`);

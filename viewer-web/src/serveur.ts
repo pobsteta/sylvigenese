@@ -4,9 +4,11 @@
 // Usage : node src/serveur.ts --zone-dir <dossier> [--port N] [--zone nom]
 //
 // Interface interne /api/config.json (lue par la page au chargement, non documentée ailleurs ; pas un
-// contrat entre modules) : objet JSON { zone, years, has_dtm, fictitious }.
-//   - years      : années proposées dans la page, soit les sous-dossiers de tiles/ nommés par quatre chiffres
-//                  qui portent un tileset.json (tableau de nombres, vide si tiles/ est absent) ;
+// contrat entre modules) : objet JSON { zone, years, has_dtm, has_index, fictitious }.
+//   - years      : sous-dossiers de tiles/ nommés par quatre chiffres qui portent un tileset.json (tableau de
+//                  nombres, vide si tiles/ est absent) ; repli des zones sans tiles/index.json ;
+//   - has_index  : true si tiles/index.json existe (contrat tiles_index, mission 047) ; la page lit alors ses
+//                  années dans l'index et non dans les dossiers (mission 048) ;
 //   - has_dtm    : true si dtm.tif existe dans le dossier de la zone ;
 //   - fictitious : true si zone.yml de la zone porte « fictive: true » (false si le fichier manque ou est
 //                  illisible) ; sert à signaler le jeu fictif, pour ne pas le confondre avec un massif réel.
@@ -51,6 +53,11 @@ export function availableYears(zoneDir: string): number[] {
 }
 
 // Marqueur de zone fictive : <zone>/zone.yml avec `fictive: true`. Absent ou illisible : zone réelle (comportement par défaut).
+// tiles/index.json présent : la page prend les années de l'index (mission 048).
+export function hasTilesIndex(zoneDir: string): boolean {
+  return existsSync(join(zoneDir, "tiles", "index.json"));
+}
+
 export function isFictitiousZone(zoneDir: string): boolean {
   const f = join(zoneDir, "zone.yml");
   if (!existsSync(f)) return false;
@@ -108,7 +115,7 @@ export function createViewerServer(zoneDir: string, zone: string) {
     } else if (path === "/app.js") {
       serveFile(join(DIST, "app.js"), req, res);
     } else if (path === "/api/config.json") {
-      const body = JSON.stringify({ zone, years: availableYears(zoneAbs), has_dtm: existsSync(join(zoneAbs, "dtm.tif")), fictitious: isFictitiousZone(zoneAbs) });
+      const body = JSON.stringify({ zone, years: availableYears(zoneAbs), has_dtm: existsSync(join(zoneAbs, "dtm.tif")), has_index: hasTilesIndex(zoneAbs), fictitious: isFictitiousZone(zoneAbs) });
       res.writeHead(200, { "Content-Type": MIME_TYPES[".json"] }).end(body);
     } else if (path.startsWith("/zone/") && isAllowedPath(path.slice(6))) {
       const file = join(zoneAbs, path.slice(6));
