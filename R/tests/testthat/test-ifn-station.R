@@ -110,6 +110,24 @@ test_that("essences arborées : CD_REF v18 et v13 du référentiel contracts/spe
   expect_true(all(c(116759L, 139596L, 97947L, 113432L, 138781L) %in% cd))
 })
 
+# Zone de test autonome : rien n'est lu des sorties de prepare du dépôt (ser.tif, ser.csv... sont
+# ignorées par git). Les entrées versionnées du jeu fictif sont copiées dans une racine temporaire et
+# la grille y est construite par prepare_grid() lui-même, une fois pour tout le fichier.
+grille_construite <- local({
+  dossier <- NULL
+  function() {
+    if (is.null(dossier)) {
+      d <- tempfile("grille_station_")
+      dir.create(d)
+      file.copy(file.path(zone_st, "inputs"), d, recursive = TRUE)
+      cfg <- list(crs = "EPSG:2154", grid = list(resolution_m = 25))
+      avec_racine_st(suppressMessages(prepare_grid(d, cfg, validate = FALSE)))
+      dossier <<- d
+    }
+    dossier
+  }
+})
+
 copie_zone_station <- function(avec_table = TRUE, avec_grille = TRUE) {
   zone <- tempfile("zone_station_")
   dir.create(file.path(zone, "inputs"), recursive = TRUE)
@@ -117,9 +135,11 @@ copie_zone_station <- function(avec_table = TRUE, avec_grille = TRUE) {
   file.copy(file.path(zone_st, "inputs", "station_gradients.tif"), file.path(zone, "inputs"))
   if (avec_table) {
     dir.create(file.path(zone, "params"))
-    file.copy(file.path(zone_st, "params", "indicator_values.csv"), file.path(zone, "params"))
+    expect_true(file.copy(file.path(zone_st, "params", "indicator_values.csv"), file.path(zone, "params")))
   }
-  if (avec_grille) file.copy(file.path(zone_st, c("ser.tif", "ser.csv")), zone)
+  if (avec_grille) {
+    expect_true(all(file.copy(file.path(grille_construite(), c("ser.tif", "ser.csv")), zone)))
+  }
   zone
 }
 
