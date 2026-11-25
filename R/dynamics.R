@@ -113,7 +113,9 @@ DYN_CR_NOT_TAKEN <- character()   # aucune essence de nemeton n'est laissée de 
 # nombres, pas de copie de code. Deux régions chez nemeton : NO (nord-ouest) et NE (nord-est).
 # `p_f_min` et `p_f_max` : fertilité de la classe 5 (la pire) et de la classe 1 (la meilleure),
 # classes de nemeton réparties à pas égal entre les deux. t0 et H0 (âge et hauteur de départ de
-# nemeton) servent à l'illustration du rapport seulement : le moteur part de h0.tif.
+# nemeton) sont écrits au contrat sous les noms t_ref0 et h_ref0 (mission 040), avec age_ref (âge
+# de référence, DYN_KORF_REF_AGE) : simulate s'en sert pour choisir la classe p_f d'après
+# site_potential ; la hauteur de départ des arbres reste celle de h0.tif.
 DYN_KORF_SOURCE <- paste0("nemeton bd6fbe5 (https://github.com/pobsteta/nemeton, GPL-3), data-raw/site_index_curves.R, ",
                           "fasy_regions (NO et NE) ; Bontemps et al. 2007, RFF HS2, annexe 2")
 DYN_KORF_REGIONS <- data.frame(
@@ -859,6 +861,7 @@ dyn_korf_height <- function(age, a, b, c, t0, H0, p_f) {
 dyn_korf_params <- function(regions = DYN_KORF_REGIONS) {
   m <- colMeans(regions[, c("a", "b", "c", "t0", "H0", "p_f_min", "p_f_max")])
   list(a = m[["a"]], b = m[["b"]], c = m[["c"]], t0 = m[["t0"]], H0 = m[["H0"]],
+       age_ref = DYN_KORF_REF_AGE,
        p_f = seq(m[["p_f_max"]], m[["p_f_min"]], length.out = 5L))   # classe 1 = la meilleure
 }
 
@@ -873,12 +876,14 @@ dyn_korf <- function(species, species_ref) {
     if (is.na(code) || !code %in% DYN_KORF_NEMETON_CODES) next
     src <- sprintf(paste0("%s : moyenne terme à terme des régions NO et NE, telle que nemeton la cite ; ",
                           "p_f de la classe 1 (meilleure) à 5 à pas égal entre la moyenne des p_f_max et celle des ",
-                          "p_f_min ; chprod = 1 ; non ajusté sur le jeu fictif ; provisoire, à vérifier sur la source"),
+                          "p_f_min ; t_ref0 et h_ref0 : moyenne des t0 et H0 de nemeton (6 ans, 1,40 et 1,35 m) ; age_ref : ",
+                          "âge du point de référence de nemeton (H(100), classe 3) ; chprod = 1 ; non ajusté sur le jeu fictif ; provisoire, à vérifier sur la source"),
                    DYN_KORF_SOURCE)
     rows[[sp]] <- data.frame(
       species = sp, species_group = NA_character_, model = "korf",
-      term = c("a", "b", "c", paste0("p_f_class", 1:5)), variable = NA_character_, x = NA_real_,
-      value = c(kp$a, kp$b, kp$c, kp$p_f), provisoire = TRUE, source = src, stringsAsFactors = FALSE)
+      term = c("a", "b", "c", "t_ref0", "h_ref0", "age_ref", paste0("p_f_class", 1:5)),
+      variable = NA_character_, x = NA_real_,
+      value = c(kp$a, kp$b, kp$c, kp$t0, kp$H0, kp$age_ref, kp$p_f), provisoire = TRUE, source = src, stringsAsFactors = FALSE)
     info[[sp]] <- list(code = code, a = kp$a, b = kp$b, c = kp$c, p_f = kp$p_f, t0 = kp$t0, H0 = kp$H0)
   }
   list(rows = if (length(rows)) do.call(rbind, rows) else NULL, info = info)
@@ -988,7 +993,7 @@ dyn_korf_report_items <- function(korf) {
   hrows <- lapply(1:5, function(k) c(as.character(k), dyn_fmt(h_reg[k, 1L], 1), dyn_fmt(h_reg[k, 2L], 1),
                                     dyn_fmt(h_mean[k], 1), dyn_fmt(h_param[k], 1), dyn_fmt(h_param[k] - h_mean[k], 1)))
   items[[3L]] <- dyn_p("Hauteur à ", DYN_KORF_REF_AGE, " ans, en partant de l'âge ", dyn_fmt(reg$t0[1L], 0), " et des hauteurs H0 de nemeton ",
-                       "(illustration : le moteur part de h0.tif). Le point de référence de nemeton pour le hêtre est ",
+                       "(illustration ; ce sont aussi les termes t_ref0, h_ref0 et age_ref du contrat, par lesquels simulate choisit la classe). Le point de référence de nemeton pour le hêtre est ",
                        dyn_fmt(DYN_KORF_REF_H_CLASS3, 1), " m en classe 3 (moyenne des hauteurs NO et NE). La courbe retenue ici, à un seul jeu ",
                        "de paramètres, s'en écarte de ", dyn_fmt(h_param[3L] - h_mean[3L], 1), " m en classe 3 : écart connu, à trancher ",
                        "avant tout usage hors du jeu fictif.")

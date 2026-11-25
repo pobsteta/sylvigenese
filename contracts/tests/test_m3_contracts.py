@@ -159,7 +159,7 @@ def long_rows(model, terms, species="09"):
             "value": [1.0 + i for i in range(n)], "provisoire": [True] * n, "source": [SRC] * n}
 
 
-KORF_TERMS = ["a", "b", "c"] + [f"p_f_class{i}" for i in range(1, 6)]
+KORF_TERMS = ["a", "b", "c", "t_ref0", "h_ref0", "age_ref"] + [f"p_f_class{i}" for i in range(1, 6)]
 
 
 def test_korf_curve_is_conform(tmp_path, capsys):
@@ -187,6 +187,21 @@ def test_korf_written_with_a_capital_is_refused(tmp_path, capsys):
 def test_korf_with_a_duplicate_term_is_refused(tmp_path, capsys):
     path = h.parquet(tmp_path / "height_curve.parquet",
                      long_rows("korf", KORF_TERMS + ["a"]), DYN_TYPES)
+    code, out = check(capsys, "height_curve", path)
+    assert code == 3 and "doublon" in out, out
+
+
+def test_korf_start_point_terms_are_conform(tmp_path, capsys):
+    # mission 040 : t_ref0 (ans), h_ref0 (m) et age_ref (ans) sont des termes du modèle korf
+    assert {"t_ref0", "h_ref0", "age_ref"} <= set(KORF_TERMS)
+    path = h.parquet(tmp_path / "height_curve.parquet", long_rows("korf", KORF_TERMS), DYN_TYPES)
+    code, out = check(capsys, "height_curve", path)
+    assert code == 0, out
+
+
+def test_korf_with_a_duplicate_start_point_is_refused(tmp_path, capsys):
+    path = h.parquet(tmp_path / "height_curve.parquet",
+                     long_rows("korf", KORF_TERMS + ["h_ref0"]), DYN_TYPES)
     code, out = check(capsys, "height_curve", path)
     assert code == 3 and "doublon" in out, out
 

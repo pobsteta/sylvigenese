@@ -337,7 +337,11 @@ test_that("Korf du hêtre : moyenne terme à terme des régions NO et NE de neme
   expect_equal(unique(k$rows$species), "09")          # le sapin 62 n'a pas de Korf
   expect_equal(unique(k$rows$model), "korf")
   v <- stats::setNames(k$rows$value, k$rows$term)
-  expect_equal(sort(names(v)), sort(c("a", "b", "c", paste0("p_f_class", 1:5))))
+  expect_equal(sort(names(v)), sort(c("a", "b", "c", "t_ref0", "h_ref0", "age_ref", paste0("p_f_class", 1:5))))
+  # point de départ (mission 040) : moyenne des t0 (6 et 6) et des H0 (1,40 et 1,35) de nemeton, âge de référence 100
+  expect_equal(v[["t_ref0"]], 6)
+  expect_equal(v[["h_ref0"]], 1.375)
+  expect_equal(v[["age_ref"]], 100)
   # moyennes recalculées à la main : (44.2 + 68.7) / 2, (0.032 + 0.028) / 2, (1.647 + 0.823) / 2
   expect_equal(v[["a"]], 56.45)
   expect_equal(v[["b"]], 0.030)
@@ -400,7 +404,7 @@ test_that("dynamics écrit les quatre tables conformes et un rapport par essence
   for (sp in c("03", "09", "62")) expect_match(html, sprintf("<td>%s</td>", sp))
   hc <- read_parquet_tbl(out[["height_curve"]])
   expect_equal(sort(hc$term[hc$species == "09" & hc$model == "korf"]),
-               sort(c("a", "b", "c", paste0("p_f_class", 1:5))))
+               sort(c("a", "b", "c", "t_ref0", "h_ref0", "age_ref", paste0("p_f_class", 1:5))))
   expect_false("chapman_richards" %in% hc$model[hc$species == "09"])
   expect_match(html, "forme de Korf")
   expect_match(html, "Moyenne des hauteurs NO et NE")
