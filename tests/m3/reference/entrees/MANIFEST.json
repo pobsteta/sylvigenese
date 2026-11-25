@@ -1,0 +1,28 @@
+{
+ "environnement": {
+  "R": "R version 4.3.3 (2024-02-29)",
+  "arrow": "26.0.1.1",
+  "gdal": "3.8.4",
+  "geos": "3.12.1",
+  "proj": "9.4.0",
+  "sf": "1.0.15",
+  "terra": "1.7.65"
+ },
+ "fichiers": {
+  "chm_date.tif": "511909a7ca96895aaf1a2041b13e5257f5100d6873605554c11d512dee66684f",
+  "grid.tif": "bd1fef3f8f802a26e2c7ae5743a714acd2a8ba2a562cd5022a151d99a06ecd36",
+  "h0.tif": "5d3cdf9b899d0f196dd5d6b4efeae3c7b0469f5d441ee374b37907cead0e39be",
+  "params/growth.parquet": "7fd405bd44bce2492ac5cfe6b5d1887de861979d098278c48241058ff2173bbf",
+  "params/height_curve.parquet": "29bf2fb472226e3794bfd57d96464d79032a207eb5b56cb75fcb81c141374c53",
+  "params/mortality.parquet": "0e89eaeb6e349981cca5a9e3f57297592349c4c15679d3803fc5c22b66f8ee3f",
+  "params/recruitment.parquet": "6672b9bc9e668c39466b77c4003ca9a84ba10b7feffb3e81978b2ebe00fb39f8",
+  "ser.csv": "ce4cf7dce39074aa039c9e297af1aaebaae93d60ab74b9d4aa1ba26c094f7ba6",
+  "ser.tif": "e66e6ff67c2d337d80fed055ec69f635979ce58ed041badafc710bcba9ec889f",
+  "site_potential.tif": "408548e7004a0873884d8d25ca69a0efa62f0a660f4e7c32613692bde90c98d3",
+  "station_gradients.tif": "b955ad53c509c958f46958ed395fdedb71b5f337183a4790f44169224b31561a",
+  "trees_init/trees.parquet": "fd8089f9220b73b995efbd2a7a307aa153b82116ad02d3382c7cf8a59312da2d"
+ },
+ "objet": "entrées de simulate figées pour la non-régression du moteur (tests/m3/test_m3_non_regression.py)",
+ "produites_par": "make prepare biomes trees dynamics sur une copie de tests/fixtures/zone_fictive (chaîne de tests/m3)",
+ "statut": "référence technique, non validée écologiquement (décision de Pascal du 25/11/2026 ; vraisemblance traitée en M3b)"
+}
