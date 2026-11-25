@@ -221,6 +221,13 @@ contracts:
     kind: parquet
     schema: tables/params/parameters.schema.json
     paths: [params/height_curve.parquet]
+  # valeurs indicatrices de la flore, lues par prepare pour `trophic` aux placettes (mission 024)
+  params.indicator_values:
+    aliases: [indicator_values]
+    kind: csv
+    schema: tables/params/indicator_values.schema.json
+    paths: [params/indicator_values.csv]
+    required: false
 
   # ------------------------------------------------------------ biomes
   biomes.biome:

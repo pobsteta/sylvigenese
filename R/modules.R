@@ -63,7 +63,10 @@ run_prepare <- function(config_path = "config.yml", depends_on = NULL) {
     ifn <- prepare_ifn_check(zone_dir, report)
     stands <- prepare_stands_check(zone_dir)
     prepare_grid(zone_dir, cfg, report = report)
-    prepare_ifn(zone_dir, checked = ifn)
+    # Station aux placettes (mission 024) : après la grille, dont elle lit ser.tif et ser.csv ; ses
+    # lignes « IFN : station » s'ajoutent au même rapport, réécrit ensuite.
+    prepare_ifn(zone_dir, checked = ifn, report = report)
+    write_prepare_report(report, file.path(zone_dir, "rapport_prepare.html"))
     prepare_stands(zone_dir, cfg, checked = stands)
   })
 }

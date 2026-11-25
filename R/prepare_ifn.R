@@ -36,11 +36,14 @@
 #    codes selon la campagne), IR5 (m, cumul de 5 cernes, une partie des arbres seulement) ;
 #    VISITE, DATEPOINT, NINCID, INCID, PRELEV5, DEF5, INSTP5 aux placettes ;
 #  - les coordonnées sont floutées (700 m) : les placettes sont marquées par `mark_ifn()` de
-#    la garde (R/ifn_guard.R) et ne sont croisées avec aucun raster fin. Ce module n'ouvre
-#    aucun raster.
+#    la garde (R/ifn_guard.R) et ne sont croisées avec aucun raster fin. Ce fichier n'ouvre
+#    aucun raster ; R/ifn_station.R ne lit station_gradients.tif et ser.tif qu'en disque de 700 m,
+#    par la garde.
 #
-# Signaler plutôt que deviner : arbres écartés, W en désaccord, colonnes laissées vides
-# (`ser_code`, `trophic`, `coarse_hydric_700m`, `coarse_bioclim_700m`), CD_REF en TAXREF v13
+# Station à la placette (`ser_code`, `trophic`, `coarse_hydric_700m`, `coarse_bioclim_700m`) :
+# R/ifn_station.R (mission 024), appelé ci-dessous dans prepare_ifn_check() et prepare_ifn().
+#
+# Signaler plutôt que deviner : arbres écartés, W en désaccord, CD_REF en TAXREF v13
 # non convertis, tree_id fabriqué, HTOT <= 0 mis à NA, colonnes de la dynamique absentes, vides
 # ou hors modalités de leur campagne : chacun est une ligne de rapport_prepare.html (section
 # « IFN : ... »), jamais seulement un message sur la sortie d'erreur. Une valeur hors modalités
@@ -242,9 +245,8 @@ ifn_tables <- function(plots_raw, trees_raw, flora_raw, precision_m = 700, taxre
     "%d placette(s), coordonnées floutées (précision %s m), jamais croisées avec un raster fin",
     nrow(plots), fr_num(precision_m)))
   add("IFN : placettes", paste(
-    "colonnes laissées vides (NA), source non branchée : ser_code, trophic (gradient trophique",
-    "à la placette), coarse_hydric_700m et coarse_bioclim_700m ; dynamics ne peut pas s'en servir",
-    "tant qu'elles ne sont pas remplies"))
+    "colonnes de station ser_code, trophic, coarse_hydric_700m et coarse_bioclim_700m : remplies",
+    "par R/ifn_station.R, voir la section « IFN : station »"))
   v1 <- plots$visit == 1L
   v2 <- plots$visit == 2L
   add("IFN : placettes", sprintf("%d ligne(s) de 1re visite, %d de 2e visite (une ligne par visite)",
@@ -564,6 +566,7 @@ prepare_ifn_check <- function(zone_dir, report = NULL, precision_m = 700, taxref
     .ifn_read_csv(paths[["inputs.ifn_flore"]], c("CAMPAGNE", "IDP", "CD_REF", "ABOND")),
     precision_m = precision_m, taxref_version = taxref_version
   )
+  res <- ifn_station_trophic(res, zone_dir, validate)  # trophic (mission 024), avant toute écriture
   for (i in seq_len(nrow(res$report))) report_add(report, res$report$section[i], res$report$text[i])
   invisible(res)
 }
@@ -592,6 +595,7 @@ prepare_ifn <- function(zone_dir, checked = NULL, report = NULL, precision_m = 7
   res <- if (is.null(checked)) {
     prepare_ifn_check(zone_dir, report, precision_m, taxref_version, validate)
   } else checked
+  res <- ifn_station_coarse(res, zone_dir, report)  # coarse_*_700m et ser_code (mission 024)
   out <- file.path(zone_dir, "ifn")
   files <- c(
     plots = write_parquet_tbl(res$plots, file.path(out, "plots.parquet"), IFN_PLOTS_TYPES),

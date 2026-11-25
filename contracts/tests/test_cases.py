@@ -70,6 +70,15 @@ def fertilite(tmp, fault):
     return h.csv(tmp / "fertilite.csv", header, rows, sep=";")
 
 
+def indicator_values(tmp, fault):
+    # valeurs indicatrices de type Ellenberg, échelle ordinale de 1 à 9 (mission 024)
+    header = ["cd_ref", "taxref_version", "reaction", "nutrients", "source", "synthetic",
+              "provisoire"]
+    rows = [[97947, "13", 12 if fault else 5, 5, "synthetique_jeu_fictif", "true", "true"],
+            [79319, "13", 3, "", "synthetique_jeu_fictif", "true", "true"]]
+    return h.csv(tmp / "indicator_values.csv", header, rows, sep=";")
+
+
 def station_types(tmp, fault):
     header = ["id", "type", "area_ha", "part_surface", "trophic", "hydric", "bioclim",
               "n_placettes"]
@@ -257,6 +266,7 @@ CASES = {
     "inputs.station_type": (raster("st.tif", {"nodata": None}, dtype="uint16"), r"nodata"),
     "inputs.station_types": (station_types, r"id"),
     "inputs.fertilite": (fertilite, r"n_plots"),
+    "params.indicator_values": (indicator_values, r"reaction"),
     "inputs.h_pot": (raster("h_pot.tif", {"bigtiff": True}), r"BigTIFF"),
     "inputs.ifn_placette": (ifn_placette, r"emprise"),
     "inputs.ifn_arbre": (ifn_arbre, r"ESPAR"),
