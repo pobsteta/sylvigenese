@@ -21,8 +21,9 @@
 //!   **celle dont la hauteur à l'âge de référence de nemeton est la plus proche de
 //!   `site_potential`** (décision de l'orchestrateur sur 033, provisoire, dite au rapport) ; à
 //!   égalité, la classe de plus petit numéro. Cette hauteur part de l'âge et de la hauteur de
-//!   départ de nemeton ([`ReferenceKorf`]), qui ne sont pas des termes du contrat : sans elles,
-//!   le moteur refuse (code 2), il ne les devine pas.
+//!   départ de nemeton ([`ReferenceKorf`]), qui sont des termes provisoires du contrat depuis la
+//!   mission 040 (`t_ref0`, `h_ref0`, `age_ref` du modèle `korf`) : sans eux, le moteur refuse
+//!   (code 2), il ne les devine pas.
 //! - **dH ≥ 0** : on écrit « si dH < 0 alors dH = 0 », sans fonction `min` (spec §5) ; une H_dom
 //!   au plafond ou au-dessus est comptée (`cells_at_height_ceiling`) et, au-dessus, signalée,
 //!   jamais corrigée. Avec Chapman-Richards, H_dom ne dépasse donc jamais un plafond qu'elle
@@ -113,7 +114,8 @@ fn terme_positif(jeu: &JeuDeParametres, terme: &str) -> Result<f64, Erreur> {
 
 /// Le point de départ de nemeton pour situer les classes de Korf : âge et hauteur de départ, âge
 /// de référence (pour le hêtre chez nemeton : 6 ans, 1,40 ou 1,35 m selon la région, 100 ans).
-/// Ce ne sont pas des termes du contrat : celui qui appelle le moteur doit les fournir.
+/// Ce sont les termes `t_ref0`, `h_ref0` et `age_ref` du modèle `korf` du contrat (mission 040,
+/// provisoires), lus par `sorties.rs` ; sans eux le moteur refuse (code 2).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ReferenceKorf {
     pub age_depart: f64,
