@@ -111,7 +111,13 @@ def write_config(zone_dir: Path, name: str, t0: int | None = None) -> Path:
     text = (ROOT / "config.yml").read_text(encoding="utf-8")
     text = re.sub(r"(?m)^zone:\s*\S+", f"zone: {name}", text)
     if t0 is not None:
-        text += f"\nsimulate:\n  t0: {t0}\n"
+        # config.yml porte déjà un bloc `simulate:` (mission 034) : on remplace sa valeur de t0, sans second bloc.
+        if re.search(r"(?m)^  t0:\s*\S+", text):
+            text = re.sub(r"(?m)^(  t0:)\s*\d+", rf"\g<1> {t0}", text)
+        elif re.search(r"(?m)^simulate:", text):
+            text = re.sub(r"(?m)^simulate:[ \t]*\n", f"simulate:\n  t0: {t0}\n", text, count=1)
+        else:
+            text += f"\nsimulate:\n  t0: {t0}\n"
     cfg = zone_dir / "config_m4.yml"
     cfg.write_text(text, encoding="utf-8")
     return cfg
