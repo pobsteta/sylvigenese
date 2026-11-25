@@ -24,12 +24,14 @@ interface Etat {
   fond: string;
   openCell: (id: number) => boolean;
   mesurerFps: (ms?: number) => Promise<number>;
+  placer: (range: number, tilt: number, heading: number) => Promise<void>;
 }
 
 const etat: Etat = {
   ready: false, error: null, year: null, instanceCount: 0, instancesChargees: 0, instancesAttendues: null,
   meshesInstancies: 0, fps: 0, chargementMs: null, terrain: "", fond: "", openCell: () => false,
   mesurerFps: async () => 0,
+  placer: async () => {},
 };
 (window as unknown as { sylvigenese: Etat }).sylvigenese = etat;
 
@@ -83,6 +85,27 @@ function empriseDe(url: string) {
   return { w: Number(p.get("w")), s: Number(p.get("s")), e: Number(p.get("e")), n: Number(p.get("n")) };
 }
 const DIM = 256;
+const OPACITE_CARTE = 0.5;
+// Limites des tuiles du MNT IGN (RGE ALTI) sur la France, reprises de l'exemple d'iTowns (layers/JSONLayers/IGN_MNT_HIGHRES.json).
+const LIMITES_IGN_MNT = {
+  "11": { minTileRow: 442, maxTileRow: 1267, minTileCol: 1344, maxTileCol: 2683 },
+  "12": { minTileRow: 885, maxTileRow: 2343, minTileCol: 3978, maxTileCol: 5126 },
+  "13": { minTileRow: 1770, maxTileRow: 4687, minTileCol: 7957, maxTileCol: 10253 },
+  "14": { minTileRow: 3540, maxTileRow: 9375, minTileCol: 15914, maxTileCol: 20507 },
+};
+
+// Le service IGN est-il joignable (3 s) ? Sinon la vue s'affiche sans lui.
+async function sonderIgn(): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    const r = await fetch("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetCapabilities", { signal: ctrl.signal });
+    clearTimeout(t);
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
 
 function sourceLocale(fetcher: (url: string) => Promise<THREE.Texture>, zoomMax: number): itowns.TMSSource {
   const src = new itowns.TMSSource({
@@ -128,28 +151,45 @@ function texteurCarte(r: Raster, couleurs: Map<number, string>) {
   };
 }
 
+const NODATA_MNT = -9999;
+
+// Nombre de cellules du MNT sans valeur (nodata), pour le dire à l'écran.
+function compterNodata(r: Raster): number {
+  let n = 0;
+  for (let i = 0; i < r.valeurs.length; i++) if (r.valeurs[i] === r.nodata) n++;
+  return n;
+}
+
+// Tuile d'altitudes à partir du MNT local. Hors de l'emprise du MNT, et sur ses cellules sans valeur, la tuile porte
+// NODATA_MNT : iTowns reprend alors la valeur de la tuile parente (terrain IGN si joint, sinon ellipsoïde).
+// Aucune altitude n'est inventée ni étendue au-delà du bord.
 function texteurMnt(r: Raster) {
   const g = r.grille;
+  const est = g.x0 + g.colonnes * g.resolution, sud = g.y0 - g.lignes * g.resolution;
+  const brut = (c: number, l: number): number | null => {
+    if (c < 0 || l < 0 || c >= g.colonnes || l >= g.lignes) return null;
+    const v = r.valeurs[l * g.colonnes + c] as number;
+    return v === r.nodata ? null : v;
+  };
   return async (url: string): Promise<THREE.Texture> => {
     const { w, s, e, n } = empriseDe(url);
-    const data = new Float32Array(DIM * DIM);
-    const val = (col: number, lig: number): number => {
-      const c = Math.min(Math.max(col, 0), g.colonnes - 1);
-      const l = Math.min(Math.max(lig, 0), g.lignes - 1);
-      const v = r.valeurs[l * g.colonnes + c] as number;
-      return v === r.nodata ? 0 : v;
-    };
+    const data = new Float32Array(DIM * DIM).fill(NODATA_MNT);
     for (let j = 0; j < DIM; j++) {
       const lat = n - ((j + 0.5) / DIM) * (n - s);
       for (let i = 0; i < DIM; i++) {
         const lon = w + ((i + 0.5) / DIM) * (e - w);
         const [x, y] = vers93.forward([lon, lat]) as [number, number];
-        // interpolation bilinéaire entre centres de cellules ; hors grille : valeur du bord (dit dans la page)
+        if (x < g.x0 || x >= est || y <= sud || y > g.y0) continue; // hors emprise : nodata
+        if (brut(Math.floor((x - g.x0) / g.resolution), Math.floor((g.y0 - y) / g.resolution)) === null) continue; // cellule sans valeur
+        // bilinéaire entre centres de cellules, poids renormalisés sur les voisins valides
         const fc = (x - g.x0) / g.resolution - 0.5, fl = (g.y0 - y) / g.resolution - 0.5;
         const c0 = Math.floor(fc), l0 = Math.floor(fl), tx = fc - c0, ty = fl - l0;
-        data[j * DIM + i] =
-          val(c0, l0) * (1 - tx) * (1 - ty) + val(c0 + 1, l0) * tx * (1 - ty) +
-          val(c0, l0 + 1) * (1 - tx) * ty + val(c0 + 1, l0 + 1) * tx * ty;
+        let somme = 0, poids = 0;
+        for (const [dc, dl, p] of [[0, 0, (1 - tx) * (1 - ty)], [1, 0, tx * (1 - ty)], [0, 1, (1 - tx) * ty], [1, 1, tx * ty]] as const) {
+          const v = brut(c0 + dc, l0 + dl);
+          if (v !== null) { somme += v * p; poids += p; }
+        }
+        if (poids > 0) data[j * DIM + i] = somme / poids;
       }
     }
     const t = new THREE.DataTexture(data, DIM, DIM, THREE.RedFormat, THREE.FloatType);
@@ -218,49 +258,80 @@ async function demarrer(): Promise<void> {
     { coord: centre, range: 2600, tilt: 45, heading: 0 } as never,
     { controls: { minDistance: 50 } } as never);
 
-  // Les matériaux glTF sont physiques : sans lumière les arbres sont noirs.
-  vue.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
-  const soleil = new THREE.DirectionalLight(0xffffff, 2.2);
-  soleil.position.set(1, 1, 2).normalize().multiplyScalar(1000);
+  // Les matériaux glTF sont physiques : sans lumière les arbres sont noirs. Soleil bas du sud-ouest, repéré dans le
+  // repère local de la zone (haut, est, nord), pour que les houppiers aient un côté éclairé et un côté sombre.
+  const lon = centre.longitude * Math.PI / 180, lat = centre.latitude * Math.PI / 180;
+  const haut = new THREE.Vector3(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat));
+  const estV = new THREE.Vector3(-Math.sin(lon), Math.cos(lon), 0);
+  const nordV = new THREE.Vector3().crossVectors(haut, estV);
+  const hauteurSoleil = (35 * Math.PI) / 180;
+  const soleilDir = new THREE.Vector3()
+    .addScaledVector(haut, Math.sin(hauteurSoleil))
+    .addScaledVector(estV, -Math.cos(hauteurSoleil) * 0.6)
+    .addScaledVector(nordV, -Math.cos(hauteurSoleil) * 0.8);
+  vue.scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  const soleil = new THREE.DirectionalLight(0xfff2dd, 2.8);
+  soleil.position.copy(soleilDir.normalize().multiplyScalar(1e7));
   vue.scene.add(soleil);
 
-  // Terrain : MNT local si présent, sinon ellipsoïde ; dit dans la page.
+  // Terrain : MNT local sur son emprise ; hors emprise, terrain IGN si joignable, sinon ellipsoïde. Dit dans la page.
+  const ign = await sonderIgn();
+  let terrainIgn = false;
+  if (ign) {
+    try {
+      const src = new itowns.WMTSSource({
+        url: "https://data.geopf.fr/wmts?", crs: "EPSG:4326", format: "image/x-bil;bits=32",
+        name: "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES", tileMatrixSet: "WGS84G", attribution: { name: "IGN" },
+        tileMatrixSetLimits: LIMITES_IGN_MNT,
+      } as never);
+      await vue.addLayer(new itowns.ElevationLayer("mnt-ign", { source: src, noDataValue: -99999, clampValues: { min: 0 } } as never));
+      terrainIgn = true;
+    } catch { /* repli : ellipsoïde */ }
+  }
+  const horsEmprise = terrainIgn ? "hors emprise : terrain IGN (RGE ALTI)" : "hors emprise : ellipsoïde, altitude 0";
   if (cfg.a_dtm) {
     try {
       const mnt = await lireRaster("/zone/dtm.tif");
-      const couche = new itowns.ElevationLayer("mnt-local", { source: sourceLocale(texteurMnt(mnt), 17), scale: 1 } as never);
+      const sansValeur = compterNodata(mnt);
+      const couche = new itowns.ElevationLayer("mnt-local", {
+        source: sourceLocale(texteurMnt(mnt), 17), scale: 1, noDataValue: NODATA_MNT,
+      } as never);
       await vue.addLayer(couche);
-      etat.terrain = "Terrain : MNT local (dtm.tif, 25 m), altitudes NGF sans conversion RAF20 ; hors zone, valeur du bord.";
+      etat.terrain = `Terrain : MNT local (dtm.tif, 25 m) sur son emprise, altitudes NGF sans conversion RAF20 ; ${horsEmprise}.` +
+        (sansValeur > 0 ? ` ${sansValeur} cellule(s) du MNT sans valeur : terrain du niveau parent.` : "");
     } catch (err) {
-      etat.terrain = `Terrain : ellipsoïde (MNT local illisible : ${(err as Error).message}).`;
+      etat.terrain = `Terrain : ${terrainIgn ? "IGN" : "ellipsoïde"} (MNT local illisible : ${(err as Error).message}).`;
     }
   } else {
-    etat.terrain = "Terrain : ellipsoïde (pas de dtm.tif dans la zone) ; les arbres peuvent flotter.";
+    etat.terrain = `Terrain : ${terrainIgn ? "terrain IGN (RGE ALTI)" : "ellipsoïde"} (pas de dtm.tif dans la zone) ; les arbres peuvent flotter ou s'enfoncer.`;
   }
   $("etat-terrain").textContent = etat.terrain;
 
   // Fond IGN : facultatif, seulement s'il est joignable.
-  etat.fond = "Fond : aucun (IGN non sondé)";
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 3000);
-    const r = await fetch("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetCapabilities", { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const src = new itowns.WMTSSource({
-      url: "https://data.geopf.fr/wmts", name: "ORTHOIMAGERY.ORTHOPHOTOS", tileMatrixSet: "PM",
-      format: "image/jpeg", crs: "EPSG:3857", attribution: { name: "IGN" },
-    } as never);
-    await vue.addLayer(new itowns.ColorLayer("fond-ign", { source: src } as never));
-    etat.fond = "Fond : orthophoto IGN (data.geopf.fr).";
-  } catch {
-    etat.fond = "Fond : IGN injoignable, la vue s'affiche sans fond.";
+  etat.fond = "Fond : IGN injoignable, la vue s'affiche sans fond.";
+  if (ign) {
+    try {
+      const src = new itowns.WMTSSource({
+        url: "https://data.geopf.fr/wmts", name: "ORTHOIMAGERY.ORTHOPHOTOS", tileMatrixSet: "PM",
+        format: "image/jpeg", crs: "EPSG:3857", attribution: { name: "IGN" },
+      } as never);
+      await vue.addLayer(new itowns.ColorLayer("fond-ign", { source: src } as never));
+      etat.fond = "Fond : orthophoto IGN (data.geopf.fr).";
+    } catch { /* message de repli ci-dessus */ }
   }
   $("etat-fond").textContent = etat.fond;
 
-  await vue.addLayer(new itowns.ColorLayer("types-vegetation", {
-    source: sourceLocale(texteurCarte(cog, couleurs), 19), transparent: true,
-  } as never));
+  // La carte des types est une couche du sol (sous les arbres), d'opacité réglable ; défaut modéré.
+  const carte = new itowns.ColorLayer("types-vegetation", {
+    source: sourceLocale(texteurCarte(cog, couleurs), 19), transparent: true, opacity: OPACITE_CARTE,
+  } as never);
+  await vue.addLayer(carte);
+  const curseur = $("opacite") as HTMLInputElement;
+  curseur.value = String(OPACITE_CARTE);
+  curseur.addEventListener("input", () => {
+    carte.opacity = Number(curseur.value);
+    vue.notifyChange(carte);
+  });
 
   const arbres = new itowns.OGC3DTilesLayer("arbres", {
     source: new itowns.OGC3DTilesSource({ url: urlTuiles }), sseThreshold: 2,
@@ -296,6 +367,13 @@ async function demarrer(): Promise<void> {
     if (id !== null) ouvrirFiche(id);
   });
 
+  // Placement de la caméra (contrôle des tests : vue oblique rasante, etc.).
+  etat.placer = async (range, tilt, heading) => {
+    await (vue as unknown as { controls: { lookAtCoordinate: (o: unknown, anim: boolean) => Promise<void> } })
+      .controls.lookAtCoordinate({ coord: centre, range, tilt, heading }, false);
+    vue.notifyChange(vue.camera3D);
+  };
+
   // Mesure continue des images par seconde : force un rendu par image pendant la durée demandée.
   let images = 0;
   vue.addFrameRequester(itowns.MAIN_LOOP_EVENTS.AFTER_RENDER, () => { images++; });
@@ -325,7 +403,10 @@ async function demarrer(): Promise<void> {
     const s = tr.stats;
     const occupe = (s["downloading"] ?? 0) + (s["parsing"] ?? 0) + (s["queued"] ?? 0);
     const attendu = etat.instancesAttendues;
-    if (!occupe && etat.instancesChargees > 0 && (attendu === null || etat.instancesChargees === attendu)) stable++;
+    // Les couches du sol (carte, terrain, fond) doivent aussi avoir fini : plus aucune commande iTowns en attente.
+    const planif = (vue as unknown as { mainLoop: { scheduler: { commandsWaitingExecutionCount: () => number; commandsRunningCount: () => number } } }).mainLoop.scheduler;
+    const solCharge = planif.commandsWaitingExecutionCount() + planif.commandsRunningCount() === 0;
+    if (!occupe && solCharge && etat.instancesChargees > 0 && (attendu === null || etat.instancesChargees === attendu)) stable++;
     else stable = 0;
     if (stable >= 3 && !etat.ready) {
       etat.chargementMs = Math.round(performance.now() - debut);

@@ -32,6 +32,33 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).
 
+## Voir l'état initial dans iTowns
+
+La vue web (mission 029) affiche les arbres de l'état initial, la carte des types de végétation et la fiche d'une
+cellule, sur le jeu fictif. **Résultat provisoire** : valeurs fictives, rien d'écologique à en conclure.
+
+```
+cd viewer-web && npm ci && cd ..                      # une fois (versions figées dans package-lock.json)
+make prepare biomes trees assets ZONE=zone_fictive    # produit tiles/, web/cells/ et web/rasters/
+make viewer ZONE=zone_fictive                         # serveur local au premier plan
+```
+
+Ouvrir http://127.0.0.1:8080/ (autre port : `PORT=8090`). Pour une capture d'écran (Playwright, Chromium) :
+`node viewer-web/scripts/capture.cjs http://127.0.0.1:8080/ capture.png`.
+
+Ce qu'on doit voir :
+- un bandeau « Résultat provisoire » ; au centre, les arbres (14 080 sur le jeu fictif, compteur en pied de page) posés sur
+  la carte colorée des types de végétation, avec sa légende ; un curseur règle l'opacité de la carte ;
+- un clic sur une cellule ouvre sa fiche : station, type de végétation, composition, H0, densité ; volume et carbone
+  « non calculés » ; la commande `viewer-massif -- --x <X> --y <Y> --year <A>` à copier ;
+- le curseur des années est désactivé (une seule année).
+
+Avec ou sans réseau : tout est servi en local, la page s'affiche sans réseau. Si `data.geopf.fr` est joignable, elle
+ajoute l'orthophoto IGN en fond et le terrain IGN hors de l'emprise du MNT local ; sinon elle le dit en pied de page
+(hors emprise : ellipsoïde, altitude 0). Le chargement complet prend environ 20 s sans réseau, plus avec le fond IGN.
+Sans GPU, le navigateur dessine en logiciel : moins d'une image par seconde, sans rapport avec une machine normale.
+Les tests de la vue sont `cd viewer-web && npm test` (logique) et `tests/m4/test_m4_vue.py` (navigateur).
+
 ## Versions des outils
 
 Figées au jalon M0 (mission 012) :

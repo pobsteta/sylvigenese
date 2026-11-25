@@ -1,6 +1,7 @@
 // Relevé de la vue (mission 029) : ouvre la page, attend le chargement, relève les instances et les images
 // par seconde (référence locale, sans seuil), ouvre une fiche, écrit la capture à deviceScaleFactor 2.
-// Usage : node viewer-web/scripts/capture.cjs [url] [capture.png] [copie.png]
+// Usage : node viewer-web/scripts/capture.cjs [url] [capture.png] [copie.png] [oblique.png]
+// (la 4e capture est une vue oblique rasante, pour juger le terrain autour de la zone)
 // Sans GPU, Chromium rend en logiciel (SwiftShader) : les images par seconde sont alors très basses.
 const path = require("path");
 const fs = require("fs");
@@ -19,6 +20,7 @@ function loadPlaywright() {
   const url = process.argv[2] || "http://127.0.0.1:8080/";
   const png = process.argv[3] || "tests/fixtures/zone_fictive/web/capture_vue.png";
   const copie = process.argv[4];
+  const oblique = process.argv[5];
   const { chromium } = loadPlaywright();
   const browser = await chromium.launch({
     headless: true,
@@ -49,7 +51,12 @@ function loadPlaywright() {
     sortie.fiche = await page.locator('[data-testid="cell-sheet"]').innerText();
     await page.waitForTimeout(1500);
     fs.mkdirSync(path.dirname(png), { recursive: true });
-    await page.screenshot({ path: png });
+    await page.screenshot({ path: png, timeout: 180000 });
+    if (oblique) {
+      await page.evaluate(() => { document.getElementById("fiche").hidden = true; return window.sylvigenese.placer(1500, 10, 200); });
+      await page.waitForTimeout(12000);
+      await page.screenshot({ path: oblique, timeout: 180000 });
+    }
     if (copie) { fs.mkdirSync(path.dirname(copie), { recursive: true }); fs.copyFileSync(png, copie); }
   } catch (e) {
     sortie.fatal = String(e && e.message ? e.message : e);
