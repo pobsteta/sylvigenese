@@ -242,6 +242,10 @@
 
 ## 11. Critères d'acceptation
 
+> Ordre (décision de Pascal du 25/11/2026) : M2a, puis une **tranche de M4a sur l'état
+> initial** (vue iTowns des arbres de `trees_init`, de la carte des types de végétation et de
+> la fiche de cellule, sans simulation), puis M3a, la suite de M4a, M5a et M6a.
+
 | Jalon | a (agents, jeu fictif) | b (avec Pascal) |
 |---|---|---|
 | M0 | Validateur testé sur un fichier conforme et un fichier fautif par contrat. CI verte, durée relevée par la CI elle-même. Squelette des modules. `.claude/test-command`. | — |
