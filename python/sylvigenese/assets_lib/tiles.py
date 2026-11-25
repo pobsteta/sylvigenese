@@ -1,8 +1,9 @@
-"""Tuiles 3D Tiles 1.1 de l'état initial : un `tileset.json` par année, un contenu .gltf par tuile.
+"""Tuiles 3D Tiles 1.1 : un `tileset.json` par année (état initial ou année simulée retenue), un
+contenu .gltf par tuile.
 
-Étape du BRIEF codée : spec §9 (3D Tiles 1.1 avec instanciation) ; ADR 0002 ; référentiel
-`docs/referentiels/itowns-instancing.md` (contenu en `.gltf` et non `.glb`, point A ;
-`EXT_mesh_gpu_instancing` lue par three). Mission 028.
+Étape du BRIEF codée : spec §9 (3D Tiles 1.1 avec instanciation ; une tuile par année retenue) ;
+ADR 0002 ; référentiel `docs/referentiels/itowns-instancing.md` (contenu en `.gltf` et non `.glb`,
+point A ; `EXT_mesh_gpu_instancing` lue par three). Missions 028 (état initial) et 047 (sim/).
 
 - Découpage : carrés de `TUILE_M` mètres alignés sur des multiples de `TUILE_M` en EPSG:2154 ;
   seules les tuiles qui portent des arbres existent. Nom : `t_<x_ouest>_<y_sud>`.
@@ -13,6 +14,8 @@
   erreur géométrique 0 pour les tuiles de contenu.
 - Contenu : un nœud glTF par groupe d'essences, avec `EXT_mesh_gpu_instancing` (TRANSLATION,
   SCALE). Une instance par arbre : translation = pied de l'arbre, échelle = (r, h, r).
+- Rayon r : état initial, disque de même surface que `crown_area` ; années simulées (mission 047,
+  plan T4), r = cw / 2 de `sim/trees`, t0 compris. `etat` des extras : `initial` ou `simulé`.
 """
 
 from __future__ import annotations
@@ -46,16 +49,17 @@ def crown_radius(crown_area: np.ndarray) -> np.ndarray:
 
 
 def build_tile(x_west: int, y_south: int, trees: dict[str, np.ndarray], z_ellipsoid: np.ndarray,
-                     groups: np.ndarray, size: int = TILE_M) -> dict:
+                     groups: np.ndarray, size: int = TILE_M, radius: np.ndarray | None = None) -> dict:
     """Prépare une tuile : repère local, positions et échelles par groupe, volume englobant.
 
-    `arbres` ne contient que les arbres de la tuile ; `z_ellips` : hauteur ellipsoïdale du pied.
+    `trees` ne contient que les arbres de la tuile ; `z_ellipsoid` : hauteur ellipsoïdale du pied ;
+    `radius` : rayon du houppier (m) ; sans lui, celui du disque de surface `crown_area`.
     """
     xc, yc = x_west + size / 2.0, y_south + size / 2.0
     zc = round(float(np.mean(z_ellipsoid)), 3)
     frame = LocalFrame(xc, yc, zc)
     enu = frame.lambert_to_local(trees["x"], trees["y"], z_ellipsoid)
-    r = crown_radius(trees["crown_area"])
+    r = crown_radius(trees["crown_area"]) if radius is None else np.asarray(radius, dtype="float64")
     h = np.asarray(trees["h"], dtype="float64")
     min_corner = np.array([(enu[:, 0] - r).min(), (enu[:, 1] - r).min(), enu[:, 2].min()])
     max_corner = np.array([(enu[:, 0] + r).max(), (enu[:, 1] + r).max(), (enu[:, 2] + h).max()])
@@ -64,7 +68,7 @@ def build_tile(x_west: int, y_south: int, trees: dict[str, np.ndarray], z_ellips
             "groups": groups, "box": (center, half), "n": int(len(h))}
 
 
-def write_content(directory: Path, tile: dict, year: int) -> Path:
+def write_content(directory: Path, tile: dict, year: int, state: str = "initial") -> Path:
     """Écrit `<tuile>.gltf` et `<tuile>.bin` ; rend le chemin du .gltf."""
     name = tile["name"]
     doc, buffer = models.empty_document(f"{name}.bin"), models.Buffer()
@@ -82,7 +86,7 @@ def write_content(directory: Path, tile: dict, year: int) -> Path:
                              "extras": {"instances": int(selected.sum())}})
         doc["scenes"][0]["nodes"].append(len(doc["nodes"]) - 1)
     doc["extensionsUsed"] = doc["extensionsRequired"] = ["EXT_mesh_gpu_instancing"]
-    doc["extras"] = {**models.GENERIC_EXTRAS, "annee": year, "etat": "initial", "tuile": name,
+    doc["extras"] = {**models.GENERIC_EXTRAS, "annee": year, "etat": state, "tuile": name,
                      "repere": "glTF Y haut ; local est-nord-haut (e, n, u) -> (e, u, -n) ; origine et orientation : transform de la tuile dans tileset.json",
                      "instances": tile["n"]}
     path = directory / f"{name}.gltf"
