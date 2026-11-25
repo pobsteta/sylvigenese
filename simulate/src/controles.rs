@@ -26,6 +26,7 @@
 //! | [`SORTE_HDOM_ASYMPTOTE_KORF`] | cellule | H_dom (m) |
 //! | [`SORTE_CLASSE_KORF`] | cellule | classe retenue (1 à 5), à l'état initial |
 //! | [`SORTE_DH_ARBRE_MIS_A_ZERO`] | arbre | part f(rel_d) (sans unité) |
+//! | [`SORTE_TROUEE_SANS_RECRUE`] | cellule, chaque année | H_dom de fin d'année (0 m) |
 //!
 //! Les autres faits (sorties de domaine, disques au bord, cellules mêlées, cellules sans arbre,
 //! recrues en cellule vide) sont trop nombreux pour une ligne chacun : ils sont **comptés**
@@ -46,6 +47,11 @@ pub const SORTE_HDOM_ASYMPTOTE_KORF: &str = "hdom_asymptote_korf";
 pub const SORTE_CLASSE_KORF: &str = "classe_korf";
 /// Hausse de hauteur d'un arbre négative (part f(rel_d) < 0), mise à 0.
 pub const SORTE_DH_ARBRE_MIS_A_ZERO: &str = "dh_arbre_mis_a_zero";
+
+/// Cellule simulée dont la hauteur dominante est nulle : aucune recrue n'y est ajoutée tant
+/// qu'elle le reste (décision de Pascal du 25/11/2026 ; la recolonisation des trouées viendra en
+/// M5 par les cohortes de semis).
+pub const SORTE_TROUEE_SANS_RECRUE: &str = "trouee_sans_recrue";
 
 /// Seuil relatif de la règle |Q| < 1e-9 × max(Q) (spec §6).
 pub const SEUIL_RELATIF_ZERO: f64 = 1e-9;
@@ -85,6 +91,9 @@ pub struct Comptes {
     /// Recrues nées dans une cellule sans arbre : rel_d pris à 1 (elles sont leurs propres
     /// dominantes, par la définition de d_dom).
     pub recrues_cellule_vide: u64,
+    /// Couples (cellule, année) simulés à H_dom nulle en fin d'année : recrutement suspendu
+    /// (décision de Pascal du 25/11/2026), chacun signalé ([`SORTE_TROUEE_SANS_RECRUE`]).
+    pub cellules_trouee_sans_recrue: u64,
     /// Arbres morts (`deaths`).
     pub morts: u64,
     /// Couples (arbre, année) dont la hausse de hauteur négative a été mise à 0 (signalés).
@@ -105,6 +114,7 @@ impl Comptes {
         self.cellules_sans_arbre += autre.cellules_sans_arbre;
         self.recrues += autre.recrues;
         self.recrues_cellule_vide += autre.recrues_cellule_vide;
+        self.cellules_trouee_sans_recrue += autre.cellules_trouee_sans_recrue;
         self.morts += autre.morts;
         self.dh_arbre_mis_a_zero += autre.dh_arbre_mis_a_zero;
         self.valeurs_mises_a_zero += autre.valeurs_mises_a_zero;

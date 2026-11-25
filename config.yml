@@ -20,7 +20,8 @@ management: none          # aucune gestion sylvicole en v1 (spec §6)
 simulate:
   level: massif
   seed: 42                # graine du générateur à compteur (bench/SPEC.md)
-  t0: 2021                # année de départ ; jeu fictif : année de vol majoritaire de chm_date.tif
-                          # (2021, retenue par assets le 25/11/2026) ; à fixer par zone réelle
+  t0: 2022                # année de départ ; jeu fictif : année du vol le plus récent de chm_date.tif
+                          # (vols de 2021 et 2022 ; la hauteur ne se recule pas, décision de
+                          # l'orchestrateur du 25/11/2026) ; à fixer par zone réelle
   years: 100              # horizon (défaut du BRIEF §8)
 #  threads: 4

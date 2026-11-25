@@ -47,8 +47,9 @@
 //! | [`SORTE_TOTAL_CELLULES_SANS_ARBRE`] | la zone, dernière année | nombre de couples (cellule, année) |
 //! | [`SORTE_TOTAL_RECRUES_CELLULE_VIDE`] | la zone, dernière année | nombre de recrues |
 //! | [`SORTE_TOTAL_SER_SANS_EFFET`] | la zone, dernière année | nombre de prédicteurs |
+//! | [`SORTE_TOTAL_TROUEES_SANS_RECRUE`] | la zone, dernière année | nombre de couples (cellule, année) |
 //!
-//! Les trois totaux ne sont écrits que s'ils ne sont pas nuls : `run.json` n'a pas de place pour
+//! Les quatre totaux ne sont écrits que s'ils ne sont pas nuls : `run.json` n'a pas de place pour
 //! eux (son contrat refuse toute clé en plus), et les taire serait deviner à la place du lecteur.
 //!
 //! Règle de lisibilité (CLAUDE.md) : structures concrètes, fonctions libres, aucune macro maison
@@ -87,6 +88,10 @@ pub const SORTE_TOTAL_CELLULES_SANS_ARBRE: &str = "total_cellules_sans_arbre";
 pub const SORTE_TOTAL_RECRUES_CELLULE_VIDE: &str = "total_recrues_cellule_vide";
 /// Total des prédicteurs calculés pour une SER absente des effets du jeu (effet pris à 0).
 pub const SORTE_TOTAL_SER_SANS_EFFET: &str = "total_ser_sans_effet";
+
+/// Total des couples (cellule, année) en trouée (H_dom nulle), sans recrue (décision de Pascal du
+/// 25/11/2026) ; chaque couple a aussi sa ligne `trouee_sans_recrue`.
+pub const SORTE_TOTAL_TROUEES_SANS_RECRUE: &str = "total_trouees_sans_recrue";
 
 /// Nom du fichier de chaque partition.
 pub const FICHIER_PARTITION: &str = "part-00000.parquet";
@@ -570,6 +575,12 @@ fn ajouter_signalements_de_zone(
             comptes.sorties_domaine.ser_sans_effet,
             "prédicteurs calculés pour une SER absente des effets du jeu de paramètres : effet de \
              SER pris à 0, comme le veut le contrat",
+        ),
+        (
+            SORTE_TOTAL_TROUEES_SANS_RECRUE,
+            comptes.cellules_trouee_sans_recrue,
+            "couples (cellule, année) en trouée, à hauteur dominante nulle : aucune recrue n'y est \
+             ajoutée (décision de Pascal du 25/11/2026 ; recolonisation par les cohortes en M5)",
         ),
     ];
     for (sorte, total, texte) in totaux {

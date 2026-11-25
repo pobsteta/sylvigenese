@@ -923,6 +923,72 @@ fn un_pas_fait_a_la_main_croissance_hauteur_et_recrues() {
 }
 
 #[test]
+fn aucune_recrue_dans_une_trouee_a_hdom_nulle_comptee_et_signalee() {
+    // Décision de Pascal du 25/11/2026 : pas de recrue dans une cellule tant que sa hauteur
+    // dominante est nulle. Trois cellules en ligne (EPSG:2154, x = est, y = nord, 25 m) :
+    // 0 a un arbre et H_dom = 10 m ; 1 est vide à H_dom = 10 m ; 2 est vide à H_dom = 0 (trouée).
+    let jeux = Jeux::essai();
+    let modeles = modeles(&jeux, &["03"], None);
+    let cellules = cellules(3, 1, 10.0, 30.0);
+    let geometrie = cellules.geometrie;
+    // Le point du terrain (est 700 062,5 ; nord 6 500 987,5) est dans la cellule 2, la trouée :
+    // bornes du moteur (x ouest, x est, y sud, y nord) = (700 050, 700 075, 6 500 975, 6 501 000).
+    assert_eq!(
+        geometrie.bornes(2),
+        (700_050.0, 700_075.0, 6_500_975.0, 6_501_000.0)
+    );
+    assert_eq!(cellule_de(&geometrie, 700_062.5, 6_500_987.5), 2);
+    let etat = EtatArbres::depuis_initiaux(vec![arbre(
+        "t1",
+        "03",
+        &geometrie,
+        700_012.5,
+        6_500_987.5,
+        30.0,
+        12.0,
+    )])
+    .unwrap();
+    let hdom = EtatCellules {
+        h_dom: vec![10.0, 10.0, 0.0],
+    };
+    let (annee, graine) = (2023, 42);
+    let resultat = pas::pas_annuel(&etat, &cellules, &hdom, &modeles, graine, annee).unwrap();
+    // La trouée garde sa H_dom nulle (aucun arbre ne donne sa courbe) et ne reçoit aucune recrue.
+    assert_eq!(resultat.cellules.h_dom[2], 0.0);
+    for rang in 0..resultat.etat.len() {
+        assert_ne!(resultat.etat.cellule[rang], 2, "recrue dans la trouée");
+        assert!(resultat.etat.h[rang] > 0.0);
+    }
+    // Les deux autres cellules recrutent comme avant : ⌊2,5⌋ + (u < 0,5).
+    let essence = packer_essence("03").unwrap();
+    let mut attendues = 0;
+    for cellule in 0..2u64 {
+        let tire = u(graine, annee, cellule, essence, Sorte::NbRecrues);
+        attendues += if tire < 0.5 { 3 } else { 2 };
+    }
+    assert_eq!(resultat.comptes.recrues, attendues);
+    // Compté et signalé, une ligne par (cellule, année).
+    assert_eq!(resultat.comptes.cellules_trouee_sans_recrue, 1);
+    let trouees: Vec<_> = resultat
+        .signalements
+        .iter()
+        .filter(|s| s.sorte == controles::SORTE_TROUEE_SANS_RECRUE)
+        .collect();
+    assert_eq!(trouees.len(), 1);
+    assert_eq!(trouees[0].entite, "2");
+    assert_eq!(trouees[0].annee, annee);
+    assert_eq!(trouees[0].valeur, Some(0.0));
+    assert!(trouees[0].message.contains("aucune recrue"));
+    // Une H_dom positive, même petite, n'est pas une trouée.
+    let hdom = EtatCellules {
+        h_dom: vec![10.0, 10.0, 0.01],
+    };
+    let resultat = pas::pas_annuel(&etat, &cellules, &hdom, &modeles, graine, annee).unwrap();
+    assert_eq!(resultat.comptes.cellules_trouee_sans_recrue, 0);
+    assert!((0..resultat.etat.len()).any(|rang| resultat.etat.cellule[rang] == 2));
+}
+
+#[test]
 fn une_cellule_de_korf_sans_point_de_depart_arrete_le_pas_code_2() {
     let jeux = Jeux::essai();
     let modeles = modeles(&jeux, &[], None);

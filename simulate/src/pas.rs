@@ -24,6 +24,10 @@
 //!    des recrues par somme de préfixes séquentielle dans l'ordre des `cell_id` ; hauteur
 //!    H_dom (fin d'année) × f(rel_d), rel_d = 7,48 / d_dom de la cellule (1 si la cellule n'a pas
 //!    d'arbre : la recrue est alors sa propre dominante ; compté) ; ajoutées en fin d'année ;
+//!    **aucune recrue dans une trouée**, cellule simulée dont la H_dom de fin d'année est nulle
+//!    (décision de Pascal du 25/11/2026 : la recolonisation des trouées viendra en M5 par les
+//!    cohortes) : ni espérance ni tirage n'y sont calculés, chaque couple (cellule, année) est
+//!    compté et signalé ([`controles::SORTE_TROUEE_SANS_RECRUE`]) ;
 //! 6. **houppiers** hcb et cw par les allométries ([`crate::hauteur::AllometrieHcb`],
 //!    [`crate::hauteur::AllometrieCw`]) ;
 //! 7. **contrôles** ([`crate::controles::controler_arbres`]) : code 3 au premier écart.
@@ -424,7 +428,8 @@ pub struct ResultatPas {
     /// H_dom de chaque cellule à la fin de l'année.
     pub cellules: EtatCellules,
     pub comptes: Comptes,
-    /// Dans l'ordre : cellules (ordre des `cell_id`), puis arbres (ordre de l'état).
+    /// Dans l'ordre : cellules (ordre des `cell_id`), puis trouées (ordre des `cell_id`), puis
+    /// arbres (ordre de l'état).
     pub signalements: Vec<Signalement>,
 }
 
@@ -888,6 +893,36 @@ fn signalement_dh(annee: i32, tree_id: &str, part: f64) -> Signalement {
 // ------------------------------------------------------------------------------------------
 // Le pas annuel
 
+/// Les trouées de l'année : cellules simulées dont la H_dom de fin d'année est nulle. Aucune recrue
+/// n'y est ajoutée (décision de Pascal du 25/11/2026) ; chacune est comptée et signalée, dans
+/// l'ordre des `cell_id`. Une H_dom négative n'est pas une trouée : elle reste aux contrôles.
+fn reperer_trouees(
+    cellules: &Cellules,
+    h_dom_fin: &[f64],
+    annee: i32,
+    comptes: &mut Comptes,
+    signalements: &mut Vec<Signalement>,
+) -> Vec<bool> {
+    let mut trouees = vec![false; h_dom_fin.len()];
+    for cellule in 0..h_dom_fin.len() {
+        if !cellules.simulee[cellule] || h_dom_fin[cellule] != 0.0 {
+            continue;
+        }
+        trouees[cellule] = true;
+        comptes.cellules_trouee_sans_recrue += 1;
+        signalements.push(Signalement {
+            annee,
+            entite: cellule.to_string(),
+            sorte: controles::SORTE_TROUEE_SANS_RECRUE.to_string(),
+            message: "hauteur dominante nulle (trouée) : aucune recrue ajoutée cette année ; la \
+                      recolonisation des trouées viendra en M5 par les cohortes de semis"
+                .to_string(),
+            valeur: Some(h_dom_fin[cellule]),
+        });
+    }
+    trouees
+}
+
 /// Le nombre de recrues de chaque essence candidate dans une cellule, et les sorties de domaine.
 fn compter_recrues(
     cellules: &Cellules,
@@ -1096,11 +1131,15 @@ pub fn pas_annuel(
         }
     }
 
-    // 5. Recrutement : comptes par cellule (en parallèle), numéros (somme séquentielle),
-    // recrues (en parallèle), ajout en ordre fixe.
+    // 5. Recrutement : trouées écartées (en ordre fixe), comptes par cellule (en parallèle),
+    // numéros (somme séquentielle), recrues (en parallèle), ajout en ordre fixe.
+    let trouees = reperer_trouees(cellules, &h_dom_fin, annee, &mut comptes, &mut signalements);
     let nombres: Vec<Result<(Vec<(usize, u64)>, SortiesParSens), Erreur>> = (0..resumes.len())
         .into_par_iter()
         .map(|cellule| {
+            if trouees[cellule] {
+                return Ok((Vec::new(), SortiesParSens::default()));
+            }
             compter_recrues(cellules, &resumes[cellule], modeles, cellule, graine, annee)
         })
         .collect();
