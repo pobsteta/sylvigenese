@@ -90,3 +90,10 @@
 | [030-tests-m4-etat-initial](missions/030-tests-m4-etat-initial.md) | `testeur` | sonnet | donner | 3 oui | M4a (état initial) |
 | [031-dynamics-reponses-pascal](missions/031-dynamics-reponses-pascal.md) | `dev` | sonnet | donner | 3 oui | M2a (suite) |
 | [032-identifiants-en-anglais](missions/032-identifiants-en-anglais.md) | `dev` | sonnet | donner | 3 oui | dette |
+| [033-contrats-m3](missions/033-contrats-m3.md) | `dev` | sonnet | donner | 3 oui | M3a |
+| [034-parametres-manquants-m3](missions/034-parametres-manquants-m3.md) | `dev` | sonnet | donner | 3 oui | M3a |
+| [035-simulate-fondations](missions/035-simulate-fondations.md) | `dev` | opus | prendre | 3 oui | M3a |
+| [036-simulate-entrees](missions/036-simulate-entrees.md) | `dev` | sonnet | donner | 3 oui | M3a |
+| [037-simulate-pas](missions/037-simulate-pas.md) | `dev` | opus | prendre | 3 oui | M3a |
+| [038-simulate-sorties](missions/038-simulate-sorties.md) | `dev` | opus | prendre | 3 oui | M3a |
+| [039-tests-m3](missions/039-tests-m3.md) | `testeur` | sonnet | donner | 3 oui | M3a |
