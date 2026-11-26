@@ -142,6 +142,13 @@ def check_metadata(file, source, rule, findings):
     for key in rule.get("required", []):
         if not meta.get(key, "").strip():
             findings.error(f"métadonnée Parquet obligatoire absente ou vide : {key}")
+    for key, exemption in rule.get("required_unless", {}).items():
+        # obligatoire, sauf si une autre métadonnée a la valeur d'exemption (ex. calage = « non calé »)
+        exempt = any(meta.get(k) == v for k, v in exemption.items())
+        if not exempt and not meta.get(key, "").strip():
+            conditions = " ou ".join(f"{k} = {show_value(v)}" for k, v in exemption.items())
+            findings.error(f"métadonnée Parquet obligatoire absente ou vide : {key} "
+                           f"(facultative seulement si {conditions})")
     for key, expected in rule.get("equals", {}).items():
         if key in meta and meta[key] != expected:
             findings.error(f"métadonnée {key} : valeur {show_value(meta[key])} refusée, "

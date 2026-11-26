@@ -421,6 +421,27 @@ def test_exemplar_metadata_faults(tmp_path, capsys, metadata, pattern):
     refused(capsys, "exemplars", exemplar(tmp_path, metadata=metadata), pattern)
 
 
+def test_exemplar_not_calibrated_without_b_cible_conform(tmp_path, capsys):
+    """Résineux : aucun b observé, b_cible absent, dit « non calé »."""
+    meta = {"b_cible": None, "calage": "non calé", "calage_raisons": "densité des rameaux tirée"}
+    accepted(capsys, "exemplars", exemplar(tmp_path, name="Picea_abies_mature.parquet",
+                                           metadata=dict(meta, essence="Picea_abies")))
+
+
+def test_exemplar_calibrated_with_b_cible_conform(tmp_path, capsys):
+    accepted(capsys, "exemplars", exemplar(tmp_path, metadata={"calage": "calé"}))
+
+
+@pytest.mark.parametrize("metadata, pattern", [
+    ({"b_cible": None}, r"obligatoire absente.*b_cible"),                       # feuillu sans b_cible
+    ({"b_cible": None, "calage": "calé"}, r"obligatoire absente.*b_cible"),    # « calé » sans b_cible
+    ({"b_cible": "nan", "calage": "non calé"}, r"b_cible.*fini"),              # jamais NaN
+    ({"calage": "peut-être"}, r"calage.*liste fermée"),
+])
+def test_exemplar_b_cible_rule_faults(tmp_path, capsys, metadata, pattern):
+    refused(capsys, "exemplars", exemplar(tmp_path, metadata=metadata), pattern)
+
+
 def test_exemplar_name_must_follow_its_metadata(tmp_path, capsys):
     refused(capsys, "exemplars", exemplar(tmp_path, name="Fagus_sylvatica_old.parquet"),
             r"Fagus_sylvatica_mature\.parquet attendu")

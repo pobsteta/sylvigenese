@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Exemplaire d'arbre du générateur : segments (assets/exemplars/<essence>_<stade>.parquet, M6a, mission 068)",
-  "description": "Un arbre synthétique du générateur de tarif-nemeton, écrit par fichiers (décision de Pascal Q1 du 26/11/2026 ; mission E du plan m6a, dépôt tarif-nemeton), lu par assets qui en fait les .glb. Une ligne par segment (tronc de cône), comme le CSV `exporter_cylindres` du générateur. **REPÈRE DU GÉNÉRATEUR : z-up** (x est, y nord, z vers le haut, unités en mètres, base du tronc en z = 0) ; assets convertit en y-up (x, z, -y) une seule fois (plan T6). La métadonnée Parquet dit ce repère et la provenance (règle x-metadata) : `frame` = z-up, `units` = m, `essence` (code tarif_nemeton_code de species.csv), `stage`, `D_cm`, `H_m`, `hbh_m`, `Rh_m`, `b_cible`, `seed` (graine), `source_commit` (commit de tarif-nemeton), `synthetic` = true (arbre synthétique ; ne valide aucun tarif, BRIEF §9). Les dimensions D_cm, H_m, hbh_m, Rh_m, b_cible viennent de la décision Q6 : quantiles de sim/trees (D, H), calibration de tarif-nemeton (hbh, Rh, b_cible), repli sur params/model_dimensions.csv ; ce contrat ne fixe aucune valeur. Le nom du fichier est <essence>_<stade>.parquet. Hors contrat : que les segments soient ceux du générateur à l'octet près (test de la mission E).",
+  "description": "Un arbre synthétique du générateur de tarif-nemeton, écrit par fichiers (décision de Pascal Q1 du 26/11/2026 ; mission E du plan m6a, dépôt tarif-nemeton), lu par assets qui en fait les .glb. Une ligne par segment (tronc de cône), comme le CSV `exporter_cylindres` du générateur. **REPÈRE DU GÉNÉRATEUR : z-up** (x est, y nord, z vers le haut, unités en mètres, base du tronc en z = 0) ; assets convertit en y-up (x, z, -y) une seule fois (plan T6). La métadonnée Parquet dit ce repère et la provenance (règle x-metadata) : `frame` = z-up, `units` = m, `essence` (code tarif_nemeton_code de species.csv), `stage`, `D_cm`, `H_m`, `hbh_m`, `Rh_m`, `b_cible` (OBLIGATOIRE et fini, sauf si `calage` = « non calé » : un résineux n'a aucun b observé, la clé est alors absente ; jamais NaN ni inventé), `calage` (« calé » | « non calé », facultatif) et `calage_raisons` (texte libre, facultatif), `seed` (graine), `source_commit` (commit de tarif-nemeton), `synthetic` = true (arbre synthétique ; ne valide aucun tarif, BRIEF §9). Les dimensions D_cm, H_m, hbh_m, Rh_m, b_cible viennent de la décision Q6 : quantiles de sim/trees (D, H), calibration de tarif-nemeton (hbh, Rh, b_cible), repli sur params/model_dimensions.csv ; ce contrat ne fixe aucune valeur. Le nom du fichier est <essence>_<stade>.parquet. Hors contrat : que les segments soient ceux du générateur à l'octet près (test de la mission E).",
   "x-schema-version": "0.1",
   "x-names-fixed-by": "mission 068 (plan m6a §4)",
   "x-metadata": {
@@ -14,10 +14,17 @@
       "H_m",
       "hbh_m",
       "Rh_m",
-      "b_cible",
       "seed",
       "source_commit",
       "synthetic"
+    ],
+    "required_unless": {
+      "b_cible": {
+        "calage": "non calé"
+      }
+    },
+    "optional": [
+      "calage_raisons"
     ],
     "equals": {
       "frame": "z-up",
@@ -25,6 +32,10 @@
       "synthetic": "true"
     },
     "enum": {
+      "calage": [
+        "calé",
+        "non calé"
+      ],
       "stage": [
         "young",
         "pole",
