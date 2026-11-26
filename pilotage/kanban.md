@@ -26,6 +26,7 @@ _Modèle de carte :_
 - M5b · questions de sens à préparer pour Pascal : coefficient d'extinction pris comme conversion vers l'échelle de Niinemets ; troncature du noyau à K cellules · depuis le cycle 8
 - M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
 - M5b · mentions Q2 et Q3 : aujourd'hui en signalements de t0 (sim/flags.parquet) ; à porter au rapport de simulation quand il existera · depuis le cycle 8
+- M5b · questions n° 12 à 17 du référentiel de régénération (docs/referentiels/regeneration.md §13.6 : lecture hors dépôt du Data Sheet et de la thèse, Q3 pour le semis de pin, dimension critique de Gaudio en contrôle, grandeur de la maturité, emprunts du Data Sheet, ancre de dispersion du pin), à poser une par une à Pascal · depuis le cycle 9
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé

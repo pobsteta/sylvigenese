@@ -1,14 +1,14 @@
 # Régénération : ce que la littérature publie, essence par essence (mission 059, mission A du plan M5a)
 
 - **Propriétaire :** Pascal
-- **Date de consultation :** 2026-11-26 (trois passes ; la troisième lit les documents téléchargés en local)
+- **Date de consultation :** 2026-11-26 (quatre passes ; la troisième lit les documents téléchargés en local, la quatrième lit les deux documents déposés par Pascal : voir §13)
 - **Produit par :** agent `acquereur`, mission 059 (`pilotage/missions/059-referentiel-regeneration.md`)
 - **Mission redite :** relever, pour chaque essence de `contracts/species.csv` et pour sept grandeurs (dispersion, maturité, fécondité, tolérance à l'ombre, L d'Ellenberg, croissance et survie des semis sous couvert), ce que la littérature publie et où, pour que le contrat `params/regeneration` (mission 060) ne porte que des termes qui existent.
 - **Décision éclairée :** les termes et les sources de `params/regeneration.parquet` (plan `docs/plans/m5a.md` §3 ; contrat `contracts/tables/params/regeneration.schema.json`), dans le cadre des réponses de Pascal du 26/11/2026 (journal l. 323-325) :
   - Q1 : passage calé sur le flux IFN, borné par le stock de semis ;
   - Q2 : stock initial « en régime » (flux IFN × temps de passage) ;
   - Q3 : survie par la seule lumière et la tolérance à l'ombre.
-- **Fichier tabulaire :** `docs/referentiels/regeneration.csv`, 195 lignes de données. Ce sont :
+- **Fichier tabulaire :** `docs/referentiels/regeneration.csv`, 195 lignes de données aux passes 1 à 3, **206 avec la quatrième passe** (11 lignes ajoutées en fin de fichier, §13). Les 195 sont :
   - les 44 lignes des passes 1 et 2, mises à jour ;
   - 140 lignes `T01-<espar>`, une par espar appariée à Niinemets et Valladares ;
   - une ligne `T01-ABS` pour les 51 taxons absents de Niinemets ;
@@ -51,7 +51,7 @@
 | **TreeMig, paramètres d'espèces** | fichiers TreePars du dossier P de TMEnvironment (`TreeMigDocu_251218_Model.pdf` p. 19) ; exemples pour « the 30 most common tree species in Central Europe » (`treemig_details.html:589`), dans le zip du starter kit sur EnviDat (`treemig_starter-kit.html:438-439`) ; **aucune licence** dans les pages et PDF lus | Licence **inconnue**, fichiers non obtenus. Rien à reprendre ; à lire sur la notice EnviDat avant tout usage. La mention CC-BY-SA pour EnviDat (seconde passe, résumé de recherche) n'est **pas vérifiée**. |
 | **TreeMig, documentation** (PDF) | aucune licence vue dans les pages lues | Seuls les noms de paramètres, les unités et les numéros d'équation sont cités ; aucune constante n'est recopiée. |
 | **Lososová et al. 2023** | « This is an open access article under the terms of the Creative Commons Attribution License, which permits use, distribution and reproduction in any medium, provided the original work is properly cited » (p. 1485 ; version non précisée) | Article **CC BY confirmé** : les distances par classe (tableau 1, p. 1488) sont reprises avec citation. La licence du Supplement S1 et de FloraVeg.EU n'est pas lue. |
-| **Suárez-Muñoz et al. 2021 (Frontiers)** | « Creative Commons Attribution License (CC BY) », copyright 2021 des auteurs (`frontiers_article.html:92`) | Article **CC BY confirmé** ; Data Sheet 1 non obtenu, licence non lue. |
+| **Suárez-Muñoz et al. 2021 (Frontiers)** | « Creative Commons Attribution License (CC BY) », copyright 2021 des auteurs (`frontiers_article.html:92`) | Article **CC BY confirmé** ; Data Sheet 1 obtenu à la quatrième passe : **aucune licence dite dans le document** (§13). |
 | **GIEC 2006, vol. 4, chap. 4** | **aucune licence** dans les pages lues | Tableau 4.4 **lu, non recopié** (voir §6 et la question n° 10). |
 
 ## 2. Tableau de couverture (essence × grandeur)
@@ -67,7 +67,7 @@ Légende :
 |---|---|---|---|---|---|---|---|---|
 | 09 | *Fagus sylvatica* | résumé (D04) ; manquant (S1) | manquant (TreeMig) | résumé* (F02, F03) | **lu** (T01-09) ; résumé (T04, T06, T07) | hors dépôt | résumé (G01, G02) | résumé (S01, S02) |
 | 61 | *Abies alba* | résumé (D04, D05) ; manquant (S1) | résumé (M04) ; manquant | manquant (TreeMig) | **lu** (T01-61) ; résumé (T08) | hors dépôt | résumé (G03) | résumé (S03) |
-| 52 | *Pinus sylvestris* | manquant (S1, Data Sheet 1) | manquant (Data Sheet 1) | manquant | **lu** (T01-52) ; manquant (T03) ; résumé (T04, T08) | hors dépôt | résumé (G03) ; manquant (G05, thèse HAL) | résumé (S03) |
+| 52 | *Pinus sylvestris* | **lu, non recopiée** (D07-1, D11) ; manquant (S1) | **lu, non recopiée** (M06) | absent (F05) ; TreeMig lu hors dépôt (D06-TP2) | **lu** (T01-52) ; **lu, non recopiée** (T03, T10) ; résumé (T04, T08) | hors dépôt | résumé (G03) ; **lu, non recopiée** (G05, G08-G10) | résumé (S03) ; **lu, non recopiée** (S07) |
 | 58 | *Pinus mugo* subsp. *uncinata* | manquant (S1) | manquant | manquant | **lu, synonyme à valider** (T01-58) ; résumé (T08) | hors dépôt | résumé (G03) | résumé (S03) |
 | 62 | *Picea abies* | manquant (S1) | manquant | résumé* (F02) | **lu** (T01-62) ; résumé (T04) | hors dépôt | — | — |
 | 05 | *Quercus pubescens* | manquant (S1) | manquant | manquant | **lu** (T01-05) ; résumé (T07) | hors dépôt | résumé (G01) | résumé (S01) |
@@ -75,9 +75,9 @@ Légende :
 | 17C | *Fraxinus excelsior* | manquant (S1) | manquant | manquant | **lu** (T01-17C) ; résumé (T06) | hors dépôt | résumé (G02) | résumé (S02) |
 | 15P | *Acer platanoides* | **lu : classe 4** (D01-15P) | manquant | manquant | **lu** (T01-15P) | hors dépôt | — | — |
 | 14 | *Robinia pseudoacacia* | **lu : classe 7, ou 4 sans l'homme** (D01-14) | manquant | manquant | **lu** (T01-14) | hors dépôt | — | — |
-| 57A | *Pinus halepensis* | manquant (Data Sheet 1, S1) | manquant (Data Sheet 1) | manquant | **lu** (T01-57A) ; manquant (T03) | hors dépôt | — | — |
-| 69JC | *Juniperus communis* subsp. *communis* | manquant (Data Sheet 1, S1) | manquant (Data Sheet 1) | manquant | **lu** (T01-69JC) ; manquant (T03) | hors dépôt | — | — |
-| 06, 07, 51, 53CA, 53CO, 53S, 54, 33N, 69JO | essences du tableau 2 de Frontiers | manquant (Data Sheet 1, S1) | manquant (Data Sheet 1) | manquant | **lu** pour 06, 54 ; **lu, rang espèce à valider** pour 33N, 53CA, 53CO, 53S ; **absent** de Niinemets pour 07, 51, 69JO (manquant au Data Sheet 1) | hors dépôt | — | — |
+| 57A | *Pinus halepensis* | **lu, non recopiée** (D07-1) ; manquant (S1) | **lu, non recopiée** (M06) | absent (F05) | **lu** (T01-57A) ; **lu, non recopiée** (T03, T10) | hors dépôt | — | — |
+| 69JC | *Juniperus communis* subsp. *communis* | **lu, non recopiée** (D07-1) ; manquant (S1) | **lu, non recopiée** (M06) | absent (F05) | **lu** (T01-69JC) ; **lu, non recopiée** (T03, T10) | hors dépôt | — | — |
+| 06, 07, 51, 53CA, 53CO, 53S, 54, 33N, 69JO | essences du tableau 2 de Frontiers | **lu, non recopiée** (D07-1) ; manquant (S1) | **lu, non recopiée** (M06) | absent (F05) | **lu** pour 06, 54 ; **lu, rang espèce à valider** pour 33N, 53CA, 53CO, 53S ; **absent** de Niinemets pour 07, 51, 69JO, mais valeur d'emprunt au Data Sheet 1 (T10, **lu, non recopiée**) | hors dépôt | — | — |
 | les 122 autres espar appariées à Niinemets | voir les lignes `T01-<espar>` | manquant (S1) | manquant (TreeMig pour certaines, liste inconnue) | manquant (idem) | **lu** (dont 7 appariements à valider : 20X, 26E, 37, 23PC, 68CB, 49AE, 49AM) | hors dépôt | — | — |
 | les 48 autres espar absentes de Niinemets | voir `T01-ABS` | manquant (S1) | manquant ou — | manquant ou — | **—** | hors dépôt | — | — |
 | 19, 36 | *Populus*, *Eucalyptus* (genres) | — | — | — | — (T09) | — (L03) | — | — |
@@ -263,8 +263,8 @@ Chaque question tient seule ; l'orchestrateur les pose une par une.
 
 | Manque | Ce qu'il porterait | Pourquoi il manque (`INDEX.md`) | Lignes du CSV |
 |---|---|---|---|
-| **Data Sheet 1, Suárez-Muñoz et al. 2021** | dispersion, maturité, tolérance pour 10 essences : 06, 07, 33N, 51, 52, 53*/54, 57A, 69JC, 69JO, et *Q. faginea* | le lien redirige vers `public-pages-files-2025.frontiersin.org`, refusé par le proxy (trois essais) | D07, M02, T03 |
-| **Thèse HAL de Gaudio (tel-00587487)** | croissance des semis de pin sylvestre selon la lumière | `hal.inrae.fr` et `hal.science` servent un défi anti-robot, non contourné ; `api.archives-ouvertes.fr` est refusé par le proxy | G05 (et D05, Amm 2012, sur HAL aussi) |
+| **Data Sheet 1, Suárez-Muñoz et al. 2021 (obtenu à la passe 4, §13)** | dispersion, maturité, tolérance pour 10 essences : 06, 07, 33N, 51, 52, 53*/54, 57A, 69JC, 69JO, et *Q. faginea* | le lien redirige vers `public-pages-files-2025.frontiersin.org`, refusé par le proxy (trois essais) | D07, M02, T03 |
+| **Thèse HAL de Gaudio (tel-00587487) (obtenue à la passe 4, §13 ; D05, Amm 2012, reste manquant)** | croissance des semis de pin sylvestre selon la lumière | `hal.inrae.fr` et `hal.science` servent un défi anti-robot, non contourné ; `api.archives-ouvertes.fr` est refusé par le proxy | G05 (et D05, Amm 2012, sur HAL aussi) |
 | **Fichiers d'espèces TreeMig (TreePars, dossier P)** | `alfa1`, `alfa2`, `dispFac`, `minmat`, `maxseed`, `klighs`, `kligha`, `kG` pour 30 essences | aucun lien direct dans les pages ; ils sont dans le zip du starter kit sur EnviDat (`treemig_starter-kit.html:438`) et dans le GitLab du WSL, refusé par le proxy | D06, M01, F01, T02, G06, S05 |
 | **Supplement S1 de Lososová 2023, ou FloraVeg.EU** | classe de dispersion de chaque espèce | non demandé à cette passe ; adresse donnée p. 1492 | D01 |
 | Kunstler 2005, Petriţan 2007, Ameztegui et Coll 2011, SORTIE-ND 2015 | croissance et survie mesurées, 7 espar | non téléchargés (hors liste de cette passe) | T06-T08, G01-G04, S01-S04 |
@@ -318,3 +318,118 @@ Passe 3 :
    - Noms de paramètres et intitulés repris des documents : `minmat`, `maxseed`, `klighs`, `kligha`, `alfa1`, `alfa2`, `dispFac`, `kG`, « Shade tolerance », « Ratio of below-ground biomass to above-ground biomass (R) ».
    - Noms latins de Niinemets recopiés tels quels, avec les signes d'hybride.
    - Codes : `espar` de `species.csv`.
+
+## 13. Quatrième passe : Data Sheet 1 de Frontiers et thèse de Gaudio (déposés par Pascal le 26/11/2026)
+
+### 13.1 Ce qui a été lu, et les droits
+
+| Document | Pages lues | Droits lus dans le document | Conséquence |
+|---|---|---|---|
+| `frontiers_Data_Sheet_1.pdf` (21 p.) | les 21 | **aucune licence dite** : ni Creative Commons ni copyright (seul le logo Frontiers, p. 13 et 15). Le CC BY de la page de l'article (`frontiers_article.html:92`) ne vise que l'article. | Valeurs **lues, non recopiées**, comme Niinemets. Le CC BY du Data Sheet est **non confirmé** (question n° 12). |
+| `gaudio_these_tel-00587487.pdf` (197 p. ; pagination imprimée = pagination du PDF moins 1) | sommaire ; partie 2 (article 1, p. 87-104) ; partie 4 (p. 135-147) ; partie 5 (p. 149-162) ; chapitre V §2 (p. 164-168) ; résumé final | **aucune licence Creative Commons dite** : la page de garde porte seulement le logo « Autorisation HAL » (« HAL Authorization »). | Valeurs **décrites, non recopiées**. Une seule citation courte, p. 156, pour comparer les distances de dispersion. |
+
+Non lu dans la thèse : chapitre II (état de l'art), chapitre III (matériel et méthodes), partie 1 (concept RReShar), partie 3 (articles 2 et 3, pépinière sous ombrières, sur la callune, la molinie et la fougère), bibliographie. Le sha256 et la taille sont ceux de la consigne : cette passe n'a pas de shell et rien n'a été recalculé (`INDEX.md`).
+
+### 13.2 Paramètres « manquant » : lu, absent ou à valider
+
+| Paramètre | Source | État | Où |
+|---|---|---|---|
+| Dispersion, 10 essences | Data Sheet 1 | **lu, non recopiée**. **À valider** : valeurs d'emprunt (pin de Sierra Nevada pris sur *P. sylvestris* d'Écosse, genévriers sur une espèce nord-américaine), « effective distance » non définie | tableau S2 p. 4 ; sources p. 5 (D07-1) |
+| Dispersion, pin sylvestre | thèse de Gaudio | **lu** : une phrase, valeur reprise de deux sources non lues ; la thèse n'a acquis aucune donnée | p. 156 (D11) |
+| Maturité, 10 essences | Data Sheet 1 | **lu, non recopiée**. **À valider** : c'est un âge ; le texte dit « decreased » pour les *Pinus* | tableau S2 p. 4 (Sex Mat) ; p. 5 (M06) |
+| Âge par classe de diamètre | Data Sheet 1 | **lu, non recopiée** (nouveau) | Table S1, p. 1-3 (M07) |
+| Fécondité | Data Sheet 1 ; thèse | **absent** : « Veg. Repr. Prob » est un rejet de souche ; la thèse n'a pas de donnée | p. 4-6 ; p. 156 (F05) |
+| Tolérance à l'ombre, 10 essences | Data Sheet 1 | **lu, non recopiée** : paramètre HalfSat, **dérivé de Niinemets** (pas une source indépendante) | tableau S2 p. 4 ; p. 6 (T03, T10) |
+| Croissance des gaules et des semis, pin sylvestre | thèse de Gaudio | **lu, non recopiée** : régressions sur la lumière, un site | p. 94, 96 (G08) ; p. 140-146 (G09) ; p. 158 (G10) |
+| Survie des semis, pin sylvestre | thèse de Gaudio | **lu, non recopiée**. **À valider** : la lumière explique peu cette survie | p. 141, 146, 164-165 (S07) |
+| Mortalité par la lumière | thèse de Gaudio | **absent** comme taux : « La mortalité n'a pas été quantifiée » ; une hauteur critique, seuil présumé de mort | p. 159 (G10) |
+| Dispersion, Amm et al. 2012 (D05) | — | **toujours manquant** : article distinct, pas dans la thèse | — |
+
+### 13.3 Ce que disent les documents (sans valeurs recopiées)
+
+- **Data Sheet 1.**
+  - Il porte le paramétrage de LANDIS-II PnET-Succession pour 10 essences et 3 groupes d'arbustes : tableau S2 (p. 4-5), définitions et sources (p. 5-7), tableau S1 d'âge par classe de taille (p. 1-3), figures de simulation et de croissance (p. 8-17), références (p. 18-21).
+  - Dispersion, maturité et tolérance sont lues. Aucune fécondité, aucune croissance ni survie de semis.
+  - Les valeurs sont presque toutes **d'emprunt** : Écosse pour la dispersion des pins, espèce nord-américaine pour les genévriers, valeur de *Q. ilex* pour la maturité des trois chênes, valeurs de *P. nigra* ou moyenne de quatre chênes pour la tolérance de *P. pinaster* et de *Q. pyrenaica*. Les auteurs l'écrivent p. 5 et 6.
+  - Les pins sont des plantations de Sierra Nevada : la longévité et la maturité sont ajustées pour en tenir compte.
+- **Thèse de Gaudio.**
+  - Elle repose sur un site (forêt d'Orléans, sol pauvre, peuplements mixtes chêne sessile-pin sylvestre) et une essence.
+  - Elle donne la croissance et la survie du pin sylvestre selon la lumière relative, pour les gaules de 0,4 à 6 m (article 1) et les semis de deux ans plantés (partie 4).
+  - Son apport principal est une **dimension critique** : la hauteur maximale atteinte augmente avec la lumière (tableau 2 p. 96 ; p. 98-99). Ce seuil est présumé de mort, non observé (p. 99).
+  - La partie 5 en tire des équations pour RReShar (p. 158-159). Elles ne sont pas une seconde source : ce sont les régressions des parties 2 et 4.
+
+### 13.4 Comparaison avec les sources déjà lues
+
+| Sujet | Résultat | Accord ou écart |
+|---|---|---|
+| Tolérance : HalfSat contre Niinemets (7 taxons communs) | même ordre, du chêne vert au pin d'Alep | **accord attendu** : HalfSat dérive de Niinemets (p. 6), ce n'est pas un contrôle |
+| Tolérance : TreeMig (`klighs`, TreePars2.txt) contre Niinemets | même ordre pour sapin, hêtre, épicéa, chênes, pin sylvestre, pin à crochets | **accord**, avec deux petites inversions (tremble contre chêne pubescent ; épicéa contre sapin et hêtre) |
+| Tolérance du pin sylvestre : Gaudio contre Niinemets | tous deux disent la lenteur à l'ombre ; Gaudio dit que le pin survit et pousse sous faible lumière, et que sa tolérance dépend de la taille | **accord sur le rang, écart d'usage** : un indice unique ne dit pas ce seuil de taille |
+| Dispersion du pin sylvestre : Frontiers, Gaudio, Lososová, TreeMig | Frontiers : centaine de mètres (efficace) et de l'ordre du kilomètre (maximale) ; Gaudio : quinzaine de mètres ; TreeMig : même valeur que Frontiers ; Lososová, si la classe est 4 : 40 m à 50 % et 150 m à 99 % | **écart** : facteur de l'ordre de 7 entre Gaudio et Frontiers/TreeMig ; la distance maximale de Frontiers dépasse la classe 4. Accord Frontiers/TreeMig non indépendant : les deux sont des conventions de modèle. |
+| Dispersion du peuplier noir : Frontiers, TreeMig | même ordre de grandeur, à moins d'un quart près | **accord** |
+| Dispersion des chênes : Frontiers, Lososová | quelques centaines de mètres ; classe 6 si c'est la leur (classe non lue) | **à vérifier dans S1** |
+| Maturité du pin sylvestre : Frontiers, TreeMig, Gaudio | âge d'environ vingt ans, hauteur de quelques mètres, quelques mètres au plus à 15 ans sous couvert | **non comparable** sans dérivation (âge, hauteur, diamètre) |
+| Survie des semis : Gaudio contre TreeMig (S05) et le cadre de Q3 | pour le pin, la lumière explique peu la survie ; végétation concurrente et attaques biotiques dominent | **écart** avec une survie par la seule lumière |
+| Fécondité | aucune source nouvelle | **absent** |
+
+Couverture : TreeMig (TreePars2.txt) couvre 30 essences d'Europe centrale. Frontiers couvre les essences méditerranéennes. Ils ne se recouvrent que pour le pin sylvestre et le peuplier noir. Ni l'un ni l'autre ne couvre *P. uncinata* (58). La thèse ne couvre que le pin sylvestre.
+
+### 13.5 Corrections à des phrases des passes précédentes
+
+- §5.1 et §8 disaient le Data Sheet « manquant » : il est lu.
+- Le CSV disait les paramètres TreeMig « non obtenus » alors que `TreePars2.txt` était dans `INDEX.md` depuis la seconde passe : il est lu à cette passe, pour comparaison, valeurs non recopiées (ligne `D06-TP2`). Les lignes `D06`, `M01`, `F01`, `T02`, `G06`, `S05` gardent « manquant » : elles visent le fichier du starter kit, dont ce modèle n'est pas prouvé identique.
+- Le Data Sheet ne donne pas la tolérance de *Q. faginea* (hors `species.csv`) comme valeur propre : elle vaut celle de *Q. pyrenaica* (même moyenne de chênes).
+
+### 13.6 Questions de sens pour Pascal (non tranchées ; l'orchestrateur les pose une par une, à la suite des n° 1 à 11)
+
+12. **Droits : le Data Sheet et la thèse ne disent aucune licence. Les lire hors dépôt, comme Niinemets (question n° 2) ?**
+    - Contexte : le CC BY lu vise l'article, pas le Data Sheet. La thèse n'a que le logo « Autorisation HAL ».
+    - Proposition : même réponse que la question n° 2 : clé `external.*` avec le sha256, aucune valeur dans le dépôt. Si Pascal veut recopier, lire d'abord les conditions de la page Frontiers du Data Sheet, ou écrire à Frontiers et à l'autrice.
+    - Ce que change la réponse : sans recopie, `params/regeneration` cite ces valeurs sans les porter ; avec, le contrat porte 10 lignes de dispersion, de maturité et de tolérance.
+13. **Survie du semis de pin sylvestre : garder Q3 (la lumière et la tolérance seules), alors que la thèse dit que la lumière explique peu cette survie et que la végétation concurrente et les attaques biotiques dominent ?**
+    - Contexte : une essence, un site, deux ans de semis plantés, année sèche (p. 141, 146, 164-165).
+    - Proposition : garder Q3 et inscrire cette limite dans le rapport de `params/regeneration`, sans terme de recouvrement du sous-bois, faute de source pour les autres essences.
+    - Ce que change la réponse : la survie sous couvert des pins peut être surestimée sous un sous-bois de callune, molinie ou fougère.
+14. **La dimension critique de Gaudio (hauteur maximale selon la lumière, tableau 2 p. 96 ; p. 159) : s'en servir comme contrôle indépendant de la survie du pin sylvestre (52), lu hors dépôt ?**
+    - Contexte : seuil présumé de mort, non observé ; un site ; ne vaut que pour cette essence.
+    - Proposition : contrôle seulement, pas un terme du contrat.
+    - Ce que change la réponse : un test sur 52 qui n'existerait pas sinon.
+15. **Maturité : le Data Sheet donne un âge, TreeMig une hauteur, le contrat un diamètre (complète la question n° 8). Quelle grandeur retenir ?**
+    - Contexte : la Table S1 du Data Sheet (M07) relie classes de diamètre et âge pour dix espèces, en Sierra Nevada. La conversion par cette table serait une dérivation hors France.
+    - Proposition : la hauteur, comme à la question n° 8, sans conversion.
+    - Ce que change la réponse : les valeurs de Frontiers ne servent que si l'on garde l'âge ou convertit.
+16. **Essences absentes de Niinemets (07, 51, 69JO) : accepter la règle d'emprunt du Data Sheet (complète la question n° 4) ?**
+    - Contexte : *Q. pyrenaica* reçoit une moyenne de quatre chênes ; *P. pinaster* la valeur de *P. nigra* (constat sur le tableau, la règle n'est pas écrite pour lui) ; *J. oxycedrus* celle du genévrier commun. Ce sont des règles d'auteurs, pas des mesures ; les auteurs jugent leurs tolérances trop hautes.
+    - Proposition : ne pas les accepter (code 2), comme à la question n° 4.
+    - Ce que change la réponse : trois essences du Sud gardent une valeur ou un arrêt de `simulate`.
+17. **Dispersion du pin sylvestre : quelle ancre, avec trois nombres qui diffèrent d'un facteur de l'ordre de 7 (Gaudio, Frontiers/TreeMig, Lososová) ?**
+    - Proposition : les classes de Lososová (question n° 9), une fois S1 obtenu ; Gaudio et Frontiers en contrôle, vérifiés au sol (point au sol n° 1 ci-dessous).
+    - Ce que change la réponse : la portée de la recolonisation en trouée pour le pin.
+
+### 13.7 Trois points au sol (passe 4)
+
+1. **Distance de dispersion du pin sylvestre, en lisière de trouée.**
+   - Relever la distance des semis de l'année au plus proche semencier de pin.
+   - L'écart à vérifier : une quinzaine de mètres selon Gaudio, une centaine selon Frontiers et TreeMig.
+2. **Survie des semis de pin sous sous-bois de callune, molinie ou fougère, avec et sans végétation.**
+   - Compter les semis vivants à lumière comparable, avec et sans végétation concurrente.
+   - La thèse trouve une survie moyenne bien plus basse avec végétation, et peu d'effet de la lumière seule. Le terrain dira si Q3 tient.
+3. **Âge de première fructification du pin sylvestre et du pin d'Alep (52, 57A).**
+   - Relever l'âge et le diamètre du plus jeune arbre portant des cônes, en peuplement et non en plantation.
+   - Le Data Sheet fixe un âge pour des plantations de Sierra Nevada et le dit ajusté. Le contrat attend un diamètre.
+
+### 13.8 Question de contrôle
+
+*Quelle décision cette donnée va-t-elle éclairer ?* Les termes, les sources et les droits des paramètres de dispersion, de maturité, de croissance et de survie des semis dans `params/regeneration` (mission 060). Elle dit aussi ce que la thèse de Gaudio retire à Q3 (survie par la lumière et la tolérance seules) pour le pin sylvestre.
+
+### 13.9 Ligne de journal proposée
+
+`2026-11-26 · acquereur · 059 (quatrième passe) · lus Data Sheet 1 de Frontiers (21 p., aucune licence dite) et thèse de Gaudio (parties 2, 4, 5, chap. V ; seule la mention « Autorisation HAL ») ; valeurs non recopiées ; Frontiers : dispersion, maturité et tolérance (HalfSat, dérivé de Niinemets) pour 10 essences, valeurs d'emprunt, aucune fécondité, croissance ni survie ; Gaudio : croissance et survie du pin sylvestre selon la lumière, un site, la lumière explique peu la survie des semis (écart avec Q3), mortalité non quantifiée ; dispersion du pin : écart d'un facteur d'environ 7 entre Gaudio et Frontiers/TreeMig ; TreePars2.txt lu pour comparaison ; D05 (Amm 2012) toujours manquant ; CSV 206 lignes ; 6 questions pour Pascal (n° 12 à 17).`
+
+### 13.10 Liste de contrôle
+
+**Aucune liste de contrôle n'était jointe à la consigne de cette passe.** J'ai passé les trois points génériques de ma fiche.
+
+1. **Sources et emplacements : coché, avec réserves.** Chaque ligne ajoutée donne le fichier local, la page imprimée (thèse) ou la page du PDF (Data Sheet), et le sha256 abrégé. Non coché : sha256 et tailles repris de la consigne (aucun shell, rien recalculé) ; plus de la moitié de la thèse non lue (§13.1).
+2. **Décomptes complets : coché.** 21 pages sur 21 du Data Sheet ; 10 essences et 3 groupes d'arbustes au tableau S2 ; 11 lignes ajoutées au CSV (206 en tout) ; 30 essences dans `TreePars2.txt`. Non coché : la liste des essences de la thèse (une seule) ne vaut pas décompte.
+3. **Termes exacts : coché.** `HalfSat`, `Sex Mat`, `Effect. Seed Disp.`, `Max Dist.`, `Veg. Repr. Prob`, « dimension critique », « Autorisation HAL », `minmat`, `maxseed`, `alfa1`, `dispFac`, `klighs` repris tels quels.
