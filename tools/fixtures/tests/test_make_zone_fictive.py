@@ -192,11 +192,23 @@ def test_codes_essence_dans_la_table_des_especes(zone):
 # ------------------------------------------------------------------ paramètres synthétiques
 def test_parametres_provisoires_et_sources(zone):
     import pyarrow.parquet as pq
-    for nom in ("tarif", "allometry"):
-        t = pq.read_table(zone / "params" / f"{nom}.parquet").to_pydict()
-        assert t["provisoire"] and all(t["provisoire"])
-        assert set(t["source"]) == {"synthetique_jeu_fictif"}
-        assert set(t["species"]) == set(gen.SPECIES_USED)
+    t = pq.read_table(zone / "params" / "allometry.parquet").to_pydict()
+    assert t["provisoire"] and all(t["provisoire"])
+    assert set(t["source"]) == {"synthetique_jeu_fictif"}
+    assert set(t["species"]) == set(gen.SPECIES_USED)
+
+
+def test_tarif_synthetique_au_contrat_de_la_mission_051(zone):
+    """params/tarif.parquet : colonnes françaises du contrat import_tarif.tarif, tout synthétique et provisoire."""
+    import pyarrow.parquet as pq
+    t = pq.read_table(zone / "params" / "tarif.parquet").to_pydict()
+    assert t["provisoire"] and all(t["provisoire"])
+    assert set(t["source_code"]) == set(t["source_biblio"]) == {"synthetique_jeu_fictif"}
+    assert set(t["source_commit"]) == {"0000000"}
+    assert {e for e in t["essence"] if e} == set(gen.SPECIES_USED)
+    assert {g for g in t["groupe"] if g} == {"feuillu", "resineux"}
+    assert set(t["modele"]) == {"volume_feuillus", "profil_tige_resineux", "expansion_resineux",
+                                "infradensite", "fraction_carbone", "racines", "domaine"}
 
 
 def test_allometries_de_houppier_hcb_et_cw_synthetiques_pour_chaque_essence(zone):

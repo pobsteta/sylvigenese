@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sylvigenese:cell_sheet",
   "title": "Fiches de cellule d'une tuile (web/cells/<tuile>.json, assets)",
-  "description": "Ce que la vue web affiche pour une cellule (spec §1, §9, §10). Deux versions : la version 1 (état initial, sans sim/, une année) ne change pas ; la version 2 (mission 044, plan m4a-suite-temps §3) porte l'évolution de la cellule sur les années retenues, lues dans sim/, et ne s'écrit que si sim/ existe. La commande viewer-massif se construit dans la vue à partir de x, y et de l'année.",
+  "description": "Ce que la vue web affiche pour une cellule (spec §1, §9, §10). Trois versions : la version 1 (état initial, sans sim/, une année) ne change pas ; la version 2 (mission 044, plan m4a-suite-temps §3) porte l'évolution de la cellule sur les années retenues, lues dans sim/, et ne s'écrit que si sim/ existe, sans post (volume et carbone non calculés) ; la version 3 (mission 051, plan post-volume-carbone §4, décisions de Pascal Q3 à Q5 du 26/11/2026) ajoute le volume aérien total et le carbone aérien lus dans sim/summary.parquet, et ne s'écrit que quand sim/summary.parquet existe. Les versions 1 et 2 restent conformes à l'identique. La commande viewer-massif se construit dans la vue à partir de x, y et de l'année.",
   "x-schema-version": "0.1",
   "type": "object",
   "required": [
@@ -12,10 +12,11 @@
   ],
   "properties": {
     "schema_version": {
-      "description": "1 : état initial ; 2 : évolution simulée (sim/)",
+      "description": "1 : état initial ; 2 : évolution simulée (sim/), volume et carbone non calculés ; 3 : évolution simulée avec volume et carbone (sim/summary.parquet)",
       "enum": [
         1,
-        2
+        2,
+        3
       ]
     },
     "tile": {
@@ -23,35 +24,46 @@
       "minLength": 1
     },
     "source": {
-      "description": "version 2 seulement : toutes les années viennent de sim/ (T4), t0 compris",
+      "description": "versions 2 et 3 seulement : toutes les années viennent de sim/ (T4), t0 compris",
       "const": "sim"
     },
     "notes": {
-      "description": "version 2 seulement : mentions communes à toute la fiche, écrites une fois (non répétées par cellule ni par année) ; elles disent « volume et carbone non calculés » et « non validée écologiquement »",
+      "description": "versions 2 et 3 seulement : mentions communes à toute la fiche, écrites une fois (non répétées par cellule ni par année). Version 2 : « volume et carbone non calculés » et « non validée écologiquement ». Version 3 : « non validée écologiquement », la définition du volume (« volume aérien total »), celle du carbone (« carbone aérien »), « sol et bois mort » (hors v1), « volume partiel » dès qu'une année a une part de surface terrière non calculée, « racines » dès qu'une année porte le carbone des racines ; la phrase « volume et carbone non calculés » n'y figure plus",
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "string",
         "minLength": 1
-      },
-      "allOf": [
-        {
-          "contains": {
-            "type": "string",
-            "pattern": "non validée écologiquement"
-          }
-        },
-        {
-          "contains": {
-            "type": "string",
-            "pattern": "volume et carbone non calculés"
-          }
-        }
-      ]
+      }
     },
     "cells": {
       "type": "array",
       "minItems": 1
+    },
+    "tarif": {
+      "description": "version 3 seulement : le tarif qui a produit le volume et le carbone (décision Q1 : tarif NEMETON v5, figé à un commit, provisoire)",
+      "type": "object",
+      "required": [
+        "name",
+        "commit",
+        "provisoire"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "nom et version du tarif, par exemple le tarif NEMETON v5",
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "description": "commit de tarif-nemeton (tarif_commit de sim/post.json)",
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$"
+        },
+        "provisoire": {
+          "const": true
+        }
+      }
     }
   },
   "if": {
@@ -74,7 +86,22 @@
       "schema_version": {},
       "tile": {},
       "source": {},
-      "notes": {},
+      "notes": {
+        "allOf": [
+          {
+            "contains": {
+              "type": "string",
+              "pattern": "non validée écologiquement"
+            }
+          },
+          {
+            "contains": {
+              "type": "string",
+              "pattern": "volume et carbone non calculés"
+            }
+          }
+        ]
+      },
       "cells": {
         "items": {
           "$ref": "#/$defs/cell_v2"
@@ -83,13 +110,157 @@
     }
   },
   "else": {
-    "additionalProperties": false,
-    "properties": {
-      "schema_version": {},
-      "tile": {},
-      "cells": {
-        "items": {
-          "$ref": "#/$defs/cell_v1"
+    "if": {
+      "properties": {
+        "schema_version": {
+          "const": 3
+        }
+      },
+      "required": [
+        "schema_version"
+      ]
+    },
+    "then": {
+      "required": [
+        "source",
+        "notes",
+        "tarif"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {},
+        "tile": {},
+        "source": {},
+        "notes": {
+          "allOf": [
+            {
+              "contains": {
+                "type": "string",
+                "pattern": "non validée écologiquement"
+              }
+            },
+            {
+              "contains": {
+                "type": "string",
+                "pattern": "volume aérien total"
+              }
+            },
+            {
+              "contains": {
+                "type": "string",
+                "pattern": "carbone aérien"
+              }
+            },
+            {
+              "contains": {
+                "type": "string",
+                "pattern": "sol et bois mort"
+              }
+            },
+            {
+              "not": {
+                "contains": {
+                  "type": "string",
+                  "pattern": "volume et carbone non calculés"
+                }
+              }
+            }
+          ]
+        },
+        "tarif": {},
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/cell_v3"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "cells"
+            ],
+            "properties": {
+              "cells": {
+                "contains": {
+                  "required": [
+                    "years"
+                  ],
+                  "properties": {
+                    "years": {
+                      "contains": {
+                        "required": [
+                          "volume_partiel"
+                        ],
+                        "properties": {
+                          "volume_partiel": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "notes": {
+                "contains": {
+                  "type": "string",
+                  "pattern": "volume partiel"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "cells"
+            ],
+            "properties": {
+              "cells": {
+                "contains": {
+                  "required": [
+                    "years"
+                  ],
+                  "properties": {
+                    "years": {
+                      "contains": {
+                        "required": [
+                          "root_carbon_t_ha"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "notes": {
+                "contains": {
+                  "type": "string",
+                  "pattern": "racines"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "else": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {},
+        "tile": {},
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/cell_v1"
+          }
         }
       }
     }
@@ -393,6 +564,337 @@
           "type": "null"
         }
       }
+    },
+    "cell_v3": {
+      "type": "object",
+      "x-lambert93": true,
+      "required": [
+        "cell_id",
+        "x",
+        "y",
+        "station_type",
+        "vegetation_type",
+        "h_ceiling_m",
+        "years"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cell_id": {
+          "description": "rang de la cellule dans grid.tif",
+          "type": "integer",
+          "minimum": 0
+        },
+        "x": {
+          "description": "x Lambert-93 du centre de la cellule (est), m",
+          "type": "number"
+        },
+        "y": {
+          "description": "y Lambert-93 du centre de la cellule (nord), m",
+          "type": "number"
+        },
+        "station_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vegetation_type": {
+          "description": "type de végétation à l'état initial : il n'évolue pas dans simulate",
+          "type": "string",
+          "minLength": 1
+        },
+        "h_ceiling_m": {
+          "description": "plafond de hauteur de la station (site_potential.tif), m ; null = plafond inconnu, que la fiche dit",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "years": {
+          "description": "toutes les années retenues de tiles/index.json, une entrée par année",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/year_v3"
+          }
+        }
+      }
+    },
+    "year_v3": {
+      "description": "Une année retenue (tiles/index.json) : recalcul arithmétique exact de sim/cells (stems_ha, basal_area_m2_ha, d130_mean_cm, composition), de sim/flags.parquet (flags) et de sim/summary.parquet (volume, carbone, parts non calculées) ; aucune valeur interpolée entre deux années. VOLUME : volume_m3_ha est le volume AÉRIEN TOTAL (tige et branches), seul volume affiché, même définition pour toutes les essences (décision Q3) ; il n'y a pas de volume bois fort ni au-dessus de 7 cm. carbon_t_ha est le carbone AÉRIEN ; root_carbon_t_ha, facultatif et provisoire, est le carbone des racines, à part (décision Q4). Le sol et le bois mort ne sont pas modélisés : hors v1, dit dans notes. Sommes sur les essences de la cellule des lignes de sim/summary.parquet. Une cellule sans arbre vivant cette année-là : volume et carbone valent 0 (fait arithmétique), part non calculée 0, volume_partiel faux. VOLUME PARTIEL (décision Q5) : basal_area_not_computed_share est la part de la surface terrière de la cellule (G non calculée / G de sim/cells) qui n'est pas calculée (arbres hors du domaine du tarif, ou essence sans tarif : ni extrapolés ni empruntés) ; volume_partiel est vrai si et seulement si cette part est supérieure à 0, et notes dit alors « volume partiel ». Si la part vaut exactement 1, rien n'est calculé : volume_m3_ha et carbon_t_ha valent null (non calculé, jamais 0) et not_computed_reason en dit la raison ; sinon ce sont des nombres.",
+      "type": "object",
+      "required": [
+        "year",
+        "provisoire",
+        "stems_ha",
+        "basal_area_m2_ha",
+        "d130_mean_cm",
+        "h_dom_m",
+        "composition",
+        "flags",
+        "volume_m3_ha",
+        "carbon_t_ha",
+        "stems_not_computed_ha",
+        "basal_area_not_computed_share",
+        "volume_partiel"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "year": {
+          "type": "integer"
+        },
+        "provisoire": {
+          "description": "vrai : la trajectoire est technique, non validée écologiquement (décision de Pascal, 25/11/2026)",
+          "type": "boolean"
+        },
+        "stems_ha": {
+          "type": "number",
+          "minimum": 0,
+          "description": "tiges de 7,5 cm et plus, toutes essences (somme des lignes de sim/cells), tiges/ha"
+        },
+        "basal_area_m2_ha": {
+          "type": "number",
+          "minimum": 0,
+          "description": "surface terrière G, toutes essences (somme des lignes de sim/cells), m2/ha"
+        },
+        "d130_mean_cm": {
+          "description": "diamètre moyen à 1,30 m pondéré par les tiges (somme des d130_mean × stems_ha sur la somme des stems_ha), cm ; null sans tige",
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "h_dom_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "hauteur dominante de la cellule pour cette année (colonne h_dom_m de sim/cells, décision de Pascal Q1 du 25/11/2026), m ; jamais corrigée, même au-dessus du plafond ; null quand la cellule n'a aucun arbre vivant cette année-là (aucune ligne dans sim/cells, décision de l'orchestrateur du 25/11/2026, mission 046)"
+        },
+        "h0_m": {
+          "type": "number",
+          "minimum": 0,
+          "description": "hauteur dominante mesurée (h0.tif), m ; réservée à l'année t0"
+        },
+        "composition": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "species",
+              "stems_ha",
+              "basal_area_m2_ha",
+              "share",
+              "volume_m3_ha",
+              "carbon_t_ha",
+              "basal_area_not_computed_share"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "species": {
+                "type": "string",
+                "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+              },
+              "stems_ha": {
+                "type": "number",
+                "minimum": 0,
+                "description": "tiges/ha de l'essence"
+              },
+              "basal_area_m2_ha": {
+                "type": "number",
+                "minimum": 0,
+                "description": "surface terrière de l'essence, m2/ha"
+              },
+              "share": {
+                "description": "part des TIGES de l'essence dans les tiges de la cellule (et non de la surface terrière), de 0 à 1",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "volume_m3_ha": {
+                "description": "volume aérien total de l'essence, m3/ha (ligne de sim/summary.parquet) ; null seulement si la part non calculée de l'essence vaut 1",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "carbon_t_ha": {
+                "description": "carbone aérien de l'essence, tC/ha ; null seulement si la part non calculée de l'essence vaut 1",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "basal_area_not_computed_share": {
+                "description": "part de la surface terrière de l'essence (dans la cellule) qui n'est pas calculée, de 0 à 1",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "flags": {
+          "description": "signalements de sim/flags.parquet pour cette cellule et cette année (hdom_au_dessus_du_plafond avec sa valeur, trouee_sans_recrue…) ; tableau vide : rien à signaler",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "description": "sorte de signalement, comme sim/flags.parquet",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "description": "valeur en cause, dans l'unité du message ; absente ou null sans valeur",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "volume_m3_ha": {
+          "description": "volume aérien total (tige et branches, sur écorce) des arbres vivants calculés de la cellule, m3/ha ; null seulement si basal_area_not_computed_share vaut 1 (rien n'est calculé)",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "carbon_t_ha": {
+          "description": "carbone aérien (biomasse aérienne × fraction de carbone) des arbres vivants calculés de la cellule, tC/ha ; null seulement si basal_area_not_computed_share vaut 1",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "root_carbon_t_ha": {
+          "description": "carbone des racines, tC/ha, FACULTATIF (clé absente tant que post n'écrit pas carbon_roots_t_ha) et PROVISOIRE (GIEC 2006, décision Q4) ; à part de carbon_t_ha, jamais additionné ; null seulement si basal_area_not_computed_share vaut 1 ; exige provisoire vrai et « racines » dans notes",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stems_not_computed_ha": {
+          "description": "tiges vivantes non calculées de la cellule (hors du domaine du tarif, essence sans tarif), tiges/ha, somme des essences de sim/summary.parquet",
+          "type": "number",
+          "minimum": 0
+        },
+        "basal_area_not_computed_share": {
+          "description": "part de la surface terrière de la cellule qui n'est pas calculée, de 0 à 1 ; 1 est écrit exactement quand aucune tige n'est calculée",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "volume_partiel": {
+          "description": "vrai si et seulement si basal_area_not_computed_share est supérieur à 0 (« volume partiel », décision Q5)",
+          "type": "boolean"
+        },
+        "not_computed_reason": {
+          "description": "obligatoire si volume_m3_ha est null : pourquoi rien n'est calculé (par exemple : toutes les tiges sont hors du domaine du tarif)",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "basal_area_not_computed_share"
+            ],
+            "properties": {
+              "basal_area_not_computed_share": {
+                "exclusiveMinimum": 0
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "volume_partiel": {
+                "const": true
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "volume_partiel": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "basal_area_not_computed_share"
+            ],
+            "properties": {
+              "basal_area_not_computed_share": {
+                "const": 1
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "not_computed_reason"
+            ],
+            "properties": {
+              "volume_m3_ha": {
+                "type": "null"
+              },
+              "carbon_t_ha": {
+                "type": "null"
+              },
+              "root_carbon_t_ha": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "volume_m3_ha": {
+                "type": "number"
+              },
+              "carbon_t_ha": {
+                "type": "number"
+              },
+              "root_carbon_t_ha": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "root_carbon_t_ha"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provisoire": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

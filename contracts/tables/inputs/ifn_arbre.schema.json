@@ -107,7 +107,7 @@
     {
       "name": "V",
       "type": "number",
-      "description": "volume",
+      "description": "volume bois fort tige en m3 (IFN). Deux libellés qui diffèrent : IGN_DB_doc_arbre.pdf p. 9, « tige principale jusqu'à la découpe bois fort (7 cm fin bout) », volume « réfacté » ; metadonnees.csv l. 174, « volume du tronc des arbres de plus de 7,5 cm de diamètre à 1,30 m, du sol jusqu'à une découpe de 7 cm, incluant l'écorce et une branche maîtresse ». Gardé par prepare sous le nom stem_volume_m3 (ifn/trees.parquet)",
       "x-unit": "m3",
       "constraints": {
         "minimum": 0

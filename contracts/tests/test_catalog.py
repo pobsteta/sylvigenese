@@ -19,6 +19,8 @@ from validator.report import Refused
 
 CONTRACTS = Path(__file__).resolve().parents[1]
 TABLE_SCHEMAS = sorted((CONTRACTS / "tables").rglob("*.schema.json"))
+# version du schéma par fichier quand elle n'est pas la 0.1 (summary : version 0.2, mission 051)
+SCHEMA_VERSIONS = {"summary.schema.json": "0.2"}
 JSON_SCHEMAS = sorted((CONTRACTS / "json").glob("*.json")) + sorted(
     (CONTRACTS / "json" / "enums").glob("*.json"))
 
@@ -27,7 +29,7 @@ JSON_SCHEMAS = sorted((CONTRACTS / "json").glob("*.json")) + sorted(
 def test_table_schema_is_valid_v2(path):
     descriptor = json.loads(path.read_text(encoding="utf-8"))
     assert descriptor["$schema"] == "https://datapackage.org/profiles/2.0/tableschema.json"
-    assert descriptor["x-schema-version"] == "0.1"
+    assert descriptor["x-schema-version"] == SCHEMA_VERSIONS.get(path.name, "0.1")
     plain = {k: v for k, v in descriptor.items() if not k.startswith("x-")}
     report = Schema.validate_descriptor(plain)
     assert report.valid, [e.message for e in report.flatten(["message"])]

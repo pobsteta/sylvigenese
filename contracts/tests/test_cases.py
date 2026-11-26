@@ -168,7 +168,7 @@ IFN_PLOTS_TYPES = {"harvest_5y": pa.string(), "incident_nature": pa.int32(),
                    "planting_5y": pa.int32(), "date_point": pa.string()}
 IFN_TREES_TYPES = {"d130": pa.float64(), "h": pa.float64(), "weight_ha": pa.float64(),
                    "veg_state": pa.string(), "veg_state_5y": pa.string(),
-                   "radial_incr_5y_m": pa.float64()}
+                   "radial_incr_5y_m": pa.float64(), "stem_volume_m3": pa.float64()}
 
 
 def ifn_plots():
@@ -187,7 +187,8 @@ def ifn_trees():
             "tree_id": ["1", "1", "2"], "species": ["09", "09", "02"],
             "d130": [30.2, 31.5, None], "h": [22.5, None, None], "weight_ha": [14.1, 14.1, None],
             "veg_state": ["0", None, None], "veg_state_5y": [None, "0", "6"],
-            "radial_incr_5y_m": [0.0123, None, None]}
+            "radial_incr_5y_m": [0.0123, None, None],
+            "stem_volume_m3": [0.85, None, None]}  # m3 ; valeur d'essai, 1re visite seule (V vide en 2e visite)
 
 
 def ifn_flora():
@@ -302,11 +303,8 @@ CASES = {
                           r"cd_ref"),
     "prepare.stands": (table("stands.parquet", prepared_stands, setitem("species", [9])),
                        r"species"),
-    "import_tarif.tarif": (table("t.parquet", h.parameters,
-                                 lambda d: d.update(species=[None, None],
-                                                    species_group=[None, None]),
-                                 types={"species": pa.string(), "species_group": pa.string()}),
-                           r"species, species_group"),
+    "import_tarif.tarif": (table("t.parquet", h.tarif, set_first("modele", "volume_hetre"),
+                                types=h.TARIF_TYPES), r"modele"),
     "import_tarif.allometry": (table("a.parquet", h.parameters, setitem("provisoire", [1, 1])),
                                r"provisoire"),
     "dynamics.growth": (table("g.parquet", h.dynamics_params, setitem("model", ["gam"] * 5),
@@ -333,6 +331,10 @@ CASES = {
                              types={"entity": pa.string(), "value": pa.float64()}), r"kind"),
     "post.summary": (table("summary.parquet", h.summary, set_first("volume_m3_ha", -1.0)),
                      r"volume_m3_ha"),
+    "post.summary_zone": (table("summary_zone.parquet", h.summary_zone,
+                                set_first("forest_area_ha", 0.0)), r"forest_area_ha"),
+    "post.run": (document("post.json", h.post_run_json, setitem("tarif_commit", "0F51B96"),
+                          h.write_json), r"tarif_commit"),
     "assets.tree_model": (tree_model, r"version 2"),
     "zone_marker": (document("zone.yml", lambda: {"schema_version": 1, "fictive": True,
                                                    "reason": "jeu d'essai synthétique"},

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Tarif de volume, biomasse et carbone (params/tarif.parquet, import_tarif ; lu par post)",
+  "description": "Le modèle NEMETON v5 de tarif-nemeton et son domaine, au format long : un terme par ligne. Mission 051, décisions de Pascal Q1 à Q5 du 26/11/2026. import_tarif LIT resultats/tarif_v5/parametres_tarif_v5.csv de tarif-nemeton (fichier écrit par la mission 050, figé à un commit cité) et l'écrit ici, sans reprendre de code ; post réécrit les formules en les citant et ne lit que ce fichier. AUCUNE VALEUR dans ce contrat : elles viennent de tarif-nemeton (provisoire, « coefficients non stabilisés ») ou, pour le jeu fictif, sont synthétiques et sans sens écologique. Colonnes : essence (code espar) OU groupe (feuillu, resineux, comme contracts/species.csv), l'un des deux au moins, un seul en pratique (non contrôlé) ; modele ; terme ; valeur ; unite ; source_code (fichier et ligne d'origine dans tarif-nemeton) ; source_biblio (référence bibliographique) ; source_commit (commit de tarif-nemeton lu, copié dans post.json) ; provisoire (vrai tant que la valeur n'est pas stabilisée à la source, toujours vrai en v1). Les cinq colonnes essence/groupe, modele, terme, valeur, unite, source_code, source_biblio viennent du CSV de la mission 050 ; source_commit et provisoire sont ajoutées par import_tarif. Une unité s'écrit toujours : « sans_unite » pour une grandeur sans dimension. Clé : (essence, groupe, modele, terme), un terme n'a qu'une valeur. MODÈLES (liste fermée de la colonne modele) et leurs formes. volume_feuillus (par essence) : volume aérien total sur écorce, ln V = ln(π/4 · D² · H) + a + b · ln(D/30) + c · ln(H/25), termes a, b, c ; D diamètre à 1,30 m, H hauteur totale (forme du README de tarif-nemeton l. 18 ; unités de D et de H données par la colonne unite, à confirmer par import_tarif contre la mission 050). profil_tige_resineux (par essence) : volume de la tige des résineux, intégré sur un profil de tige ; les termes sont ceux que la mission 050 fixe dans parametres_tarif_v5.csv (le contrat n'en nomme aucun). expansion_resineux (par essence) : facteur E(D) qui passe du volume de tige au volume aérien total (V aérien = V tige × E) ; termes fixés par la mission 050. infradensite (par essence ou par groupe) : masse volumique sèche du bois, qui convertit le volume aérien total en biomasse aérienne sèche, B = V aérien × infradensité ; terme et unité fixés par la mission 050. fraction_carbone (par groupe, feuillu ou resineux) : part de carbone de la biomasse sèche, C = B × fraction, appliquée à la biomasse AÉRIENNE TOTALE pour les deux groupes (corrige l'écart de définition n° 1 de docs/referentiels/volume-carbone.md §3). racines (par groupe) : rapport du carbone des racines au carbone aérien, source GIEC 2006 tableau 4.4, PROVISOIRE (décision Q4) ; présent seulement quand la valeur est lue et citée, sinon aucune ligne et summary n'a pas de colonne carbon_roots_t_ha. domaine (par essence) : bornes dans lesquelles le tarif vaut ; termes dbh_min, dbh_max (d130, cm), h_min, h_max (hauteur, m), hd_min, hd_max (H/D, avec H en m et D en m, sans unité). Un terme de domaine absent veut dire que la source ne borne pas cette grandeur : post ne le remplace jamais par une valeur choisie. RÈGLE HORS DOMAINE (décision Q5) : un arbre dont d130, h ou H/D sort de [min ; max], ou dont l'essence n'a pas de tarif, N'EST PAS CALCULÉ : ni extrapolation ni emprunt du tarif d'une autre essence ; il est compté par essence (post.json, summary), et la fiche dit « volume partiel ».",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 051 (dev ; noms des colonnes demandés par l'orchestrateur, décision de Pascal du 26/11/2026)",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "essence",
+      "type": "string",
+      "description": "code espar de l'IFN en chaîne, avec son zéro de tête (spec §8, contracts/species.csv) ; vide quand la ligne vaut pour un groupe",
+      "constraints": {
+        "pattern": "[0-9]{2}[A-Z0-9]{0,3}"
+      }
+    },
+    {
+      "name": "groupe",
+      "type": "string",
+      "description": "groupe d'essences de contracts/species.csv (colonne groupe) ; vide quand la ligne vaut pour une essence",
+      "constraints": {
+        "enum": [
+          "feuillu",
+          "resineux"
+        ]
+      }
+    },
+    {
+      "name": "modele",
+      "type": "string",
+      "description": "modèle du tarif ; liste fermée (voir la description du contrat)",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "volume_feuillus",
+          "profil_tige_resineux",
+          "expansion_resineux",
+          "infradensite",
+          "fraction_carbone",
+          "racines",
+          "domaine"
+        ]
+      }
+    },
+    {
+      "name": "terme",
+      "type": "string",
+      "description": "nom du terme dans le modèle (a, b, c ; dbh_min, dbh_max, h_min, h_max, hd_min, hd_max ; autres termes fixés par la mission 050)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "valeur",
+      "type": "number",
+      "description": "valeur du terme, dans l'unité de la colonne unite",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "unite",
+      "type": "string",
+      "description": "unité de la valeur (cm, m, kg/m3, sans_unite…), jamais vide",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "source_code",
+      "type": "string",
+      "description": "fichier et ligne d'origine dans tarif-nemeton (le code, ou le CSV de la mission 050)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "source_biblio",
+      "type": "string",
+      "description": "référence bibliographique de la valeur (article, rapport, version de la méthode)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "source_commit",
+      "type": "string",
+      "description": "commit de tarif-nemeton lu par import_tarif, 7 à 40 caractères hexadécimaux minuscules (Q1 : v5 figée au commit 0f51b96)",
+      "constraints": {
+        "required": true,
+        "pattern": "[0-9a-f]{7,40}"
+      }
+    },
+    {
+      "name": "provisoire",
+      "type": "boolean",
+      "description": "vrai si la valeur n'est pas stabilisée à la source (spec §10) ; toujours vrai en v1",
+      "constraints": {
+        "required": true
+      }
+    }
+  ],
+  "primaryKey": [
+    "essence",
+    "groupe",
+    "modele",
+    "terme"
+  ],
+  "x-require-one-of": [
+    "essence",
+    "groupe"
+  ]
+}

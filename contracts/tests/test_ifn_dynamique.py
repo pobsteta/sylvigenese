@@ -158,3 +158,13 @@ def test_prepare_trees_empty_d130_is_allowed_for_cut_trees(tmp_path, capsys):
     """Un arbre coupé ou non retrouvé n'a plus de C13 : d130 vide, rien n'est deviné."""
     path = write_trees(tmp_path, lambda d: d["d130"].__setitem__(2, None))
     assert run(capsys, ["prepare.ifn_trees", str(path)])[0] == 0
+
+
+def test_prepare_trees_v_is_optional_and_nonnegative(tmp_path, capsys):
+    """stem_volume_m3 (m3, bois fort tige de l'IFN) est facultative : absente ou vide, elle passe ; négative, non."""
+    assert run(capsys, ["prepare.ifn_trees", str(write_trees(tmp_path))])[0] == 0
+    sans_v = write_trees(tmp_path, lambda d: d.pop("stem_volume_m3"))
+    assert run(capsys, ["prepare.ifn_trees", str(sans_v)])[0] == 0
+    code, out = run(capsys, ["prepare.ifn_trees",
+                             str(write_trees(tmp_path, lambda d: d["stem_volume_m3"].__setitem__(0, -0.1)))])
+    assert code == 3 and "stem_volume_m3" in out

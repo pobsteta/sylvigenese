@@ -1,9 +1,9 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
   "title": "Résumé (sim/summary.parquet, post)",
-  "description": "Volume, biomasse et carbone par cellule, année et essence, calculés par post avec le tarif (spec §2).",
-  "x-schema-version": "0.1",
-  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal)",
+  "description": "Volume, biomasse et carbone par cellule, année et essence, calculés par post avec le tarif params/tarif.parquet (spec §2). VERSION 0.2 (mission 051, décisions de Pascal Q3 à Q5 du 26/11/2026). Une ligne par couple (cellule, essence) ayant au moins un arbre vivant cette année-là, comme sim/cells ; une cellule sans arbre vivant n'a aucune ligne ; t0 est présent. Surface d'une cellule = grid.resolution_m² de config.yml (0,0625 ha à 25 m), jamais écrite en dur. Toutes les grandeurs sont des SOMMES SUR LES ARBRES VIVANTS CALCULÉS de la cellule et de l'essence, divisées par la surface de la cellule en hectares. Les arbres morts de l'année n'y sont pas (leur flux est dans summary_zone). DÉFINITIONS. volume_m3_ha : volume AÉRIEN TOTAL (tige et branches, sur écorce), m³/ha, même définition pour toutes les essences (décision Q3) ; il n'y a PAS de volume bois fort ni de volume au-dessus de 7 cm. biomass_t_ha : biomasse aérienne sèche, t/ha, = volume aérien total × infradensité. carbon_t_ha : carbone AÉRIEN, tC/ha, = biomasse aérienne × fraction de carbone, calculé sur l'aérien total pour les feuillus comme pour les résineux. Pas de CO2 (C × 44/12 se fait à l'affichage si Pascal le demande). carbon_roots_t_ha : carbone des RACINES, tC/ha, colonne À PART, FACULTATIVE (absente tant que le rapport racines/aérien n'est pas lu et cité, décision Q4) et PROVISOIRE (source GIEC 2006 tableau 4.4) : si elle est présente, provisoire vaut vrai sur toutes les lignes (non contrôlé) et chaque ligne a une valeur ; elle ne s'ajoute pas à carbon_t_ha. Le sol et le bois mort ne sont pas modélisés (hors v1). VOLUME PARTIEL (décision Q5) : un arbre hors du domaine du tarif (diamètre, H/D) ou d'une essence sans tarif n'est ni extrapolé ni emprunté : il n'est PAS CALCULÉ, donc absent des sommes ci-dessus. stems_not_computed_ha : tiges vivantes non calculées, tiges/ha ; basal_area_not_computed_share : part de la surface terrière de l'essence dans la cellule qui n'est pas calculée, de 0 à 1 (G non calculée / G de sim/cells, mêmes arbres vivants). Quand la part vaut 1, rien n'est calculé : les valeurs de volume, de biomasse et de carbone de la ligne valent 0 parce que la somme est vide, et NON parce que la cellule serait vide ; elles ne se lisent jamais sans la part (la fiche écrit alors null avec sa raison). provisoire : vrai si un paramètre provisoire a servi (spec §10) ; toujours vrai en v1, le tarif NEMETON v5 étant provisoire (décision Q1). Les chiffres restent techniques, non validés écologiquement (trajectoire de M3a).",
+  "x-schema-version": "0.2",
+  "x-names-fixed-by": "mission 009 (orchestrateur, par délégation de Pascal) ; version 0.2 : mission 051",
   "fieldsMatch": "equal",
   "fields": [
     {
@@ -35,7 +35,7 @@
     {
       "name": "volume_m3_ha",
       "type": "number",
-      "description": "volume",
+      "description": "volume aérien total (tige et branches, sur écorce) des arbres vivants calculés, m³/ha (décision Q3)",
       "x-unit": "m3/ha",
       "constraints": {
         "required": true,
@@ -45,7 +45,7 @@
     {
       "name": "biomass_t_ha",
       "type": "number",
-      "description": "biomasse sèche",
+      "description": "biomasse aérienne sèche des arbres vivants calculés, t/ha",
       "x-unit": "t/ha",
       "constraints": {
         "required": true,
@@ -55,7 +55,7 @@
     {
       "name": "carbon_t_ha",
       "type": "number",
-      "description": "carbone",
+      "description": "carbone aérien (biomasse aérienne × fraction de carbone) des arbres vivants calculés, tC/ha",
       "x-unit": "tC/ha",
       "constraints": {
         "required": true,
@@ -63,9 +63,40 @@
       }
     },
     {
+      "name": "carbon_roots_t_ha",
+      "type": "number",
+      "description": "carbone des racines, tC/ha ; colonne facultative et PROVISOIRE (décision Q4), à part de carbon_t_ha ; si elle est présente, toutes les lignes ont une valeur",
+      "x-unit": "tC/ha",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      },
+      "x-optional": true
+    },
+    {
+      "name": "stems_not_computed_ha",
+      "type": "number",
+      "description": "tiges vivantes non calculées (hors du domaine du tarif ou essence sans tarif), tiges/ha (décision Q5)",
+      "x-unit": "tiges/ha",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "basal_area_not_computed_share",
+      "type": "number",
+      "description": "part de la surface terrière de l'essence dans la cellule qui n'est pas calculée, de 0 à 1 ; 1 = rien n'est calculé (décision Q5)",
+      "constraints": {
+        "required": true,
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    {
       "name": "provisoire",
       "type": "boolean",
-      "description": "vrai si un paramètre provisoire a servi (spec §10)",
+      "description": "vrai si un paramètre provisoire a servi (spec §10) ; toujours vrai en v1",
       "constraints": {
         "required": true
       }

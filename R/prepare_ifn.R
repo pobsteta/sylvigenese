@@ -40,6 +40,14 @@
 #    aucun raster ; R/ifn_station.R ne lit station_gradients.tif et ser.tif qu'en disque de 700 m,
 #    par la garde.
 #
+# V (volume bois fort tige, m3, repris sans conversion) : colonne `V` de ARBRE.csv gardée telle
+# quelle dans `stem_volume_m3` de trees.parquet (mission 055 ; docs/plans/post-volume-carbone.md, mission F).
+# Définition : IGN_DB_doc_arbre.pdf p. 9 « tige principale jusqu'à la découpe bois fort (7 cm fin
+# bout) », volume « réfacté » ; metadonnees.csv l. 174 « volume du tronc [...] du sol jusqu'à une
+# découpe de 7 cm, incluant l'écorce et une branche maîtresse » (les deux libellés diffèrent, voir
+# docs/referentiels/volume-carbone.md §4.3). Colonne absente ou vide : NA et dit, jamais calculée
+# ni complétée. V n'est lu que sur l'arbre ; il ne passe par aucun raster.
+#
 # Station à la placette (`ser_code`, `trophic`, `coarse_hydric_700m`, `coarse_bioclim_700m`) :
 # R/ifn_station.R (mission 024), appelé ci-dessous dans prepare_ifn_check() et prepare_ifn().
 #
@@ -442,6 +450,24 @@ ifn_tables <- function(plots_raw, trees_raw, flora_raw, precision_m = 700, taxre
                                   sum(!is.na(ir5) & !live)))
     }
   }
+  # V : volume bois fort tige en m3 de l'export, repris sans conversion ; vide -> NA, jamais deviné.
+  v_present <- "V" %in% names(trees_raw)
+  vol <- if (v_present) .ifn_num(trees_raw$V, "ARBRE.csv V") else rep(NA_real_, nrow(trees_raw))
+  if (any(!is.na(vol) & vol < 0)) {
+    stop("ARBRE.csv : V négatif (volume en m3, attendu positif ou nul)", call. = FALSE)
+  }
+  if (!v_present) {
+    add("IFN : arbres", "colonne V absente de ARBRE.csv : stem_volume_m3 vide (NA) pour tous les arbres ; aucune comparaison au volume de l'IFN possible")
+  } else {
+    n_v <- sum(!is.na(vol[kept])); n_k <- sum(kept)
+    add("IFN : arbres", sprintf(
+      "stem_volume_m3 (m3, colonne V de ARBRE.csv : volume bois fort tige de l'IFN, repris sans conversion) renseigné sur %d ligne(s) retenue(s) sur %d (%s %%) ; absent = vide (NA), jamais calculé",
+      n_v, n_k, fr_num(if (n_k > 0L) 100 * n_v / n_k else 0, 1)))
+    if (any(!is.na(vol[kept]) & is.na(c13[kept]))) {
+      add("IFN : arbres", sprintf("%d ligne(s) avec V mais sans C13 : conservées telles quelles",
+                                  sum(!is.na(vol[kept]) & is.na(c13[kept]))))
+    }
+  }
   # Poids : 1re visite, cercle de la classe ; 2e visite, W de l'export, vide s'il manque.
   w_raw_all <- if ("W" %in% names(trees_raw)) .ifn_num(trees_raw$W, "ARBRE.csv W") else rep(NA_real_, nrow(trees_raw))
   w <- ifelse(is_v2, w_raw_all, 10000 / (pi * radius^2))
@@ -477,6 +503,7 @@ ifn_tables <- function(plots_raw, trees_raw, flora_raw, precision_m = 700, taxre
     veg_state = veg,
     veg_state_5y = veg5,
     radial_incr_5y_m = ir5,
+    stem_volume_m3 = vol,
     stringsAsFactors = FALSE
   )[kept, , drop = FALSE]
   if (anyDuplicated(trees[, c("plot_id", "campaign", "tree_id")])) {
@@ -581,7 +608,7 @@ IFN_PLOTS_TYPES <- c(plot_id = "string", campaign = "int32", x = "float64", y = 
 IFN_TREES_TYPES <- c(plot_id = "string", campaign = "int32", tree_id = "string",
                      species = "string", d130 = "float64", h = "float64", weight_ha = "float64",
                      veg_state = "string", veg_state_5y = "string",
-                     radial_incr_5y_m = "float64")
+                     radial_incr_5y_m = "float64", stem_volume_m3 = "float64")
 IFN_FLORA_TYPES <- c(plot_id = "string", campaign = "int32", cd_ref = "int32",
                      taxref_version = "string", abundance = "float64")
 

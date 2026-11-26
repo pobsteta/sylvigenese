@@ -191,10 +191,12 @@ contracts:
     paths: [stands.parquet]
 
   # ------------------------------------------------------------ import_tarif, dynamics
+  # tarif NEMETON v5 et son domaine (mission 051, décisions Q1 à Q5 du 26/11/2026) : contrat propre,
+  # colonnes françaises du CSV de tarif-nemeton ; ni species, ni value, ni source (projet d'ADR 0005)
   import_tarif.tarif:
     aliases: [tarif]
     kind: parquet
-    schema: tables/params/parameters.schema.json
+    schema: tables/params/tarif.schema.json
     paths: [params/tarif.parquet]
   import_tarif.allometry:
     aliases: [allometry]
@@ -279,11 +281,24 @@ contracts:
     kind: parquet
     schema: tables/sim/flags.schema.json
     paths: [sim/flags.parquet]
+  # volume aérien total, biomasse, carbone aérien, racines à part, parts non calculées (version 0.2, mission 051)
   post.summary:
     aliases: [summary]
     kind: parquet
     schema: tables/sim/summary.schema.json
     paths: [sim/summary.parquet]
+  # le massif par année, type de végétation et essence, avec le flux de mortalité de l'année
+  post.summary_zone:
+    aliases: [summary_zone]
+    kind: parquet
+    schema: tables/sim/summary_zone.schema.json
+    paths: [sim/summary_zone.parquet]
+  # provenance de post : commit du tarif, empreintes des entrées, comptes hors domaine
+  post.run:
+    aliases: [post_run]
+    kind: json
+    schema: json/post.schema.json
+    paths: [sim/post.json]
 
   # ------------------------------------------------------------ assets
   assets.tree_model:

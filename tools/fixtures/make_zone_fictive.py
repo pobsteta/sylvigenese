@@ -98,8 +98,29 @@ HCB = {"09": (1.10, -0.15, 0.20, 0.90), "61": (0.95, -0.08, 0.20, 0.90), "62": (
        "03": (1.05, -0.13, 0.20, 0.90), "64": (0.90, -0.06, 0.20, 0.90)}
 CROWN_WIDTH = {"09": (-0.30, 0.55), "61": (-0.90, 0.60), "62": (-0.90, 0.60),
                "03": (-0.60, 0.62), "64": (-0.80, 0.58)}
-TARIF = {"09": (4.0e-5, 1.90, 1.00), "61": (4.2e-5, 1.88, 1.00), "62": (4.5e-5, 1.86, 1.02),
-         "03": (3.8e-5, 1.92, 1.00), "64": (4.1e-5, 1.89, 1.01)}   # V = a D^b H^c
+# Tarif (mission 051, contrat params/tarif : modèle NEMETON v5 et son domaine, colonnes essence/groupe,
+# modele, terme, valeur, unite…). Toutes les valeurs sont SYNTHÉTIQUES et provisoires : inventées pour
+# exercer post (recalcul exact à la main), elles ne viennent ni de tarif-nemeton ni d'aucune source.
+#   volume_feuillus (feuillus 09 et 03) : ln V = ln(pi/4 D² H) + a + b ln(D/30) + c ln(H/25).
+#   profil_tige_resineux et expansion_resineux (61, 62, 64) : les termes du vrai profil de tige et de
+#     E(D) sont fixés par la mission 050 ; les termes synth_p1, synth_p2 et synth_E sont des
+#     PLACEHOLDERS synthétiques, à remplacer quand parametres_tarif_v5.csv existera.
+#   infradensite, fraction_carbone et racines : par groupe (feuillu, resineux).
+#   domaine : dbh_min, dbh_max (cm), h_min, h_max (m), et hd_min, hd_max (H/D) pour les résineux.
+#     Les bornes basses laissent hors domaine les recrues de 7,5 cm (comptées, non calculées).
+TARIF_GROUP = {"09": "feuillu", "03": "feuillu", "61": "resineux", "62": "resineux", "64": "resineux"}
+TARIF_FEUILLUS = {"09": (-0.30, 0.05, 0.10), "03": (-0.25, 0.04, 0.08)}            # a, b, c
+TARIF_PROFIL = {"61": (0.40, 0.60), "62": (0.42, 0.58), "64": (0.38, 0.62)}          # synth_p1, synth_p2
+TARIF_EXPANSION = {"61": 1.10, "62": 1.12, "64": 1.08}                               # synth_E
+TARIF_GROUP_VALUES = {                                                              # par groupe
+    "infradensite": ("kg/m3", {"feuillu": 300.0, "resineux": 350.0}),
+    "fraction_carbone": ("sans_unite", {"feuillu": 0.30, "resineux": 0.35}),
+    "racines": ("sans_unite", {"feuillu": 0.10, "resineux": 0.15})}
+TARIF_DOMAIN = {"09": (10.0, 100.0, 3.0, 50.0), "03": (12.5, 100.0, 3.0, 50.0),
+                "61": (10.0, 100.0, 3.0, 50.0), "62": (10.0, 100.0, 3.0, 50.0),
+                "64": (10.0, 100.0, 3.0, 50.0)}                                     # dbh_min, dbh_max, h_min, h_max
+TARIF_HD = (30.0, 200.0)                                                            # hd_min, hd_max (résineux)
+TARIF_COMMIT = "0000000"    # commit synthétique : le jeu fictif ne lit aucun dépôt tarif-nemeton
 
 
 # ---------------------------------------------------------------- outils d'écriture
@@ -557,11 +578,45 @@ def write_ifn(inputs, seed):
     write_text(inputs / "ifn" / "FLORE.csv", "\n".join(flora_lines) + "\n")
 
 
+def tarif_rows():
+    """Lignes de params/tarif.parquet (contrat import_tarif.tarif), ordre fixe, valeurs synthétiques."""
+    rows = []
+
+    def add(essence, groupe, modele, terme, valeur, unite):
+        rows.append(dict(essence=essence, groupe=groupe, modele=modele, terme=terme,
+                         valeur=float(valeur), unite=unite, source_code=SOURCE_PARAMS,
+                         source_biblio=SOURCE_PARAMS, source_commit=TARIF_COMMIT, provisoire=True))
+    for sp in SPECIES_USED:
+        if sp in TARIF_FEUILLUS:
+            for term, v in zip(("a", "b", "c"), TARIF_FEUILLUS[sp]):
+                add(sp, None, "volume_feuillus", term, v, "sans_unite")
+        else:
+            for term, v in zip(("synth_p1", "synth_p2"), TARIF_PROFIL[sp]):
+                add(sp, None, "profil_tige_resineux", term, v, "sans_unite")
+            add(sp, None, "expansion_resineux", "synth_E", TARIF_EXPANSION[sp], "sans_unite")
+        terms = [("dbh_min", "cm"), ("dbh_max", "cm"), ("h_min", "m"), ("h_max", "m")]
+        for (term, unit), v in zip(terms, TARIF_DOMAIN[sp]):
+            add(sp, None, "domaine", term, v, unit)
+        if sp not in TARIF_FEUILLUS:
+            add(sp, None, "domaine", "hd_min", TARIF_HD[0], "sans_unite")
+            add(sp, None, "domaine", "hd_max", TARIF_HD[1], "sans_unite")
+    for modele, (unit, by_group) in TARIF_GROUP_VALUES.items():
+        term = {"infradensite": "infradensite", "fraction_carbone": "fraction", "racines": "ratio"}[modele]
+        for groupe in ("feuillu", "resineux"):
+            add(None, groupe, modele, term, by_group[groupe], unit)
+    return rows
+
+
 def write_params(zone):
     """Paramètres de tarif et d'allométrie (étage B, houppier hcb et cw) : format long, provisoire: true, source synthétique."""
     schema = pa.schema([("species", pa.string()), ("species_group", pa.string()),
                         ("model", pa.string()), ("term", pa.string()), ("value", pa.float64()),
                         ("provisoire", pa.bool_()), ("source", pa.string())])
+    tarif_schema = pa.schema([("essence", pa.string()), ("groupe", pa.string()),
+                              ("modele", pa.string()), ("terme", pa.string()),
+                              ("valeur", pa.float64()), ("unite", pa.string()),
+                              ("source_code", pa.string()), ("source_biblio", pa.string()),
+                              ("source_commit", pa.string()), ("provisoire", pa.bool_())])
 
     def table(model, coefficients, terms):
         rows = [dict(species=sp, species_group=None, model=model, term=term, value=float(v),
@@ -570,7 +625,7 @@ def write_params(zone):
         return pa.Table.from_pylist(rows, schema=schema)
 
     (zone / "params").mkdir(parents=True, exist_ok=True)
-    pq.write_table(table("tarif_dbh_h", TARIF, ("a", "b", "c")), zone / "params" / "tarif.parquet")
+    pq.write_table(pa.Table.from_pylist(tarif_rows(), schema=tarif_schema), zone / "params" / "tarif.parquet")
     # allometry.parquet : étage B, puis houppier (hcb, cw) ; un seul fichier au contrat params/allometry
     allometry = pa.concat_tables([
         table("etage_b", ALLOMETRY, ("a", "b", "c")),

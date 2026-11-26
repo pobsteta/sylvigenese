@@ -110,6 +110,16 @@
       "constraints": {
         "minimum": 0
       }
+    },
+    {
+      "name": "stem_volume_m3",
+      "type": "number",
+      "description": "volume bois fort tige de l'IFN : colonne V de ARBRE.csv, reprise de l'export sans conversion ; colonne facultative, vide si absent (jamais calculé ni complété). Définition de l'IFN, deux libellés qui diffèrent : IGN_DB_doc_arbre.pdf p. 9, « tige principale jusqu'à la découpe bois fort (7 cm fin bout) », volume « réfacté » ; metadonnees.csv l. 174, « volume du tronc des arbres de plus de 7,5 cm de diamètre à 1,30 m, du sol jusqu'à une découpe de 7 cm, incluant l'écorce et une branche maîtresse ». Source : IFN, IGN_DB_doc_arbre.pdf et metadonnees.csv (docs/referentiels/volume-carbone.md §4.3). Sert au critère b de post (écart au V de l'IFN) ; jamais croisé avec un raster fin (IFN floutée à 700 m)",
+      "x-unit": "m3",
+      "x-optional": true,
+      "constraints": {
+        "minimum": 0
+      }
     }
   ],
   "primaryKey": [
