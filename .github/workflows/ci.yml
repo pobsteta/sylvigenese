@@ -675,6 +675,10 @@ jobs:
           uv pip install --python .venv/bin/python --no-deps -e python
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
+      # /usr/bin/time -v : mesure de la mémoire résidente de simulate hors du moteur (tests/m5, mission 063).
+      - name: Installer time
+        run: command -v /usr/bin/time >/dev/null || sudo apt-get install -y --no-install-recommends time
+
       # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
       # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
       - name: Tests (run_tests.sh m5)

@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -147,24 +148,43 @@ def run_simulate(name: str, cfg: Path, *extra: str, timeout: int = 3600):
     return H3.run_simulate(name, cfg, *extra, timeout=timeout)
 
 
+TIME_BIN = "/usr/bin/time"
+RE_MAXRSS = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
+
+
+def mesurer_rss(argv: list, cwd: Path, stdout, stderr, env=None) -> tuple[int, int]:
+    """Lance `argv` à travers `/usr/bin/time -v` et renvoie (code de retour, mémoire résidente maximale en octets),
+    lue dans « Maximum resident set size ». Pourquoi pas ru_maxrss de wait4 depuis pytest : sous Linux, le pic de
+    mémoire du parent (ici la zone N = 1 000 que pytest vient de générer) est hérité par l'enfant à l'exec, et la
+    mesure donnerait pytest, non simulate. /usr/bin/time fait son propre fork : l'enfant y repart d'un pic neuf.
+    Le rapport de time va dans un fichier (-o), pour ne pas se mêler à la sortie du moteur."""
+    assert os.access(TIME_BIN, os.X_OK), f"{TIME_BIN} absent : installer le paquet « time » (apt-get install time)"
+    with tempfile.TemporaryDirectory() as td:
+        rapport = Path(td) / "time.txt"
+        proc = subprocess.run([TIME_BIN, "-v", "-o", str(rapport), *map(str, argv)], cwd=cwd, stdout=stdout,
+                              stderr=stderr, env=env)
+        texte = rapport.read_text(errors="replace") if rapport.is_file() else ""
+    m = RE_MAXRSS.search(texte)
+    assert m, f"« Maximum resident set size » introuvable dans le rapport de time :\n{texte}"
+    return proc.returncode, int(m.group(1)) * 1024
+
+
 def run_mesure(cfg: Path, *extra: str, timeout: int = 3600) -> dict:
     """Lance le binaire compilé de simulate (la commande de `make simulate`, sans cargo, qui fausserait la mesure)
-    et lit sa mémoire résidente maximale par wait4 (ru_maxrss du processus et de ses descendants attendus, le chiffre
-    de « Maximum resident set size » de /usr/bin/time -v), donc hors du moteur."""
+    à travers `/usr/bin/time -v` et lit « Maximum resident set size » : la mesure est faite hors du moteur, sur un
+    processus neuf (voir mesurer_rss)."""
     ligne = H3.simulate_command(cfg.parent.name, cfg, extra)
     assert " -- " in ligne, f"commande de make simulate inattendue : {ligne}"
     args = ligne.split(" -- ", 1)[1].split()
     assert BINAIRE.is_file(), f"{BINAIRE} absent : compiler simulate en release (tools/ci/run_tests.sh le fait)"
     out_p, err_p = cfg.parent / "m5_stdout.txt", cfg.parent / "m5_stderr.txt"
     with open(out_p, "w") as o, open(err_p, "w") as e:
-        proc = subprocess.Popen([str(BINAIRE), *args], cwd=ROOT, stdout=o, stderr=e, env=offline_env())
-        _pid, status, ru = os.wait4(proc.pid, 0)
-    proc.returncode = os.waitstatus_to_exitcode(status)
-    res = subprocess.CompletedProcess(proc.args, proc.returncode, out_p.read_text(errors="replace"),
+        code, rss = mesurer_rss([BINAIRE, *args], ROOT, o, e, env=offline_env())
+    res = subprocess.CompletedProcess([str(BINAIRE), *args], code, out_p.read_text(errors="replace"),
                                       err_p.read_text(errors="replace"))
     out_p.unlink(missing_ok=True)
     err_p.unlink(missing_ok=True)
-    return {"proc": res, "rss_bytes": int(ru.ru_maxrss) * 1024}
+    return {"proc": res, "rss_bytes": rss}
 
 
 def run_validate(*args: str):
