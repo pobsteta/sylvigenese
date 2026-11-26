@@ -36,7 +36,10 @@ _Modèle de carte :_
 
 - Reprises mineures de la relecture de post (facteurs du domaine lus et non écrits en dur, chemin local dans ifn-g-tiges.csv, docstring exclude_incomplete, rejeu du CSV prouvé) · depuis le cycle 8
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
-- M6a (vue Godot) · depuis le cycle 9
+- [067](missions/067-referentiel-generateur-godot.md) à [074](missions/074-mesures-m6a.md) · M6a, plan [`docs/plans/m6a.md`](../docs/plans/m6a.md) · depuis le cycle 9
+  - Homme : `acquereur` (067), `dev` (068, 070, 071 sur tarif-nemeton, 073), `testeur` (069), `afficheur` (072), `analyste` (074), relus par `relecteur`
+  - Mission : arbres du générateur de tarif-nemeton dans les deux vues et vue massif Godot, testés sans GPU (Q1 à Q8 tranchées par Pascal le 26/11/2026)
+  - Moyens : vagues 067 et 068, puis 069, 070, 071, puis 072 et 073, puis 074 ; une PR sur sylvigenese, une sur tarif-nemeton (fusionnée par Pascal)
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
 
 
