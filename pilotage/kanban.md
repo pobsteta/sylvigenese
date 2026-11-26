@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 7 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 8 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -25,12 +25,18 @@ _Modèle de carte :_
 
 ## Planifié
 
-- post (volume et carbone, sources citées) · depuis le cycle 7 — juste après M4a (décision de Pascal, Q2)
+- Reprises mineures de la relecture de post (facteurs du domaine lus et non écrits en dur, chemin local dans ifn-g-tiges.csv, docstring exclude_incomplete, rejeu du CSV prouvé) · depuis le cycle 8
+- Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
 - M5a, puis M6a (vue Godot) · depuis le cycle 7
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
 
 
 ## Terminé
+
+- [050](missions/050-constantes-tarif-nemeton.md) à [058](missions/058-quantiles-ifn.md) · depuis le cycle 8
+  - Homme : `acquereur` ×2, `dev` ×6, `testeur` ×2, `afficheur`, relus par `relecteur` (2 relectures)
+  - Mission : post calcule volume aérien total, biomasse et carbone aérien (tarif NEMETON v5, tarif-nemeton 4ee122c), fiche v3 dans la vue, V de l'IFN gardé, quantiles IFN 2021-2025 de G et des tiges/ha ; 176 tests post
+  - Moyens : PR pobsteta/sylvigenese#10, PR pobsteta/tarif-nemeton#3 (fusionnée par Pascal)
 
 - [042](missions/042-mode-station-25m.md) à [049](missions/049-reprises-relecture-m4a.md) · depuis le cycle 7
   - Homme : `dev` ×6, `testeur`, `afficheur`, relus par `relecteur` (2 relectures)
@@ -116,3 +122,4 @@ l'inscrit avec ce qu'elle nous apprend._
 - cycle 1 · livraison : jalon M0 (contrats et validateur, squelette des modules, jeu d'essai fictif, lecteur GeoTIFF Rust, CI) · pour Pascal · `make validate ZONE=<zone>` dit tout de suite si ses propres sorties nemeton, sylvostation et typopeuplement entrent dans la chaîne, ce que rien ne permettait avant
 - cycle 6 · livraison : jalon M3a (moteur simulate en Rust : 100 ans sur le massif fictif, identité au bit près de 1 à 7 fils, contrôles et codes de sortie, non-régression sur entrées figées) · pour Pascal · la chaîne va désormais jusqu'à un futur simulé ; mauvaise nouvelle apprise en même temps : la trajectoire fictive n'est pas une forêt (G 91 → 353 m²/ha), et GDAL change ses résultats selon sa version (mission 042)
 - cycle 7 · livraison : suite de M4a, la vue iTowns fait défiler les années simulées (curseur, fiche d'évolution avec la hauteur dominante face au plafond, carte de surface terrière à échelle fixe) · pour Pascal · on voit pour la première fois le futur simulé, cellule par cellule ; mauvaise nouvelle : sans carte graphique, la dernière année (402 437 arbres) ne se relève pas, le rendu réel se jugera sur le portable de Pascal (M4 b)
+- cycle 8 · livraison : post calcule le volume aérien total et le carbone aérien de chaque cellule et de chaque année avec le tarif NEMETON v5, et la vue les montre, « volume partiel » compris · pour Pascal · le futur simulé se lit en m³ et en tC, sans extrapolation ; mauvaise nouvelle : avec le tarif réel, 78 % de la surface terrière du jeu fictif est hors domaine à t0, et les quantiles IFN confirment que le jeu fictif est trop dense (91 m²/ha contre une médiane de 23,6)

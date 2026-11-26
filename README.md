@@ -34,8 +34,10 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 - **Vue iTowns dans le temps** (suite de M4a) : livrée. Un curseur fait défiler les années
   simulées ; la fiche d'une cellule montre son évolution, et le sol la surface terrière de
   l'année. Chiffres provisoires, trajectoire non validée écologiquement.
-- Suivant : `post` (volume et carbone), puis **M5a** et **M6a** (vue Godot). M3b attend les
-  données réelles.
+- **post** (volume et carbone) : livré. Volume aérien total et carbone aérien par cellule et par
+  année (tarif NEMETON v5, provisoire), montrés dans la fiche de la vue ; « volume partiel » quand des
+  arbres sortent du domaine du tarif, sans extrapolation.
+- Suivant : **M5a**, puis **M6a** (vue Godot). M3b attend les données réelles.
 - En attente de Pascal (données réelles) : M1b, M2b.
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).
