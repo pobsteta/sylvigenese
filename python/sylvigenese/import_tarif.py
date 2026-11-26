@@ -32,11 +32,25 @@ D_obs du fichier) ; une unité douteuse, ou un fichier de bornes présent mais i
 module (code 2) ; un fichier absent est signalé et rien n'est inventé (simulate refusera alors les
 essences sans coefficients). Écrits dans le même `params/allometry.parquet`, `provisoire: true`.
 
+Tarif de volume, biomasse et carbone (mission 053, contrat `import_tarif.tarif`, décisions de Pascal
+Q1 à Q5 du 26/11/2026) : `resultats/tarif_v5/parametres_tarif_v5.csv` (mission 050) est lu, avec ses
+renvois (une ligne sans valeur renvoie à « fichier:ligne#colonne », par exemple
+`coefficients_feuillus_v5.csv`, qui reste la source unique de la valeur ; la ligne visée doit être
+celle de l'essence), et écrit dans `params/tarif.parquet`, une ligne par terme, avec `source_commit`
+(commit lu dans `.git`, obligatoire) et `provisoire` (toujours vrai : « coefficients non stabilisés »).
+La correspondance des noms est écrite dans la description du contrat (CORRESPONDANCE) ; un modèle ou
+un terme du CSV qu'elle ne connaît pas arrête le module (code 2) au lieu d'être deviné. Le domaine
+des feuillus est celui qu'applique tarif-nemeton à sa table (bornes de calage × facteurs, ± marge).
+Le modèle `racines` n'existe pas dans le CSV (GIEC 2006, tableau 4.4, pas encore lu) : aucune ligne
+n'est écrite et `post` n'aura pas de carbone des racines. Fichier absent : signalé, rien n'est
+écrit (un `params/tarif.parquet` existant est laissé tel quel).
+
 Source des CSV : https://github.com/pobsteta/tarif-nemeton (dépôt sans licence : seuls des
 résultats sont lus ; le commit lu est cité dans la colonne `source`).
 Sortie : `data/<zone>/params/allometry.parquet` (jeu fictif : `tests/fixtures/zone_fictive`),
-sous la racine `SYLVIGENESE_ROOT` (défaut : dossier courant). Le fichier écrit est validé par
-`contracts/validate import_tarif.allometry` avant le code de sortie 0.
+sous la racine `SYLVIGENESE_ROOT` (défaut : dossier courant), et `params/tarif.parquet`. Chaque
+fichier écrit est validé par `contracts/validate` (contrats `import_tarif.allometry` et
+`import_tarif.tarif`) avant le code de sortie 0.
 """
 
 from __future__ import annotations
@@ -47,6 +61,7 @@ import math
 import os
 import re
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import pyarrow as pa
@@ -353,6 +368,260 @@ def build_crown_rows(directory: Path, espar_mapping: dict[str, list[str]], versi
     return rows, report
 
 
+# ------------------------------------------------------------------ tarif NEMETON v5 (mission 053)
+TARIF_FILE = Path("resultats") / "tarif_v5" / "parametres_tarif_v5.csv"
+TARIF_CSV_COLUMNS = ("essence_ou_groupe", "modele", "terme", "valeur", "unite", "source_code", "source_biblio")
+CSV_GROUPS = {"feuillu": ("feuillu",), "conifere": ("resineux",), "tous": ("feuillu", "resineux")}
+# (modèle, terme) du CSV -> (modèle, terme) du contrat import_tarif.tarif (description, CORRESPONDANCE)
+TARIF_TERMS = {
+    ("volume_feuillu", "a"): ("volume_feuillus", "a"),
+    ("volume_feuillu", "b_logD"): ("volume_feuillus", "b"),
+    ("volume_feuillu", "c_logH"): ("volume_feuillus", "c"),
+    ("volume_feuillu", "sigma_log"): ("volume_feuillus", "sigma_log"),
+    ("volume_feuillu", "facteur_biais_sigma2"): ("volume_feuillus", "facteur_biais_sigma2"),
+    **{("profil_tige_resineux", t): ("profil_tige_resineux", t)
+       for t in ("k0", "k1", "beta", "lam", "a", "x0", "sx", "h_ref", "D_ref")},
+    **{("integration_tige_resineux", t): ("profil_tige_resineux", t) for t in ("n_points", "marge_sommet", "u_min")},
+    **{("expansion_resineux", t): ("expansion_resineux", t) for t in ("a", "b", "D_plafond", "D_ref")},
+    **{("infradensite", t): ("infradensite", t) for t in ("rho_moyenne", "rho_pente_10cm", "D_ref", "pas_D")},
+    ("facteur_arbre_entier", "facteur"): ("infradensite", "facteur_arbre_entier"),
+    ("carbone", "fraction_carbone"): ("fraction_carbone", "fraction"),
+}
+# constantes de la FORME du contrat volume_feuillus (ln(D/30), ln(H/25)) : vérifiées, non écrites
+FORM_CONSTANTS = {("volume_feuillu", "D_ref"): (30.0, "cm"), ("volume_feuillu", "H_ref"): (25.0, "m")}
+DOMAIN_HARDWOOD = ("D_min_calage", "D_max_calage", "H_min_calage", "H_max_calage")
+DOMAIN_HARDWOOD_GROUP = ("facteur_D_min", "facteur_D_max", "marge_H")
+DOMAIN_SOFTWOOD = ("HD_min", "HD_max")
+# modèles du CSV qui ne servent pas à post : ni CO2 (plan T9), ni intervalle d'incertitude, ni grille de table
+IGNORED_TARIF_MODELS = ("incertitude", "conversion", "grille_table")
+TARIF_SCHEMA = pa.schema([
+    ("essence", pa.string()), ("groupe", pa.string()), ("modele", pa.string()), ("terme", pa.string()),
+    ("valeur", pa.float64()), ("unite", pa.string()), ("source_code", pa.string()), ("source_biblio", pa.string()),
+    ("source_commit", pa.string()), ("provisoire", pa.bool_()),
+])
+
+
+def tarif_unit(text: str) -> str:
+    """Unité du CSV dans la convention du contrat : « sans_unite » pour une grandeur sans dimension."""
+    text = text.strip()
+    if text.startswith("sans unité") or text in ("m/m", "t C / t matière sèche"):
+        return "sans_unite"
+    if not text:
+        raise ModuleError("unité vide dans parametres_tarif_v5.csv : le contrat l'exige")
+    return text
+
+
+class Referral:
+    """Lecture des renvois « fichier:ligne#colonne » d'une ligne sans valeur, sous le dossier tarif-nemeton."""
+
+    def __init__(self, directory: Path):
+        self.directory = directory.resolve()
+        self.cache: dict[Path, list[dict]] = {}
+
+    def value(self, reference: str, target: str, where: str) -> float:
+        first = reference.split(" ; ")[0].strip()
+        match = re.fullmatch(r"(.+):(\d+)#(\w+)", first)
+        if not match:
+            raise ModuleError(f"{where} : valeur vide et source_code « {reference} » n'est pas un renvoi fichier:ligne#colonne")
+        path = (self.directory / match.group(1)).resolve()
+        if not path.is_relative_to(self.directory) or not path.is_file():
+            raise ModuleError(f"{where} : renvoi vers {match.group(1)}, fichier introuvable dans {self.directory}")
+        if path not in self.cache:
+            with path.open(encoding="utf-8-sig", newline="") as stream:
+                self.cache[path] = list(csv.DictReader(stream))
+        rows, line, column = self.cache[path], int(match.group(2)), match.group(3)
+        if not 2 <= line <= len(rows) + 1:
+            raise ModuleError(f"{where} : renvoi {first} hors du fichier")
+        row = rows[line - 2]
+        if row.get("essence") != target:
+            raise ModuleError(f"{where} : renvoi {first} vise l'essence {row.get('essence')!r}, pas {target}")
+        if column not in row:
+            raise ModuleError(f"{where} : renvoi {first} : colonne {column} absente")
+        value = _number(row[column], match.group(1), line, column)
+        if value is None:
+            raise ModuleError(f"{where} : renvoi {first} : case vide")
+        return value
+
+
+def read_tarif_csv(directory: Path) -> list[dict]:
+    """Lignes de parametres_tarif_v5.csv, valeurs lues (renvois compris), numéro de ligne gardé."""
+    path = directory / TARIF_FILE
+    referral = Referral(directory)
+    out, seen = [], set()
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        missing = [c for c in TARIF_CSV_COLUMNS if c not in (reader.fieldnames or [])]
+        if missing:
+            raise ModuleError(f"{TARIF_FILE.as_posix()} : colonne(s) {', '.join(missing)} absente(s)")
+        for row in reader:
+            line = reader.line_num
+            where = f"{TARIF_FILE.as_posix()} ligne {line}"
+            target, model, term = (row[c].strip() for c in ("essence_ou_groupe", "modele", "terme"))
+            if not target or not model or not term:
+                raise ModuleError(f"{where} : essence_ou_groupe, modele et terme sont exigés")
+            key = (target, model, term)
+            if key in seen:
+                raise ModuleError(f"{where} : {target} / {model} / {term} en double")
+            seen.add(key)
+            value = _number(row["valeur"], TARIF_FILE.name, line, "valeur")
+            if value is None:
+                value = referral.value(row["source_code"], target, where)
+            out.append({"target": target, "model": model, "term": term, "value": value, "unit": row["unite"],
+                        "source_code": row["source_code"].strip(), "source_biblio": row["source_biblio"].strip(),
+                        "line": line})
+    return out
+
+
+def build_tarif_rows(directory: Path, espar_mapping: dict[str, list[str]]) -> tuple[list[dict], list[str]]:
+    """Lignes de params/tarif.parquet (contrat import_tarif.tarif) et signalements."""
+    commit = read_commit(directory)
+    if not commit:
+        raise ModuleError(f"commit de tarif-nemeton illisible dans {directory / '.git'} : source_commit est exigé "
+                          "par le contrat (décision Q1 : un tarif figé à un commit cité)")
+    csv_rows = read_tarif_csv(directory)
+    report: list[str] = []
+    file = TARIF_FILE.as_posix()
+
+    def source(r: dict) -> str:
+        return f"tarif-nemeton {file}:{r['line']} ({r['source_code']})"
+
+    def targets(name: str) -> tuple[list[str], list[str]] | None:
+        """(codes espar, groupes) d'une cible du CSV ; None : nom latin sans code espar (signalé, sauté)."""
+        if name in CSV_GROUPS:
+            return [], list(CSV_GROUPS[name])
+        codes = espar_mapping.get(name)
+        return (list(codes), []) if codes else None
+
+    rows: dict[tuple, dict] = {}
+
+    def add(essence, groupe, model, term, value, unit, code, biblio):
+        key = (essence or "", groupe or "", model, term)
+        if key in rows:
+            raise ModuleError(f"{file} : deux valeurs pour {essence or groupe} / {model} / {term} après correspondance "
+                              "des noms : on ne choisit pas")
+        rows[key] = {"essence": essence, "groupe": groupe, "modele": model, "terme": term, "valeur": float(value),
+                     "unite": unit, "source_code": code, "source_biblio": biblio or "non citée",
+                     "source_commit": commit, "provisoire": True}
+
+    skipped, ignored, domain_parts = set(), set(), defaultdict(dict)
+    for r in csv_rows:
+        key = (r["model"], r["term"])
+        resolved = targets(r["target"])
+        if resolved is None:
+            skipped.add(r["target"])
+            continue
+        if r["model"] in IGNORED_TARIF_MODELS:
+            ignored.add(r["model"])
+            continue
+        if key in FORM_CONSTANTS:
+            expected, unit = FORM_CONSTANTS[key]
+            if r["value"] != expected or tarif_unit(r["unit"]) != unit:
+                raise ModuleError(f"{file} ligne {r['line']} : {r['term']} = {r['value']} {r['unit']} ; la forme du "
+                                  f"contrat volume_feuillus suppose {expected:g} {unit} : la forme a changé, rien n'est écrit")
+            report.append(f"{r['term']} = {expected:g} {unit} de volume_feuillus ({file}:{r['line']}) : conforme à la forme "
+                          "du contrat, non écrit")
+            continue
+        if r["model"] in ("domaine_feuillu", "domaine_resineux"):
+            known = DOMAIN_HARDWOOD + DOMAIN_HARDWOOD_GROUP + DOMAIN_SOFTWOOD
+            if r["term"] not in known:
+                raise ModuleError(f"{file} ligne {r['line']} : terme de domaine {r['term']} inconnu de la correspondance")
+            domain_parts[r["target"]][r["term"]] = r
+            continue
+        if key not in TARIF_TERMS:
+            raise ModuleError(f"{file} ligne {r['line']} : {r['model']} / {r['term']} n'a pas de correspondance dans le "
+                              "contrat import_tarif.tarif : rien n'est deviné (adapter le contrat et import_tarif)")
+        model, term = TARIF_TERMS[key]
+        codes, groups = resolved
+        for espar in codes:
+            add(espar, None, model, term, r["value"], tarif_unit(r["unit"]), source(r), r["source_biblio"])
+        for groupe in groups:
+            add(None, groupe, model, term, r["value"], tarif_unit(r["unit"]), source(r), r["source_biblio"])
+
+    # domaine : celui que tarif-nemeton applique à sa table (bornes de calage du v0, facteurs et marge)
+    hw_group = domain_parts.get("feuillu", {})
+    sw_group = domain_parts.get("conifere", {})
+    for name, parts in sorted(domain_parts.items()):
+        if name in CSV_GROUPS:
+            continue
+        codes = espar_mapping.get(name) or []
+        have = [t for t in DOMAIN_HARDWOOD if t in parts]
+        if not have:
+            continue
+        absent = [t for t in DOMAIN_HARDWOOD if t not in parts] + [t for t in DOMAIN_HARDWOOD_GROUP if t not in hw_group]
+        if absent:
+            raise ModuleError(f"{file} : domaine de {name} incomplet ({', '.join(absent)} absent) : rien n'est deviné")
+        derived = (("dbh_min", parts["D_min_calage"], hw_group["facteur_D_min"], lambda v, f: v * f, "cm"),
+                   ("dbh_max", parts["D_max_calage"], hw_group["facteur_D_max"], lambda v, f: v * f, "cm"),
+                   ("h_min", parts["H_min_calage"], hw_group["marge_H"], lambda v, f: v - f, "m"),
+                   ("h_max", parts["H_max_calage"], hw_group["marge_H"], lambda v, f: v + f, "m"))
+        for term, base, factor, op, unit in derived:
+            if tarif_unit(base["unit"]) != unit:
+                raise ModuleError(f"{file} ligne {base['line']} : {base['term']} en « {base['unit']} », {unit} attendu")
+            for espar in codes:
+                add(espar, None, "domaine", term, op(base["value"], factor["value"]), unit,
+                    f"{source(base)} ; {source(factor)} (domaine de la table de tarif-nemeton)",
+                    f"{base['source_biblio']} ; {factor['source_biblio']}")
+    softwood = sorted({r["essence"] for r in rows.values() if r["modele"] == "profil_tige_resineux" and r["essence"]})
+    if softwood:
+        absent = [t for t in DOMAIN_SOFTWOOD if t not in sw_group]
+        if absent:
+            raise ModuleError(f"{file} : domaine des résineux incomplet ({', '.join(absent)} absent) : rien n'est deviné")
+        for term, csv_term in (("hd_min", "HD_min"), ("hd_max", "HD_max")):
+            r = sw_group[csv_term]
+            for espar in softwood:
+                add(espar, None, "domaine", term, r["value"], tarif_unit(r["unit"]), source(r), r["source_biblio"])
+        report.append(f"résineux {', '.join(softwood)} : domaine borné en H/D seulement (la source ne borne ni le "
+                      "diamètre ni la hauteur)")
+    for name in sorted(skipped):
+        report.append(f"{name} ({file}) : aucun code espar dans contracts/species.csv (colonne tarif_nemeton_code), "
+                      "tarif sauté (rien n'est deviné)")
+    for name, codes in sorted(espar_mapping.items()):
+        if len(codes) > 1 and any(r["essence"] in codes for r in rows.values()):
+            report.append(f"{name} : tarif écrit pour les espar {', '.join(codes)} (docs/referentiels/species.md : "
+                          f"{name} = ces codes et rien d'autre)")
+    if ignored:
+        report.append(f"modèle(s) {', '.join(sorted(ignored))} de {file} non importé(s) : post n'en a pas l'usage "
+                      "(ni CO2, ni intervalle d'incertitude, ni grille de table)")
+    report.append("modèle racines absent de la source (GIEC 2006, tableau 4.4, pas encore lu) : aucune ligne, post "
+                  "n'écrira pas de carbone des racines")
+    if not any(r["modele"] in ("volume_feuillus", "profil_tige_resineux") for r in rows.values()):
+        raise ModuleError(f"{file} : aucun modèle de volume pour une essence du référentiel : rien à écrire")
+    out = sorted(rows.values(), key=lambda r: ((r["essence"] or "").encode(), r["groupe"] or "", r["modele"], r["terme"]))
+    return out, report
+
+
+def write_tarif(rows: list[dict], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(rows, schema=TARIF_SCHEMA), path)
+
+
+def import_tarif_v5(config: dict, directory: Path, espar_mapping: dict[str, list[str]]) -> Path | None:
+    """params/tarif.parquet depuis parametres_tarif_v5.csv ; None si le fichier n'existe pas (signalé)."""
+    output = zone_dir(config) / "params" / "tarif.parquet"
+    if not (directory / TARIF_FILE).is_file():
+        kept = f" ; {output} existant conservé tel quel" if output.is_file() else " ; post refusera sans params/tarif.parquet"
+        print(f"[{NAME}] {TARIF_FILE.as_posix()} absent de {directory} (fichier de la mission 050, PR de tarif-nemeton) : "
+              f"tarif non importé, rien n'est inventé{kept}", file=sys.stderr)
+        return None
+    rows, report = build_tarif_rows(directory, espar_mapping)
+    staging = output.with_name(".tarif_en_cours.parquet")
+    write_tarif(rows, staging)
+    try:
+        code = call_validator(["import_tarif.tarif", str(staging)])
+        if code != 0:
+            raise ModuleError(f"tarif non conforme au contrat import_tarif.tarif (validateur, code {code}) ; rien n'est écrit")
+        os.replace(staging, output)
+    finally:
+        staging.unlink(missing_ok=True)
+    for text in report:
+        print(f"[{NAME}] {text}", file=sys.stderr)
+    models = sorted({r["modele"] for r in rows})
+    species_codes = sorted({r["essence"] for r in rows if r["essence"]})
+    print(f"[{NAME}] {len(rows)} terme(s) de tarif ({', '.join(models)}) pour {len(species_codes)} essence(s) "
+          f"({', '.join(species_codes)}), commit {rows[0]['source_commit']}, provisoire : {output}", file=sys.stderr)
+    return output
+
+
 def write_allometry(rows: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     columns = {name: [row[name] for row in rows] for name in SCHEMA.names}
@@ -375,7 +644,10 @@ def run_import(config: dict) -> Path:
     directory = Path(external_dir)
     if not directory.is_dir():
         raise ModuleError(f"external.tarif_nemeton_dir : dossier introuvable : {directory}")
-    rows, report = build_rows(directory, read_espar_mapping(root() / "contracts" / "species.csv"))
+    espar_mapping = read_espar_mapping(root() / "contracts" / "species.csv")
+    rows, report = build_rows(directory, espar_mapping)
+    # le tarif d'abord : un tarif refusé (code 2) ne laisse pas une allométrie neuve à côté d'un tarif ancien
+    import_tarif_v5(config, directory, espar_mapping)
     output = zone_dir(config) / "params" / "allometry.parquet"
     write_allometry(rows, output)
     for text in report:

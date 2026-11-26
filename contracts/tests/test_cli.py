@@ -151,6 +151,8 @@ def test_table_missing_column_and_empty_table(capsys, tmp_path):
                      types={"cell_id": pa.int64(), "year": pa.int64(),
                             "species": pa.string(), "volume_m3_ha": pa.float64(),
                             "biomass_t_ha": pa.float64(), "carbon_t_ha": pa.float64(),
+                            "stems_not_computed_ha": pa.float64(),
+                            "basal_area_not_computed_share": pa.float64(),
                             "provisoire": pa.bool_()})
     code, _, err = run(capsys, ["summary", str(path)])
     assert code == 3 and "table vide" in err

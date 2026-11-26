@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:post_run",
+  "title": "sim/post.json (post)",
+  "description": "Compte rendu d'une exécution de post (mission 051 ; plan post-volume-carbone §4) : de quoi retrouver, sans relire le code, quel tarif et quelles entrées ont donné sim/summary.parquet et sim/summary_zone.parquet. Il porte la PROVENANCE : empreinte de config.yml copiée de sim/run.json (post refuse, code 2, si elle diffère de celle de config.yml), commit de tarif-nemeton et source de chaque modèle du tarif, empreintes SHA-256 des entrées lues. Il porte les COMPTES de ce que post n'a pas calculé (décision Q5 du 26/11/2026 : pas d'extrapolation, pas d'emprunt) : un compte nul s'écrit 0, un compte absent est une erreur. Les comptes sont en arbres-années : un couple (arbre, année) vivant, ou mort dans l'année, compté une fois. Un arbre hors domaine est rangé dans la PREMIÈRE raison qui s'applique, dans l'ordre dbh_below, dbh_above, h_below, h_above, hd_below, hd_above : la somme des raisons d'une essence est donc son nombre d'arbres-années hors domaine. CELLULES SANS TYPE DE VÉGÉTATION (ajout de la mission 053, décision de l'orchestrateur du 26/11/2026) : une cellule qui porte des arbres mais n'a pas de type de végétation dans vegetation_map.tif (sur le jeu fictif, des recrues en cellule 1423) est dans sim/summary.parquet, mais pas dans sim/summary_zone.parquet, où aucun type n'est inventé pour elle ; without_vegetation_type la compte (cellules et arbres-années), et rapport_post.html la liste avec ses totaux par année. Il alimente rapport_post.html. Valeurs techniques, non validées écologiquement.",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_config_sha256",
+    "inputs_sha256",
+    "tarif_commit",
+    "models",
+    "tree_years_computed",
+    "tree_years_not_computed",
+    "out_of_domain",
+    "without_tarif",
+    "without_vegetation_type",
+    "provisional_share",
+    "duration_s"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_config_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "empreinte SHA-256 de config.yml, copiée de config_sha256 de sim/run.json (même valeur que run_config_sha256 de tiles/index.json)"
+    },
+    "inputs_sha256": {
+      "description": "empreintes SHA-256 des entrées lues par post, en hexadécimal minuscule ; sim_trees est l'empreinte de la liste triée (chemin relatif, empreinte du fichier) des partitions de sim/trees",
+      "type": "object",
+      "required": [
+        "sim_run",
+        "sim_trees",
+        "params_tarif"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "sim_run": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "sim/run.json"
+        },
+        "sim_trees": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "sim/trees (toutes les partitions)"
+        },
+        "params_tarif": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "params/tarif.parquet"
+        }
+      }
+    },
+    "tarif_commit": {
+      "description": "commit de tarif-nemeton d'où vient params/tarif.parquet (décision Q1 : tarif v5 ; parametres_tarif_v5.csv créé au commit 9821693, fusionné par Pascal au commit 4ee122c, résultats tarif_v5 inchangés ; sur le jeu fictif, commit synthétique 0000000), 7 à 40 caractères hexadécimaux minuscules ; c'est la valeur de source_commit de params/tarif.parquet",
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "models": {
+      "description": "un élément par modèle de params/tarif.parquet utilisé (colonne modele), avec sa source ; au moins un",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "model",
+          "source",
+          "commit",
+          "provisoire"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "enum": [
+              "volume_feuillus",
+              "profil_tige_resineux",
+              "expansion_resineux",
+              "infradensite",
+              "fraction_carbone",
+              "racines",
+              "domaine"
+            ]
+          },
+          "source": {
+            "description": "source citée du modèle (source_code et source_biblio de params/tarif.parquet)",
+            "type": "string",
+            "minLength": 1
+          },
+          "commit": {
+            "description": "commit de tarif-nemeton qui porte ce modèle",
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,40}$"
+          },
+          "provisoire": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "tree_years_computed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "arbres-années calculés (vivants, ou morts dans l'année)"
+    },
+    "tree_years_not_computed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "arbres-années non calculés : somme de out_of_domain et de without_tarif"
+    },
+    "out_of_domain": {
+      "description": "par essence ayant un tarif, arbres-années hors du domaine du tarif, par première raison (voir la description du contrat) ; une essence sans aucun arbre hors domaine peut être absente",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "dbh_below",
+          "dbh_above",
+          "h_below",
+          "h_above",
+          "hd_below",
+          "hd_above"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "dbh_below": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "d130 sous dbh_min"
+          },
+          "dbh_above": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "d130 au-dessus de dbh_max"
+          },
+          "h_below": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "hauteur sous h_min ; compte aussi un résineux de forme NEMETON v5 qui mesure au plus h_ref + marge_sommet (1,30 m plus la marge dans tarif-nemeton), dont le profil de tige ne s'intègre pas (mission 056) : il n'est pas calculé, et rapport_post.html en donne le nombre"
+          },
+          "h_above": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "hauteur au-dessus de h_max"
+          },
+          "hd_below": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "H/D sous hd_min"
+          },
+          "hd_above": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "H/D au-dessus de hd_max"
+          }
+        }
+      }
+    },
+    "without_tarif": {
+      "description": "par essence sans aucun tarif dans params/tarif.parquet, arbres-années non calculés (pas d'emprunt du tarif d'une autre essence) ; chaque essence présente a au moins un arbre-année",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "without_vegetation_type": {
+      "description": "cellules qui portent au moins un arbre-année mais n'ont pas de type de végétation (vegetation_map.tif) : absentes de sim/summary_zone.parquet (aucun type inventé), présentes dans sim/summary.parquet ; aucune cellule : cells vide et tree_years 0",
+      "type": "object",
+      "required": [
+        "cells",
+        "tree_years"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "description": "cell_id de ces cellules, croissants, sans doublon",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "tree_years": {
+          "description": "arbres-années (vivants, ou morts dans l'année) de ces cellules",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "provisional_share": {
+      "description": "part des paramètres du tarif utilisés marqués provisoires, de 0 à 1 (spec §10)",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "duration_s": {
+      "description": "durée de post, en secondes",
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

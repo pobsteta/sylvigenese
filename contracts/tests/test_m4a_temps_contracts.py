@@ -63,8 +63,9 @@ def test_cell_sheet_v1_refuses_the_keys_of_v2(key, value, tmp_path, capsys):
 
 
 def test_cell_sheet_refuses_an_unknown_version(tmp_path, capsys):
+    """La version 3 existe depuis la mission 051 : la première version inconnue est la 4."""
     sheet = h.cell_sheet()
-    sheet["schema_version"] = 3
+    sheet["schema_version"] = 4
     code, out = run(capsys, ["cell_sheet", str(sheet_path(tmp_path, sheet))])
     assert code == 3 and "schema_version" in out, out
 

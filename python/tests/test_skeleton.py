@@ -19,6 +19,9 @@ from sylvigenese.common import ModuleError, read_config
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "config.yml"
 MODULES = [import_tarif, post, assets]  # import_tarif : voir aussi test_import_tarif.py (mission 027)
+# post n'est plus un squelette (mission 053) : sans sim/ il refuse, code 2 ; son chemin de réussite est testé dans
+# test_post.py (mini-zone) et tests/post (tests d'acceptation de la mission 052)
+MODULES_OK_WITHOUT_SIM = [import_tarif, assets]
 
 
 def fake_validator(directory: Path, code: int) -> Path:
@@ -53,7 +56,7 @@ def test_lire_config_absent():
         read_config("/nulle/part/config.yml")
 
 
-@pytest.mark.parametrize("module", MODULES)
+@pytest.mark.parametrize("module", MODULES_OK_WITHOUT_SIM)
 def test_sortie_0_si_le_validateur_dit_0(module, tmp_path, monkeypatch, request):
     monkeypatch.setenv("SYLVIGENESE_VALIDATE", str(fake_validator(tmp_path, 0)))
     if module is assets:  # assets écrit ses sorties : racine temporaire, pas le dépôt
@@ -83,7 +86,17 @@ def test_sortie_2_si_argument_inconnu():
     assert post.main(["--inconnu"]) == 2
 
 
-@pytest.mark.parametrize("name", ["import_tarif", "post", "assets"])
+def test_post_sans_sim_refuse_en_nommant_la_cause(tmp_path, monkeypatch, request):
+    """Mission 053 : post vient après simulate ; sur une zone sans sim/, il refuse (code 2) et le dit."""
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "python"),
+           "SYLVIGENESE_ROOT": str(temporary_root(tmp_path, request.getfixturevalue("zone_chain")))}
+    result = subprocess.run([sys.executable, "-m", "sylvigenese.post", "--config", str(CONFIG)],
+                            cwd=ROOT, env=env, capture_output=True, text=True)
+    assert result.returncode == 2, result.stderr
+    assert "sim" in result.stderr and "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("name", ["import_tarif", "assets"])
 def test_integration_en_ligne_de_commande_avec_le_vrai_validateur(name, tmp_path, request):
     # Rouge tant que contracts/validate (mission 009) est absent de l'arbre.
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}

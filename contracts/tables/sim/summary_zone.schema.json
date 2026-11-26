@@ -1,0 +1,189 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Résumé du massif (sim/summary_zone.parquet, post)",
+  "description": "Volume, biomasse et carbone du massif par année, type de végétation et essence (BRIEF §4 « summary par biome et année » ; plan post-volume-carbone §4 ; mission 051). Il s'ajoute à sim/summary.parquet (par cellule), qui reste celui de la spec §2. Une ligne par triplet (year, vegetation_type, species) où au moins un arbre est vivant, ou est mort dans l'année. vegetation_type est celui de la cellule à l'état initial (il n'évolue pas dans simulate), comme dans la fiche de cellule. CELLULE SANS TYPE DE VÉGÉTATION (mission 053, décision de l'orchestrateur du 26/11/2026) : une cellule qui porte des arbres mais n'a pas de type dans vegetation_map.tif (sur le jeu fictif, les recrues de la cellule 1423) n'entre dans AUCUNE ligne de ce fichier : aucun type n'est inventé pour elle ; elle reste dans sim/summary.parquet, elle est comptée dans sim/post.json (without_vegetation_type : cellules et arbres-années) et listée dans rapport_post.html avec ses totaux par année. Les totaux du massif ci-dessous sont donc ceux des seules cellules typées. TOTAUX : volume_m3 (aérien total), biomass_t (aérienne sèche), carbon_t (carbone aérien), carbon_roots_t (racines, facultatif et provisoire, comme dans summary) : sommes sur les cellules du type, des valeurs de summary × surface de la cellule ; pas de colonne CO2. forest_area_ha : surface forestière du type de végétation (nombre de cellules du type × grid.resolution_m², en ha), la même pour toutes les essences du type. MOYENNES PAR HECTARE : volume_m3_ha = volume_m3 / forest_area_ha, et de même pour biomass_t_ha, carbon_t_ha et carbon_roots_t_ha ; le dénominateur est toute la surface forestière du type, de sorte que les moyennes des essences d'un type s'additionnent à la moyenne du type. FLUX DE MORTALITÉ DE L'ANNÉE : dead_volume_m3 et dead_carbon_t sont le volume aérien total et le carbone aérien des arbres morts DANS l'année (status = dead de sim/trees), comptés une fois ; ce n'est pas un stock de bois mort, la décomposition n'étant pas simulée. dead_stems_not_computed : morts de l'année non calculés (hors du domaine, essence sans tarif). PART NON CALCULÉE (décision Q5) : stems_not_computed (vivants non calculés, sommés sur les cellules, en tiges, pas par hectare) et basal_area_not_computed_share (G non calculée / G des arbres vivants de l'essence dans le type, de 0 à 1). Sans arbre vivant, la part vaut 0 (rien n'est à calculer). provisoire : vrai si un paramètre provisoire a servi ; toujours vrai en v1. Valeurs techniques, non validées écologiquement.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 051 (dev ; plan post-volume-carbone §4)",
+  "fieldsMatch": "equal",
+  "fields": [
+    {
+      "name": "year",
+      "type": "integer",
+      "description": "année simulée",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "vegetation_type",
+      "type": "string",
+      "description": "type de végétation de la cellule à l'état initial (comme vegetation_type de la fiche de cellule)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "species",
+      "type": "string",
+      "description": "code espar de l'IFN en chaîne, avec son zéro de tête (spec §8, contracts/species.csv)",
+      "constraints": {
+        "pattern": "[0-9]{2}[A-Z0-9]{0,3}",
+        "required": true
+      }
+    },
+    {
+      "name": "forest_area_ha",
+      "type": "number",
+      "description": "surface forestière du type de végétation, ha (nombre de cellules × grid.resolution_m²)",
+      "x-unit": "ha",
+      "constraints": {
+        "required": true,
+        "exclusiveMinimum": 0
+      }
+    },
+    {
+      "name": "volume_m3",
+      "type": "number",
+      "description": "volume aérien total des arbres vivants calculés, m³ (total du type, non par hectare)",
+      "x-unit": "m3",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "biomass_t",
+      "type": "number",
+      "description": "biomasse aérienne sèche des arbres vivants calculés, t",
+      "x-unit": "t",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "carbon_t",
+      "type": "number",
+      "description": "carbone aérien des arbres vivants calculés, tC",
+      "x-unit": "tC",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "carbon_roots_t",
+      "type": "number",
+      "description": "carbone des racines, tC ; facultatif et PROVISOIRE (décision Q4)",
+      "x-unit": "tC",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      },
+      "x-optional": true
+    },
+    {
+      "name": "volume_m3_ha",
+      "type": "number",
+      "description": "volume aérien total moyen par hectare de surface forestière du type, m³/ha (volume_m3 / forest_area_ha)",
+      "x-unit": "m3/ha",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "biomass_t_ha",
+      "type": "number",
+      "description": "biomasse aérienne sèche moyenne par hectare, t/ha",
+      "x-unit": "t/ha",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "carbon_t_ha",
+      "type": "number",
+      "description": "carbone aérien moyen par hectare, tC/ha",
+      "x-unit": "tC/ha",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "carbon_roots_t_ha",
+      "type": "number",
+      "description": "carbone des racines moyen par hectare, tC/ha ; facultatif et provisoire (présent si carbon_roots_t l'est)",
+      "x-unit": "tC/ha",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      },
+      "x-optional": true
+    },
+    {
+      "name": "dead_volume_m3",
+      "type": "number",
+      "description": "flux de l'année : volume aérien total des arbres morts dans l'année, m³ (pas un stock de bois mort)",
+      "x-unit": "m3",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "dead_carbon_t",
+      "type": "number",
+      "description": "flux de l'année : carbone aérien des arbres morts dans l'année, tC",
+      "x-unit": "tC",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "dead_stems_not_computed",
+      "type": "integer",
+      "description": "arbres morts dans l'année non calculés (hors du domaine, essence sans tarif), en tiges",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "stems_not_computed",
+      "type": "integer",
+      "description": "arbres vivants non calculés (hors du domaine, essence sans tarif), en tiges, sommés sur les cellules du type",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "basal_area_not_computed_share",
+      "type": "number",
+      "description": "part de la surface terrière vivante de l'essence dans le type qui n'est pas calculée, de 0 à 1",
+      "constraints": {
+        "required": true,
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    {
+      "name": "provisoire",
+      "type": "boolean",
+      "description": "vrai si un paramètre provisoire a servi (spec §10) ; toujours vrai en v1",
+      "constraints": {
+        "required": true
+      }
+    }
+  ],
+  "primaryKey": [
+    "year",
+    "vegetation_type",
+    "species"
+  ]
+}

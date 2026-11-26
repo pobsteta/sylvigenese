@@ -219,9 +219,74 @@ def sim_flags():
 
 
 def summary():
+    """sim/summary.parquet version 0.2 : volume aérien total, carbone aérien, parts non calculées.
+    Valeurs d'essai, sans sens écologique ; la colonne des racines (facultative) n'y est pas."""
     return {"cell_id": [0, 1], "year": [2030, 2030], "species": ["09", "09"],
             "volume_m3_ha": [300.0, 120.0], "biomass_t_ha": [200.0, 80.0],
-            "carbon_t_ha": [100.0, 40.0], "provisoire": [True, True]}
+            "carbon_t_ha": [100.0, 40.0], "stems_not_computed_ha": [0.0, 16.0],
+            "basal_area_not_computed_share": [0.0, 0.25], "provisoire": [True, True]}
+
+
+def summary_with_roots():
+    """La même table avec la colonne facultative et provisoire du carbone des racines (Q4)."""
+    data = summary()
+    data["carbon_roots_t_ha"] = [20.0, 8.0]
+    return data
+
+
+def tarif():
+    """params/tarif.parquet : une ligne par terme, valeurs d'essai SYNTHÉTIQUES (aucune n'est celle
+    de tarif-nemeton). Une essence feuillue (volume_feuillus), une résineuse (profil_tige_resineux),
+    des lignes par groupe (fraction_carbone) et le domaine (dbh_min, hd_max)."""
+    rows = [
+        ("09", None, "volume_feuillus", "a", 0.1, "sans_unite"),
+        ("09", None, "volume_feuillus", "b", 0.2, "sans_unite"),
+        ("09", None, "domaine", "dbh_min", 10.0, "cm"),
+        ("62", None, "profil_tige_resineux", "synth_p1", 0.3, "sans_unite"),
+        ("62", None, "domaine", "hd_max", 200.0, "sans_unite"),
+        (None, "feuillu", "fraction_carbone", "fraction", 0.4, "sans_unite"),
+        (None, "resineux", "fraction_carbone", "fraction", 0.45, "sans_unite"),
+        (None, "resineux", "racines", "ratio", 0.2, "sans_unite"),
+    ]
+    return {"essence": [r[0] for r in rows], "groupe": [r[1] for r in rows],
+            "modele": [r[2] for r in rows], "terme": [r[3] for r in rows],
+            "valeur": [r[4] for r in rows], "unite": [r[5] for r in rows],
+            "source_code": ["synthetique_jeu_fictif"] * len(rows),
+            "source_biblio": ["synthetique_jeu_fictif"] * len(rows),
+            "source_commit": ["0000000"] * len(rows), "provisoire": [True] * len(rows)}
+
+
+TARIF_TYPES = {"essence": pa.string(), "groupe": pa.string()}
+
+
+def summary_zone():
+    """sim/summary_zone.parquet : deux essences d'un type de végétation, une année ; valeurs d'essai.
+    forest_area_ha = 40 cellules × 0,0625 ha = 2,5 ha ; moyennes = totaux / 2,5."""
+    return {"year": [2030, 2030], "vegetation_type": ["hetraie", "hetraie"],
+            "species": ["09", "02"], "forest_area_ha": [2.5, 2.5],
+            "volume_m3": [500.0, 50.0], "biomass_t": [300.0, 30.0], "carbon_t": [150.0, 15.0],
+            "volume_m3_ha": [200.0, 20.0], "biomass_t_ha": [120.0, 12.0],
+            "carbon_t_ha": [60.0, 6.0], "dead_volume_m3": [4.0, 0.0], "dead_carbon_t": [1.2, 0.0],
+            "dead_stems_not_computed": [0, 3], "stems_not_computed": [10, 40],
+            "basal_area_not_computed_share": [0.02, 0.5], "provisoire": [True, True]}
+
+
+def post_run_json():
+    """sim/post.json : provenance et comptes ; empreintes et commit d'essai."""
+    return {"schema_version": 1, "run_config_sha256": "0123456789abcdef" * 4,
+            "inputs_sha256": {"sim_run": "1" * 64, "sim_trees": "2" * 64,
+                              "params_tarif": "3" * 64},
+            "tarif_commit": "0000000",
+            "models": [{"model": "volume_feuillus", "source": "synthetique_jeu_fictif",
+                        "commit": "0000000", "provisoire": True},
+                       {"model": "domaine", "source": "synthetique_jeu_fictif",
+                        "commit": "0000000", "provisoire": True}],
+            "tree_years_computed": 90000, "tree_years_not_computed": 1200,
+            "out_of_domain": {"09": {"dbh_below": 800, "dbh_above": 0, "h_below": 0,
+                                     "h_above": 0, "hd_below": 0, "hd_above": 300}},
+            "without_tarif": {"02": 100},
+            "without_vegetation_type": {"cells": [1423], "tree_years": 7},
+            "provisional_share": 1.0, "duration_s": 42.5}
 
 
 def config():
@@ -317,6 +382,41 @@ def cell_sheet_v2():
                                         "value": 31.2},
                                        {"kind": "trouee_sans_recrue",
                                         "message": "trouée sans recrue", "value": None}])]}]}
+
+
+def cell_sheet_v3():
+    """Fiche de cellule v3 (mission 051) : deux années ; la première est complète, la seconde est
+    un volume partiel (part de G non calculée) avec le carbone des racines. Valeurs d'essai."""
+    def year(y, stems, g, d, h_dom, volume, carbon, share, roots=None):
+        out = {"year": y, "provisoire": True, "stems_ha": stems, "basal_area_m2_ha": g,
+               "d130_mean_cm": d, "h_dom_m": h_dom,
+               "composition": [{"species": "09", "stems_ha": stems * 0.75,
+                                "basal_area_m2_ha": g * 0.5, "share": 0.75,
+                                "volume_m3_ha": volume * 0.6, "carbon_t_ha": carbon * 0.6,
+                                "basal_area_not_computed_share": share},
+                               {"species": "02", "stems_ha": stems * 0.25,
+                                "basal_area_m2_ha": g * 0.5, "share": 0.25,
+                                "volume_m3_ha": volume * 0.4, "carbon_t_ha": carbon * 0.4,
+                                "basal_area_not_computed_share": 0.0}],
+               "flags": [], "volume_m3_ha": volume, "carbon_t_ha": carbon,
+               "stems_not_computed_ha": stems * share,
+               "basal_area_not_computed_share": share, "volume_partiel": share > 0}
+        if roots is not None:
+            out["root_carbon_t_ha"] = roots
+        return out
+    return {"schema_version": 3, "tile": "t_0_0", "source": "sim",
+            "tarif": {"name": "tarif NEMETON v5", "commit": "0000000", "provisoire": True},
+            "notes": ["trajectoire technique, non validée écologiquement (décision du 25/11/2026)",
+                      "volume aérien total (tige et branches), même définition pour toutes les essences",
+                      "carbone aérien (biomasse aérienne × fraction de carbone) ; carbone des racines "
+                      "à part, provisoire (racines)",
+                      "sol et bois mort : non modélisés, hors v1",
+                      "volume partiel : des tiges hors du domaine du tarif ne sont pas calculées"],
+            "cells": [{"cell_id": 0, "x": PARIS_X, "y": PARIS_Y,
+                       "station_type": "fraiche_acide", "vegetation_type": "hetraie",
+                       "h_ceiling_m": 30.0,
+                       "years": [year(2022, 120.0, 20.0, 31.5, 22.0, 300.0, 100.0, 0.0, 20.0),
+                                 year(2032, 200.0, 25.0, 28.0, 31.2, 280.0, 90.0, 0.25, 18.0)]}]}
 
 
 def tiles_index():

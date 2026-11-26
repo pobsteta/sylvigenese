@@ -54,7 +54,7 @@ test_that("ifn_tables sur le jeu fictif : colonnes, effectifs, clés", {
                           "visit", "date_point", "incident_nature", "incident_intensity",
                           "harvest_5y", "clearing_5y", "planting_5y"))
   expect_named(r$trees, c("plot_id", "campaign", "tree_id", "species", "d130", "h", "weight_ha",
-                          "veg_state", "veg_state_5y", "radial_incr_5y_m"))
+                          "veg_state", "veg_state_5y", "radial_incr_5y_m", "stem_volume_m3"))
   expect_named(r$flora, c("plot_id", "campaign", "cd_ref", "taxref_version", "abundance"))
   expect_equal(nrow(r$plots), 228)               # 120 placettes de 1re visite + 108 revisites
   expect_equal(sum(r$plots$visit == 1L), 120)
@@ -189,6 +189,31 @@ mini <- function() {
     f = data.frame(CAMPAGNE = "2015", IDP = "1", CD_REF = "125816", ABOND = "2")
   )
 }
+
+test_that("V (volume bois fort tige, m3) est gardé tel quel ; absent il reste NA et est dit", {
+  # jeu fictif : V du fichier repris sans conversion (arbre 1 de 9000001 : 0,0682 m3, 2015)
+  r <- tables_fictives()
+  t1 <- r$trees[r$trees$plot_id == "9000001" & r$trees$campaign == 2015L & r$trees$tree_id == "1", ]
+  expect_equal(t1$stem_volume_m3, 0.0682)
+  expect_true(any(!is.na(r$trees$stem_volume_m3)) && any(is.na(r$trees$stem_volume_m3)))
+  expect_true(all(r$trees$stem_volume_m3[!is.na(r$trees$stem_volume_m3)] >= 0))
+  expect_true(any(grepl("stem_volume_m3 \\(m3.*sans conversion.*renseign", r$report$text)))
+  # jeu minimal : V du fichier ; vide -> NA, jamais calculé
+  m <- mini()
+  a <- transform(m$a, V = c("0.9500", "", "1.0100", "", ""))
+  r2 <- ifn_tables(m$p, a, m$f)
+  expect_equal(r2$trees$stem_volume_m3, c(0.95, NA, 1.01, NA, NA))
+  expect_true(any(grepl("renseign.*sur 2 ligne.*sur 5", r2$report$text[grepl("^stem_volume_m3 ", r2$report$text)])))
+  expect_error(ifn_tables(m$p, transform(m$a, V = c("-1", "", "", "", "")), m$f), "V n.*gatif")
+  expect_error(ifn_tables(m$p, transform(m$a, V = c("abc", "", "", "", "")), m$f), "valeur non num")
+  # colonne V absente : NA partout et ligne de rapport
+  r3 <- ifn_tables(m$p, m$a, m$f)
+  expect_true(all(is.na(r3$trees$stem_volume_m3)))
+  expect_true(any(grepl("colonne V absente.*stem_volume_m3", r3$report$text)))
+  # V ne change ni d130, ni le poids, ni les placettes (aucun raster ouvert)
+  expect_equal(r2$trees$d130, r3$trees$d130)
+  expect_equal(r2$trees$weight_ha, r3$trees$weight_ha)
+})
 
 test_that("signaler plutôt que deviner : entrées incohérentes refusées", {
   m <- mini()
@@ -393,4 +418,13 @@ test_that("le module prepare contrôle l'IFN avant la première écriture (ordre
 
 test_that("un seul écrivain Parquet : write_parquet_tbl de commun.R", {
   expect_false(exists(".ifn_write_parquet"))
+})
+
+test_that("V écrit en Parquet (float64, facultative au contrat) et relu", {
+  zone <- copie_zone_ifn()
+  avec_racine(suppressMessages(res <- prepare_ifn(zone)))
+  t <- arrow::read_parquet(file.path(zone, "ifn", "trees.parquet"))
+  expect_true("stem_volume_m3" %in% names(t))
+  expect_equal(sum(!is.na(t$stem_volume_m3)), sum(!is.na(res$trees$stem_volume_m3)))
+  expect_false(any(grepl("[.]tif$", list.files(zone, recursive = TRUE))))
 })

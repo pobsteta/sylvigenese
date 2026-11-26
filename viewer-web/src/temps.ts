@@ -183,7 +183,8 @@ export interface FlagV2 {
   value?: number | null;
 }
 
-export interface YearSheetV2 {
+// Ce qu'une année simulée porte en v2 comme en v3 (contrat cell_sheet, year_v2 et year_v3).
+export interface YearSheetSim {
   year: number;
   provisoire: boolean;
   stems_ha: number;
@@ -193,19 +194,25 @@ export interface YearSheetV2 {
   h0_m?: number;
   composition: CompositionV2[];
   flags: FlagV2[];
+}
+
+export interface YearSheetV2 extends YearSheetSim {
   volume_m3_ha: null;
   carbon_t_ha: null;
 }
 
-export interface CellV2 {
+// Cellule simulée, v2 ou v3 : la v3 ne change que ses années (voir volume.ts).
+export interface CellSim<Y extends YearSheetSim = YearSheetSim> {
   cell_id: number;
   x: number;
   y: number;
   station_type: string;
   vegetation_type: string;
   h_ceiling_m: number | null;
-  years: YearSheetV2[];
+  years: Y[];
 }
+
+export type CellV2 = CellSim<YearSheetV2>;
 
 export interface TileSheetsV2 {
   schema_version: 2;
@@ -263,7 +270,7 @@ export function sheetNotes(fileNotes: string[]): string[] {
   return out;
 }
 
-export function formatEvolution(c: CellV2, year: number, fileNotes: string[]): DisplayedEvolution {
+export function formatEvolution(c: CellSim, year: number, fileNotes: string[]): DisplayedEvolution {
   const a = c.years.find((y) => y.year === year);
   if (!a) throw new SheetError(`cellule ${c.cell_id} : pas de fiche pour l'année ${year}`);
   const ceiling = c.h_ceiling_m === null ? "plafond inconnu" : `plafond ${format1(c.h_ceiling_m)} m`;
@@ -296,6 +303,26 @@ export function formatEvolution(c: CellV2, year: number, fileNotes: string[]): D
     notes: sheetNotes(fileNotes),
     command: massifViewerCommand(c.x, c.y, a.year),
   };
+}
+
+// ---------------------------------------------------------------- images par seconde (relevé sans seuil)
+// Sous SwiftShader (CI sans GPU), une image de 100 000 instances peut prendre plus de 3 s : une mesure de durée fixe
+// comptait alors 0 ou 1 image, et l'arrondi à 0,1 rendait 0 (run 45777046842). Règle : la mesure dure au moins la
+// durée demandée ET jusqu'à FPS_MIN_FRAMES images rendues, sans dépasser FPS_MAX_MS (60 s : au-delà, la vue est de
+// toute façon inutilisable, et la sonde ne doit pas attendre sans fin). Pas d'arrondi à une décimale : trois chiffres
+// significatifs. Aucune image au plafond : null, jamais 0 en silence (le code navigateur le dit dans state.error).
+export const FPS_MIN_FRAMES = 2;
+export const FPS_MAX_MS = 60000;
+
+/** Vrai quand la mesure peut s'arrêter : durée demandée atteinte avec au moins FPS_MIN_FRAMES images, ou plafond. */
+export function fpsMeasureDone(elapsedMs: number, frames: number, requestedMs: number): boolean {
+  return (elapsedMs >= requestedMs && frames >= FPS_MIN_FRAMES) || elapsedMs >= FPS_MAX_MS;
+}
+
+/** Images par seconde, à trois chiffres significatifs ; null si aucune image n'a été rendue. */
+export function fpsValue(frames: number, elapsedMs: number): number | null {
+  if (frames <= 0 || !(elapsedMs > 0)) return null;
+  return Number(((frames * 1000) / elapsedMs).toPrecision(3));
 }
 
 // ---------------------------------------------------------------- couches d'arbres (revue de la PR n° 9, M1)
