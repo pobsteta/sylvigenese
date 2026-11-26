@@ -229,10 +229,34 @@ def translate(error):
         return f"{at} : valeur trop courte ou vide (règle {kw} = {value})"
     if kw == "x-lambert93":
         return f"{at} : {error.message}"
+    if kw in (None, "not"):  # sous-schéma « not: {} » : clé interdite dans ce cas
+        return f"{at} : clé non admise dans ce cas (voir le contrat)"
+    if kw == "contains":
+        return f"{at} : aucun élément ne respecte la règle attendue (règle contains)"
     return f"{at} : valeur invalide (règle {kw})"
 
 
-def check(path, schema_file, fmt):
+def check_ground_size(document, findings):
+    """massif_block v2 : `ground.z` porte nx × ny altitudes (le schéma ne sait pas multiplier)."""
+    ground = document.get("ground")
+    if ground and len(ground["z"]) != ground["nx"] * ground["ny"]:
+        findings.error(f"ground.z : {len(ground['z'])} altitudes, nx × ny = "
+                       f"{ground['nx'] * ground['ny']} attendues")
+
+
+def check_increasing_breaks(document, findings):
+    """seuils de stade : strictement croissants (le schéma ne sait pas comparer deux éléments)."""
+    breaks = document["breaks"]
+    if any(not a < b for a, b in zip(breaks, breaks[1:])):
+        findings.error(f"breaks : seuils strictement croissants attendus, trouvé {breaks}")
+
+
+EXTRA_CHECKS = {"ground_size": check_ground_size, "increasing_breaks": check_increasing_breaks}
+
+
+def check(path, schema_file, fmt, checks=()):
+    """Écarts d'un document au schéma ; `checks` : règles du projet que le schéma ne dit pas
+    (noms dans EXTRA_CHECKS, option `extra_checks` du catalogue)."""
     findings = Findings()
     try:
         document = load_document(path, fmt)
@@ -246,4 +270,7 @@ def check(path, schema_file, fmt):
     errors = sorted(validator.iter_errors(document), key=lambda e: list(map(str, e.absolute_path)))
     for error in errors:
         findings.error(translate(error))
+    if not errors:  # les règles croisées lisent un document conforme au schéma
+        for name in checks:
+            EXTRA_CHECKS[name](document, findings)
     return [(path, findings)]

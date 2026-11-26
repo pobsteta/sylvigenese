@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:massif_index",
+  "title": "massif/index.json : index de la vue massif (assets, M6a, mission 068, ADR 0007 projet)",
+  "description": "Ce que lit viewer-massif pour trouver le bloc d'un point (x, y) et dire, sans deviner, quelles années existent : une année absente ou un point hors de toute emprise est refusé avec la liste des années ou l'emprise, jamais l'année voisine (plan T7). Les blocs sont les tuiles de 500 m de tiles/ (même identifiant t_<x>_<y>, coin sud-ouest en EPSG:2154) ; leurs fichiers sont massif/<année>/<bloc>.json (contrat assets.massif_block). `models` dit, pour chaque code espar qui apparaît dans les blocs, le modèle .glb utilisé : `own` (fichier propre <espar>_<stade>.glb), `alias` (même essence qu'un autre code : le même fichier, pas de doublon ; `alias_of` dit lequel) ou `generic` (essence sans modèle du générateur : generique_<groupe>.glb, signalé et compté, jamais un emprunt à une autre essence, Q3). `trees_by_kind` compte, par année, les arbres dessinés par chaque sorte de modèle (la somme est `trees` : relève de assets et des tests). Hors schéma : somme des arbres des blocs d'une année = instances de la même année de tiles/index.json ; un fichier par bloc listé ; le nom `<model>` est celui d'un fichier de assets/trees/.",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "zone",
+    "fictive",
+    "crs",
+    "vertical_datum",
+    "source",
+    "block_size_m",
+    "provisoire",
+    "notes",
+    "models",
+    "years"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "zone": {
+      "description": "nom de la zone (config.yml, data/<zone>/)",
+      "type": "string",
+      "minLength": 1
+    },
+    "fictive": {
+      "description": "zone.yml : fictive",
+      "type": "boolean"
+    },
+    "crs": {
+      "const": "EPSG:2154"
+    },
+    "vertical_datum": {
+      "const": "NGF-IGN69"
+    },
+    "source": {
+      "description": "d'où viennent les arbres de toutes les années (comme tiles/index.json)",
+      "enum": [
+        "sim",
+        "trees_init"
+      ]
+    },
+    "block_size_m": {
+      "description": "côté d'un bloc, m (tuile de tiles/)",
+      "type": "integer",
+      "minimum": 1
+    },
+    "recruitment": {
+      "description": "mode de sim/run.json ; mode sim seulement ; `cohorts` : les blocs portent seedlings, `ifn_direct` : « semis non simulés »",
+      "enum": [
+        "ifn_direct",
+        "cohorts"
+      ]
+    },
+    "provisoire": {
+      "type": "boolean"
+    },
+    "notes": {
+      "description": "mentions communes à toutes les années ; l'une dit « non validée écologiquement »",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "contains": {
+        "type": "string",
+        "pattern": "non validée écologiquement"
+      }
+    },
+    "models": {
+      "description": "modèle utilisé par code espar présent dans les blocs",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "species",
+          "model",
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "species": {
+            "type": "string",
+            "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+          },
+          "model": {
+            "description": "début du nom du fichier : le code espar propre de l'essence, ou generique_<groupe> ; le fichier est <model>_<stade>.glb, ou generique_<groupe>.glb",
+            "type": "string",
+            "pattern": "^([0-9]{2}[A-Z0-9]{0,3}|generique_(feuillu|resineux))$"
+          },
+          "kind": {
+            "enum": [
+              "own",
+              "alias",
+              "generic"
+            ]
+          },
+          "alias_of": {
+            "description": "code espar qui porte le fichier ; seulement pour kind = alias",
+            "type": "string",
+            "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "own"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "alias_of": {"not": {}},
+                "model": {
+                  "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "alias"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "alias_of"
+              ],
+              "properties": {
+                "model": {
+                  "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "generic"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "alias_of": {"not": {}},
+                "model": {
+                  "pattern": "^generique_(feuillu|resineux)$"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "years": {
+      "description": "années disponibles, de la plus ancienne à la plus récente (ordre non vérifié par le schéma)",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "year",
+          "trees",
+          "trees_by_kind",
+          "blocks"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "trees": {
+            "description": "arbres vivants dessinés cette année, tous blocs",
+            "type": "integer",
+            "minimum": 0
+          },
+          "trees_by_kind": {
+            "type": "object",
+            "required": [
+              "own",
+              "alias",
+              "generic"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "own": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "alias": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "generic": {
+                "description": "arbres dessinés par un modèle générique (essence sans modèle)",
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "block_id",
+                "file",
+                "sw",
+                "size_m",
+                "trees"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "block_id": {
+                  "type": "string",
+                  "pattern": "^t_[0-9]+_[0-9]+$"
+                },
+                "file": {
+                  "description": "chemin depuis massif/",
+                  "type": "string",
+                  "pattern": "^[0-9]{4}/t_[0-9]+_[0-9]+\\.json$"
+                },
+                "sw": {
+                  "description": "coin sud-ouest du bloc, EPSG:2154, m",
+                  "type": "object",
+                  "x-lambert93": true,
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "size_m": {
+                  "description": "côté du bloc, m ; emprise = [x, x + size_m[ × [y, y + size_m[",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "trees": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "source": {
+        "const": "sim"
+      }
+    },
+    "required": [
+      "source"
+    ]
+  },
+  "then": {
+    "required": [
+      "recruitment"
+    ]
+  },
+  "else": {
+    "properties": {
+      "recruitment": {"not": {}}
+    }
+  }
+}

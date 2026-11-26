@@ -1,38 +1,326 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sylvigenese:massif_block",
-  "title": "Bloc de la vue massif (massif/<bloc>.json, assets)",
-  "description": "Arbres d'un bloc pour viewer-massif. L'origine est en EPSG:2154 et en altitude NGF-IGN69 ; les positions des arbres sont en mètres, relatives à l'origine (x vers l'est, y vers le nord, z vers le haut) (spec §9).",
+  "title": "Bloc de la vue massif (massif/<année>/<bloc>.json, assets)",
+  "description": "Ce que lit viewer-massif pour un bloc (une tuile de 500 m de tiles/, même identifiant t_<x>_<y>) ; la vue ne lit ni Parquet ni sim/. Deux versions. Version 1 (arbres seuls, conforme à l'identique de la mission 009) ; version 2 (M6a, mission 068, ADR 0007 projet) : arbres, terrain, couverts et semis par cellule, mentions. Repères : l'origine est en EPSG:2154 et en altitude NGF-IGN69 ; les positions des arbres et des cellules sont en mètres, relatives à l'origine (x vers l'est, y vers le nord, z vers le haut : repère du fichier, pas celui de Godot ni celui de glTF, qui est y-up ; la conversion est faite par la vue, plan T6). `stage` d'un arbre = h / h_pot de l'arbre, avec les seuils de biomes/stades/stage_breaks.yml (extension de BRIEF §6, Q8). Version 2 : `ground.z` donne l'altitude NGF-IGN69 absolue (m) aux nœuds de la grille de 25 m, ligne 0 au nord, colonnes d'ouest en est, nœuds aux centres de cellule, comme altitude.py ; les cellules ont x et y relatifs à l'origine. Un couvert `null` dit « biome inconnu pour cette cellule » : la vue ne dessine rien et le dit, jamais de valeur par défaut. `seedlings` est présent dans chaque cellule si et seulement si `seedlings_simulated` est vrai (sim/run.json : recruitment = cohorts). Pas de composition herbacée : les noms des biomes sont fictifs et aucun modèle d'herbe n'existe (Q4). Hors schéma (assets et tests) : nx × ny = len(z) est contrôlé par le validateur ; somme des arbres des blocs = instances de tiles/index.json, seedlings égaux à sim/cells, relèvent de assets et des tests.",
   "x-schema-version": "0.1",
   "type": "object",
-  "required": ["schema_version", "block_id", "year", "crs", "vertical_datum", "origin", "trees"],
+  "required": [
+    "schema_version",
+    "block_id",
+    "year",
+    "crs",
+    "vertical_datum",
+    "origin",
+    "trees"
+  ],
   "additionalProperties": false,
+  "$defs": {
+    "tree": {
+      "type": "object",
+      "required": [
+        "tree_id",
+        "species",
+        "stage",
+        "x",
+        "y",
+        "z",
+        "h",
+        "d130",
+        "hcb",
+        "cw"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tree_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "species": {
+          "type": "string",
+          "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+        },
+        "stage": {
+          "$ref": "urn:sylvigenese:enum:stage"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "d130": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "hcb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cw": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "share_or_null": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
   "properties": {
-    "schema_version": {"const": 1},
-    "block_id": {"type": "string", "minLength": 1},
-    "year": {"type": "integer"},
-    "crs": {"const": "EPSG:2154"},
-    "vertical_datum": {"const": "NGF-IGN69"},
+    "schema_version": {
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "block_id": {
+      "description": "version 2 : t_<x>_<y>, coin sud-ouest de la tuile en EPSG:2154",
+      "type": "string",
+      "minLength": 1
+    },
+    "year": {
+      "type": "integer"
+    },
+    "crs": {
+      "const": "EPSG:2154"
+    },
+    "vertical_datum": {
+      "const": "NGF-IGN69"
+    },
     "origin": {
-      "type": "object", "x-lambert93": true,
-      "required": ["x", "y", "z"], "additionalProperties": false,
-      "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+      "type": "object",
+      "x-lambert93": true,
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      }
     },
     "trees": {
       "type": "array",
       "items": {
+        "$ref": "#/$defs/tree"
+      }
+    },
+    "ground": {
+      "description": "terrain : MNT de la grille (25 m), pas le LiDAR à 1 m",
+      "type": "object",
+      "required": [
+        "resolution_m",
+        "nx",
+        "ny",
+        "z"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "resolution_m": {
+          "const": 25
+        },
+        "nx": {
+          "description": "nœuds d'ouest en est",
+          "type": "integer",
+          "minimum": 2
+        },
+        "ny": {
+          "description": "nœuds du nord au sud",
+          "type": "integer",
+          "minimum": 2
+        },
+        "z": {
+          "description": "altitudes NGF-IGN69 (m), ligne par ligne depuis le nord",
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "cells": {
+      "type": "array",
+      "items": {
         "type": "object",
-        "required": ["tree_id", "species", "stage", "x", "y", "z", "h", "d130", "hcb", "cw"],
+        "required": [
+          "cell_id",
+          "x",
+          "y",
+          "biome",
+          "biome_provisoire",
+          "herb_cover",
+          "shrub_cover"
+        ],
         "additionalProperties": false,
         "properties": {
-          "tree_id": {"type": "string", "minLength": 1},
-          "species": {"type": "string", "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"},
-          "stage": {"$ref": "urn:sylvigenese:enum:stage"},
-          "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
-          "h": {"type": "number", "exclusiveMinimum": 0},
-          "d130": {"type": "number", "exclusiveMinimum": 0},
-          "hcb": {"type": "number", "minimum": 0},
-          "cw": {"type": "number", "minimum": 0}
+          "cell_id": {
+            "description": "rang dans grid.tif (ligne × largeur + colonne depuis le coin nord-ouest, à partir de 0)",
+            "type": "integer",
+            "minimum": 0
+          },
+          "x": {
+            "description": "centre de la cellule, m, relatif à l'origine du bloc",
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "biome": {
+            "description": "identifiant du biome (biomes/*.yml) ; null = cellule sans biome",
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "biome_provisoire": {
+            "description": "provisoire du biome, recopié ; vrai si biome inconnu",
+            "type": "boolean"
+          },
+          "herb_cover": {
+            "description": "couvert de la strate herbacée du biome (0 à 1) ; null si le biome n'en donne pas",
+            "$ref": "#/$defs/share_or_null"
+          },
+          "shrub_cover": {
+            "description": "couvert de la strate arbustive du biome (0 à 1) ; null si le biome n'en donne pas",
+            "$ref": "#/$defs/share_or_null"
+          },
+          "seedlings": {
+            "description": "semis de la cellule, par essence (sim/cells, mode cohorts) ; une cellule sans semis porte []",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "species",
+                "seedlings_ha",
+                "h_mean_m"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "species": {
+                  "type": "string",
+                  "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+                },
+                "seedlings_ha": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "h_mean_m": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "seedlings_simulated": {
+      "description": "vrai si et seulement si sim/run.json dit recruitment = cohorts ; faux : « semis non simulés » à l'écran",
+      "type": "boolean"
+    },
+    "mentions": {
+      "description": "mentions affichées par la vue ; l'une dit « non validée écologiquement »",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "provisoire": {
+      "type": "boolean"
+    }
+  },
+  "if": {
+    "properties": {
+      "schema_version": {
+        "const": 1
+      }
+    },
+    "required": [
+      "schema_version"
+    ]
+  },
+  "then": {
+    "additionalProperties": false,
+    "properties": {
+      "schema_version": {},
+      "block_id": {},
+      "year": {},
+      "crs": {},
+      "vertical_datum": {},
+      "origin": {},
+      "trees": {}
+    }
+  },
+  "else": {
+    "required": [
+      "ground",
+      "cells",
+      "seedlings_simulated",
+      "mentions",
+      "provisoire"
+    ],
+    "properties": {
+      "mentions": {
+        "contains": {
+          "type": "string",
+          "pattern": "non validée écologiquement"
+        }
+      }
+    },
+    "if": {
+      "properties": {
+        "seedlings_simulated": {
+          "const": true
+        }
+      },
+      "required": [
+        "seedlings_simulated"
+      ]
+    },
+    "then": {
+      "properties": {
+        "cells": {
+          "items": {
+            "required": [
+              "seedlings"
+            ]
+          }
+        }
+      }
+    },
+    "else": {
+      "properties": {
+        "cells": {
+          "items": {
+            "properties": {
+              "seedlings": {"not": {}}
+            }
+          }
         }
       }
     }
