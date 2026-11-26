@@ -20,6 +20,13 @@ _Modèle de carte :_
 
 ## Bac à sable
 
+- M5b · référence technique `cohorts` et bascule de `config.yml` (Q4), `params/regeneration` du jeu fictif · depuis le cycle 8
+- M5b · refus de post pour un massif simulé en `cohorts` (tant que le tarif n'est pas validé sur ces trajectoires) · depuis le cycle 8
+- M5b · clé `external.*` pour Niinemets (non recopié) ; mise à jour de BRIEF §7.3 · depuis le cycle 8
+- M5b · questions de sens à préparer pour Pascal : coefficient d'extinction pris comme conversion vers l'échelle de Niinemets ; troncature du noyau à K cellules · depuis le cycle 8
+- M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
+- Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
+
 ## Validé
 
 
@@ -27,7 +34,11 @@ _Modèle de carte :_
 
 - Reprises mineures de la relecture de post (facteurs du domaine lus et non écrits en dur, chemin local dans ifn-g-tiges.csv, docstring exclude_incomplete, rejeu du CSV prouvé) · depuis le cycle 8
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
-- M5a, puis M6a (vue Godot) · depuis le cycle 7
+- [066-reprises-relecture-m5a](missions/066-reprises-relecture-m5a.md) · depuis le cycle 8
+  - Homme : dev (opus), donner
+  - Mission : reprises de la relecture de la PR n° 11 (stress_mortality, note d'index, ADR 0006, mineurs CI)
+  - Moyens : arbre de travail, tests de .claude/test-command, relecture ensuite
+- M5a (PR n° 11, à fusionner après 066), puis M6a (vue Godot) · depuis le cycle 7
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
 
 
