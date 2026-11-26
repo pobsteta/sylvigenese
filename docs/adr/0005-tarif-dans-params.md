@@ -1,9 +1,9 @@
 # ADR 0005 — le tarif NEMETON entre dans `params/` par un contrat propre, au format long
 
 - **Date :** 2026-11-26
-- **Statut :** proposé (à trancher par l'orchestrateur, puis à faire valider par Pascal)
+- **Statut :** acceptée par délégation de Pascal (26/11/2026, journal) ; Pascal peut la défaire
 - **Proposée par :** `dev` de la mission 051 (plan `docs/plans/post-volume-carbone.md` §4)
-- **Tranchée par :** — (en attente)
+- **Tranchée par :** Claude (orchestrateur, par délégation de Pascal), après la relecture de la PR n° 10
 
 ## La décision en une phrase
 
