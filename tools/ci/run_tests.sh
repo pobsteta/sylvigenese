@@ -22,12 +22,16 @@
 #   post     tests d'acceptation de post, volume et carbone (mission 052) : chaîne R, simulate sur 5 ans,
 #            post et assets, sans réseau (simulate compilé d'abord, comme pour m3 et m4) ; la fiche v3 y est aussi
 #            vérifiée dans le navigateur (mission 057 : Node, Playwright et Chromium requis, comme pour m4)
+#   m5       tests d'acceptation de M5a (mission 061) : SER fictive du générateur tests/m5/ser_fictive.py et
+#            massif rebâti des entrées figées de M3a, sans chaîne R ; simulate compilé d'abord en release (ses
+#            tests tournent sans réseau, et la mémoire résidente est mesurée sur le binaire compilé) ; N = 1 000
+#            seulement (T10 du plan m5a : N = 2 000 et 4 000 restent hors CI, mission 064)
 #   validate le validateur sur le jeu fictif
 # Chaque section écrit sa durée (sortie standard et, en CI, résumé du job).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-ALL_SECTIONS=(r rust python web contrats m1 m2 m4 m3 post validate)
+ALL_SECTIONS=(r rust python web contrats m1 m2 m4 m3 post m5 validate)
 
 out="$(mktemp)"
 current=""
@@ -90,6 +94,7 @@ run_section() {
     m4)       build_simulate; run_pytest tests/m4 ;;
     m3)       build_simulate; run_pytest tests/m3 ;;
     post)     build_simulate; run_pytest tests/post ;;
+    m5)       build_simulate; run_pytest tests/m5 ;;
     validate) make validate ZONE=zone_fictive ;;
     *)
       echo "run_tests.sh : section inconnue « $1 » (attendu : ${ALL_SECTIONS[*]})." >&2

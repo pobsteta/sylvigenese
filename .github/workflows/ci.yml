@@ -627,6 +627,62 @@ jobs:
           bash tools/ci/run_tests.sh post
 
 
+  # Acceptation de M5a (mission 061) : SER fictive écrite par le générateur de tests/m5 et massif rebâti des entrées
+  # figées de M3a, donc sans chaîne R ; simulate (Rust) compilé en release avant les tests, qui tournent sans réseau.
+  # N = 1 000 seulement (T10 du plan m5a) : N = 2 000 et 4 000 restent hors CI (mission 064, rejouable).
+  m5:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # Rust : chaîne figée par rustup, cache du registre et de la compilation (une clé par job :
+      # les jobs tournent en parallèle et ne se disputent pas la même entrée).
+      - name: Rust (rustup)
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc --version
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            simulate/target
+          key: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('simulate/Cargo.lock') }}
+          restore-keys: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      # Python : uv, versions figées par les fichiers de contracts/ (rasterio inclus pour les tests et le générateur).
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          # Dépendances verrouillées avec empreintes (relecture de la mission 009, I6).
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
+      # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.
+      - name: Tests (run_tests.sh m5)
+        run: |
+          echo "### Durées des sections (m5)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh m5
+
+
   # Vérifie seulement que Godot 4.6 et Playwright s'installent (spec §11, M0).
   # Non bloquant : un échec ici ne fait pas échouer la CI, donc ne bloque pas la release.
   outils-optionnels:
