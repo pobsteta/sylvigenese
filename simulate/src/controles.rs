@@ -14,9 +14,11 @@
 //! # Règle |Q| < 1e-9 × max(Q) (spec §6 ; T10)
 //!
 //! Une valeur dont la valeur absolue est sous 1e-9 fois le maximum des valeurs absolues du champ
-//! est mise à zéro et comptée (`zeroed_values`), positives comprises ([`mettre_a_zero`]). Elle est
-//! codée et testée, mais **sans objet en M3a** : il n'y a pas encore de champ calculé par FFT
-//! (dispersion des graines, M5). Le pas annuel ne l'appelle donc pas.
+//! est mise à zéro et comptée (`zeroed_values`), positives comprises ([`mettre_a_zero`]). En M5a
+//! (mission 062), le champ calculé par FFT est celui des graines dispersées : le pas annuel en mode
+//! `cohorts` applique la règle avec le seuil de `config.yml` (`simulate.regeneration.zero_threshold`),
+//! par essence et par année, et arrête le moteur sur une valeur négative au-delà du seuil
+//! ([`crate::dispersion::mettre_a_zero`]).
 //!
 //! # Sortes de signalement (colonne `kind` de `sim/flags.parquet`)
 //!
@@ -27,6 +29,7 @@
 //! | [`SORTE_CLASSE_KORF`] | cellule | classe retenue (1 à 5), à l'état initial |
 //! | [`SORTE_DH_ARBRE_MIS_A_ZERO`] | arbre | part f(rel_d) (sans unité) |
 //! | [`SORTE_TROUEE_SANS_RECRUE`] | cellule, chaque année | H_dom de fin d'année (0 m) |
+//! | [`SORTE_TROUEE_HORS_DE_PORTEE`] | cellule, t0 puis chaque année | vide |
 //!
 //! Les autres faits (sorties de domaine, disques au bord, cellules mêlées, cellules sans arbre,
 //! recrues en cellule vide) sont trop nombreux pour une ligne chacun : ils sont **comptés**
@@ -52,6 +55,10 @@ pub const SORTE_DH_ARBRE_MIS_A_ZERO: &str = "dh_arbre_mis_a_zero";
 /// qu'elle le reste (décision de Pascal du 25/11/2026 ; la recolonisation des trouées viendra en
 /// M5 par les cohortes de semis).
 pub const SORTE_TROUEE_SANS_RECRUE: &str = "trouee_sans_recrue";
+
+/// Mode `cohorts` (M5a) : trouée (H_dom nulle) qu'aucun semencier ne peut atteindre dans le noyau
+/// tronqué ; elle reste vide, et c'est dit (contrat `simulate.flags`), dès t0.
+pub const SORTE_TROUEE_HORS_DE_PORTEE: &str = "trouee_hors_de_portee";
 
 /// Seuil relatif de la règle |Q| < 1e-9 × max(Q) (spec §6).
 pub const SEUIL_RELATIF_ZERO: f64 = 1e-9;
@@ -100,6 +107,12 @@ pub struct Comptes {
     pub dh_arbre_mis_a_zero: u64,
     /// Valeurs mises à zéro par la règle |Q| (`zeroed_values`) ; 0 en M3a.
     pub valeurs_mises_a_zero: u64,
+    /// Mode `cohorts` : couples (cellule, essence, année) où le stock de semis à la hauteur de
+    /// passage a borné le flux IFN (`seedling_stock_limited`, Q1).
+    pub stock_de_semis_limitant: u64,
+    /// Mode `cohorts` : cellules en trouée qui ont recruté (`gaps_recolonised`) ; une trouée qui
+    /// recrute prend une H_dom non nulle, elle n'est comptée qu'une fois.
+    pub trouees_recolonisees: u64,
 }
 
 impl Comptes {
@@ -118,6 +131,8 @@ impl Comptes {
         self.morts += autre.morts;
         self.dh_arbre_mis_a_zero += autre.dh_arbre_mis_a_zero;
         self.valeurs_mises_a_zero += autre.valeurs_mises_a_zero;
+        self.stock_de_semis_limitant += autre.stock_de_semis_limitant;
+        self.trouees_recolonisees += autre.trouees_recolonisees;
     }
 }
 

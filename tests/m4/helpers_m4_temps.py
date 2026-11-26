@@ -77,7 +77,7 @@ def write_config(zone_dir: Path, name: str, simulate: dict | None, assets: dict 
 
 
 def sim_block(**kw) -> dict:
-    return {"level": "massif", "seed": 42, "t0": T0, "years": YEARS, "threads": 4, **kw}
+    return {"level": "massif", "seed": 42, "t0": T0, "years": YEARS, "threads": 4, "recruitment": "ifn_direct", **kw}
 
 
 # ------------------------------------------------------------------ copies de zone

@@ -122,5 +122,6 @@ fn les_crates_directes_sont_figees_par_egal() {
             "dépendance non figée par « = » : {ligne}"
         );
     }
-    assert_eq!(nombre, 10, "nombre de crates directes inattendu");
+    // 10 en M3a, plus rustfft et realfft (dispersion par FFT, mission 062).
+    assert_eq!(nombre, 12, "nombre de crates directes inattendu");
 }

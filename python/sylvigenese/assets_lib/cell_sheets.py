@@ -140,6 +140,41 @@ NOTES_V2 = [
 ]
 
 
+# Mention des semis (mission 062) : « semis non simulés » n'est juste que si sim/run.json ne dit pas le contraire. En
+# mode cohorts (M5a), les semis sont simulés ; ce qui ne l'est pas est dit par run.json (`not_simulated`, décision de
+# Pascal Q3 du 26/11/2026).
+NOTE_SEMIS_COHORTS = ("semis simulés par cohortes (M5a, mode cohorts de simulate ; trajectoire technique, non validée "
+                      "écologiquement) ; {non_simules} non simulés")
+NON_SIMULES_FR = {"semis": "semis", "sous_bois": "sous-bois", "gibier": "gibier", "fructification": "fructification"}
+
+
+def seedling_note(run: dict | None) -> str:
+    """La note des semis d'après sim/run.json : NOTES_V2[2] sans mode cohorts, sinon NOTE_SEMIS_COHORTS avec la
+    liste `not_simulated` de run.json (rien n'est ajouté ni deviné)."""
+    if not run or run.get("recruitment") != "cohorts":
+        return NOTES_V2[2]
+    items = [NON_SIMULES_FR.get(k, k) for k in run.get("not_simulated", [])]
+    if not items:
+        raise ModuleError("sim/run.json dit recruitment = cohorts sans not_simulated : la mention des semis ne se "
+                          "devine pas")
+    text = ", ".join(items[:-1]) + " et " + items[-1] if len(items) > 1 else items[0]
+    return NOTE_SEMIS_COHORTS.format(non_simules=text)
+
+
+def _run_of(zone: Path) -> dict | None:
+    path = zone / "sim" / "run.json"
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def notes_v2_for(run: dict | None) -> list[str]:
+    """NOTES_V2, la note des semis dite selon sim/run.json."""
+    notes = list(NOTES_V2)
+    notes[2] = seedling_note(run)
+    return notes
+
+
 # Fiche version 3 (mission 053, contrat cell_sheet v3 de la mission 051, décisions de Pascal Q1 à Q5 du 26/11/2026) :
 # écrite quand sim/summary.parquet existe ; mêmes notes que la v2, sauf « volume et carbone non calculés », remplacée
 # par les définitions du volume et du carbone.
@@ -389,8 +424,9 @@ def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], re
                                                  "vegetation_type": vegetation_name, "h_ceiling_m": h_ceiling,
                                                  "years": years})
         counts["cells"] += 1
+    notes_sim = notes_v2_for(_run_of(zone))
     if post is None:
-        docs = {name: {"schema_version": 2, "tile": name, "source": "sim", "notes": list(NOTES_V2), "cells": cells}
+        docs = {name: {"schema_version": 2, "tile": name, "source": "sim", "notes": list(notes_sim), "cells": cells}
                 for name, cells in sorted(tiles.items())}
         return docs, counts, g_maps
     docs = {}
@@ -399,7 +435,7 @@ def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], re
         if any(e["volume_partiel"] for c in cells for e in c["years"]):
             notes.append(NOTE_PARTIAL)
         notes.append(post["roots_note"])
-        notes += NOTES_V2[2:]
+        notes += notes_sim[2:]
         docs[name] = {"schema_version": 3, "tile": name, "source": "sim", "notes": notes,
                       "tarif": {"name": post["name"], "commit": post["commit"], "provisoire": True}, "cells": cells}
     return docs, counts, g_maps

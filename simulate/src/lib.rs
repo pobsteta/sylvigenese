@@ -31,6 +31,7 @@ pub mod alea;
 pub mod concurrence;
 pub mod config;
 pub mod controles;
+pub mod dispersion;
 pub mod entrees;
 pub mod erreurs;
 pub mod etat;
@@ -42,6 +43,7 @@ pub mod mortalite;
 pub mod parametres;
 pub mod pas;
 pub mod recrutement;
+pub mod semis;
 pub mod sorties;
 pub mod validateur;
 

@@ -83,7 +83,8 @@ def _simulate_du_depot() -> dict:
     bloc = yaml.safe_load((ROOT / "config.yml").read_text(encoding="utf-8")).get("simulate") or {}
     manque = {"level", "seed", "t0", "years"} - set(bloc)
     assert not manque, f"config.yml sans bloc simulate complet (mission 034) : manque {sorted(manque)}"
-    return {"level": bloc["level"], "seed": bloc["seed"], "t0": bloc["t0"], "years": bloc["years"]}
+    return {"level": bloc["level"], "seed": bloc["seed"], "t0": bloc["t0"], "years": bloc["years"],
+            "recruitment": "ifn_direct"}
 
 
 DEPOT = _simulate_du_depot()
@@ -92,7 +93,7 @@ DEPOT = _simulate_du_depot()
 # 100 ans lisibles si config.yml se désaccordait du jeu fictif : ce désaccord est un test à part
 # (test_le_t0_du_depot_est_l_annee_du_dernier_vol), pas une raison de fausser les 100 ans.
 SIM_NOMINAL = {"level": DEPOT["level"], "seed": DEPOT["seed"], "t0": max(DEPOT["t0"], _annee_du_dernier_vol()),
-               "years": DEPOT["years"], "threads": 1}
+               "years": DEPOT["years"], "threads": 1, "recruitment": DEPOT["recruitment"]}
 
 
 
@@ -412,7 +413,8 @@ def read_run_json(zdir: Path) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-def sim_digest(zdir: Path, ignore_run_keys=("threads", "duration_s", "memory_estimate_bytes", "config_sha256")) -> dict:
+def sim_digest(zdir: Path, ignore_run_keys=("threads", "duration_s", "memory_estimate_bytes", "memory_peak_rss_bytes",
+                          "config_sha256")) -> dict:
     """Empreinte de tout sim/ : SHA-256 des octets de chaque fichier ; run.json compare ses valeurs, sans les
     champs qui disent le calcul (fils, durée, mémoire estimée, empreinte de la config) et non le résultat.
     flags.parquet nomme la zone (entity d'un signalement qui porte sur tout le massif) : les copies de test ont des

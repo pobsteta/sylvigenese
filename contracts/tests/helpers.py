@@ -444,7 +444,7 @@ def tiles_index_initial():
 
 
 # --- contrats de M5a (mission 060)
-TERMS = [("kernel_scale_m", "m"), ("kernel_shape", "1"), ("maturity_d130_cm", "cm"),
+TERMS = [("kernel_scale_m", "m"), ("kernel_shape", "1"), ("maturity_height_m", "m"),
          ("fecundity_seeds_per_m2_ba_yr", "graines/m2/an"), ("establishment_share", "1"),
          ("seedling_height_growth_m_yr", "m/an"), ("shade_tolerance", "1"),
          ("light_extinction_coef", "1"), ("seedling_survival_full_light_yr", "1"),

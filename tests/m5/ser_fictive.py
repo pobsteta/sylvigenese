@@ -74,7 +74,7 @@ ECART_RESINEUX = 0.3                              # intercept du recrutement des
 REGENERATION_DEFAUT = {
     "kernel_scale_m": (30.0, "m"),
     "kernel_shape": (1.0, "1"),
-    "maturity_d130_cm": (20.0, "cm"),
+    "maturity_height_m": (10.0, "m"),
     "fecundity_seeds_per_m2_ba_yr": (1000.0, "graines/m2/an"),
     "establishment_share": (0.5, "1"),
     "seedling_height_growth_m_yr": (0.4, "m/an"),

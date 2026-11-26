@@ -20,7 +20,7 @@ from validator.report import Refused
 CONTRACTS = Path(__file__).resolve().parents[1]
 TABLE_SCHEMAS = sorted((CONTRACTS / "tables").rglob("*.schema.json"))
 # version du schéma par fichier quand elle n'est pas la 0.1 (summary : version 0.2, mission 051)
-SCHEMA_VERSIONS = {"summary.schema.json": "0.2"}
+SCHEMA_VERSIONS = {"summary.schema.json": "0.2", "regeneration.schema.json": "0.2"}  # 0.2 : maturité en hauteur (062)
 JSON_SCHEMAS = sorted((CONTRACTS / "json").glob("*.json")) + sorted(
     (CONTRACTS / "json" / "enums").glob("*.json"))
 

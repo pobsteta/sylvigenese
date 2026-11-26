@@ -28,6 +28,12 @@
 //!    (décision de Pascal du 25/11/2026 : la recolonisation des trouées viendra en M5 par les
 //!    cohortes) : ni espérance ni tirage n'y sont calculés, chaque couple (cellule, année) est
 //!    compté et signalé ([`controles::SORTE_TROUEE_SANS_RECRUE`]) ;
+//!    en mode `cohorts` (M5a, mission 062), l'étape 5 est remplacée par la régénération par
+//!    cohortes de semis ([`pas_annuel_cohortes`], modules [`crate::dispersion`] et
+//!    [`crate::semis`]) : graines des semenciers dispersées par FFT, installation, survie selon
+//!    l'ombre, croissance d'une classe, puis passage à la futaie, au flux IFN borné par le stock
+//!    sous couvert (mêmes tirages qu'en `ifn_direct`), de tout le stock à la hauteur de passage en
+//!    trouée (décisions de Pascal Q1 à Q4 du 26/11/2026) : les trouées se recolonisent ;
 //! 6. **houppiers** hcb et cw par les allométries ([`crate::hauteur::AllometrieHcb`],
 //!    [`crate::hauteur::AllometrieCw`]) ;
 //! 7. **contrôles** ([`crate::controles::controler_arbres`]) : code 3 au premier écart.
@@ -66,6 +72,10 @@ use crate::parametres::{
     Covariables, JeuDeParametres, Parametres, Porteur, Referentiel, TOUTES_ESSENCES,
 };
 use crate::recrutement;
+use crate::config::ReglagesRegeneration;
+use crate::dispersion::{self, Noyau, PlanDispersion, SpectreNoyau};
+use crate::memoire;
+use crate::semis::{self, LigneRegeneration, ParametresSemis};
 
 // ------------------------------------------------------------------------------------------
 // Cellules
@@ -1039,20 +1049,28 @@ fn creer_recrues(
     Ok((recrues, sorties, en_cellule_vide))
 }
 
-/// Le pas de l'année `annee`, sur l'état figé au 1er janvier (`etat`, tous vivants) et les H_dom
-/// de début d'année. Voir la documentation du module pour l'ordre des étapes.
-///
-/// Codes : 1 si un invariant est rompu (mort dans l'état figé, arbre hors grille) ; 2 si une
-/// entrée manque (plafond, essence sans modèles, Korf sans point de départ) ; 3 si un contrôle
-/// échoue ; 4 si la mémoire manque.
-pub fn pas_annuel(
+/// Ce que les étapes 1 à 4 du pas laissent aux étapes suivantes.
+struct DebutDuPas {
+    index: IndexParCellule,
+    essence_de: Vec<usize>,
+    resumes: Vec<ResumeCellule>,
+    h_dom_fin: Vec<f64>,
+    nouvel: EtatArbres,
+    comptes: Comptes,
+    signalements: Vec<Signalement>,
+    signalements_arbres: Vec<Signalement>,
+}
+
+/// Étapes 1 à 4 du pas (concurrence, résumé, H_dom, arbres), communes aux deux modes de
+/// recrutement.
+fn debut_du_pas(
     etat: &EtatArbres,
     cellules: &Cellules,
     hdom: &EtatCellules,
     modeles: &Modeles,
     graine: u64,
     annee: i32,
-) -> Result<ResultatPas, Erreur> {
+) -> Result<DebutDuPas, Erreur> {
     cellules.verifier()?;
     verifier_etat_fige(etat, annee)?;
     let geometrie = &cellules.geometrie;
@@ -1130,31 +1148,40 @@ pub fn pas_annuel(
             signalements_arbres.push(signalement_dh(annee, &etat.tree_id[rang], arbre.part));
         }
     }
+    Ok(DebutDuPas {
+        index,
+        essence_de,
+        resumes,
+        h_dom_fin,
+        nouvel,
+        comptes,
+        signalements,
+        signalements_arbres,
+    })
+}
 
-    // 5. Recrutement : trouées écartées (en ordre fixe), comptes par cellule (en parallèle),
-    // numéros (somme séquentielle), recrues (en parallèle), ajout en ordre fixe.
-    let trouees = reperer_trouees(cellules, &h_dom_fin, annee, &mut comptes, &mut signalements);
-    let nombres: Vec<Result<(Vec<(usize, u64)>, SortiesParSens), Erreur>> = (0..resumes.len())
-        .into_par_iter()
-        .map(|cellule| {
-            if trouees[cellule] {
-                return Ok((Vec::new(), SortiesParSens::default()));
-            }
-            compter_recrues(cellules, &resumes[cellule], modeles, cellule, graine, annee)
-        })
-        .collect();
-    let mut nombres_par_cellule: Vec<Vec<(usize, u64)>> = Vec::with_capacity(nombres.len());
-    let mut totaux: Vec<u64> = Vec::with_capacity(nombres.len());
-    for resultat in nombres {
-        let (liste, sorties) = resultat?;
-        comptes.sorties_domaine.ajouter(&sorties);
-        let mut total = 0;
-        for (_, n) in &liste {
-            total += *n;
-        }
-        totaux.push(total);
-        nombres_par_cellule.push(liste);
-    }
+/// Étapes 5 (création et ajout des recrues, une fois leurs nombres connus), 6 et 7 du pas,
+/// communes aux deux modes.
+#[allow(clippy::too_many_arguments)]
+fn fin_du_pas(
+    etat: &EtatArbres,
+    cellules: &Cellules,
+    modeles: &Modeles,
+    graine: u64,
+    annee: i32,
+    debut: DebutDuPas,
+    nombres_par_cellule: Vec<Vec<(usize, u64)>>,
+    totaux: Vec<u64>,
+) -> Result<ResultatPas, Erreur> {
+    let DebutDuPas {
+        resumes,
+        h_dom_fin,
+        mut nouvel,
+        mut comptes,
+        mut signalements,
+        signalements_arbres,
+        ..
+    } = debut;
     let (premiers, _) = premiers_numeros(etat.prochain_numero(), &totaux)?;
     let recrues: Vec<Result<(Vec<(u64, usize, ArbreNouveau)>, SortiesParSens, u64), Erreur>> = (0
         ..resumes.len())
@@ -1203,4 +1230,547 @@ pub fn pas_annuel(
         comptes,
         signalements,
     })
+}
+
+/// Le pas de l'année `annee`, sur l'état figé au 1er janvier (`etat`, tous vivants) et les H_dom
+/// de début d'année, en mode `ifn_direct` (recrutement de M3a). Voir la documentation du module
+/// pour l'ordre des étapes.
+///
+/// Codes : 1 si un invariant est rompu (mort dans l'état figé, arbre hors grille) ; 2 si une
+/// entrée manque (plafond, essence sans modèles, Korf sans point de départ) ; 3 si un contrôle
+/// échoue ; 4 si la mémoire manque.
+pub fn pas_annuel(
+    etat: &EtatArbres,
+    cellules: &Cellules,
+    hdom: &EtatCellules,
+    modeles: &Modeles,
+    graine: u64,
+    annee: i32,
+) -> Result<ResultatPas, Erreur> {
+    let mut debut = debut_du_pas(etat, cellules, hdom, modeles, graine, annee)?;
+
+    // 5. Recrutement : trouées écartées (en ordre fixe), comptes par cellule (en parallèle),
+    // numéros (somme séquentielle), recrues (en parallèle), ajout en ordre fixe.
+    let trouees = reperer_trouees(
+        cellules,
+        &debut.h_dom_fin,
+        annee,
+        &mut debut.comptes,
+        &mut debut.signalements,
+    );
+    let resumes = &debut.resumes;
+    let nombres: Vec<Result<(Vec<(usize, u64)>, SortiesParSens), Erreur>> = (0..resumes.len())
+        .into_par_iter()
+        .map(|cellule| {
+            if trouees[cellule] {
+                return Ok((Vec::new(), SortiesParSens::default()));
+            }
+            compter_recrues(cellules, &resumes[cellule], modeles, cellule, graine, annee)
+        })
+        .collect();
+    let mut nombres_par_cellule: Vec<Vec<(usize, u64)>> = Vec::with_capacity(nombres.len());
+    let mut totaux: Vec<u64> = Vec::with_capacity(nombres.len());
+    for resultat in nombres {
+        let (liste, sorties) = resultat?;
+        debut.comptes.sorties_domaine.ajouter(&sorties);
+        let mut total = 0;
+        for (_, n) in &liste {
+            total += *n;
+        }
+        totaux.push(total);
+        nombres_par_cellule.push(liste);
+    }
+    fin_du_pas(etat, cellules, modeles, graine, annee, debut, nombres_par_cellule, totaux)
+}
+
+// ------------------------------------------------------------------------------------------
+// Mode `cohorts` : régénération par cohortes de semis (M5a, mission 062)
+
+/// Ce que le pas en mode `cohorts` lit, préparé une fois par exécution : les paramètres de semis
+/// et le spectre du noyau de chaque essence candidate (ordre de [`Modeles::candidates`]), les
+/// plans de FFT et le seuil de la règle |Q|.
+#[derive(Debug, Clone)]
+pub struct Regeneration {
+    pub parametres: Vec<ParametresSemis>,
+    pub spectres: Vec<SpectreNoyau>,
+    pub noyaux: Vec<Noyau>,
+    pub plan: PlanDispersion,
+    pub seuil_zero: f64,
+}
+
+impl Regeneration {
+    /// Cherche les paramètres de semis de chaque essence candidate et prépare les noyaux.
+    ///
+    /// Code 2 si une essence candidate n'a pas l'un des termes du contrat (aucun emprunt), si un
+    /// terme sort de son domaine, ou si un noyau ne peut être normalisé.
+    pub fn preparer(
+        modeles: &Modeles,
+        lignes: &[LigneRegeneration],
+        referentiel: &Referentiel,
+        reglages: &ReglagesRegeneration,
+        geometrie: &GeometrieGrille,
+    ) -> Result<Regeneration, Erreur> {
+        let plan = PlanDispersion::nouveau(geometrie.largeur, geometrie.hauteur, reglages.demi_largeur_noyau)?;
+        let mut parametres = Vec::with_capacity(modeles.candidates.len());
+        let mut spectres = Vec::with_capacity(modeles.candidates.len());
+        let mut noyaux = Vec::with_capacity(modeles.candidates.len());
+        for rang in &modeles.candidates {
+            let espece = &modeles.essences[*rang].espece;
+            let p = semis::parametres_de(lignes, espece, referentiel)?;
+            let noyau = dispersion::noyau_exponentiel_puissance(
+                p.echelle_noyau_m,
+                p.forme_noyau,
+                geometrie.pas,
+                reglages.demi_largeur_noyau,
+            )
+            .map_err(|e| avec_essence(e, espece))?;
+            spectres.push(plan.spectre(&noyau)?);
+            noyaux.push(noyau);
+            parametres.push(p);
+        }
+        Ok(Regeneration {
+            parametres,
+            spectres,
+            noyaux,
+            plan,
+            seuil_zero: reglages.seuil_zero,
+        })
+    }
+
+    /// (termes provisoires, essences) : une essence compte pour un jeu, provisoire si l'un de ses
+    /// termes l'est.
+    pub fn jeux_provisoires(&self) -> (u64, u64) {
+        let mut provisoires = 0;
+        for p in &self.parametres {
+            if p.provisoire {
+                provisoires += 1;
+            }
+        }
+        (provisoires, self.parametres.len() as u64)
+    }
+}
+
+/// L'état des semis : pour chaque essence candidate (ordre de [`Modeles::candidates`]), ses A
+/// classes annuelles dans chaque cellule, rangées `densites[essence][cellule × A + k]`, en
+/// semis/ha ([`crate::semis`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct EtatSemis {
+    pub classes: Vec<usize>,
+    pub densites: Vec<Vec<f64>>,
+}
+
+impl EtatSemis {
+    /// Les classes d'une essence (rang parmi les candidates) dans une cellule.
+    pub fn de(&self, candidate: usize, cellule: usize) -> &[f64] {
+        let a = self.classes[candidate];
+        &self.densites[candidate][cellule * a..(cellule + 1) * a]
+    }
+
+    /// Octets occupés (estimation de mémoire).
+    pub fn octets(&self) -> u64 {
+        let mut total: u64 = 0;
+        for densites in &self.densites {
+            total += densites.len() as u64 * 8;
+        }
+        total
+    }
+}
+
+/// Le flux IFN d'une essence candidate dans une cellule, en tiges/ha/an : exp(η) du modèle
+/// `recruitment_gam`, avec les covariables du résumé de la cellule (comme [`compter_recrues`]).
+fn flux_ifn_ha(
+    cellules: &Cellules,
+    resume: &ResumeCellule,
+    modele: &ModelesEssence,
+    essence: usize,
+    cellule: usize,
+    annee: i32,
+    sorties: &mut SortiesParSens,
+) -> Result<f64, Erreur> {
+    let jeu = match &modele.recrutement {
+        Some(jeu) => jeu,
+        None => {
+            return Err(Erreur::interne(format!(
+                "essence candidate {} sans jeu de recrutement",
+                modele.espece
+            )))
+        }
+    };
+    let covariables = Covariables {
+        ba_plot: Some(resume.ba_totale),
+        ba_species: Some(resume.ba_de(essence)),
+        trophic: Some(cellules.trophic[cellule]),
+        coarse_hydric_700m: Some(cellules.hydric[cellule]),
+        coarse_bioclim_700m: Some(cellules.bioclim[cellule]),
+        ..Covariables::default()
+    };
+    let entite = format!("cellule {cellule}, essence {}", modele.espece);
+    let eta = accroissement::predicteur(jeu, &covariables, &cellules.ser_code[cellule], sorties)
+        .map_err(|e| avec_contexte(e, annee, &entite))?;
+    Ok(eta.exp())
+}
+
+/// Le stock de semis initial « en régime » (Q2) : dans chaque cellule simulée à H_dom non nulle,
+/// flux IFN de t0 (covariables de l'état à t0) × temps de passage, par [`semis::en_regime`] ; rien
+/// en trouée ni hors de la grille. Rend aussi les sorties de domaine de ces prédicteurs.
+pub fn etat_semis_initial(
+    t0: &ResultatPas,
+    cellules: &Cellules,
+    modeles: &Modeles,
+    regeneration: &Regeneration,
+    annee_t0: i32,
+) -> Result<(EtatSemis, SortiesParSens), Erreur> {
+    let geometrie = &cellules.geometrie;
+    let n = geometrie.nombre_cellules();
+    let index = concurrence::indexer(&t0.etat, geometrie)?;
+    let essence_de = essences_des_arbres(&t0.etat, modeles)?;
+    let resumes = resumer_cellules(&t0.etat, &index, &essence_de, geometrie);
+    let mut classes = Vec::with_capacity(modeles.candidates.len());
+    let mut densites = Vec::with_capacity(modeles.candidates.len());
+    let mut sorties_totales = SortiesParSens::default();
+    for (rang_candidat, essence) in modeles.candidates.iter().enumerate() {
+        let p = &regeneration.parametres[rang_candidat];
+        let a = p.classes();
+        let modele = &modeles.essences[*essence];
+        let mut valeurs = memoire::reserver_f64(n * a, "classes de semis")?;
+        valeurs.resize(n * a, 0.0);
+        let resultats: Vec<Result<SortiesParSens, Erreur>> = valeurs
+            .par_chunks_mut(a)
+            .enumerate()
+            .map(|(cellule, classes_cellule)| {
+                let mut sorties = SortiesParSens::default();
+                if !cellules.simulee[cellule] || t0.cellules.h_dom[cellule] == 0.0 {
+                    return Ok(sorties);
+                }
+                let flux = flux_ifn_ha(cellules, &resumes[cellule], modele, *essence, cellule, annee_t0, &mut sorties)?;
+                semis::en_regime(p, flux, classes_cellule);
+                Ok(sorties)
+            })
+            .collect();
+        for resultat in resultats {
+            sorties_totales.ajouter(&resultat?);
+        }
+        classes.push(a);
+        densites.push(valeurs);
+    }
+    Ok((EtatSemis { classes, densites }, sorties_totales))
+}
+
+/// Les graines produites dans chaque cellule par les semenciers d'une essence (arbres vivants de
+/// l'état, de hauteur ≥ `maturity_height_m`) : fécondité × surface terrière semencière (m²),
+/// sommée dans l'ordre de l'état.
+fn graines_produites(
+    etat: &EtatArbres,
+    index: &IndexParCellule,
+    essence_de: &[usize],
+    essence: usize,
+    parametres: &ParametresSemis,
+    nombre_cellules: usize,
+) -> Vec<f64> {
+    (0..nombre_cellules)
+        .into_par_iter()
+        .map(|cellule| {
+            let mut surface = 0.0;
+            for rang in index.arbres_de(cellule) {
+                if essence_de[*rang] == essence
+                    && etat.vivant[*rang]
+                    && etat.h[*rang] >= parametres.hauteur_maturite_m
+                {
+                    surface += concurrence::surface_terriere_m2(etat.d130[*rang]);
+                }
+            }
+            parametres.fecondite * surface
+        })
+        .collect()
+}
+
+/// L'indice de couvert de chaque cellule : surface des houppiers projetés (π (cw / 2)²) des arbres
+/// vivants de la cellule, divisée par la surface de la cellule ; sans unité, sommé dans l'ordre.
+fn indice_de_couvert(
+    etat: &EtatArbres,
+    index: &IndexParCellule,
+    cw: &[f64],
+    geometrie: &GeometrieGrille,
+) -> Vec<f64> {
+    let surface_cellule = geometrie.pas * geometrie.pas;
+    (0..geometrie.nombre_cellules())
+        .into_par_iter()
+        .map(|cellule| {
+            let mut couvert = 0.0;
+            for rang in index.arbres_de(cellule) {
+                if etat.vivant[*rang] {
+                    let rayon = cw[*rang] / 2.0;
+                    couvert += std::f64::consts::PI * rayon * rayon;
+                }
+            }
+            couvert / surface_cellule
+        })
+        .collect()
+}
+
+/// Vrai si une cellule du disque de rayon K autour de `cellule` a des graines à donner.
+fn a_portee_d_un_semencier(
+    cellule: usize,
+    semenciers: &[bool],
+    geometrie: &GeometrieGrille,
+    demi_largeur: usize,
+) -> bool {
+    let (ligne, colonne) = geometrie.ligne_colonne(cellule as u64);
+    let k = demi_largeur as i64;
+    for delta_ligne in -k..=k {
+        let l = ligne as i64 + delta_ligne;
+        if l < 0 || l >= geometrie.hauteur as i64 {
+            continue;
+        }
+        for delta_colonne in -k..=k {
+            let c = colonne as i64 + delta_colonne;
+            if c < 0 || c >= geometrie.largeur as i64 {
+                continue;
+            }
+            if !dispersion::dans_le_disque(delta_ligne, delta_colonne, demi_largeur) {
+                continue;
+            }
+            if semenciers[(l * geometrie.largeur as i64 + c) as usize] {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Les cellules qui ont au moins un semencier (graines > 0) d'une essence candidate, sur l'état.
+fn cellules_semencieres(
+    etat: &EtatArbres,
+    cellules: &Cellules,
+    modeles: &Modeles,
+    regeneration: &Regeneration,
+) -> Result<(Vec<bool>, Vec<Vec<f64>>), Erreur> {
+    let geometrie = &cellules.geometrie;
+    let n = geometrie.nombre_cellules();
+    let index = concurrence::indexer(etat, geometrie)?;
+    let essence_de = essences_des_arbres(etat, modeles)?;
+    let mut semenciers = vec![false; n];
+    let mut graines = Vec::with_capacity(modeles.candidates.len());
+    for (rang_candidat, essence) in modeles.candidates.iter().enumerate() {
+        let g = graines_produites(etat, &index, &essence_de, *essence, &regeneration.parametres[rang_candidat], n);
+        for cellule in 0..n {
+            if g[cellule] > 0.0 {
+                semenciers[cellule] = true;
+            }
+        }
+        graines.push(g);
+    }
+    Ok((semenciers, graines))
+}
+
+fn signalement_hors_de_portee(annee: i32, cellule: usize, demi_largeur: usize) -> Signalement {
+    Signalement {
+        annee,
+        entite: cellule.to_string(),
+        sorte: controles::SORTE_TROUEE_HORS_DE_PORTEE.to_string(),
+        message: format!(
+            "trouée (hauteur dominante nulle) hors de portée : aucun semencier dans le noyau tronqué \
+             ({demi_largeur} cellule(s) de rayon) ; elle reste vide"
+        ),
+        valeur: None,
+    }
+}
+
+/// Les signalements de t0 en mode `cohorts` : chaque trouée (cellule simulée à H_dom nulle à t0)
+/// hors de portée de tout semencier de l'état à t0, dans l'ordre des `cell_id`.
+pub fn signalements_t0_cohortes(
+    t0: &ResultatPas,
+    cellules: &Cellules,
+    modeles: &Modeles,
+    regeneration: &Regeneration,
+    annee_t0: i32,
+) -> Result<Vec<Signalement>, Erreur> {
+    let (semenciers, _) = cellules_semencieres(&t0.etat, cellules, modeles, regeneration)?;
+    let k = regeneration.plan.demi_largeur;
+    let mut signalements = Vec::new();
+    for cellule in 0..cellules.geometrie.nombre_cellules() {
+        if cellules.simulee[cellule]
+            && t0.cellules.h_dom[cellule] == 0.0
+            && !a_portee_d_un_semencier(cellule, &semenciers, &cellules.geometrie, k)
+        {
+            signalements.push(signalement_hors_de_portee(annee_t0, cellule, k));
+        }
+    }
+    Ok(signalements)
+}
+
+/// Ce que le passage d'une essence donne dans une cellule.
+#[derive(Debug, Clone, Copy, Default)]
+struct PassageCellule {
+    recrues: u64,
+    stock_limitant: bool,
+    sorties: SortiesParSens,
+}
+
+/// Le pas de l'année `annee` en mode `cohorts` (régénération par cohortes de semis, Q1 à Q4) :
+/// étapes 1 à 4 comme [`pas_annuel`], puis, pour chaque essence candidate, dans l'ordre des codes :
+///
+/// 5a. graines des semenciers de l'état figé, dispersées par FFT ([`crate::dispersion`]), règle |Q| ;
+/// 5b. installation (part des graines arrivées), survie selon l'ombre de l'état figé, croissance
+///     d'une classe ([`semis::avancer`]) ;
+/// 5c. passage : sous couvert, flux IFN tiré par arrondi aléatoire (mêmes tirages qu'en
+///     `ifn_direct`) borné par le stock ; en trouée, tout le stock à la hauteur de passage passe ;
+///     une trouée qui recrute prend pour H_dom la plus grande hauteur de passage des essences qui y
+///     recrutent (les recrues en sont les seules dominantes), et elle est comptée recolonisée ;
+/// 5d. une trouée sans recrue est signalée : hors de portée si aucun semencier n'est dans le
+///     disque du noyau, sinon `trouee_sans_recrue` si elle n'a aucun semis ;
+///
+/// puis l'ajout des recrues, les houppiers et les contrôles. Rend aussi l'état des semis de fin
+/// d'année. Codes comme [`pas_annuel`], plus 3 pour une valeur de dispersion fautive.
+#[allow(clippy::too_many_arguments)]
+pub fn pas_annuel_cohortes(
+    etat: &EtatArbres,
+    cellules: &Cellules,
+    hdom: &EtatCellules,
+    modeles: &Modeles,
+    graine: u64,
+    annee: i32,
+    regeneration: &Regeneration,
+    semis_debut: &EtatSemis,
+) -> Result<(ResultatPas, EtatSemis), Erreur> {
+    let mut debut = debut_du_pas(etat, cellules, hdom, modeles, graine, annee)?;
+    let geometrie = &cellules.geometrie;
+    let n = geometrie.nombre_cellules();
+    let aire_ha = geometrie.aire_cellule_ha();
+    if semis_debut.classes.len() != modeles.candidates.len() {
+        return Err(Erreur::interne(format!(
+            "état des semis pour {} essences, {} candidates",
+            semis_debut.classes.len(),
+            modeles.candidates.len()
+        )));
+    }
+
+    // Trouées de fin d'année ; ombre et semenciers de l'état figé.
+    let mut trouees = vec![false; n];
+    for cellule in 0..n {
+        trouees[cellule] = cellules.simulee[cellule] && debut.h_dom_fin[cellule] == 0.0;
+    }
+    let (_, cw) = houppiers(etat, modeles)?;
+    let couvert = indice_de_couvert(etat, &debut.index, &cw, geometrie);
+    let mut semenciers = vec![false; n];
+
+    let mut semis_fin = semis_debut.clone();
+    let mut passages: Vec<Vec<PassageCellule>> = Vec::with_capacity(modeles.candidates.len());
+    for (rang_candidat, essence) in modeles.candidates.iter().enumerate() {
+        let p = &regeneration.parametres[rang_candidat];
+        let modele = &modeles.essences[*essence];
+        let a = semis_fin.classes[rang_candidat];
+
+        // 5a. Graines et dispersion.
+        let graines = graines_produites(etat, &debut.index, &debut.essence_de, *essence, p, n);
+        let mut arrivees = vec![0.0_f64; n];
+        let mut a_disperser = false;
+        for cellule in 0..n {
+            if graines[cellule] > 0.0 {
+                semenciers[cellule] = true;
+                a_disperser = true;
+            }
+        }
+        if a_disperser {
+            arrivees = regeneration
+                .plan
+                .convoluer(&graines, &regeneration.spectres[rang_candidat])?;
+            let quoi = format!("graines de l'essence {}, année {annee}", modele.espece);
+            debut.comptes.valeurs_mises_a_zero +=
+                dispersion::mettre_a_zero(&mut arrivees, regeneration.seuil_zero, &quoi)?;
+        }
+
+        // 5b. Installation, survie, croissance ; 5c. passage.
+        let resumes = &debut.resumes;
+        let resultats: Vec<Result<PassageCellule, Erreur>> = semis_fin.densites[rang_candidat]
+            .par_chunks_mut(a)
+            .enumerate()
+            .map(|(cellule, classes)| {
+                let mut passage = PassageCellule::default();
+                if !cellules.simulee[cellule] {
+                    return Ok(passage);
+                }
+                let nouveaux = p.part_installation * arrivees[cellule] / aire_ha;
+                let s = semis::survie(p, semis::ombre(p.coef_extinction, couvert[cellule]));
+                semis::avancer(classes, s, nouveaux);
+                if trouees[cellule] {
+                    let (recrues, _) = semis::passage_massif(classes, aire_ha, None);
+                    passage.recrues = recrues;
+                    return Ok(passage);
+                }
+                let flux = flux_ifn_ha(cellules, &resumes[cellule], modele, *essence, cellule, annee, &mut passage.sorties)?;
+                let lambda = flux * aire_ha;
+                let demandees = recrutement::nombre_de_recrues(
+                    graine,
+                    annee,
+                    cellule as u64,
+                    &modele.espece,
+                    modele.packee,
+                    lambda,
+                )?;
+                let (recrues, borne) = semis::passage_massif(classes, aire_ha, Some(demandees));
+                passage.recrues = recrues;
+                passage.stock_limitant = borne;
+                Ok(passage)
+            })
+            .collect();
+        let mut liste = Vec::with_capacity(n);
+        for resultat in resultats {
+            liste.push(resultat?);
+        }
+        passages.push(liste);
+    }
+
+    // Nombres par cellule, essences dans l'ordre des codes ; trouées recolonisées.
+    let mut nombres_par_cellule: Vec<Vec<(usize, u64)>> = Vec::with_capacity(n);
+    let mut totaux: Vec<u64> = Vec::with_capacity(n);
+    let k = regeneration.plan.demi_largeur;
+    for cellule in 0..n {
+        let mut liste: Vec<(usize, u64)> = Vec::new();
+        let mut total = 0;
+        let mut hauteur_trouee: f64 = 0.0;
+        for (rang_candidat, essence) in modeles.candidates.iter().enumerate() {
+            let passage = &passages[rang_candidat][cellule];
+            debut.comptes.sorties_domaine.ajouter(&passage.sorties);
+            if passage.stock_limitant {
+                debut.comptes.stock_de_semis_limitant += 1;
+            }
+            if passage.recrues > 0 {
+                liste.push((*essence, passage.recrues));
+                total += passage.recrues;
+                hauteur_trouee = hauteur_trouee.max(regeneration.parametres[rang_candidat].hauteur_passage_m);
+            }
+        }
+        if trouees[cellule] {
+            if total > 0 {
+                debut.h_dom_fin[cellule] = hauteur_trouee;
+                debut.comptes.trouees_recolonisees += 1;
+            } else if !a_portee_d_un_semencier(cellule, &semenciers, geometrie, k) {
+                debut.signalements.push(signalement_hors_de_portee(annee, cellule, k));
+            } else {
+                let mut semis_presents = false;
+                for rang_candidat in 0..modeles.candidates.len() {
+                    if semis::total(semis_fin.de(rang_candidat, cellule)) > 0.0 {
+                        semis_presents = true;
+                    }
+                }
+                if !semis_presents {
+                    debut.comptes.cellules_trouee_sans_recrue += 1;
+                    debut.signalements.push(Signalement {
+                        annee,
+                        entite: cellule.to_string(),
+                        sorte: controles::SORTE_TROUEE_SANS_RECRUE.to_string(),
+                        message: "trouée (hauteur dominante nulle) à portée de semenciers mais sans aucun semis \
+                                  cette année : aucune recrue"
+                            .to_string(),
+                        valeur: Some(0.0),
+                    });
+                }
+            }
+        }
+        totaux.push(total);
+        nombres_par_cellule.push(liste);
+    }
+    let resultat = fin_du_pas(etat, cellules, modeles, graine, annee, debut, nombres_par_cellule, totaux)?;
+    Ok((resultat, semis_fin))
 }

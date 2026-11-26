@@ -330,6 +330,8 @@ pub fn zone_d_essai(years: u32) -> Entrees {
         referentiel: referentiel(),
         parametres: jeux_d_essai(true),
         arbres: EtatArbres::depuis_initiaux(arbres).unwrap(),
+        recrutement: simulate::config::ModeRecrutement::IfnDirect,
+        regeneration: Vec::new(),
     }
 }
 
@@ -711,8 +713,12 @@ fn run_json_porte_tous_les_comptes_et_les_signalements_disent_les_semis() {
             "edge_disks",
             "level",
             "memory_estimate_bytes",
+            "memory_estimate_max_bytes",
+            "memory_peak_rss_bytes",
             "mixed_cells",
+            "not_simulated",
             "provisional_share",
+            "recruitment",
             "recruits",
             "schema_version",
             "seed",
@@ -722,6 +728,13 @@ fn run_json_porte_tous_les_comptes_et_les_signalements_disent_les_semis() {
             "zeroed_values"
         ]
     );
+    // M5a, mode ifn_direct : les semis sont dits non simulés, sans compte de régénération.
+    assert_eq!(run["recruitment"], "ifn_direct");
+    assert!(run["not_simulated"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("semis")));
+    assert!(run["memory_estimate_max_bytes"].as_u64().unwrap() >= bilan.memoire_estimee);
     // SHA-256 de « schema_version: 1\n » (calculé par sha256sum).
     assert_eq!(
         run["config_sha256"],

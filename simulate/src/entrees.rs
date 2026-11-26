@@ -14,7 +14,11 @@
 //!    `dynamics_params`) et `allometry` (contrat `parameters`, modèles `hcb` et `cw`), plus
 //!    `contracts/species.csv` ; chaque essence de `trees_init` doit y avoir ses paramètres
 //!    (essence, puis groupe, puis `toutes_essences`) ;
-//! 5. `trees_init/*.parquet` : chaque arbre est affecté à sa cellule
+//! 5. en mode `cohorts` (M5a, mission 062) : `params/regeneration.parquet` (contrat
+//!    `dynamics.regeneration`), lu ligne par ligne ; les termes de chaque essence sont cherchés
+//!    plus tard, quand les essences candidates sont connues ([`crate::semis::parametres_de`]) ;
+//!    en mode `ifn_direct`, ce fichier n'est pas lu (il peut manquer) ;
+//! 6. `trees_init/*.parquet` : chaque arbre est affecté à sa cellule
 //!    (`ligne = floor((y_max − y) / 25)`, `colonne = floor((x − x_min) / 25)`) ; un arbre hors
 //!    grille arrête tout.
 //!
@@ -34,12 +38,13 @@ use arrow_array::{Array, BooleanArray, Float64Array, LargeStringArray, RecordBat
 use arrow_schema::DataType;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
-use crate::config::{self, ReglagesSimulate};
+use crate::config::{self, ModeRecrutement, ReglagesSimulate};
 use crate::erreurs::Erreur;
 use crate::etat::{ArbreNouveau, EtatArbres};
 use crate::geotiff::{self, Raster};
 use crate::grille::Grille;
 use crate::parametres::{lire_parquet, LigneParametre, Parametres, Referentiel};
+use crate::semis::{LigneRegeneration, TERMES};
 
 /// Les colonnes de `trees_init` (contrat `prepare/trees_init`), dans l'ordre du contrat.
 pub const COLONNES_ARBRES: [&str; 9] = [
@@ -354,6 +359,81 @@ pub fn lire_allometrie(chemin: &Path) -> Result<Vec<LigneParametre>, Erreur> {
     Ok(lignes)
 }
 
+/// Les colonnes de `params/regeneration.parquet` (contrat `dynamics.regeneration`).
+pub const COLONNES_REGENERATION: [&str; 7] = [
+    "species",
+    "species_group",
+    "term",
+    "value",
+    "unit",
+    "provisoire",
+    "source",
+];
+
+/// Lit `params/regeneration.parquet` (contrat `dynamics.regeneration`, mission 060).
+///
+/// Code 2 : fichier absent ou illisible, colonne absente ou en trop, type inattendu, valeur
+/// obligatoire vide, terme hors de la liste fermée du contrat, ni essence ni groupe, groupe
+/// inconnu, valeur non finie.
+pub fn lire_regeneration(chemin: &Path) -> Result<Vec<LigneRegeneration>, Erreur> {
+    let nom = chemin.display().to_string();
+    if !chemin.is_file() {
+        return Err(Erreur::entree_refusee(format!(
+            "{nom} absent : le mode cohorts (simulate.recruitment) exige les paramètres de régénération \
+             (contrat dynamics.regeneration) ; aucune valeur par défaut"
+        )));
+    }
+    let mut lignes: Vec<LigneRegeneration> = Vec::new();
+    for lot in ouvrir_lots(chemin)? {
+        verifier_colonnes(&lot, &COLONNES_REGENERATION, &nom, "dynamics.regeneration")?;
+        let species = colonne_texte(&lot, "species", &nom)?;
+        let groupe = colonne_texte(&lot, "species_group", &nom)?;
+        let term = colonne_texte(&lot, "term", &nom)?;
+        let value = colonne_reel(&lot, "value", &nom)?;
+        let unit = colonne_texte(&lot, "unit", &nom)?;
+        let provisoire = colonne_booleen(&lot, "provisoire", &nom)?;
+        let source = colonne_texte(&lot, "source", &nom)?;
+        for i in 0..lot.num_rows() {
+            let terme = term[i].clone().filter(|t| !t.is_empty()).ok_or_else(|| vide("term", &nom, i))?;
+            if !TERMES.iter().any(|(t, _)| *t == terme) {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : terme « {terme} » hors de la liste fermée du contrat dynamics.regeneration"
+                )));
+            }
+            let essence = species[i].clone().filter(|s| !s.is_empty());
+            let groupe_ligne = groupe[i].clone().filter(|g| !g.is_empty());
+            if essence.is_none() && groupe_ligne.is_none() {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : terme « {terme} » sans essence (species) ni groupe (species_group)"
+                )));
+            }
+            if let Some(g) = &groupe_ligne {
+                if g != "feuillu" && g != "resineux" && g != crate::parametres::TOUTES_ESSENCES {
+                    return Err(Erreur::entree_refusee(format!(
+                        "{nom} : terme « {terme} » : groupe « {g} » ni feuillu, ni resineux, ni toutes_essences"
+                    )));
+                }
+            }
+            let valeur = value[i].ok_or_else(|| vide("value", &nom, i))?;
+            if !valeur.is_finite() {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : terme « {terme} » : valeur non finie ({valeur})"
+                )));
+            }
+            lignes.push(LigneRegeneration {
+                species: essence,
+                species_group: groupe_ligne,
+                term: terme,
+                value: valeur,
+                unit: unit[i].clone().filter(|u| !u.is_empty()).ok_or_else(|| vide("unit", &nom, i))?,
+                provisoire: provisoire[i].ok_or_else(|| vide("provisoire", &nom, i))?,
+                source: source[i].clone().filter(|s| !s.is_empty()).ok_or_else(|| vide("source", &nom, i))?,
+            });
+        }
+    }
+    Ok(lignes)
+}
+
 /// Tous les jeux de paramètres lus.
 #[derive(Debug, Clone, PartialEq)]
 pub struct JeuxDeParametres {
@@ -647,6 +727,10 @@ pub struct Entrees {
     pub parametres: JeuxDeParametres,
     /// L'état initial : arbres triés par `tree_id`, numérotés, chacun dans sa cellule.
     pub arbres: EtatArbres,
+    /// Le mode de recrutement (`simulate.recruitment`, M5a).
+    pub recrutement: ModeRecrutement,
+    /// Les lignes de `params/regeneration.parquet` (mode `cohorts` ; vide en `ifn_direct`).
+    pub regeneration: Vec<LigneRegeneration>,
 }
 
 impl Entrees {
@@ -666,6 +750,7 @@ impl Entrees {
         let config = config::lire(chemin_config).map_err(Erreur::entree_refusee)?;
         config.verifier_crs()?;
         let reglages = config.reglages_simulate()?;
+        let recrutement = config.recrutement()?;
 
         let raster_grille = geotiff::lire(&dossier_zone.join("grid.tif"))?;
         let grille = Grille::depuis_raster(
@@ -688,6 +773,12 @@ impl Entrees {
 
         let referentiel = Referentiel::lire(chemin_especes)?;
         let parametres = lire_parametres(&dossier_zone.join("params"))?;
+        let regeneration = match recrutement {
+            ModeRecrutement::IfnDirect => Vec::new(),
+            ModeRecrutement::Cohortes(_) => {
+                lire_regeneration(&dossier_zone.join("params").join("regeneration.parquet"))?
+            }
+        };
 
         let brutes = lire_arbres(&dossier_zone.join("trees_init"))?;
         verifier_parametres_des_essences(&essences_des_arbres(&brutes), &parametres, &referentiel)?;
@@ -701,6 +792,8 @@ impl Entrees {
             referentiel,
             parametres,
             arbres,
+            recrutement,
+            regeneration,
         })
     }
 }

@@ -15,11 +15,20 @@
 //!   (cellule, essence) qui a au moins un arbre vivant. S'y ajoute `h_dom_m`, la hauteur dominante
 //!   de la cellule à la fin de l'année, en m, **telle que le moteur la calcule** (mission 046,
 //!   décision de Pascal du 25/11/2026) : la même valeur sur les lignes de toutes les essences d'une
-//!   cellule ; vide (null) si elle n'est pas finie, jamais 0 en silence. Les colonnes de semis ne
-//!   sont pas écrites : **semis non simulés** jusqu'à M5 (décision de Pascal, Q3), dit par un
-//!   signalement ;
+//!   cellule ; vide (null) si elle n'est pas finie, jamais 0 en silence. En mode `ifn_direct`, les
+//!   colonnes de semis ne sont pas écrites : **semis non simulés**, dit par un signalement. En mode
+//!   `cohorts` (M5a, mission 062), `seedlings_ha` (semis/ha de l'essence, 0 sans semis) et
+//!   `seedling_h_mean` (m, vide sans semis) sont écrites sur chaque ligne ; au niveau massif, une
+//!   ligne n'existe que pour un couple qui a un arbre vivant (contrat), si bien que les semis d'une
+//!   cellule sans arbre de l'essence (une trouée) ne paraissent pas dans `sim/cells` avant leur
+//!   passage ;
 //! - `flags.parquet` : les signalements du pas ([`crate::controles`]) puis ceux de ce module ;
-//! - `run.json` : réglages, mémoire estimée, durée, empreinte de `config.yml`, comptes.
+//! - `run.json` : réglages, mémoire estimée, durée, empreinte de `config.yml`, comptes ; depuis M5a
+//!   ([`run_json_m5`]) le mode de recrutement, ce qui n'est pas simulé (`not_simulated` : semis,
+//!   sous-bois, gibier et fructification en `ifn_direct` ; sous-bois, gibier et fructification en
+//!   `cohorts`, décision de Pascal Q3), la plus grande estimation de mémoire, le pic de mémoire
+//!   résidente (`VmHWM`, null hors de Linux) et, en `cohorts`, `seedling_stock_limited`,
+//!   `gaps_recolonised` et `buffer_cells`.
 //!
 //! Toutes les tiges vivantes sont comptées dans `stems_ha`, recrues de 7,48 cm comprises : le
 //! seuil « 7,5 cm » du contrat est l'arrondi du seuil de l'IFN (C13 = 0,235 m, soit 7,48 cm),
@@ -47,7 +56,7 @@
 //!
 //! | Sorte | Entité | Valeur |
 //! |---|---|---|
-//! | [`SORTE_SEMIS_NON_SIMULES`] | la zone (`zone` de config.yml), année t0 | vide |
+//! | [`SORTE_SEMIS_NON_SIMULES`] | la zone (`zone` de config.yml), année t0, mode `ifn_direct` seulement | vide |
 //! | [`SORTE_TOTAL_CELLULES_SANS_ARBRE`] | la zone, dernière année | nombre de couples (cellule, année) |
 //! | [`SORTE_TOTAL_RECRUES_CELLULE_VIDE`] | la zone, dernière année | nombre de recrues |
 //! | [`SORTE_TOTAL_SER_SANS_EFFET`] | la zone, dernière année | nombre de prédicteurs |
@@ -73,7 +82,8 @@ use parquet::file::properties::WriterProperties;
 use sha2::{Digest, Sha256};
 
 use crate::concurrence::{self, GeometrieGrille};
-use crate::config::NiveauSimulation;
+use crate::config::{ModeRecrutement, NiveauSimulation};
+use crate::dispersion;
 use crate::controles::{Comptes, Signalement};
 use crate::entrees::{Couches, Entrees, JeuxDeParametres};
 use crate::erreurs::Erreur;
@@ -82,7 +92,10 @@ use crate::grille::Grille;
 use crate::hauteur::ReferenceKorf;
 use crate::memoire::{self, Besoin};
 use crate::parametres::{Parametres, Porteur, Referentiel, Variable};
-use crate::pas::{self, Cellules, EtatCellules, Modeles, ResultatPas, SourcesDeParametres};
+use crate::pas::{
+    self, Cellules, EtatCellules, EtatSemis, Modeles, Regeneration, ResultatPas, SourcesDeParametres,
+};
+use crate::semis;
 
 /// Les semis ne sont pas simulés avant M5 (décision de Pascal, Q3).
 pub const SORTE_SEMIS_NON_SIMULES: &str = "semis_non_simules";
@@ -323,6 +336,57 @@ pub fn part_provisoire(modeles: &Modeles) -> f64 {
     provisoires as f64 / total as f64
 }
 
+/// Comme [`part_provisoire`], avec, en mode `cohorts`, un jeu de plus par essence candidate : ses
+/// paramètres de semis (provisoire si l'un de ses termes l'est).
+pub fn part_provisoire_avec_semis(modeles: &Modeles, regeneration: Option<&Regeneration>) -> f64 {
+    let (mut provisoires, mut total) = modeles.jeux_provisoires();
+    if let Some(regeneration) = regeneration {
+        let (p, t) = regeneration.jeux_provisoires();
+        provisoires += p;
+        total += t;
+    }
+    if total == 0 {
+        return 0.0;
+    }
+    provisoires as f64 / total as f64
+}
+
+/// Octets de la régénération par cohortes (mode `cohorts`) : deux copies des classes de semis
+/// (début et fin d'année), les tableaux de travail d'une FFT et les spectres des noyaux, et cinq
+/// champs f64 de la grille (graines, arrivées, couvert, houppiers des arbres non comptés : voir
+/// l'état). Une estimation, comme le reste ; sa comparaison à la mémoire résidente est un travail
+/// de la mission 063 (spec §11).
+pub fn octets_regeneration(regeneration: &Regeneration, etat_semis: &EtatSemis, grille: &Grille) -> u64 {
+    let cellules = grille.nombre_cellules() as u64;
+    let spectres = regeneration.spectres.len() as u64 * regeneration.plan.octets_spectre();
+    2 * etat_semis.octets() + regeneration.plan.octets_de_travail() + spectres + 5 * 8 * cellules
+}
+
+/// Les octets de l'état des semis, avant qu'il existe (pour l'estimation d'avant t0).
+pub fn octets_semis_prevus(regeneration: &Regeneration, grille: &Grille) -> u64 {
+    let mut classes: u64 = 0;
+    for p in &regeneration.parametres {
+        classes += p.classes() as u64;
+    }
+    classes * 8 * grille.nombre_cellules() as u64
+}
+
+/// Le pic de mémoire résidente du processus (`VmHWM` de `/proc/self/status`), en octets ; `None`
+/// s'il n'est pas lisible (hors de Linux) : jamais deviné.
+pub fn pic_memoire_residente() -> Option<u64> {
+    let texte = fs::read_to_string("/proc/self/status").ok()?;
+    for ligne in texte.lines() {
+        if let Some(reste) = ligne.strip_prefix("VmHWM:") {
+            let morceaux: Vec<&str> = reste.split_whitespace().collect();
+            if let [nombre, "kB"] = morceaux.as_slice() {
+                return nombre.parse::<u64>().ok().and_then(|k| k.checked_mul(1024));
+            }
+            return None;
+        }
+    }
+    None
+}
+
 // ------------------------------------------------------------------------------------------
 // Mémoire
 
@@ -423,13 +487,32 @@ pub fn simuler_et_ecrire(
     }
     let cellules = cellules_depuis(&entrees.grille, &entrees.couches)?;
     let modeles = preparer_modeles(entrees)?;
+    let regeneration = match &entrees.recrutement {
+        ModeRecrutement::IfnDirect => None,
+        ModeRecrutement::Cohortes(reglages) => Some(Regeneration::preparer(
+            &modeles,
+            &entrees.regeneration,
+            &entrees.referentiel,
+            reglages,
+            &cellules.geometrie,
+        )?),
+    };
 
     // Avant toute écriture : la mémoire.
-    let memoire_estimee = estimer_memoire(
+    let mut memoire_estimee = estimer_memoire(
         entrees.arbres.len() as u64,
         texte_par_arbre(&entrees.arbres),
         &entrees.grille,
     )?;
+    if let Some(regeneration) = &regeneration {
+        let semis_prevus = octets_semis_prevus(regeneration, &entrees.grille);
+        let spectres = regeneration.spectres.len() as u64 * regeneration.plan.octets_spectre();
+        memoire_estimee = memoire_estimee
+            .saturating_add(2 * semis_prevus)
+            .saturating_add(regeneration.plan.octets_de_travail())
+            .saturating_add(spectres)
+            .saturating_add(5 * 8 * entrees.grille.nombre_cellules() as u64);
+    }
     memoire::verifier(memoire_estimee, lancement.memoire_disponible)?;
 
     if dossier.exists() {
@@ -449,8 +532,11 @@ pub fn simuler_et_ecrire(
                 lancement.threads
             ))
         })?;
-    let resultat = pool.install(|| boucle(entrees, &cellules, &modeles, lancement, dossier))?;
-    let (comptes, mut signalements, lignes_arbres, memoire_maximale) = resultat;
+    let resultat = pool.install(|| {
+        boucle(entrees, &cellules, &modeles, regeneration.as_ref(), lancement, dossier)
+    })?;
+    let (comptes, mut signalements, lignes_arbres, memoire_annees) = resultat;
+    let memoire_maximale = memoire_annees.max(memoire_estimee);
 
     ajouter_signalements_de_zone(
         &mut signalements,
@@ -458,16 +544,25 @@ pub fn simuler_et_ecrire(
         lancement,
         reglages.t0,
         derniere,
+        regeneration.is_some(),
     );
     ecrire_signalements(&dossier.join("flags.parquet"), &signalements)?;
 
     let duree_s = debut.elapsed().as_secs_f64();
-    let run = run_json(
+    let memoire = MemoireDuRun {
+        estimee: memoire_estimee,
+        maximale: memoire_maximale,
+        pic_residente: pic_memoire_residente(),
+        cellules_tampon: regeneration.as_ref().map(|r| {
+            dispersion::cellules_tampon(r.plan.largeur, r.plan.hauteur, r.plan.demi_largeur)
+        }),
+    };
+    let run = run_json_m5(
         entrees,
         lancement,
         &comptes,
-        part_provisoire(&modeles),
-        memoire_estimee,
+        part_provisoire_avec_semis(&modeles, regeneration.as_ref()),
+        &memoire,
         duree_s,
     );
     ecrire_texte(&dossier.join("run.json"), &run)?;
@@ -481,11 +576,14 @@ pub fn simuler_et_ecrire(
     })
 }
 
-/// t0 puis les pas annuels, avec écriture de chaque année ; dans le pool de l'appelant.
+/// t0 puis les pas annuels, avec écriture de chaque année ; dans le pool de l'appelant. En mode
+/// `cohorts` (`regeneration` donné), l'état des semis part du stock « en régime » de t0 (Q2) et
+/// avance avec chaque pas ; ses colonnes sont écrites dans `sim/cells`.
 fn boucle(
     entrees: &Entrees,
     cellules: &Cellules,
     modeles: &Modeles,
+    regeneration: Option<&Regeneration>,
     lancement: &Lancement,
     dossier: &Path,
 ) -> Result<(Comptes, Vec<Signalement>, u64, u64), Erreur> {
@@ -499,21 +597,52 @@ fn boucle(
     if lancement.inject_nan == Some(reglages.t0) {
         injecter_nan(&mut etat);
     }
-    let resultat = pas::initialiser_t0(&etat, cellules, modeles, reglages.t0)?;
-    lignes += ecrire_annee(dossier, reglages.t0, &resultat, &cellules.geometrie)?;
+    let mut resultat = pas::initialiser_t0(&etat, cellules, modeles, reglages.t0)?;
+    let mut semis_courants: Option<EtatSemis> = None;
+    if let Some(regeneration) = regeneration {
+        let (initial, sorties) =
+            pas::etat_semis_initial(&resultat, cellules, modeles, regeneration, reglages.t0)?;
+        resultat.comptes.sorties_domaine.ajouter(&sorties);
+        let hors = pas::signalements_t0_cohortes(&resultat, cellules, modeles, regeneration, reglages.t0)?;
+        resultat.signalements.extend(hors);
+        semis_courants = Some(initial);
+    }
+    let resume_t0 = resume_semis(modeles, regeneration, semis_courants.as_ref());
+    lignes += ecrire_annee(dossier, reglages.t0, &resultat, &cellules.geometrie, resume_t0.as_ref())?;
     let (mut etat, mut hdom) = absorber(resultat, &mut comptes, &mut signalements);
 
     for rang in 1..=reglages.years {
         let annee = reglages.t0 + rang as i32;
         etat.retirer_morts();
-        let besoin =
+        let mut besoin =
             verifier_memoire_annee(&etat, &entrees.grille, lancement.memoire_disponible, annee)?;
+        if let (Some(regeneration), Some(semis_etat)) = (regeneration, semis_courants.as_ref()) {
+            besoin = besoin.saturating_add(octets_regeneration(regeneration, semis_etat, &entrees.grille));
+            memoire::verifier(besoin, lancement.memoire_disponible)?;
+        }
         memoire_maximale = memoire_maximale.max(besoin);
         if lancement.inject_nan == Some(annee) {
             injecter_nan(&mut etat);
         }
-        let resultat = pas::pas_annuel(&etat, cellules, &hdom, modeles, reglages.seed, annee)?;
-        lignes += ecrire_annee(dossier, annee, &resultat, &cellules.geometrie)?;
+        let resultat = match (regeneration, semis_courants.as_ref()) {
+            (Some(regeneration), Some(semis_debut)) => {
+                let (resultat, semis_fin) = pas::pas_annuel_cohortes(
+                    &etat,
+                    cellules,
+                    &hdom,
+                    modeles,
+                    reglages.seed,
+                    annee,
+                    regeneration,
+                    semis_debut,
+                )?;
+                semis_courants = Some(semis_fin);
+                resultat
+            }
+            _ => pas::pas_annuel(&etat, cellules, &hdom, modeles, reglages.seed, annee)?,
+        };
+        let resume = resume_semis(modeles, regeneration, semis_courants.as_ref());
+        lignes += ecrire_annee(dossier, annee, &resultat, &cellules.geometrie, resume.as_ref())?;
         let suite = absorber(resultat, &mut comptes, &mut signalements);
         etat = suite.0;
         hdom = suite.1;
@@ -526,6 +655,40 @@ fn boucle(
         }
     }
     Ok((comptes, signalements, lignes, memoire_maximale))
+}
+
+/// Les semis d'une année, par (cell_id, essence) : (semis/ha, hauteur moyenne en m ou `None`).
+pub type ResumeSemis = BTreeMap<(u64, String), (f64, Option<f64>)>;
+
+/// Résume l'état des semis pour `sim/cells` (mode `cohorts` seulement ; `None` sinon). Seules les
+/// cellules qui ont des semis d'une essence y figurent.
+pub fn resume_semis(
+    modeles: &Modeles,
+    regeneration: Option<&Regeneration>,
+    etat_semis: Option<&EtatSemis>,
+) -> Option<ResumeSemis> {
+    let (regeneration, etat_semis) = match (regeneration, etat_semis) {
+        (Some(r), Some(e)) => (r, e),
+        _ => return None,
+    };
+    let mut resume: ResumeSemis = BTreeMap::new();
+    for (rang_candidat, essence) in modeles.candidates.iter().enumerate() {
+        let p = &regeneration.parametres[rang_candidat];
+        let a = etat_semis.classes[rang_candidat];
+        let densites = &etat_semis.densites[rang_candidat];
+        let n = densites.len() / a.max(1);
+        for cellule in 0..n {
+            let classes = etat_semis.de(rang_candidat, cellule);
+            let total = semis::total(classes);
+            if total > 0.0 {
+                resume.insert(
+                    (cellule as u64, modeles.essences[*essence].espece.clone()),
+                    (total, semis::hauteur_moyenne(p, classes)),
+                );
+            }
+        }
+    }
+    Some(resume)
 }
 
 fn absorber(
@@ -551,16 +714,26 @@ fn ajouter_signalements_de_zone(
     lancement: &Lancement,
     t0: i32,
     derniere: i32,
+    cohortes: bool,
 ) {
-    signalements.push(Signalement {
-        annee: t0,
-        entite: lancement.zone.clone(),
-        sorte: SORTE_SEMIS_NON_SIMULES.to_string(),
-        message: "semis non simulés (jusqu'à M5, décision de Pascal du 25/11/2026) : les colonnes \
-                  seedlings_ha et seedling_h_mean de sim/cells ne sont pas écrites"
-            .to_string(),
-        valeur: None,
-    });
+    if !cohortes {
+        signalements.push(Signalement {
+            annee: t0,
+            entite: lancement.zone.clone(),
+            sorte: SORTE_SEMIS_NON_SIMULES.to_string(),
+            message: "semis non simulés (mode ifn_direct, recrutement de M3a) : les colonnes \
+                      seedlings_ha et seedling_h_mean de sim/cells ne sont pas écrites"
+                .to_string(),
+            valeur: None,
+        });
+    }
+    let texte_trouees = if cohortes {
+        "couples (cellule, année) en trouée, à hauteur dominante nulle, à portée de semenciers mais sans \
+         aucun semis ni recrue (mode cohorts)"
+    } else {
+        "couples (cellule, année) en trouée, à hauteur dominante nulle : aucune recrue n'y est \
+         ajoutée (mode ifn_direct ; décision de Pascal du 25/11/2026)"
+    };
     let totaux = [
         (
             SORTE_TOTAL_CELLULES_SANS_ARBRE,
@@ -583,8 +756,7 @@ fn ajouter_signalements_de_zone(
         (
             SORTE_TOTAL_TROUEES_SANS_RECRUE,
             comptes.cellules_trouee_sans_recrue,
-            "couples (cellule, année) en trouée, à hauteur dominante nulle : aucune recrue n'y est \
-             ajoutée (décision de Pascal du 25/11/2026 ; recolonisation par les cohortes en M5)",
+            texte_trouees,
         ),
     ];
     for (sorte, total, texte) in totaux {
@@ -645,6 +817,7 @@ fn ecrire_annee(
     annee: i32,
     resultat: &ResultatPas,
     geometrie: &GeometrieGrille,
+    semis: Option<&ResumeSemis>,
 ) -> Result<u64, Erreur> {
     let partition = format!("year={annee}");
     let dossier_arbres = dossier.join("trees").join(&partition);
@@ -657,7 +830,7 @@ fn ecrire_annee(
     )?;
     ecrire_lot(
         &dossier_cellules.join(FICHIER_PARTITION),
-        table_cellules(&resultat.etat, &resultat.cellules.h_dom, geometrie)?,
+        table_cellules_avec_semis(&resultat.etat, &resultat.cellules.h_dom, geometrie, semis)?,
     )?;
     Ok(resultat.etat.len() as u64)
 }
@@ -730,6 +903,20 @@ pub fn table_cellules(
     h_dom: &[f64],
     geometrie: &GeometrieGrille,
 ) -> Result<RecordBatch, Erreur> {
+    table_cellules_avec_semis(etat, h_dom, geometrie, None)
+}
+
+/// Comme [`table_cellules`] ; en mode `cohorts` (`semis` donné), avec les colonnes
+/// `seedlings_ha` (semis/ha de l'essence dans la cellule, 0 sans semis) et `seedling_h_mean`
+/// (hauteur moyenne des semis, m ; vide sans semis). Au niveau massif, une ligne n'existe que pour
+/// un couple (cellule, essence) qui a un arbre vivant (contrat `sim.cells`) : les semis d'une
+/// essence sans arbre vivant dans la cellule ne sont pas écrits ici.
+pub fn table_cellules_avec_semis(
+    etat: &EtatArbres,
+    h_dom: &[f64],
+    geometrie: &GeometrieGrille,
+    semis: Option<&ResumeSemis>,
+) -> Result<RecordBatch, Erreur> {
     let aire_ha = geometrie.aire_cellule_ha();
     let lignes = resumer_cellules(etat);
     let mut cell_id: Vec<i64> = Vec::with_capacity(lignes.len());
@@ -738,15 +925,29 @@ pub fn table_cellules(
     let mut surface_ha: Vec<f64> = Vec::with_capacity(lignes.len());
     let mut d130_moyen: Vec<Option<f64>> = Vec::with_capacity(lignes.len());
     let mut h_dom_m: Vec<Option<f64>> = Vec::with_capacity(lignes.len());
+    let mut semis_ha: Vec<f64> = Vec::new();
+    let mut semis_h: Vec<Option<f64>> = Vec::new();
     for ((cellule, code), ligne) in lignes {
         h_dom_m.push(h_dom.get(cellule as usize).copied().filter(|h| h.is_finite()));
+        if let Some(resume) = semis {
+            match resume.get(&(cellule, code.clone())) {
+                Some((densite, hauteur)) => {
+                    semis_ha.push(*densite);
+                    semis_h.push(*hauteur);
+                }
+                None => {
+                    semis_ha.push(0.0);
+                    semis_h.push(None);
+                }
+            }
+        }
         cell_id.push(cellule as i64);
         espece.push(code);
         tiges_ha.push(ligne.tiges as f64 / aire_ha);
         surface_ha.push(ligne.surface_m2 / aire_ha);
         d130_moyen.push(Some(ligne.somme_d130 / ligne.tiges as f64));
     }
-    let champs = vec![
+    let mut champs = vec![
         Field::new("cell_id", DataType::Int64, false),
         Field::new("species", DataType::Utf8, false),
         Field::new("stems_ha", DataType::Float64, false),
@@ -754,7 +955,7 @@ pub fn table_cellules(
         Field::new("d130_mean", DataType::Float64, true),
         Field::new("h_dom_m", DataType::Float64, true),
     ];
-    let colonnes: Vec<ArrayRef> = vec![
+    let mut colonnes: Vec<ArrayRef> = vec![
         Arc::new(Int64Array::from(cell_id)),
         Arc::new(StringArray::from(espece)),
         Arc::new(Float64Array::from(tiges_ha)),
@@ -762,6 +963,12 @@ pub fn table_cellules(
         Arc::new(Float64Array::from(d130_moyen)),
         Arc::new(Float64Array::from(h_dom_m)),
     ];
+    if semis.is_some() {
+        champs.push(Field::new("seedlings_ha", DataType::Float64, false));
+        champs.push(Field::new("seedling_h_mean", DataType::Float64, true));
+        colonnes.push(Arc::new(Float64Array::from(semis_ha)));
+        colonnes.push(Arc::new(Float64Array::from(semis_h)));
+    }
     lot(champs, colonnes, "sim.cells")
 }
 
@@ -799,6 +1006,73 @@ pub fn ecrire_signalements(chemin: &Path, signalements: &[Signalement]) -> Resul
 
 // ------------------------------------------------------------------------------------------
 // run.json
+
+/// La mémoire d'une exécution, pour `run.json`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MemoireDuRun {
+    /// Estimation d'avant le premier pas (`memory_estimate_bytes`).
+    pub estimee: u64,
+    /// La plus grande estimation faite avant les pas (`memory_estimate_max_bytes`).
+    pub maximale: u64,
+    /// `VmHWM` lu en fin d'exécution (`memory_peak_rss_bytes`), `None` hors de Linux.
+    pub pic_residente: Option<u64>,
+    /// Mode `cohorts` : cellules de la zone tampon (`buffer_cells`).
+    pub cellules_tampon: Option<u64>,
+}
+
+/// Le texte de `run.json` de M5a (contrat `run`) : celui de [`run_json`], plus le mode de
+/// recrutement, ce qui n'est pas simulé (Q3), la mémoire et, en mode `cohorts`, les comptes de la
+/// régénération. Clés triées, terminé par un saut de ligne.
+pub fn run_json_m5(
+    entrees: &Entrees,
+    lancement: &Lancement,
+    comptes: &Comptes,
+    provisional_share: f64,
+    memoire: &MemoireDuRun,
+    duree_s: f64,
+) -> String {
+    let texte = run_json(entrees, lancement, comptes, provisional_share, memoire.estimee, duree_s);
+    let mut valeur: serde_json::Value = match serde_json::from_str(&texte) {
+        Ok(valeur) => valeur,
+        Err(_) => return texte,
+    };
+    if let Some(objet) = valeur.as_object_mut() {
+        objet.insert(
+            "recruitment".to_string(),
+            serde_json::json!(entrees.recrutement.nom()),
+        );
+        let non_simules: Vec<&str> = match entrees.recrutement {
+            ModeRecrutement::IfnDirect => vec!["semis", "sous_bois", "gibier", "fructification"],
+            ModeRecrutement::Cohortes(_) => vec!["sous_bois", "gibier", "fructification"],
+        };
+        objet.insert("not_simulated".to_string(), serde_json::json!(non_simules));
+        objet.insert(
+            "memory_estimate_max_bytes".to_string(),
+            serde_json::json!(memoire.maximale),
+        );
+        objet.insert(
+            "memory_peak_rss_bytes".to_string(),
+            serde_json::json!(memoire.pic_residente),
+        );
+        if let ModeRecrutement::Cohortes(_) = entrees.recrutement {
+            objet.insert(
+                "seedling_stock_limited".to_string(),
+                serde_json::json!(comptes.stock_de_semis_limitant),
+            );
+            objet.insert(
+                "gaps_recolonised".to_string(),
+                serde_json::json!(comptes.trouees_recolonisees),
+            );
+            objet.insert(
+                "buffer_cells".to_string(),
+                serde_json::json!(memoire.cellules_tampon.unwrap_or(0)),
+            );
+        }
+    }
+    let mut sortie = serde_json::to_string_pretty(&valeur).unwrap_or(texte);
+    sortie.push('\n');
+    sortie
+}
 
 /// Le texte de `run.json` (contrat `run`), clés triées, terminé par un saut de ligne.
 pub fn run_json(

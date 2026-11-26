@@ -134,6 +134,27 @@ def test_regeneration_params_have_a_closed_list_of_ten_terms():
     assert [t for t, _ in h.TERMS] == term["constraints"]["enum"]
 
 
+def test_regeneration_maturity_is_a_height_and_the_diameter_term_is_gone(tmp_path, capsys):
+    """Mission 062 : la maturité est une hauteur (m), comme TreeMig ; maturity_d130_cm (version 0.1) est refusé."""
+    schema = catalog.load_schema("tables/params/regeneration.schema.json")
+    term = next(f for f in schema["fields"] if f["name"] == "term")
+    assert "maturity_height_m" in term["constraints"]["enum"]
+    assert "maturity_d130_cm" not in term["constraints"]["enum"]
+    assert schema["x-schema-version"] == "0.2"
+    data = h.regeneration_params()
+    data["term"][data["term"].index("maturity_height_m")] = "maturity_d130_cm"
+    code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
+    assert code == 3 and re.search(r"term", out), out
+
+
+def test_regeneration_kernel_is_documented_from_the_two_lososova_distances():
+    """Mission 062 : le noyau se paramètre depuis les distances à 50 % et 99 % de la classe de Lososová."""
+    desc = catalog.load_schema("tables/params/regeneration.schema.json")["description"]
+    for mot in ("Lososová et al. 2023", "d50", "d99", "50 %", "99 %", "P(2 / b, (d50 / a)^b) = 0,5",
+                "P(2 / b, (d99 / a)^b) = 0,99", "provisoire"):
+        assert mot in desc, mot
+
+
 def test_regeneration_schema_holds_no_value_but_the_nominal_ones_in_its_text():
     """Aucune valeur écologique dans le schéma : ni défaut, ni exemple, ni borne sur `value`."""
     schema = catalog.load_schema("tables/params/regeneration.schema.json")

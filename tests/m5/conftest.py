@@ -145,11 +145,11 @@ def _recrutement_de_station(zdir):
 
 @pytest.fixture(scope="session")
 def massif_cohorts():
-    """Massif fictif (entrées figées de M3a), mode cohorts, 8 ans, noyau tronqué à 1 cellule ; semenciers dès 30 cm
+    """Massif fictif (entrées figées de M3a), mode cohorts, 8 ans, noyau tronqué à 1 cellule ; semenciers dès 10 m de hauteur
     (tous les arbres initiaux le sont, aucune recrue ne le devient en 8 ans)."""
     nom = "m5_massif_cohorts"
     zdir, cfg = H.zone_massif(nom, H.sim_massif(8, troncature=1), _recrutement_de_station,
-                              regeneration={"maturity_d130_cm": 30.0})
+                              regeneration={"maturity_height_m": 10.0})
     res = {"dir": zdir, "config": cfg, "name": nom, "proc": H.run_simulate(nom, cfg), "troncature": 1}
     yield res
     H.remove_zone(nom)
