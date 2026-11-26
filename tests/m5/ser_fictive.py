@@ -90,9 +90,11 @@ REGENERATION_DEFAUT = {
     "light_extinction_coef": (0.5, "1"),
     "seedling_survival_full_light_yr": (0.9, "1"),
     "passage_height_m": (1.3, "m"),
-    "stress_mortality": (0.184, "1/an"),    # valeur de TreeMig éq. 40 p. 16, reprise du code de simulate (mission 066)
+    "stress_mortality": (0.184, "1/an"),    # source : TreeMig éq. 40 p. 16 (TreeMigDocu_251218_Model.pdf), provisoire vrai, comme dans le contrat
 }
 TERMES_REGENERATION = tuple(REGENERATION_DEFAUT)
+# Source propre à un terme (les autres portent SOURCE, synthétique).
+SOURCE_TERME = {"stress_mortality": "TreeMig éq. 40 p. 16 (TreeMigDocu_251218_Model.pdf)"}
 
 DYN_SCHEMA = pa.schema([
     ("species", pa.string()), ("species_group", pa.string()), ("model", pa.string()), ("term", pa.string()),
@@ -186,7 +188,7 @@ def regeneration_rows(species=ESSENCES_DEFAUT, overrides: dict | None = None, pa
                 continue
             v = overrides.get((sp, term), overrides.get(term, val))
             rows.append({"species": sp, "species_group": grp, "term": term, "value": float(v), "unit": unit,
-                         "provisoire": True, "source": SOURCE})
+                         "provisoire": True, "source": SOURCE_TERME.get(term, SOURCE)})
     return rows
 
 

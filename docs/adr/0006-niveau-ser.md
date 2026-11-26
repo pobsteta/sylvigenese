@@ -1,7 +1,7 @@
 # ADR 0006 — le niveau SER : des cohortes d'adultes en classes de diamètre fixes, en f32, sur les cellules forestières
 
 - **Date :** 2026-11-26
-- **Statut :** proposée (à trancher par l'orchestrateur, par délégation de Pascal ; Pascal peut la défaire)
+- **Statut :** acceptée le 26/11/2026 par l'orchestrateur, par délégation de Pascal (choix 12 confirmé par Pascal le même jour) ; Pascal peut la défaire
 - **Proposée par :** `dev` de la mission 060 (plan `docs/plans/m5a.md`, §3 et §4, choix T1, T2, T4, T7 et T8)
 - **Tranchée par :** — (en attente)
 
@@ -90,7 +90,7 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
     conversion du diamètre en hauteur (une conversion serait une dérivation non sourcée) : contrat en 0.2.
 12. **Refus de `ifn_direct` au niveau SER (mission 063).** Le niveau SER avance des espérances sans tirage (choix 5), alors que
     le recrutement direct du modèle IFN (`ifn_direct`) arrondit au hasard des arbres entiers : `simulate.recruitment:
-    ifn_direct` avec `level: ser` est refusé, code 2 ; la motivation est celle de la mission 063, à confirmer. Le niveau SER n'a que le mode `cohorts`.
+    ifn_direct` avec `level: ser` est refusé, code 2 ; motif confirmé par Pascal le 26/11/2026 : à cette échelle il n'y a pas d'arbres suivis un par un, donc rien à quoi appliquer un recrutement d'arbres entiers ; `ifn_direct` reste au massif, avec la référence de M3a (Q4). Le niveau SER n'a que le mode `cohorts`.
 13. **Survie des semis, forme de TreeMig (mission 062, terme ajouté en 066).** Ombre o = `light_extinction_coef`
     × indice de couvert de la cellule ; seuil = `shade_tolerance` (échelle 0 à 5 de Niinemets et Valladares
     2006, sans règle de conversion vers l'échelle de TreeMig : le coefficient d'extinction, provisoire, porte
@@ -121,7 +121,8 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
   et K = 15 classes, 480 octets par cellule, soit environ 23 Go si les 48 millions de cellules étaient
   toutes forestières, pour 28 Go utilisables. Le taux de boisement de C20 est de 38 % (`docs/referentiels/surfaces-ser.csv` : 11 440 km² de
   surface boisée sur 29 980 km²), soit environ 18,3 millions de cellules forestières et, à 480 octets,
-  environ 8,8 Go (la mesure et l'extrapolation sont dans `bench/results/M5.md`). Les
+  environ 8,8 Go pour les seules classes ; environ 21,5 Go au total estimés (cas de référence S = 8, K = 15,
+  Σ A = 32, cellules forestières seules, carré : `bench/results/M5.md` §4 ; la mesure et l'extrapolation sont dans `bench/results/M5.md`). Les
   leviers, chiffrés par la mission F (064) : moins de classes, essences regroupées, cellules forestières
   seules (déjà retenu), découpage de la SER en blocs. Un verdict négatif est porté à Pascal avant M5b
   (Q5).

@@ -66,7 +66,7 @@ fn ligne_regen(species: Option<&str>, groupe: Option<&str>, term: &str, value: f
     }
 }
 
-/// Les dix termes du contrat, en `toutes_essences`, valeurs d'essai.
+/// Les onze termes du contrat, en `toutes_essences`, valeurs d'essai.
 fn lignes_d_essai() -> Vec<LigneRegeneration> {
     let valeurs = [30.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
     let mut lignes = Vec::new();

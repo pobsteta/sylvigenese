@@ -49,29 +49,25 @@ def test_massif_cohorts_resultats_identiques_a_ceux_d_avant(massif_cohorts):
     assert maintenant == REFERENCE["massif_cohorts"]
 
 
-@pytest.fixture(scope="module", params=[0.184, 0.0])
-def ser_ombragee(request):
+def _passage_ombrage(valeur):
     """SER de 20 × 20, 3 ans, coefficient d'extinction très fort (réglage d'essai) : l'ombre de toute cellule qui a des
-    adultes dépasse la tolérance, et la mortalité de stress s'applique. Deux valeurs du terme, 0,184 et 0."""
-    nom = f"m5_ser_ombragee_{str(request.param).replace('.', '')}"
+    adultes dépasse la tolérance, et la mortalité de stress s'applique. Un passage avec le terme à `valeur`."""
+    nom = f"m5_ser_ombragee_{str(valeur).replace('.', '')}"
     H.remove_zone(nom)
-    zdir, cfg = H.zone_ser(nom, 20, H.sim_ser(3),
-                           regeneration={"light_extinction_coef": 50.0, "stress_mortality": request.param})
-    res = {"dir": zdir, "proc": H.run_simulate(nom, cfg), "valeur": request.param}
-    yield res
-    H.remove_zone(nom)
+    try:
+        zdir, cfg = H.zone_ser(nom, 20, H.sim_ser(3),
+                               regeneration={"light_extinction_coef": 50.0, "stress_mortality": valeur})
+        proc = H.run_simulate(nom, cfg)
+        assert proc.returncode == 0, H.queue(proc)
+        return empreinte_parquet(zdir)
+    finally:
+        H.remove_zone(nom)
 
 
-_EMPREINTES_OMBRAGEE = {}
-
-
-def test_le_terme_est_lu_et_pas_une_constante(ser_ombragee):
+def test_le_terme_est_lu_et_pas_une_constante():
     """Le test discrimine : sous ombre forte, 0 et 0,184 donnent des fichiers de sim/ différents (si le moteur gardait
-    une constante, les deux seraient identiques)."""
-    assert ser_ombragee["proc"].returncode == 0, H.queue(ser_ombragee["proc"])
-    _EMPREINTES_OMBRAGEE[ser_ombragee["valeur"]] = empreinte_parquet(ser_ombragee["dir"])
-    if len(_EMPREINTES_OMBRAGEE) == 2:
-        assert _EMPREINTES_OMBRAGEE[0.184] != _EMPREINTES_OMBRAGEE[0.0]
+    une constante, les deux seraient identiques). Il produit lui-même les deux passages (robuste à `-k`)."""
+    assert _passage_ombrage(0.184) != _passage_ombrage(0.0)
 
 
 @pytest.fixture(scope="module", params=["ser", "massif"])
