@@ -12,7 +12,8 @@
 //!    temporaire `<zone>/.sim_en_cours/` ([`sorties::simuler_et_ecrire`], mémoire vérifiée avant
 //!    toute écriture) ;
 //! 4. validation de chaque sortie par `contracts/validate` (`sim_trees`, `sim_cells`,
-//!    `sim_flags`, `run`), **sur le dossier temporaire** ;
+//!    `sim_flags`, `run` ; au niveau SER, `sim_cohorts` au lieu de `sim_trees`, mission 063),
+//!    **sur le dossier temporaire** ;
 //! 5. publication : le dossier temporaire devient `<zone>/sim/` (l'ancien `sim/` est retiré
 //!    seulement à ce moment). Sur toute erreur, le dossier temporaire est supprimé : **aucune
 //!    sortie partielle** ; un `sim/` d'une exécution précédente reste tel quel.
@@ -44,6 +45,7 @@ pub mod parametres;
 pub mod pas;
 pub mod recrutement;
 pub mod semis;
+pub mod ser;
 pub mod sorties;
 pub mod validateur;
 
@@ -207,8 +209,9 @@ fn executer_sans_code(options: &Options) -> Result<sorties::Bilan, Erreur> {
 
     let en_cours = zone.join(DOSSIER_EN_COURS);
     retirer(&en_cours)?;
+    let niveau = entrees.reglages.niveau;
     let resultat = sorties::simuler_et_ecrire(&entrees, &lancement, &en_cours)
-        .and_then(|bilan| valider_sorties(&en_cours).map(|_| bilan))
+        .and_then(|bilan| valider_sorties_du_niveau(&en_cours, niveau).map(|_| bilan))
         .and_then(|bilan| publier(&en_cours, &zone).map(|_| bilan));
     if resultat.is_err() {
         // Aucune sortie partielle : l'erreur d'origine prime sur celle du nettoyage.
@@ -226,18 +229,32 @@ fn retirer(dossier: &Path) -> Result<(), Erreur> {
     Ok(())
 }
 
-/// Fait valider les quatre sorties d'un dossier `sim` (temporaire). Code 1 si une sortie est
-/// refusée (anomalie du programme), code 2 si le validateur ne peut pas être lancé.
+/// Fait valider les quatre sorties d'un dossier `sim` (temporaire) du niveau massif. Code 1 si une
+/// sortie est refusée (anomalie du programme), code 2 si le validateur ne peut pas être lancé.
 pub fn valider_sorties(dossier: &Path) -> Result<(), Erreur> {
+    valider_sorties_du_niveau(dossier, config::NiveauSimulation::Massif)
+}
+
+/// Comme [`valider_sorties`], selon le niveau : au niveau SER, `cohorts` (contrat `sim_cohorts`)
+/// remplace `trees` (il n'y a pas d'arbres, mission 063).
+pub fn valider_sorties_du_niveau(dossier: &Path, niveau: config::NiveauSimulation) -> Result<(), Erreur> {
+    let premiere = match niveau {
+        config::NiveauSimulation::Massif => ("sim_trees", dossier.join("trees")),
+        config::NiveauSimulation::Ser => ("sim_cohorts", dossier.join("cohorts")),
+    };
     let sorties = [
-        ("sim_trees", dossier.join("trees")),
+        premiere,
         ("sim_cells", dossier.join("cells")),
         ("sim_flags", dossier.join("flags.parquet")),
         ("run", dossier.join("run.json")),
     ];
     for (contrat, chemin) in sorties {
         let texte = chemin.to_string_lossy().to_string();
-        let code = validateur::appeler(&[contrat, texte.as_str()]).map_err(|e| {
+        let appel = match niveau {
+            config::NiveauSimulation::Massif => validateur::appeler(&[contrat, texte.as_str()]),
+            config::NiveauSimulation::Ser => validateur::appeler_sobre(&[contrat, texte.as_str()]),
+        };
+        let code = appel.map_err(|e| {
             Erreur::entree_refusee(format!("validation des sorties impossible : {e}"))
         })?;
         if code != 0 {

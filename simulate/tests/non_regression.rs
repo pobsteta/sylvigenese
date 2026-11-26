@@ -332,6 +332,7 @@ pub fn zone_d_essai(years: u32) -> Entrees {
         arbres: EtatArbres::depuis_initiaux(arbres).unwrap(),
         recrutement: simulate::config::ModeRecrutement::IfnDirect,
         regeneration: Vec::new(),
+        ser: None,
     }
 }
 

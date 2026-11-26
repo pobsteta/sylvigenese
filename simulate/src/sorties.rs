@@ -22,6 +22,13 @@
 //!   ligne n'existe que pour un couple qui a un arbre vivant (contrat), si bien que les semis d'une
 //!   cellule sans arbre de l'essence (une trouée) ne paraissent pas dans `sim/cells` avant leur
 //!   passage ;
+//! - **niveau SER** (mission 063, ADR 0006, T8) : aucun `trees/` ; `cohorts/year=AAAA/part-NNNNN.parquet`
+//!   (une ligne par cellule, essence et classe qui a des tiges, tiges/ha en f32) et
+//!   `cells/year=AAAA/part-NNNNN.parquet` (une ligne par couple (cellule, essence) qui a un adulte ou
+//!   un semis : tiges/ha somme des classes, surface terrière, d130 moyen des centres de classe pondéré
+//!   par les tiges, semis, H_dom), aux seules années écrites (t0, tous les `write_step` ans, la
+//!   dernière ; [`ecrire_annee_ser`]), en fichiers d'au plus [`LIGNES_PAR_FICHIER`] lignes ; la
+//!   simulation elle-même est dans [`crate::ser`] ;
 //! - `flags.parquet` : les signalements du pas ([`crate::controles`]) puis ceux de ce module ;
 //! - `run.json` : réglages, mémoire estimée, durée, empreinte de `config.yml`, comptes ; depuis M5a
 //!   ([`run_json_m5`]) le mode de recrutement, ce qui n'est pas simulé (`not_simulated` : semis,
@@ -74,7 +81,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use arrow_array::{ArrayRef, Float64Array, Int64Array, RecordBatch, StringArray};
+use arrow_array::builder::StringBuilder;
+use arrow_array::{ArrayRef, Float32Array, Float64Array, Int64Array, RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema};
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
@@ -112,6 +120,11 @@ pub const SORTE_TOTAL_TROUEES_SANS_RECRUE: &str = "total_trouees_sans_recrue";
 
 /// Nom du fichier de chaque partition.
 pub const FICHIER_PARTITION: &str = "part-00000.parquet";
+
+/// Niveau SER : lignes au plus d'un fichier de `sim/cohorts` ou de `sim/cells` ; une année est
+/// écrite en plusieurs fichiers `part-NNNNN.parquet` (réglage d'écriture, sans effet sur les
+/// valeurs : la mémoire de l'écriture reste bornée, et celle du validateur aussi).
+pub const LIGNES_PAR_FICHIER: usize = 1 << 16;
 
 /// Les réglages d'une exécution qui ne viennent pas des entrées.
 #[derive(Debug, Clone, PartialEq)]
@@ -463,6 +476,9 @@ pub fn simuler_et_ecrire(
     lancement: &Lancement,
     dossier: &Path,
 ) -> Result<Bilan, Erreur> {
+    if entrees.reglages.niveau == NiveauSimulation::Ser {
+        return crate::ser::simuler_et_ecrire(entrees, lancement, dossier);
+    }
     let debut = Instant::now();
     let reglages = &entrees.reglages;
     if lancement.threads == 0 {
@@ -708,7 +724,9 @@ fn injecter_nan(etat: &mut EtatArbres) {
     }
 }
 
-fn ajouter_signalements_de_zone(
+/// Les signalements qui portent sur toute la zone (semis non simulés en `ifn_direct`, totaux non
+/// nuls), ajoutés à la fin ; aussi au niveau SER ([`crate::ser`]).
+pub fn ajouter_signalements_de_zone(
     signalements: &mut Vec<Signalement>,
     comptes: &Comptes,
     lancement: &Lancement,
@@ -1118,4 +1136,208 @@ pub fn run_json(
     let mut texte = serde_json::to_string_pretty(&valeur).unwrap_or_default();
     texte.push('\n');
     texte
+}
+
+// ------------------------------------------------------------------------------------------
+// Niveau SER (mission 063)
+
+/// Les colonnes de `sim/cohorts` en construction (au plus [`LIGNES_PAR_FICHIER`] lignes).
+struct LignesCohortes {
+    cell_id: Vec<i64>,
+    espece: StringBuilder,
+    d_class: Vec<i64>,
+    tiges: Vec<f32>,
+}
+
+impl LignesCohortes {
+    fn nouvelles() -> LignesCohortes {
+        LignesCohortes {
+            cell_id: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            espece: StringBuilder::with_capacity(LIGNES_PAR_FICHIER, 4 * LIGNES_PAR_FICHIER),
+            d_class: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            tiges: Vec::with_capacity(LIGNES_PAR_FICHIER),
+        }
+    }
+
+    fn ecrire(&mut self, chemin: &Path) -> Result<(), Erreur> {
+        let champs = vec![
+            Field::new("cell_id", DataType::Int64, false),
+            Field::new("species", DataType::Utf8, false),
+            Field::new("d_class", DataType::Int64, false),
+            Field::new("stems_ha", DataType::Float32, false),
+        ];
+        let colonnes: Vec<ArrayRef> = vec![
+            Arc::new(Int64Array::from(std::mem::take(&mut self.cell_id))),
+            Arc::new(self.espece.finish()),
+            Arc::new(Int64Array::from(std::mem::take(&mut self.d_class))),
+            Arc::new(Float32Array::from(std::mem::take(&mut self.tiges))),
+        ];
+        ecrire_lot(chemin, lot(champs, colonnes, "sim.cohorts")?)?;
+        self.cell_id.reserve_exact(LIGNES_PAR_FICHIER);
+        self.d_class.reserve_exact(LIGNES_PAR_FICHIER);
+        self.tiges.reserve_exact(LIGNES_PAR_FICHIER);
+        Ok(())
+    }
+}
+
+/// Les colonnes de `sim/cells` en construction, niveau SER.
+struct LignesCellules {
+    cell_id: Vec<i64>,
+    espece: StringBuilder,
+    tiges: Vec<f64>,
+    surface: Vec<f64>,
+    d130_moyen: Vec<Option<f64>>,
+    h_dom: Vec<Option<f64>>,
+    semis: Vec<f64>,
+    semis_h: Vec<Option<f64>>,
+}
+
+impl LignesCellules {
+    fn nouvelles() -> LignesCellules {
+        LignesCellules {
+            cell_id: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            espece: StringBuilder::with_capacity(LIGNES_PAR_FICHIER, 4 * LIGNES_PAR_FICHIER),
+            tiges: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            surface: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            d130_moyen: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            h_dom: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            semis: Vec::with_capacity(LIGNES_PAR_FICHIER),
+            semis_h: Vec::with_capacity(LIGNES_PAR_FICHIER),
+        }
+    }
+
+    fn ecrire(&mut self, chemin: &Path) -> Result<(), Erreur> {
+        let champs = vec![
+            Field::new("cell_id", DataType::Int64, false),
+            Field::new("species", DataType::Utf8, false),
+            Field::new("stems_ha", DataType::Float64, false),
+            Field::new("basal_area_m2_ha", DataType::Float64, false),
+            Field::new("d130_mean", DataType::Float64, true),
+            Field::new("h_dom_m", DataType::Float64, true),
+            Field::new("seedlings_ha", DataType::Float64, false),
+            Field::new("seedling_h_mean", DataType::Float64, true),
+        ];
+        let colonnes: Vec<ArrayRef> = vec![
+            Arc::new(Int64Array::from(std::mem::take(&mut self.cell_id))),
+            Arc::new(self.espece.finish()),
+            Arc::new(Float64Array::from(std::mem::take(&mut self.tiges))),
+            Arc::new(Float64Array::from(std::mem::take(&mut self.surface))),
+            Arc::new(Float64Array::from(std::mem::take(&mut self.d130_moyen))),
+            Arc::new(Float64Array::from(std::mem::take(&mut self.h_dom))),
+            Arc::new(Float64Array::from(std::mem::take(&mut self.semis))),
+            Arc::new(Float64Array::from(std::mem::take(&mut self.semis_h))),
+        ];
+        ecrire_lot(chemin, lot(champs, colonnes, "sim.cells")?)?;
+        self.cell_id.reserve_exact(LIGNES_PAR_FICHIER);
+        self.tiges.reserve_exact(LIGNES_PAR_FICHIER);
+        self.surface.reserve_exact(LIGNES_PAR_FICHIER);
+        self.d130_moyen.reserve_exact(LIGNES_PAR_FICHIER);
+        self.h_dom.reserve_exact(LIGNES_PAR_FICHIER);
+        self.semis.reserve_exact(LIGNES_PAR_FICHIER);
+        self.semis_h.reserve_exact(LIGNES_PAR_FICHIER);
+        Ok(())
+    }
+}
+
+fn nom_de_partie(numero: usize) -> String {
+    format!("part-{numero:05}.parquet")
+}
+
+/// Écrit les partitions `cohorts` et `cells` d'une année du niveau SER (voir la documentation du
+/// module) : cellules dans l'ordre des `cell_id`, essences dans l'ordre des codes, classes dans
+/// l'ordre des rangs ; un nouveau fichier commence avant une cellule qui ferait dépasser
+/// [`LIGNES_PAR_FICHIER`] lignes (découpage fixe, qui ne dépend pas du nombre de fils). Une
+/// année sans aucune ligne a un fichier vide.
+pub fn ecrire_annee_ser(
+    dossier: &Path,
+    annee: i32,
+    moteur: &crate::ser::Moteur,
+    etat: &crate::ser::EtatSer,
+) -> Result<(), Erreur> {
+    let partition = format!("year={annee}");
+    let dossier_cohortes = dossier.join("cohorts").join(&partition);
+    let dossier_cellules = dossier.join("cells").join(&partition);
+    creer_dossier(&dossier_cohortes)?;
+    creer_dossier(&dossier_cellules)?;
+    let s = moteur.especes();
+    let k = moteur.classes.nombre();
+    let sk = s * k;
+    let mut candidate_de: Vec<Option<usize>> = vec![None; s];
+    for (rang_candidat, essence) in moteur.modeles.candidates.iter().enumerate() {
+        candidate_de[*essence] = Some(rang_candidat);
+    }
+
+    // sim/cohorts
+    let mut lignes = LignesCohortes::nouvelles();
+    let mut fichiers = 0;
+    for rang in 0..moteur.foret.nombre() {
+        if lignes.cell_id.len() + sk > LIGNES_PAR_FICHIER {
+            lignes.ecrire(&dossier_cohortes.join(nom_de_partie(fichiers)))?;
+            fichiers += 1;
+        }
+        let cellule = i64::from(moteur.foret.cellule_de_rang[rang]);
+        for (essence, modele) in moteur.modeles.essences.iter().enumerate() {
+            for classe in 0..k {
+                let tiges = etat.tiges[rang * sk + essence * k + classe];
+                if tiges > 0.0 {
+                    lignes.cell_id.push(cellule);
+                    lignes.espece.append_value(&modele.espece);
+                    lignes.d_class.push(classe as i64);
+                    lignes.tiges.push(tiges);
+                }
+            }
+        }
+    }
+    if fichiers == 0 || !lignes.cell_id.is_empty() {
+        lignes.ecrire(&dossier_cohortes.join(nom_de_partie(fichiers)))?;
+    }
+    drop(lignes);
+
+    // sim/cells
+    let mut lignes = LignesCellules::nouvelles();
+    let mut fichiers = 0;
+    for rang in 0..moteur.foret.nombre() {
+        if lignes.cell_id.len() + s > LIGNES_PAR_FICHIER {
+            lignes.ecrire(&dossier_cellules.join(nom_de_partie(fichiers)))?;
+            fichiers += 1;
+        }
+        let cellule = i64::from(moteur.foret.cellule_de_rang[rang]);
+        let h_dom = Some(etat.h_dom[rang]).filter(|h| h.is_finite());
+        for (essence, modele) in moteur.modeles.essences.iter().enumerate() {
+            let mut tiges = 0.0;
+            let mut surface = 0.0;
+            let mut somme_d = 0.0;
+            for classe in 0..k {
+                let t = f64::from(etat.tiges[rang * sk + essence * k + classe]);
+                tiges += t;
+                surface += t * moteur.classes.surfaces_m2[classe];
+                somme_d += t * moteur.classes.centres_cm[classe];
+            }
+            let (semis_ha, semis_h) = match candidate_de[essence] {
+                Some(rang_candidat) => {
+                    let classes_semis = etat.semis.de(rang_candidat, rang);
+                    (
+                        semis::total(classes_semis),
+                        semis::hauteur_moyenne(&moteur.regeneration.parametres[rang_candidat], classes_semis),
+                    )
+                }
+                None => (0.0, None),
+            };
+            if tiges <= 0.0 && semis_ha <= 0.0 {
+                continue;
+            }
+            lignes.cell_id.push(cellule);
+            lignes.espece.append_value(&modele.espece);
+            lignes.tiges.push(tiges);
+            lignes.surface.push(surface);
+            lignes.d130_moyen.push(if tiges > 0.0 { Some(somme_d / tiges) } else { None });
+            lignes.h_dom.push(h_dom);
+            lignes.semis.push(semis_ha);
+            lignes.semis_h.push(semis_h);
+        }
+    }
+    if fichiers == 0 || !lignes.cell_id.is_empty() {
+        lignes.ecrire(&dossier_cellules.join(nom_de_partie(fichiers)))?;
+    }
+    Ok(())
 }

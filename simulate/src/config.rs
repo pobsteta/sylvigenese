@@ -6,6 +6,9 @@
 //! `simulate.regeneration` de ses réglages numériques). Sans `recruitment`, `simulate` s'arrête
 //! (code 2, décision de l'orchestrateur du 26/11/2026) : aucune valeur par défaut.
 //!
+//! Au niveau SER (M5a, mission 063, ADR 0006), le bloc `simulate.ser` donne la largeur et le
+//! nombre des classes de diamètre et le pas des années écrites ; sans lui, code 2.
+//!
 //! Ne contrôle pas les clés : c'est le rôle du validateur
 //! (`contracts/json/config.schema.json`). Seules les clés lues par `simulate` sont déclarées.
 
@@ -41,6 +44,27 @@ pub struct Reglages {
     pub recruitment: Option<String>,
     /// Réglages numériques de la régénération par cohortes (exigés en mode `cohorts`).
     pub regeneration: Option<BlocRegeneration>,
+    /// Réglages du niveau SER (exigés si `level: ser`, ADR 0006).
+    pub ser: Option<BlocSer>,
+}
+
+/// Le bloc `simulate.ser` de config.yml (réglages numériques du niveau SER, ADR 0006).
+#[derive(Debug, Deserialize)]
+pub struct BlocSer {
+    pub diameter_class_width_cm: Option<f64>,
+    pub diameter_classes: Option<u32>,
+    pub write_step: Option<u32>,
+}
+
+/// Les réglages du niveau SER, tous présents (ADR 0006, choix 1 et 9).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReglagesSer {
+    /// Largeur w d'une classe de diamètre, en cm (strictement positive).
+    pub largeur_classe_cm: f64,
+    /// Nombre K de classes, la dernière ouverte (au moins 2).
+    pub classes: usize,
+    /// Une année écrite sur `pas_ecriture` (au moins 1), plus t0 et la dernière.
+    pub pas_ecriture: u32,
 }
 
 /// Le bloc `simulate.regeneration` de config.yml (réglages numériques, non écologiques).
@@ -243,6 +267,63 @@ impl Config {
                 "config.yml : simulate.recruitment vaut « {autre} », inconnu ; attendu ifn_direct ou cohorts"
             ))),
         }
+    }
+
+    /// Les réglages du niveau SER (`simulate.ser`), sans valeur par défaut.
+    ///
+    /// Code 2 si le bloc `simulate` ou le bloc `ser` est absent, si l'une de ses clés manque, si
+    /// `diameter_class_width_cm` n'est pas fini et strictement positif, si `diameter_classes` vaut
+    /// moins de 2 ou si `write_step` vaut 0.
+    pub fn reglages_ser(&self) -> Result<ReglagesSer, Erreur> {
+        let bloc = match self.simulate.as_ref().and_then(|s| s.ser.as_ref()) {
+            Some(bloc) => bloc,
+            None => {
+                return Err(Erreur::entree_refusee(
+                    "config.yml : simulate.level vaut ser mais le bloc simulate.ser est absent \
+                     (diameter_class_width_cm, diameter_classes et write_step exigés ; aucune valeur par défaut)"
+                        .to_string(),
+                ))
+            }
+        };
+        let mut absentes: Vec<&str> = Vec::new();
+        if bloc.diameter_class_width_cm.is_none() {
+            absentes.push("diameter_class_width_cm");
+        }
+        if bloc.diameter_classes.is_none() {
+            absentes.push("diameter_classes");
+        }
+        if bloc.write_step.is_none() {
+            absentes.push("write_step");
+        }
+        if !absentes.is_empty() {
+            return Err(Erreur::entree_refusee(format!(
+                "config.yml : bloc simulate.ser incomplet ; clés absentes : {}",
+                absentes.join(", ")
+            )));
+        }
+        let largeur = bloc.diameter_class_width_cm.unwrap_or(f64::NAN);
+        if !(largeur.is_finite() && largeur > 0.0) {
+            return Err(Erreur::entree_refusee(format!(
+                "config.yml : simulate.ser.diameter_class_width_cm vaut {largeur} ; attendu fini et strictement positif"
+            )));
+        }
+        let classes = bloc.diameter_classes.unwrap_or(0);
+        if classes < 2 {
+            return Err(Erreur::entree_refusee(format!(
+                "config.yml : simulate.ser.diameter_classes vaut {classes} ; il en faut au moins 2"
+            )));
+        }
+        let pas = bloc.write_step.unwrap_or(0);
+        if pas == 0 {
+            return Err(Erreur::entree_refusee(
+                "config.yml : simulate.ser.write_step doit valoir au moins 1".to_string(),
+            ));
+        }
+        Ok(ReglagesSer {
+            largeur_classe_cm: largeur,
+            classes: classes as usize,
+            pas_ecriture: pas,
+        })
     }
 
     /// Code 2 si le CRS n'est pas EPSG:2154 (ADR 0001).
