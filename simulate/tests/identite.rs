@@ -43,6 +43,8 @@ fn empreintes(dossier: &Path) -> BTreeMap<String, String> {
                 let objet = run.as_object_mut().unwrap();
                 assert!(objet.remove("duration_s").is_some());
                 assert!(objet.remove("threads").is_some());
+                // Pic de mémoire résidente (VmHWM) : il dit le calcul, pas le résultat (M5a).
+                assert!(objet.remove("memory_peak_rss_bytes").is_some());
                 sorties::sha256_hex(serde_json::to_string(&run).unwrap().as_bytes())
             } else {
                 sorties::sha256_hex(&octets)

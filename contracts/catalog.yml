@@ -184,6 +184,13 @@ contracts:
     kind: parquet
     schema: tables/prepare/ifn_flora.schema.json
     paths: [ifn/flora.parquet]
+  # état initial du niveau SER (M5a, mission 060) : écrit par le générateur de SER fictive, puis par prepare
+  prepare.cohorts_init:
+    aliases: [cohorts_init]
+    kind: parquet
+    schema: tables/prepare/cohorts_init.schema.json
+    paths: [cohorts_init.parquet]
+    required: false
   prepare.stands:
     aliases: [stands]
     kind: parquet
@@ -223,6 +230,13 @@ contracts:
     kind: parquet
     schema: tables/params/dynamics_params.schema.json
     paths: [params/height_curve.parquet]
+  # paramètres de la régénération par cohortes : termes nommés, sans valeur (M5a, mission 060)
+  dynamics.regeneration:
+    aliases: [regeneration]
+    kind: parquet
+    schema: tables/params/regeneration.schema.json
+    paths: [params/regeneration.parquet]
+    required: false
   # valeurs indicatrices de la flore, lues par prepare pour `trophic` aux placettes (mission 024)
   params.indicator_values:
     aliases: [indicator_values]
@@ -271,6 +285,14 @@ contracts:
     schema: tables/sim/cells.schema.json
     options: {partition: year}
     paths: [sim/cells]
+  # adultes du niveau SER en classes de diamètre, aux années écrites (M5a, mission 060)
+  simulate.cohorts:
+    aliases: [sim_cohorts, cohorts]
+    kind: parquet
+    schema: tables/sim/cohorts.schema.json
+    options: {partition: year}
+    paths: [sim/cohorts]
+    required: false
   simulate.run:
     aliases: [run]
     kind: json

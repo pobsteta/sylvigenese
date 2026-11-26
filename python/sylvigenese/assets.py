@@ -53,6 +53,7 @@ INDEX_NOTES_SIM = [
     "modèles d'arbres génériques et provisoires (remplacés en M6) ; carte des types de végétation : état initial",
     "semis non simulés ; volume et carbone non calculés (post, après M4a)",
 ]
+SEMIS_IFN_DIRECT = "semis non simulés"   # début de la dernière note, vrai en ifn_direct seulement (mission 066)
 # Dernière note de l'index quand post a tourné (sim/summary.parquet présent, fiches v3, mission 054) : elle remplace
 # « volume et carbone non calculés », qui serait faux. Le nom du tarif est celui des fiches (cell_sheets.TARIF_NAME,
 # ou celui du jeu fictif).
@@ -60,13 +61,18 @@ INDEX_NOTE_POST = ("semis non simulés ; volume aérien total et carbone aérien
                    "tarif provisoire : {tarif} ; sol et bois mort non comptés")
 
 
-def index_notes_sim(docs: dict[str, dict]) -> list[str]:
+def index_notes_sim(docs: dict[str, dict], run: dict | None = None) -> list[str]:
     """Notes de tiles/index.json en mode sim : celles de INDEX_NOTES_SIM, la dernière dite selon les fiches écrites
-    (v2 : volume et carbone non calculés ; v3 : calculés par post, avec le tarif)."""
+    (v2 : volume et carbone non calculés ; v3 : calculés par post, avec le tarif) et selon le mode de recrutement de
+    sim/run.json. « semis non simulés » n'est dit qu'en ifn_direct (ou sans run.json) ; en mode cohorts, la note dit
+    les semis simulés (techniques, non validés) et ce que run.json déclare non simulé (cell_sheets.seedling_note)."""
     tarifs = sorted({d["tarif"]["name"] for d in docs.values() if d["schema_version"] == 3})
-    if not tarifs:
-        return list(INDEX_NOTES_SIM)
-    return INDEX_NOTES_SIM[:-1] + [INDEX_NOTE_POST.format(tarif=" ; ".join(tarifs))]
+    notes = list(INDEX_NOTES_SIM)
+    if tarifs:
+        notes = notes[:-1] + [INDEX_NOTE_POST.format(tarif=" ; ".join(tarifs))]
+    if run and run.get("recruitment") == "cohorts":
+        notes[-1] = notes[-1].replace(SEMIS_IFN_DIRECT, cell_sheets.seedling_note(run), 1)
+    return notes
 
 
 def sheet_version(docs: dict[str, dict]) -> str:
@@ -304,7 +310,7 @@ def write_sim_state(config: dict, zone: Path, out: Path) -> dict:
         entry["tiles"] = [{"tile": name, "instances": int(counts_year.get(name, 0))} for name in all_tiles]
     write_json(out / "tiles" / "index.json", {
         "schema_version": 1, "source": "sim", "t0": t0, "year_step": step, "run_config_sha256": run["config_sha256"],
-        "provisoire": True, "notes": index_notes_sim(docs),
+        "provisoire": True, "notes": index_notes_sim(docs, run),
         "basal_area_map": {"unit": "m2/ha", "scale_min_m2_ha": scale_min, "scale_max_m2_ha": scale_max,
                            "mention": "surface terrière par cellule (m2/ha), web/rasters/g_<année>.tif, échelle fixe sur "
                                       f"toutes les années simulées ({t0} à {t0 + horizon}) ; " + MENTION_SIM},

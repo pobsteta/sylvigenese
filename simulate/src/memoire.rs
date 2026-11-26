@@ -18,6 +18,11 @@
 //!   (T3 : 0,9), calcul en entiers, sans arrondi flottant.
 //! - [`erreur_allocation`] et [`reserver_f64`] : un `try_reserve_exact` qui échoue donne le
 //!   code 4 avec un message en français.
+//! - [`estimer_ser`] : l'estimation du **niveau SER** (mission 063, plan m5a, T7), une formule
+//!   fermée, voir sa documentation : une part fixe du programme **mesurée** ([`PART_FIXE_SER`]),
+//!   l'état qui dure toute l'exécution, et le plus grand des besoins passagers (le pas annuel,
+//!   l'écriture d'un fichier, la lecture des cohortes). Critère de M5a (spec §11, décision de
+//!   Pascal Q5) : à moins de 10 % de la mémoire résidente mesurée hors du moteur.
 //!
 //! Règle de lisibilité (CLAUDE.md) : fonctions libres et une structure concrète, sans macro
 //! maison ni générique.
@@ -144,4 +149,98 @@ pub fn reserver_f64(nombre: usize, quoi: &str) -> Result<Vec<f64>, Erreur> {
         .try_reserve_exact(nombre)
         .map_err(|_| erreur_allocation(nombre, quoi))?;
     Ok(vecteur)
+}
+
+// ------------------------------------------------------------------------------------------
+// Niveau SER (mission 063)
+
+/// Part fixe du programme au niveau SER, en octets : la mémoire résidente maximale (`VmHWM`) d'une
+/// exécution « à vide », mesurée et non devinée. Mesure du 26/11/2026 (mission 063) : SER fictive
+/// de 4 × 4 cellules (`tests/m5/ser_fictive.py --n 4 --graine 1`), 1 an, binaire de
+/// `cargo build --release --locked` (rustc 1.97, glibc 2.39, Linux x86_64, 4 cœurs) ; 18 exécutions
+/// à 1 et à 4 fils (6 à la main, puis deux passes de `bench/m5/mesurer.sh --a-vide`) : VmHWM de
+/// 9 844 à 10 436 kio ; la valeur retenue est la plus grande, 10 436 kio. Elle comprend le code du
+/// programme et ses bibliothèques, la lecture de config.yml et des paramètres, les plans de FFT et
+/// les fils de calcul ; ce qui grandit avec la SER est dans la formule de [`estimer_ser`]. C'est
+/// une constante technique, pas écologique ; à remesurer si le programme ou sa chaîne de
+/// compilation change (`bench/m5/mesurer.sh --a-vide`).
+pub const PART_FIXE_SER: u64 = 10_436 * 1024;
+
+/// Ce que l'estimation du niveau SER doit savoir (tout est connu avant la lecture des cohortes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BesoinSer {
+    /// Cellules de la grille, forêt ou non (largeur × hauteur de `grid.tif`).
+    pub cellules_grille: u64,
+    /// Cellules forestières.
+    pub cellules_foret: u64,
+    /// Essences du moteur (S).
+    pub especes: u64,
+    /// Classes de diamètre (K).
+    pub classes: u64,
+    /// Somme, sur les essences candidates, de leurs classes annuelles de semis (Σ A).
+    pub classes_semis: u64,
+    /// Essences candidates au recrutement.
+    pub candidates: u64,
+    /// Valeurs réelles du tableau de la FFT (colonnes × lignes, zone tampon et rembourrage compris).
+    pub valeurs_fft: u64,
+    /// Valeurs complexes d'un spectre (colonnes spectrales × lignes).
+    pub valeurs_spectre: u64,
+    /// Lignes au plus d'un fichier Parquet écrit.
+    pub lignes_par_fichier: u64,
+}
+
+/// Octets d'une ligne de `sim/cells` en construction : cell_id (8), six réels (8 × 6), l'en-tête
+/// de chaîne de l'essence dans la table Arrow (4 de décalage, 8 de texte au plus) et les masques
+/// des valeurs vides ; compté deux fois (colonnes Arrow et pages Parquet encodées avant écriture).
+pub const OCTETS_LIGNE_ECRITE: u64 = 2 * (8 + 6 * 8 + 4 + 8 + 1);
+
+/// Octets d'une ligne de `cohorts_init` en lecture (un lot) : cell_id et d_class (8 + 8, et leur
+/// copie en `Option<i64>`, 16 + 16), tiges (8 et 16), essence et source (24 + 24 d'en-tête, plus le
+/// texte, 8 et 80 au plus).
+pub const OCTETS_LIGNE_LUE: u64 = 8 + 8 + 16 + 16 + 8 + 16 + 24 + 24 + 8 + 80;
+
+/// L'estimation de mémoire du niveau SER, en octets : une formule fermée.
+///
+/// - **état durable** :
+///   - couches de la grille (`h0`, `chm_date`, `site_potential`, trois gradients en f32 ; `ser`
+///     en u32 ; validité de `grid.tif`, 1 octet ; index forestier, u32) : 33 octets par cellule ;
+///   - par cellule forestière : rang (u32), H_dom (f64), adultes 4 × S × K (f32), semis 8 × Σ A
+///     (f64) ;
+///   - les spectres des noyaux : 16 octets par valeur complexe et par essence candidate ;
+/// - **besoins passagers**, le plus grand des trois :
+///   - le **pas annuel** : H_dom de fin d'année et indice de couvert (2 × 8 par cellule
+///     forestière), recrues de l'année (8 par cellule forestière et essence candidate), semenciers
+///     (1 par cellule), champ des graines (8 par cellule) et, pendant la convolution, les lignes
+///     transformées (16 par valeur complexe), le tableau réel de sortie (8 par valeur de la FFT)
+///     et le champ reçu (8 par cellule) ;
+///   - l'**écriture** d'un fichier : [`OCTETS_LIGNE_ECRITE`] par ligne, pour au plus
+///     `lignes_par_fichier` lignes et jamais plus que de valeurs dans l'état (cellules forestières
+///     × S × K) ;
+///   - la **lecture** d'un lot de `cohorts_init` : [`OCTETS_LIGNE_LUE`] par ligne, même borne ;
+/// - la **part fixe** mesurée [`PART_FIXE_SER`].
+///
+/// Code 4 si le calcul dépasse 2^64 octets.
+pub fn estimer_ser(besoin: &BesoinSer) -> Result<u64, Erreur> {
+    let trop = || {
+        Erreur::memoire_insuffisante(format!(
+            "besoin de mémoire du niveau SER hors de portée (plus de 2^64 octets) pour {} cellules",
+            besoin.cellules_grille
+        ))
+    };
+    let c = u128::from(besoin.cellules_grille);
+    let f = u128::from(besoin.cellules_foret);
+    let durable = 33 * c
+        + f * (4 + 8 + 4 * u128::from(besoin.especes) * u128::from(besoin.classes) + 8 * u128::from(besoin.classes_semis))
+        + 16 * u128::from(besoin.valeurs_spectre) * u128::from(besoin.candidates);
+    let pas = f * (16 + 8 * u128::from(besoin.candidates))
+        + c * (1 + 8 + 8)
+        + 16 * u128::from(besoin.valeurs_spectre)
+        + 8 * u128::from(besoin.valeurs_fft);
+    // Lignes au plus d'un fichier écrit ou d'un lot lu : jamais plus que de valeurs dans l'état.
+    let lignes_etat = f * u128::from(besoin.especes) * u128::from(besoin.classes);
+    let ecriture = u128::from(besoin.lignes_par_fichier).min(lignes_etat) * u128::from(OCTETS_LIGNE_ECRITE);
+    let lecture = (crate::entrees::LIGNES_PAR_LOT_COHORTES as u128).min(lignes_etat) * u128::from(OCTETS_LIGNE_LUE);
+    let passager = pas.max(ecriture).max(lecture);
+    let total = u128::from(PART_FIXE_SER) + durable + passager;
+    u64::try_from(total).map_err(|_| trop())
 }

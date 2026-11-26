@@ -32,8 +32,8 @@ def test_sim_est_identique_au_bit_pres_entre_1_et_n_fils(chaine, run_fils):
 # ------------------------------------------------------------------ même graine, mêmes octets
 def test_rejouer_la_meme_config_donne_les_memes_octets(chaine, run_t1_bis):
     assert run_t1_bis["proc"].returncode == 0, queue(run_t1_bis["proc"])
-    ref = H.sim_digest(chaine["dir"], ignore_run_keys=("duration_s", "config_sha256"))
-    bis = H.sim_digest(run_t1_bis["dir"], ignore_run_keys=("duration_s", "config_sha256"))
+    ref = H.sim_digest(chaine["dir"], ignore_run_keys=("duration_s", "memory_peak_rss_bytes", "config_sha256"))
+    bis = H.sim_digest(run_t1_bis["dir"], ignore_run_keys=("duration_s", "memory_peak_rss_bytes", "config_sha256"))
     assert ref and any(f.endswith(".parquet") for f in ref), "sim/ de la chaîne vide : rien à comparer"
     assert ref == bis, [f for f in ref if ref.get(f) != bis.get(f)][:3]
 

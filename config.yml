@@ -25,6 +25,22 @@ simulate:
                           # l'orchestrateur du 25/11/2026) ; à fixer par zone réelle
   years: 100              # horizon (défaut du BRIEF §8)
 #  threads: 4
+  # Mode de recrutement (M5a, décision de Pascal Q4 du 26/11/2026, mission 060) : `ifn_direct` est le
+  # recrutement de M3a (référence tests/m3/reference/nominal.json) ; `cohorts` est la régénération par
+  # cohortes de semis, qui exige le bloc `regeneration` ci-dessous. Le moteur des cohortes existe
+  # (mission 062), mais le massif reste en `ifn_direct` : le jeu fictif (tests/fixtures/zone_fictive)
+  # n'a pas encore de params/regeneration.parquet, sans lequel `cohorts` s'arrête (code 2) ; la bascule
+  # attend ce fichier et sa référence technique, par décision de l'orchestrateur.
+  recruitment: ifn_direct
+  # Bloc exigé en mode `cohorts` (réglages numériques, non écologiques ; valeurs à fixer à la bascule) :
+  # regeneration:
+  #   kernel_truncation_cells: <demi-largeur du noyau tronqué, en cellules de 25 m ; = zone tampon>
+  #   zero_threshold: <seuil relatif de la règle |Q|, spec §6>
+  # Bloc exigé si `level: ser` (ADR 0006, projet) :
+  # ser:
+  #   diameter_class_width_cm: <largeur d'une classe de diamètre>
+  #   diameter_classes: <nombre de classes K, dernière ouverte>
+  #   write_step: <une année écrite sur N>
 
 # Bloc assets (mission 044, plan de la suite de M4a, T1) : dès que sim/ existe, assets écrit une
 # tuile et une fiche pour t0 puis toutes les `year_step` années ; sans ce bloc, il s'arrête (code 2).

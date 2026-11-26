@@ -478,7 +478,8 @@ def refus_atomique(temps):
 def charge(chaine, oracle):
     try:
         zdir, _ = H.clone_zone(T.CHARGE)
-        cfg = T.write_config(zdir, T.CHARGE, {"level": "massif", "seed": 42, "t0": 2022, "years": 1, "threads": 1},
+        cfg = T.write_config(zdir, T.CHARGE, {"level": "massif", "seed": 42, "t0": 2022, "years": 1, "threads": 1,
+                                         "recruitment": "ifn_direct"},
                              {"year_step": T.STEP}, "config_m4_charge.yml")
         info = T.build_charge_sim(zdir, cfg, sorted(oracle.forest_cells()))
         res = {"dir": zdir, "name": T.CHARGE, "config": cfg, **info}

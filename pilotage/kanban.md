@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 8 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 9 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -20,6 +20,15 @@ _Modèle de carte :_
 
 ## Bac à sable
 
+- M5b · référence technique `cohorts` et bascule de `config.yml` (Q4), `params/regeneration` du jeu fictif · depuis le cycle 8
+- M5b · refus de post pour un massif simulé en `cohorts` (tant que le tarif n'est pas validé sur ces trajectoires) · depuis le cycle 8
+- M5b · clé `external.*` pour Niinemets (non recopié) ; mise à jour de BRIEF §7.3 · depuis le cycle 8
+- M5b · questions de sens à préparer pour Pascal : coefficient d'extinction pris comme conversion vers l'échelle de Niinemets ; troncature du noyau à K cellules · depuis le cycle 8
+- M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
+- M5b · mentions Q2 et Q3 : aujourd'hui en signalements de t0 (sim/flags.parquet) ; à porter au rapport de simulation quand il existera · depuis le cycle 8
+- M5b · suites des questions n° 12 à 17 (journal du 26/11/2026) : limite de Gaudio dite au rapport de params/regeneration (n° 13) ; obtenir S1 de Lososová pour la dispersion (n° 17) ; contrôle de la dimension critique de Gaudio pour 52 (n° 14) ; clé external.* pour le Data Sheet et la thèse (n° 12) · depuis le cycle 9
+- Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
+
 ## Validé
 
 
@@ -27,11 +36,16 @@ _Modèle de carte :_
 
 - Reprises mineures de la relecture de post (facteurs du domaine lus et non écrits en dur, chemin local dans ifn-g-tiges.csv, docstring exclude_incomplete, rejeu du CSV prouvé) · depuis le cycle 8
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
-- M5a, puis M6a (vue Godot) · depuis le cycle 7
+- M6a (vue Godot) · depuis le cycle 9
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
 
 
 ## Terminé
+
+- [059](missions/059-referentiel-regeneration.md) à [066](missions/066-reprises-relecture-m5a.md) · depuis le cycle 9
+  - Homme : `acquereur`, `dev`, `testeur`, `analyste`, relus par `relecteur` (2 relectures)
+  - Mission : M5a rempli le 2026-11-26 au sens de Q5 (mesure à N = 1 000, 2 000 et 4 000, extrapolation à C20 : oui pour le temps, oui sous conditions pour la mémoire) ; semis par cohortes aux deux niveaux, dispersion par FFT, niveau SER (ADR 0006 acceptée), stress_mortality en paramètre sourcé
+  - Moyens : PR pobsteta/sylvigenese#11
 
 - [050](missions/050-constantes-tarif-nemeton.md) à [058](missions/058-quantiles-ifn.md) · depuis le cycle 8
   - Homme : `acquereur` ×2, `dev` ×6, `testeur` ×2, `afficheur`, relus par `relecteur` (2 relectures)
@@ -123,3 +137,4 @@ l'inscrit avec ce qu'elle nous apprend._
 - cycle 6 · livraison : jalon M3a (moteur simulate en Rust : 100 ans sur le massif fictif, identité au bit près de 1 à 7 fils, contrôles et codes de sortie, non-régression sur entrées figées) · pour Pascal · la chaîne va désormais jusqu'à un futur simulé ; mauvaise nouvelle apprise en même temps : la trajectoire fictive n'est pas une forêt (G 91 → 353 m²/ha), et GDAL change ses résultats selon sa version (mission 042)
 - cycle 7 · livraison : suite de M4a, la vue iTowns fait défiler les années simulées (curseur, fiche d'évolution avec la hauteur dominante face au plafond, carte de surface terrière à échelle fixe) · pour Pascal · on voit pour la première fois le futur simulé, cellule par cellule ; mauvaise nouvelle : sans carte graphique, la dernière année (402 437 arbres) ne se relève pas, le rendu réel se jugera sur le portable de Pascal (M4 b)
 - cycle 8 · livraison : post calcule le volume aérien total et le carbone aérien de chaque cellule et de chaque année avec le tarif NEMETON v5, et la vue les montre, « volume partiel » compris · pour Pascal · le futur simulé se lit en m³ et en tC, sans extrapolation ; mauvaise nouvelle : avec le tarif réel, 78 % de la surface terrière du jeu fictif est hors domaine à t0, et les quantiles IFN confirment que le jeu fictif est trop dense (91 m²/ha contre une médiane de 23,6)
+- cycle 9 · livraison : M5a, les semis s'installent et recolonisent les trouées par cohortes (mode cohorts, aux deux niveaux), et la SER entière se simule en espérance ; mesure et extrapolation à C20 · pour Pascal · on sait que la SER C20 tient en temps sur son PC (marge 3 à 7) et en mémoire sous quatre conditions ; mauvaise nouvelle : ces quatre conditions (essences, classes de semis, emprise, forêt seule) sont inconnues du dépôt, et le disque demande 178 à 466 Go

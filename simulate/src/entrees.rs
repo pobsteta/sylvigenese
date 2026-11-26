@@ -14,9 +14,21 @@
 //!    `dynamics_params`) et `allometry` (contrat `parameters`, modèles `hcb` et `cw`), plus
 //!    `contracts/species.csv` ; chaque essence de `trees_init` doit y avoir ses paramètres
 //!    (essence, puis groupe, puis `toutes_essences`) ;
-//! 5. `trees_init/*.parquet` : chaque arbre est affecté à sa cellule
+//! 5. en mode `cohorts` (M5a, mission 062) : `params/regeneration.parquet` (contrat
+//!    `dynamics.regeneration`), lu ligne par ligne ; les termes de chaque essence sont cherchés
+//!    plus tard, quand les essences candidates sont connues ([`crate::semis::parametres_de`]) ;
+//!    en mode `ifn_direct`, ce fichier n'est pas lu (il peut manquer) ;
+//! 6. `trees_init/*.parquet` : chaque arbre est affecté à sa cellule
 //!    (`ligne = floor((y_max − y) / 25)`, `colonne = floor((x − x_min) / 25)`) ; un arbre hors
-//!    grille arrête tout.
+//!    grille arrête tout ;
+//! 7. au **niveau SER** (mission 063, ADR 0006), pas de `trees_init` : le bloc `simulate.ser` de
+//!    config.yml, `forest_mask.tif` (les cellules forestières, [`crate::ser::IndexForet`]) et
+//!    `cohorts_init.parquet` (contrat `prepare.cohorts_init`), lu en deux passes en flux, par lots :
+//!    au chargement, ses seules essences ([`essences_des_cohortes`] : chacune doit être dans
+//!    `contracts/species.csv` et avoir ses paramètres) ; après l'estimation de mémoire, ses densités
+//!    ([`lire_cohortes`]), contrôlées ligne par ligne : `cell_id` dans la grille et forestier,
+//!    `d_class` de 0 à K − 1, tiges finies et positives, aucun doublon (cellule, essence, classe),
+//!    source non vide.
 //!
 //! Aucune valeur par défaut : tout manque, toute incohérence est une erreur de code 2 dont le
 //! message, en français, nomme le fichier et la cause. Les valeurs « sans donnée » d'une
@@ -30,16 +42,22 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-use arrow_array::{Array, BooleanArray, Float64Array, LargeStringArray, RecordBatch, StringArray};
-use arrow_schema::DataType;
+use arrow_array::{
+    Array, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, LargeStringArray, RecordBatch,
+    StringArray,
+};
+use arrow_schema::{DataType, Schema};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::ProjectionMask;
 
-use crate::config::{self, ReglagesSimulate};
+use crate::config::{self, ModeRecrutement, NiveauSimulation, ReglagesSimulate};
 use crate::erreurs::Erreur;
 use crate::etat::{ArbreNouveau, EtatArbres};
 use crate::geotiff::{self, Raster};
 use crate::grille::Grille;
 use crate::parametres::{lire_parquet, LigneParametre, Parametres, Referentiel};
+use crate::semis::{LigneRegeneration, TERMES};
+use crate::ser::{EntreesSer, IndexForet};
 
 /// Les colonnes de `trees_init` (contrat `prepare/trees_init`), dans l'ordre du contrat.
 pub const COLONNES_ARBRES: [&str; 9] = [
@@ -109,7 +127,16 @@ fn verifier_colonnes(
     nom: &str,
     contrat: &str,
 ) -> Result<(), Erreur> {
-    let schema = lot.schema();
+    verifier_colonnes_schema(&lot.schema(), attendues, nom, contrat)
+}
+
+/// Comme [`verifier_colonnes`], sur le schéma d'un fichier.
+fn verifier_colonnes_schema(
+    schema: &Schema,
+    attendues: &[&str],
+    nom: &str,
+    contrat: &str,
+) -> Result<(), Erreur> {
     for champ in schema.fields() {
         if !attendues.contains(&champ.name().as_str()) {
             return Err(Erreur::entree_refusee(format!(
@@ -354,6 +381,81 @@ pub fn lire_allometrie(chemin: &Path) -> Result<Vec<LigneParametre>, Erreur> {
     Ok(lignes)
 }
 
+/// Les colonnes de `params/regeneration.parquet` (contrat `dynamics.regeneration`).
+pub const COLONNES_REGENERATION: [&str; 7] = [
+    "species",
+    "species_group",
+    "term",
+    "value",
+    "unit",
+    "provisoire",
+    "source",
+];
+
+/// Lit `params/regeneration.parquet` (contrat `dynamics.regeneration`, mission 060).
+///
+/// Code 2 : fichier absent ou illisible, colonne absente ou en trop, type inattendu, valeur
+/// obligatoire vide, terme hors de la liste fermée du contrat, ni essence ni groupe, groupe
+/// inconnu, valeur non finie.
+pub fn lire_regeneration(chemin: &Path) -> Result<Vec<LigneRegeneration>, Erreur> {
+    let nom = chemin.display().to_string();
+    if !chemin.is_file() {
+        return Err(Erreur::entree_refusee(format!(
+            "{nom} absent : le mode cohorts (simulate.recruitment) exige les paramètres de régénération \
+             (contrat dynamics.regeneration) ; aucune valeur par défaut"
+        )));
+    }
+    let mut lignes: Vec<LigneRegeneration> = Vec::new();
+    for lot in ouvrir_lots(chemin)? {
+        verifier_colonnes(&lot, &COLONNES_REGENERATION, &nom, "dynamics.regeneration")?;
+        let species = colonne_texte(&lot, "species", &nom)?;
+        let groupe = colonne_texte(&lot, "species_group", &nom)?;
+        let term = colonne_texte(&lot, "term", &nom)?;
+        let value = colonne_reel(&lot, "value", &nom)?;
+        let unit = colonne_texte(&lot, "unit", &nom)?;
+        let provisoire = colonne_booleen(&lot, "provisoire", &nom)?;
+        let source = colonne_texte(&lot, "source", &nom)?;
+        for i in 0..lot.num_rows() {
+            let terme = term[i].clone().filter(|t| !t.is_empty()).ok_or_else(|| vide("term", &nom, i))?;
+            if !TERMES.iter().any(|(t, _)| *t == terme) {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : terme « {terme} » hors de la liste fermée du contrat dynamics.regeneration"
+                )));
+            }
+            let essence = species[i].clone().filter(|s| !s.is_empty());
+            let groupe_ligne = groupe[i].clone().filter(|g| !g.is_empty());
+            if essence.is_none() && groupe_ligne.is_none() {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : terme « {terme} » sans essence (species) ni groupe (species_group)"
+                )));
+            }
+            if let Some(g) = &groupe_ligne {
+                if g != "feuillu" && g != "resineux" && g != crate::parametres::TOUTES_ESSENCES {
+                    return Err(Erreur::entree_refusee(format!(
+                        "{nom} : terme « {terme} » : groupe « {g} » ni feuillu, ni resineux, ni toutes_essences"
+                    )));
+                }
+            }
+            let valeur = value[i].ok_or_else(|| vide("value", &nom, i))?;
+            if !valeur.is_finite() {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : terme « {terme} » : valeur non finie ({valeur})"
+                )));
+            }
+            lignes.push(LigneRegeneration {
+                species: essence,
+                species_group: groupe_ligne,
+                term: terme,
+                value: valeur,
+                unit: unit[i].clone().filter(|u| !u.is_empty()).ok_or_else(|| vide("unit", &nom, i))?,
+                provisoire: provisoire[i].ok_or_else(|| vide("provisoire", &nom, i))?,
+                source: source[i].clone().filter(|s| !s.is_empty()).ok_or_else(|| vide("source", &nom, i))?,
+            });
+        }
+    }
+    Ok(lignes)
+}
+
 /// Tous les jeux de paramètres lus.
 #[derive(Debug, Clone, PartialEq)]
 pub struct JeuxDeParametres {
@@ -428,6 +530,229 @@ pub fn verifier_parametres_des_essences(
         }
     }
     Ok(())
+}
+
+// ------------------------------------------------------------------------------------------
+// cohorts_init (niveau SER)
+
+/// Les colonnes de `cohorts_init.parquet` (contrat `prepare.cohorts_init`).
+pub const COLONNES_COHORTES: [&str; 5] = ["cell_id", "species", "d_class", "stems_ha", "source"];
+
+/// Lignes par lot de lecture de `cohorts_init` (réglage de calcul : la mémoire de lecture reste
+/// bornée quelle que soit la taille de la SER).
+pub const LIGNES_PAR_LOT_COHORTES: usize = 16_384;
+
+/// Valeur de départ d'une densité avant la lecture de `cohorts_init` : « aucune ligne lue ». Elle
+/// sert à reconnaître un doublon ; une classe restée sans ligne vaut 0 après la lecture.
+pub const ABSENTE: f32 = -1.0;
+
+fn lecteur_cohortes(
+    chemin: &Path,
+    colonnes: &[&str],
+) -> Result<parquet::arrow::arrow_reader::ParquetRecordBatchReader, Erreur> {
+    let nom = chemin.display().to_string();
+    let fichier = File::open(chemin).map_err(|e| {
+        Erreur::entree_refusee(format!(
+            "{nom} : lecture impossible ({e}) ; le niveau SER part des cohortes initiales (contrat prepare.cohorts_init)"
+        ))
+    })?;
+    let constructeur = ParquetRecordBatchReaderBuilder::try_new(fichier)
+        .map_err(|e| Erreur::entree_refusee(format!("{nom} : Parquet illisible ({e})")))?;
+    verifier_colonnes_schema(constructeur.schema(), &COLONNES_COHORTES, &nom, "prepare.cohorts_init")?;
+    let mut rangs: Vec<usize> = Vec::new();
+    for colonne in colonnes {
+        match constructeur.schema().index_of(colonne) {
+            Ok(rang) => rangs.push(rang),
+            Err(_) => {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : colonne « {colonne} » absente (contrat prepare.cohorts_init)"
+                )))
+            }
+        }
+    }
+    let masque = ProjectionMask::roots(constructeur.parquet_schema(), rangs);
+    constructeur
+        .with_projection(masque)
+        .with_batch_size(LIGNES_PAR_LOT_COHORTES)
+        .build()
+        .map_err(|e| Erreur::entree_refusee(format!("{nom} : Parquet illisible ({e})")))
+}
+
+fn colonne_entiere(lot: &RecordBatch, colonne: &str, nom: &str) -> Result<Vec<Option<i64>>, Erreur> {
+    let rang = lot
+        .schema()
+        .index_of(colonne)
+        .map_err(|_| Erreur::entree_refusee(format!("{nom} : colonne « {colonne} » absente")))?;
+    let tableau = lot.column(rang);
+    let mut valeurs: Vec<Option<i64>> = Vec::with_capacity(tableau.len());
+    if let Some(entiers) = tableau.as_any().downcast_ref::<Int64Array>() {
+        for i in 0..entiers.len() {
+            valeurs.push(if entiers.is_null(i) { None } else { Some(entiers.value(i)) });
+        }
+    } else if let Some(entiers) = tableau.as_any().downcast_ref::<Int32Array>() {
+        for i in 0..entiers.len() {
+            valeurs.push(if entiers.is_null(i) { None } else { Some(i64::from(entiers.value(i))) });
+        }
+    } else {
+        return Err(type_refuse(colonne, nom, "entier (Int64 ou Int32)", tableau.data_type()));
+    }
+    Ok(valeurs)
+}
+
+fn colonne_nombre(lot: &RecordBatch, colonne: &str, nom: &str) -> Result<Vec<Option<f64>>, Erreur> {
+    let rang = lot
+        .schema()
+        .index_of(colonne)
+        .map_err(|_| Erreur::entree_refusee(format!("{nom} : colonne « {colonne} » absente")))?;
+    let tableau = lot.column(rang);
+    if let Some(reels) = tableau.as_any().downcast_ref::<Float32Array>() {
+        let mut valeurs: Vec<Option<f64>> = Vec::with_capacity(reels.len());
+        for i in 0..reels.len() {
+            valeurs.push(if reels.is_null(i) { None } else { Some(f64::from(reels.value(i))) });
+        }
+        return Ok(valeurs);
+    }
+    colonne_reel(lot, colonne, nom)
+}
+
+/// Première passe sur `cohorts_init.parquet` : ses essences distinctes, triées. Code 2 si le
+/// fichier est absent ou hors contrat (colonnes), si une essence est vide, hors motif ou absente
+/// de `contracts/species.csv`.
+pub fn essences_des_cohortes(chemin: &Path, referentiel: &Referentiel) -> Result<Vec<String>, Erreur> {
+    let nom = chemin.display().to_string();
+    if !chemin.is_file() {
+        return Err(Erreur::entree_refusee(format!(
+            "{nom} absent : le niveau SER part des cohortes initiales (contrat prepare.cohorts_init, écrit par \
+             prepare ou par le générateur de SER fictive) ; aucune valeur par défaut"
+        )));
+    }
+    let mut essences: Vec<String> = Vec::new();
+    for lot in lecteur_cohortes(chemin, &["species"])? {
+        let lot = lot.map_err(|e| Erreur::entree_refusee(format!("{nom} : Parquet illisible ({e})")))?;
+        let especes = colonne_texte(&lot, "species", &nom)?;
+        for (i, espece) in especes.iter().enumerate() {
+            let code = match espece {
+                Some(code) if !code.is_empty() => code,
+                _ => return Err(vide("species", &nom, i)),
+            };
+            if essences.last() != Some(code) && !essences.contains(code) {
+                essences.push(code.clone());
+            }
+        }
+    }
+    essences.sort();
+    for code in &essences {
+        crate::alea::packer_essence(code).map_err(|e| {
+            Erreur::entree_refusee(format!("{nom} : essence « {code} » refusée : {}", e.message))
+        })?;
+        if referentiel.groupe(code).is_none() {
+            return Err(Erreur::entree_refusee(format!(
+                "{nom} : essence « {code} » absente de contracts/species.csv (hors référentiel) : ni groupe ni \
+                 paramètres"
+            )));
+        }
+    }
+    Ok(essences)
+}
+
+/// Seconde passe sur `cohorts_init.parquet` : range chaque densité dans `tiges` (rangé
+/// `(rang forestier × S + essence) × K + classe`, S = `essences.len()`, préparé à [`ABSENTE`]),
+/// puis met à 0 les classes sans ligne. Rend le nombre de lignes lues.
+///
+/// Code 2 : colonne hors contrat, valeur vide, `cell_id` négatif ou hors de la grille, cellule
+/// non forestière, essence hors des essences du moteur, `d_class` hors de 0 à K − 1, tiges non
+/// finies ou négatives, source vide, doublon (cellule, essence, classe).
+pub fn lire_cohortes(
+    chemin: &Path,
+    grille: &Grille,
+    foret: &IndexForet,
+    essences: &[String],
+    classes: usize,
+    tiges: &mut [f32],
+) -> Result<u64, Erreur> {
+    let nom = chemin.display().to_string();
+    let n = grille.nombre_cellules() as i64;
+    let s = essences.len();
+    if tiges.len() != foret.nombre() * s * classes {
+        return Err(Erreur::interne(format!(
+            "{nom} : état de {} valeurs pour {} cellules forestières, {s} essences et {classes} classes",
+            tiges.len(),
+            foret.nombre()
+        )));
+    }
+    let mut lignes: u64 = 0;
+    for lot in lecteur_cohortes(chemin, &COLONNES_COHORTES)? {
+        let lot = lot.map_err(|e| Erreur::entree_refusee(format!("{nom} : Parquet illisible ({e})")))?;
+        let cell_id = colonne_entiere(&lot, "cell_id", &nom)?;
+        let especes = colonne_texte(&lot, "species", &nom)?;
+        let d_class = colonne_entiere(&lot, "d_class", &nom)?;
+        let stems = colonne_nombre(&lot, "stems_ha", &nom)?;
+        let source = colonne_texte(&lot, "source", &nom)?;
+        for i in 0..lot.num_rows() {
+            let ligne = lignes + i as u64 + 1;
+            let cellule = cell_id[i].ok_or_else(|| vide("cell_id", &nom, i))?;
+            if cellule < 0 || cellule >= n {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom}, ligne {ligne} : cell_id {cellule} hors de la grille ({n} cellules, rangs 0 à {})",
+                    n - 1
+                )));
+            }
+            let rang = match foret.rang(cellule as usize) {
+                Some(rang) => rang,
+                None => {
+                    return Err(Erreur::entree_refusee(format!(
+                        "{nom}, ligne {ligne} : cell_id {cellule} hors forêt (forest_mask.tif ou grid.tif) : \
+                         seules les cellules forestières ont des cohortes"
+                    )))
+                }
+            };
+            let code = match &especes[i] {
+                Some(code) if !code.is_empty() => code,
+                _ => return Err(vide("species", &nom, i)),
+            };
+            let espece = match essences.binary_search(code) {
+                Ok(espece) => espece,
+                Err(_) => {
+                    return Err(Erreur::entree_refusee(format!(
+                        "{nom}, ligne {ligne} : essence « {code} » hors des essences préparées"
+                    )))
+                }
+            };
+            let classe = d_class[i].ok_or_else(|| vide("d_class", &nom, i))?;
+            if classe < 0 || classe >= classes as i64 {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom}, ligne {ligne} : d_class {classe} hors des classes 0 à {} (simulate.ser.diameter_classes = {classes})",
+                    classes - 1
+                )));
+            }
+            let valeur = stems[i].ok_or_else(|| vide("stems_ha", &nom, i))?;
+            if !valeur.is_finite() || valeur < 0.0 {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom}, ligne {ligne} : stems_ha = {valeur} (cellule {cellule}, essence {code}, classe {classe}) ; \
+                     des tiges négatives ou non finies sont refusées"
+                )));
+            }
+            match &source[i] {
+                Some(texte) if !texte.is_empty() => {}
+                _ => return Err(vide("source", &nom, i)),
+            }
+            let place = (rang * s + espece) * classes + classe as usize;
+            if tiges[place] != ABSENTE {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom}, ligne {ligne} : (cellule {cellule}, essence {code}, classe {classe}) en doublon \
+                     (clé primaire du contrat prepare.cohorts_init)"
+                )));
+            }
+            tiges[place] = valeur as f32;
+        }
+        lignes += lot.num_rows() as u64;
+    }
+    for valeur in tiges.iter_mut() {
+        if *valeur == ABSENTE {
+            *valeur = 0.0;
+        }
+    }
+    Ok(lignes)
 }
 
 // ------------------------------------------------------------------------------------------
@@ -647,6 +972,13 @@ pub struct Entrees {
     pub parametres: JeuxDeParametres,
     /// L'état initial : arbres triés par `tree_id`, numérotés, chacun dans sa cellule.
     pub arbres: EtatArbres,
+    /// Le mode de recrutement (`simulate.recruitment`, M5a).
+    pub recrutement: ModeRecrutement,
+    /// Les lignes de `params/regeneration.parquet` (mode `cohorts` ; vide en `ifn_direct`).
+    pub regeneration: Vec<LigneRegeneration>,
+    /// Niveau SER : réglages, cellules forestières et essences de `cohorts_init` (`None` au massif,
+    /// où `arbres` porte l'état ; au niveau SER, `arbres` est vide).
+    pub ser: Option<EntreesSer>,
 }
 
 impl Entrees {
@@ -666,6 +998,7 @@ impl Entrees {
         let config = config::lire(chemin_config).map_err(Erreur::entree_refusee)?;
         config.verifier_crs()?;
         let reglages = config.reglages_simulate()?;
+        let recrutement = config.recrutement()?;
 
         let raster_grille = geotiff::lire(&dossier_zone.join("grid.tif"))?;
         let grille = Grille::depuis_raster(
@@ -688,11 +1021,37 @@ impl Entrees {
 
         let referentiel = Referentiel::lire(chemin_especes)?;
         let parametres = lire_parametres(&dossier_zone.join("params"))?;
+        let regeneration = match recrutement {
+            ModeRecrutement::IfnDirect => Vec::new(),
+            ModeRecrutement::Cohortes(_) => {
+                lire_regeneration(&dossier_zone.join("params").join("regeneration.parquet"))?
+            }
+        };
 
-        let brutes = lire_arbres(&dossier_zone.join("trees_init"))?;
-        verifier_parametres_des_essences(&essences_des_arbres(&brutes), &parametres, &referentiel)?;
-        let affectes = affecter_aux_cellules(&grille, brutes)?;
-        let arbres = EtatArbres::depuis_initiaux(affectes)?;
+        let (arbres, ser) = match reglages.niveau {
+            NiveauSimulation::Massif => {
+                let brutes = lire_arbres(&dossier_zone.join("trees_init"))?;
+                verifier_parametres_des_essences(&essences_des_arbres(&brutes), &parametres, &referentiel)?;
+                let affectes = affecter_aux_cellules(&grille, brutes)?;
+                (EtatArbres::depuis_initiaux(affectes)?, None)
+            }
+            NiveauSimulation::Ser => {
+                let reglages_ser = config.reglages_ser()?;
+                let masque = lire_raster("forest_mask.tif")?;
+                let foret = IndexForet::depuis_masque(&grille, &masque)?;
+                drop(masque);
+                let chemin_cohortes = dossier_zone.join("cohorts_init.parquet");
+                let essences = essences_des_cohortes(&chemin_cohortes, &referentiel)?;
+                verifier_parametres_des_essences(&essences, &parametres, &referentiel)?;
+                let donnees = EntreesSer {
+                    reglages: reglages_ser,
+                    foret,
+                    chemin_cohortes,
+                    essences,
+                };
+                (EtatArbres::vide(), Some(donnees))
+            }
+        };
 
         Ok(Entrees {
             reglages,
@@ -701,6 +1060,9 @@ impl Entrees {
             referentiel,
             parametres,
             arbres,
+            recrutement,
+            regeneration,
+            ser,
         })
     }
 }

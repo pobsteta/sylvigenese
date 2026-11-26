@@ -1,0 +1,32 @@
+{
+ "massif_cohorts": {
+  "cells/year=2022/part-00000.parquet": "fa3c2e16d9522f15ed432e76c953e053375bddead9cc83dc6e844eee217a7fe3",
+  "cells/year=2023/part-00000.parquet": "e7beb91460807b92dadd5b9ffa2c338d267e96c32bbebf271b29f04e1a053fba",
+  "cells/year=2024/part-00000.parquet": "bd6a293bc474b8bb457afc367f6583a12f8d987d7a720b4be9243fdccd500429",
+  "cells/year=2025/part-00000.parquet": "9a2d9bdfa076bd31e1cfb33ea92bbb135768ad1a649aeacd0d161bbacc4f9f14",
+  "cells/year=2026/part-00000.parquet": "123bac566c925c87fd3693f993d7f77fde9d3d52cb808162fa20f4631eb91069",
+  "cells/year=2027/part-00000.parquet": "d31e1aa881250ff06994141fa2a99fd5282a82ca193f04087f3d3ae45cf3e6a6",
+  "cells/year=2028/part-00000.parquet": "469b60ea565b8b25f48de52fddc04254050f800187002a0144fec9f0e73b3c77",
+  "cells/year=2029/part-00000.parquet": "140c2bb2c4d533e40ab0e14e21e0cd86147e1fd492dd1edb63529c7d5c516d33",
+  "cells/year=2030/part-00000.parquet": "f9523fd99e6c0d64fd7723dfe918e15a12c2f7d7561d22d910ccf8031727fce6",
+  "trees/year=2022/part-00000.parquet": "030f655076c398442d3f0e8532740e76fd547568464fc5b13a1417b987d11e62",
+  "trees/year=2023/part-00000.parquet": "0105a92335dc250eee7ed4c9504cca1b9749c808dbed7c1e77d3c63f51a59ff4",
+  "trees/year=2024/part-00000.parquet": "05b63fbf7e436fc439e49fca06ca85029e6049c79e6747f266f652e5055d2d52",
+  "trees/year=2025/part-00000.parquet": "810afcef999b030e05d9ad07efcf4e555889b2c7f81daebbfdab08d3ad2450f2",
+  "trees/year=2026/part-00000.parquet": "e90c9abbab24ddff39e25a3fd9accef471ff6940638297462954fc94a5a2521a",
+  "trees/year=2027/part-00000.parquet": "bb695e5136c45dcd522834f597f0596facccfcfeaae5c922d494ddd86eeacc55",
+  "trees/year=2028/part-00000.parquet": "d2cd38a5147b5ee77e58e550115066dda67374e62cc3d9030c5e0d15eabdfb73",
+  "trees/year=2029/part-00000.parquet": "4cac9befe7ac0dd6682b167864250d997dc9581912bf99407d51cdd98ce0e1a3",
+  "trees/year=2030/part-00000.parquet": "60ccaf7d4511b1aeef4e71187a6b58fb7d120d141a556dcd6ef7de86e33f9bdc"
+ },
+ "ser_nominale": {
+  "cells/year=2022/part-00000.parquet": "4daba04afd50fd263b8d4a383ff678211f906f0fabf21c905cd8583486c8ef36",
+  "cells/year=2024/part-00000.parquet": "4e6a067fa64cf7989d809404c96594a13fd9c6b8a239b009fdf7baab6bdc341b",
+  "cells/year=2026/part-00000.parquet": "e60b537f1d6e7ef6ff8a7b5b25400cd362aed373a98410a2838c980313bc9993",
+  "cells/year=2027/part-00000.parquet": "29e0d5dfdf8e2ab2ca2416f7854d3f8bc4a9b427c3e1d0f05b571d2d14e6e7bd",
+  "cohorts/year=2022/part-00000.parquet": "0ac7fb8b3fb1c68e73424f9a6a0f48a3a1f60b08cf9111aa4ae60ff9bfe94355",
+  "cohorts/year=2024/part-00000.parquet": "738ddf90b948e84d4628c74389e216dd41cd4ea87674d286b9efdb7e9b0d8cd5",
+  "cohorts/year=2026/part-00000.parquet": "19dd41d7845fff3e9c7fa7bb4bbf1279eca2d6db7e9ede6320ca97304996dbba",
+  "cohorts/year=2027/part-00000.parquet": "c1b4257a01e4eb64ae912702b050eb2cb4f794704411b59f70ab46dc3be6ad21"
+ }
+}

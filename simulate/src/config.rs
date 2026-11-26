@@ -1,6 +1,13 @@
 //! Lecture de `config.yml` (spec §1, §2, §6 ; ADR 0001).
 //!
-//! Étape du BRIEF codée ici : aucune étape métier (squelette) ; BRIEF §13 (config.yml rejouable).
+//! Étape du BRIEF codée ici : aucune étape métier (squelette) ; BRIEF §13 (config.yml rejouable) ;
+//! BRIEF §7 pour le mode de recrutement (M5a, mission 062) : `simulate.recruitment` vaut
+//! `ifn_direct` (recrutement de M3a) ou `cohorts` (régénération par cohortes de semis, avec le bloc
+//! `simulate.regeneration` de ses réglages numériques). Sans `recruitment`, `simulate` s'arrête
+//! (code 2, décision de l'orchestrateur du 26/11/2026) : aucune valeur par défaut.
+//!
+//! Au niveau SER (M5a, mission 063, ADR 0006), le bloc `simulate.ser` donne la largeur et le
+//! nombre des classes de diamètre et le pas des années écrites ; sans lui, code 2.
 //!
 //! Ne contrôle pas les clés : c'est le rôle du validateur
 //! (`contracts/json/config.schema.json`). Seules les clés lues par `simulate` sont déclarées.
@@ -33,6 +40,66 @@ pub struct Reglages {
     pub t0: Option<i32>,
     pub years: Option<u32>,
     pub threads: Option<u32>,
+    /// `ifn_direct` ou `cohorts` (M5a) ; facultatif dans le schéma, exigé par `simulate`.
+    pub recruitment: Option<String>,
+    /// Réglages numériques de la régénération par cohortes (exigés en mode `cohorts`).
+    pub regeneration: Option<BlocRegeneration>,
+    /// Réglages du niveau SER (exigés si `level: ser`, ADR 0006).
+    pub ser: Option<BlocSer>,
+}
+
+/// Le bloc `simulate.ser` de config.yml (réglages numériques du niveau SER, ADR 0006).
+#[derive(Debug, Deserialize)]
+pub struct BlocSer {
+    pub diameter_class_width_cm: Option<f64>,
+    pub diameter_classes: Option<u32>,
+    pub write_step: Option<u32>,
+}
+
+/// Les réglages du niveau SER, tous présents (ADR 0006, choix 1 et 9).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReglagesSer {
+    /// Largeur w d'une classe de diamètre, en cm (strictement positive).
+    pub largeur_classe_cm: f64,
+    /// Nombre K de classes, la dernière ouverte (au moins 2).
+    pub classes: usize,
+    /// Une année écrite sur `pas_ecriture` (au moins 1), plus t0 et la dernière.
+    pub pas_ecriture: u32,
+}
+
+/// Le bloc `simulate.regeneration` de config.yml (réglages numériques, non écologiques).
+#[derive(Debug, Deserialize)]
+pub struct BlocRegeneration {
+    pub kernel_truncation_cells: Option<u32>,
+    pub zero_threshold: Option<f64>,
+}
+
+/// Le mode de recrutement (décision de Pascal Q4 du 26/11/2026).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ModeRecrutement {
+    /// Recrutement de M3a : flux du modèle IFN tiré par arrondi aléatoire, sans semis.
+    IfnDirect,
+    /// Régénération par cohortes de semis, avec ses réglages numériques.
+    Cohortes(ReglagesRegeneration),
+}
+
+/// Les réglages numériques du mode `cohorts`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReglagesRegeneration {
+    /// Demi-largeur K du noyau tronqué, en cellules ; largeur de la zone tampon.
+    pub demi_largeur_noyau: usize,
+    /// Seuil relatif de la règle |Q| (strictement entre 0 et 1).
+    pub seuil_zero: f64,
+}
+
+impl ModeRecrutement {
+    /// Le nom écrit dans `run.json` (`recruitment`).
+    pub fn nom(&self) -> &'static str {
+        match self {
+            ModeRecrutement::IfnDirect => "ifn_direct",
+            ModeRecrutement::Cohortes(_) => "cohorts",
+        }
+    }
 }
 
 /// Lit et décode `config.yml`. Message d'erreur en français.
@@ -130,6 +197,132 @@ impl Config {
             t0: bloc.t0.unwrap_or(0),
             years,
             threads: bloc.threads,
+        })
+    }
+
+    /// Le mode de recrutement (`simulate.recruitment`), sans valeur par défaut.
+    ///
+    /// Code 2 si le bloc `simulate` ou la clé `recruitment` est absente, si elle n'est ni
+    /// `ifn_direct` ni `cohorts`, ou, en mode `cohorts`, si le bloc `regeneration` ou l'une de ses
+    /// clés manque, si `kernel_truncation_cells` vaut 0 ou si `zero_threshold` n'est pas
+    /// strictement entre 0 et 1.
+    pub fn recrutement(&self) -> Result<ModeRecrutement, Erreur> {
+        let bloc = match &self.simulate {
+            Some(bloc) => bloc,
+            None => {
+                return Err(Erreur::entree_refusee(
+                    "config.yml : le bloc « simulate » est absent ; simulate.recruitment est exigé".to_string(),
+                ))
+            }
+        };
+        match bloc.recruitment.as_deref() {
+            None => Err(Erreur::entree_refusee(
+                "config.yml : simulate.recruitment est absent ; il doit valoir ifn_direct (recrutement de M3a) \
+                 ou cohorts (cohortes de semis) : aucune valeur par défaut (décision du 26/11/2026)"
+                    .to_string(),
+            )),
+            Some("ifn_direct") => Ok(ModeRecrutement::IfnDirect),
+            Some("cohorts") => {
+                let reglages = match &bloc.regeneration {
+                    Some(reglages) => reglages,
+                    None => {
+                        return Err(Erreur::entree_refusee(
+                            "config.yml : simulate.recruitment vaut cohorts mais le bloc simulate.regeneration est \
+                             absent (kernel_truncation_cells et zero_threshold exigés)"
+                                .to_string(),
+                        ))
+                    }
+                };
+                let mut absentes: Vec<&str> = Vec::new();
+                if reglages.kernel_truncation_cells.is_none() {
+                    absentes.push("kernel_truncation_cells");
+                }
+                if reglages.zero_threshold.is_none() {
+                    absentes.push("zero_threshold");
+                }
+                if !absentes.is_empty() {
+                    return Err(Erreur::entree_refusee(format!(
+                        "config.yml : bloc simulate.regeneration incomplet ; clés absentes : {}",
+                        absentes.join(", ")
+                    )));
+                }
+                let k = reglages.kernel_truncation_cells.unwrap_or(0);
+                if k == 0 {
+                    return Err(Erreur::entree_refusee(
+                        "config.yml : simulate.regeneration.kernel_truncation_cells doit valoir au moins 1".to_string(),
+                    ));
+                }
+                let seuil = reglages.zero_threshold.unwrap_or(f64::NAN);
+                if !(seuil > 0.0 && seuil < 1.0) {
+                    return Err(Erreur::entree_refusee(format!(
+                        "config.yml : simulate.regeneration.zero_threshold vaut {seuil} ; attendu strictement entre 0 et 1"
+                    )));
+                }
+                Ok(ModeRecrutement::Cohortes(ReglagesRegeneration {
+                    demi_largeur_noyau: k as usize,
+                    seuil_zero: seuil,
+                }))
+            }
+            Some(autre) => Err(Erreur::entree_refusee(format!(
+                "config.yml : simulate.recruitment vaut « {autre} », inconnu ; attendu ifn_direct ou cohorts"
+            ))),
+        }
+    }
+
+    /// Les réglages du niveau SER (`simulate.ser`), sans valeur par défaut.
+    ///
+    /// Code 2 si le bloc `simulate` ou le bloc `ser` est absent, si l'une de ses clés manque, si
+    /// `diameter_class_width_cm` n'est pas fini et strictement positif, si `diameter_classes` vaut
+    /// moins de 2 ou si `write_step` vaut 0.
+    pub fn reglages_ser(&self) -> Result<ReglagesSer, Erreur> {
+        let bloc = match self.simulate.as_ref().and_then(|s| s.ser.as_ref()) {
+            Some(bloc) => bloc,
+            None => {
+                return Err(Erreur::entree_refusee(
+                    "config.yml : simulate.level vaut ser mais le bloc simulate.ser est absent \
+                     (diameter_class_width_cm, diameter_classes et write_step exigés ; aucune valeur par défaut)"
+                        .to_string(),
+                ))
+            }
+        };
+        let mut absentes: Vec<&str> = Vec::new();
+        if bloc.diameter_class_width_cm.is_none() {
+            absentes.push("diameter_class_width_cm");
+        }
+        if bloc.diameter_classes.is_none() {
+            absentes.push("diameter_classes");
+        }
+        if bloc.write_step.is_none() {
+            absentes.push("write_step");
+        }
+        if !absentes.is_empty() {
+            return Err(Erreur::entree_refusee(format!(
+                "config.yml : bloc simulate.ser incomplet ; clés absentes : {}",
+                absentes.join(", ")
+            )));
+        }
+        let largeur = bloc.diameter_class_width_cm.unwrap_or(f64::NAN);
+        if !(largeur.is_finite() && largeur > 0.0) {
+            return Err(Erreur::entree_refusee(format!(
+                "config.yml : simulate.ser.diameter_class_width_cm vaut {largeur} ; attendu fini et strictement positif"
+            )));
+        }
+        let classes = bloc.diameter_classes.unwrap_or(0);
+        if classes < 2 {
+            return Err(Erreur::entree_refusee(format!(
+                "config.yml : simulate.ser.diameter_classes vaut {classes} ; il en faut au moins 2"
+            )));
+        }
+        let pas = bloc.write_step.unwrap_or(0);
+        if pas == 0 {
+            return Err(Erreur::entree_refusee(
+                "config.yml : simulate.ser.write_step doit valoir au moins 1".to_string(),
+            ));
+        }
+        Ok(ReglagesSer {
+            largeur_classe_cm: largeur,
+            classes: classes as usize,
+            pas_ecriture: pas,
         })
     }
 

@@ -27,3 +27,6 @@ rayon = "=1.12.0"
 # run.json (mission 038) et SHA-256 des sorties (preuve d'identité entre nombres de fils).
 serde_json = "=1.0.154"
 sha2 = "=0.11.1"
+# Dispersion des graines par FFT réelle (mission 062, plan m5a T2) : MIT OR Apache-2.0.
+rustfft = "=6.4.1"
+realfft = "=3.5.1"

@@ -37,7 +37,11 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
 - **post** (volume et carbone) : livré. Volume aérien total et carbone aérien par cellule et par
   année (tarif NEMETON v5, provisoire), montrés dans la fiche de la vue ; « volume partiel » quand des
   arbres sortent du domaine du tarif, sans extrapolation.
-- Suivant : **M5a**, puis **M6a** (vue Godot). M3b attend les données réelles.
+- **M5a** (semis et niveau SER) : rempli sur la mesure. Les semis s'installent, se dispersent et
+  recolonisent les trouées par cohortes (mode `cohorts`, technique, non validé écologiquement) ;
+  la SER entière se simule en espérance. Extrapolé à C20 : le temps tient, la mémoire sous
+  conditions ([`bench/results/M5.md`](bench/results/M5.md)).
+- Suivant : **M6a** (vue Godot). M3b et M5b attendent les données réelles.
 - En attente de Pascal (données réelles) : M1b, M2b.
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).

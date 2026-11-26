@@ -43,6 +43,52 @@
     "edge_disks": {"description": "nombre de couples (arbre, année) dont le disque de concurrence de 15 m déborde de la grille ; le bord est compté tel quel, sans correction", "type": "integer", "minimum": 0},
     "mixed_cells": {"description": "nombre de couples (cellule, année) à plusieurs essences, dont la courbe de hauteur est celle de l'essence de plus forte surface terrière (T5)", "type": "integer", "minimum": 0},
     "recruits": {"description": "nombre total de recrues ajoutées (arrondi aléatoire, Q4)", "type": "integer", "minimum": 0},
-    "deaths": {"description": "nombre total d'arbres morts (écrits une fois, l'année de leur mort)", "type": "integer", "minimum": 0}
-  }
+    "deaths": {"description": "nombre total d'arbres morts (écrits une fois, l'année de leur mort)", "type": "integer", "minimum": 0},
+    "recruitment": {"description": "mode de recrutement de l'exécution (copie de simulate.recruitment de config.yml, M5a, mission 060). Sa présence marque un run.json de M5a : elle rend exigés not_simulated, memory_estimate_max_bytes et memory_peak_rss_bytes ; un run.json de M3a, sans cette clé, reste conforme.", "enum": ["ifn_direct", "cohorts"]},
+    "not_simulated": {"description": "ce que l'exécution ne simule pas, dit à la lecture (rapport, fiche ; décision de Pascal Q3 du 26/11/2026). En mode `cohorts` : au moins gibier, sous_bois et fructification, et jamais semis. En mode `ifn_direct` : au moins semis. Une mention absente est une erreur : rien n'est tu.", "type": "array", "uniqueItems": true, "items": {"enum": ["semis", "sous_bois", "gibier", "fructification"]}},
+    "memory_estimate_max_bytes": {"description": "la plus grande estimation de mémoire faite avant les pas, en octets (au niveau SER, une année écrite peut peser plus que t0) ; comparée à memory_peak_rss_bytes (critère de M5a : moins de 10 %)", "type": "integer", "minimum": 0},
+    "memory_peak_rss_bytes": {"description": "pic de mémoire résidente de l'exécution (VmHWM de /proc/self/status), en octets ; null hors de Linux, où il n'est pas lu : jamais deviné", "type": ["integer", "null"], "minimum": 0},
+    "seedling_stock_limited": {"description": "mode cohorts : nombre de couples (cellule, essence, année) où le stock de semis à la hauteur de passage a borné le flux de recrues du modèle IFN (décision de Pascal Q1, option a) ; le manque est compté, jamais comblé", "type": "integer", "minimum": 0},
+    "gaps_recolonised": {"description": "mode cohorts : nombre de cellules sans H_dom (trouée) qui ont reçu des semis d'au moins une essence et ont fini par recruter au moins une fois ; compte sur toute la simulation", "type": "integer", "minimum": 0},
+    "buffer_cells": {"description": "mode cohorts : nombre de cellules de la zone tampon de dispersion (source de graines seulement, aucun semis simulé, spec §7), sur la grille de l'exécution", "type": "integer", "minimum": 0}
+  },
+  "allOf": [
+    {
+      "description": "un run.json de M5a (recruitment présent) porte la mémoire et les mentions",
+      "if": {"required": ["recruitment"]},
+      "then": {"required": ["not_simulated", "memory_estimate_max_bytes", "memory_peak_rss_bytes"]}
+    },
+    {
+      "description": "mode cohorts : comptes de la régénération exigés ; gibier, sous-bois et fructification dits non simulés ; les semis le sont",
+      "if": {"required": ["recruitment"], "properties": {"recruitment": {"const": "cohorts"}}},
+      "then": {
+        "required": ["seedling_stock_limited", "gaps_recolonised", "buffer_cells"],
+        "properties": {
+          "not_simulated": {
+            "allOf": [
+              {"contains": {"const": "gibier"}},
+              {"contains": {"const": "sous_bois"}},
+              {"contains": {"const": "fructification"}},
+              {"not": {"contains": {"const": "semis"}}}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "description": "mode ifn_direct : pas de semis, donc aucun compte de régénération, et les semis sont dits non simulés",
+      "if": {"required": ["recruitment"], "properties": {"recruitment": {"const": "ifn_direct"}}},
+      "then": {
+        "properties": {
+          "seedling_stock_limited": false, "gaps_recolonised": false, "buffer_cells": false,
+          "not_simulated": {"contains": {"const": "semis"}}
+        }
+      }
+    },
+    {
+      "description": "les comptes de la régénération n'existent qu'avec recruitment",
+      "if": {"anyOf": [{"required": ["seedling_stock_limited"]}, {"required": ["gaps_recolonised"]}, {"required": ["buffer_cells"]}]},
+      "then": {"required": ["recruitment"]}
+    }
+  ]
 }
