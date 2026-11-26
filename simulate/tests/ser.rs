@@ -549,3 +549,25 @@ fn un_nan_injecte_au_niveau_ser_est_un_controle_echoue() {
     assert!(erreur.message.contains("NaN"), "{}", erreur.message);
     let _ = std::fs::remove_dir_all(&dossier);
 }
+
+#[test]
+fn au_niveau_ser_une_cellule_ombragee_n_est_pas_bornee_la_premiere_annee() {
+    // Reprise de 062 : le stock initial « en régime » est l'état stationnaire à la survie de la
+    // cellule, ombre du couvert de t0 comprise. Avec un coefficient d'extinction d'essai très fort,
+    // l'ombre de toute cellule qui a des adultes dépasse la tolérance (3) : survie 0,9 − 0,184.
+    let dossier = dossier_neuf("ser-ombre-premiere-annee");
+    std::fs::create_dir_all(&dossier).unwrap();
+    let mut entrees = zone_ser(1, 1, &dossier);
+    for ligne in entrees.regeneration.iter_mut() {
+        if ligne.term == "light_extinction_coef" {
+            ligne.value = 1000.0;
+        }
+    }
+    let sim = dossier.join("sim");
+    let bilan = simulate::sorties::simuler_et_ecrire(&entrees, &lancement(1), &sim).unwrap();
+    let run: serde_json::Value = serde_json::from_slice(&std::fs::read(sim.join("run.json")).unwrap()).unwrap();
+    assert_eq!(run["seedling_stock_limited"], 0, "le stock initial borne le flux dès la première année à l'ombre");
+    assert_eq!(bilan.comptes.stock_de_semis_limitant, 0);
+    assert!(run["recruits"].as_u64().unwrap() > 0, "le test ne discriminerait rien sans recrue");
+    let _ = std::fs::remove_dir_all(&dossier);
+}

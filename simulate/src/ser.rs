@@ -871,7 +871,8 @@ fn signalement_hors_de_portee(annee: i32, cellule: usize, k: usize) -> Signaleme
 
 /// L'état à t0 : adultes de `cohorts_init` (déjà lus dans `tiges`), H_dom de `h0` avancée de la
 /// date de vol à t0 dans les cellules qui ont des adultes (les autres gardent `h0`), semis « en
-/// régime » (Q2 : flux IFN de t0 × temps de passage, sous couvert ; rien en trouée), et les
+/// régime » (Q2 : état stationnaire du flux IFN de t0 à la survie de la cellule, ombre du couvert
+/// de t0 comprise, [`semis::en_regime_avec_survie`] ; sous couvert ; rien en trouée), et les
 /// signalements de t0 (dont les trouées hors de portée de tout semencier).
 pub fn initialiser_t0(moteur: &Moteur, tiges: Vec<f32>, t0: i32) -> Result<(EtatSer, Comptes, Vec<Signalement>), Erreur> {
     let nf = moteur.foret.nombre();
@@ -886,18 +887,23 @@ pub fn initialiser_t0(moteur: &Moteur, tiges: Vec<f32>, t0: i32) -> Result<(Etat
     for rang in 0..nf {
         h_dom.push(f64::from(couches.h0[moteur.foret.cellule_de_rang[rang] as usize]));
     }
+    // Indice de couvert de t0, celui que lira le premier pas (même état, même calcul) : il donne la
+    // survie des semis du stock initial « en régime » (reprise de 062).
+    let mut couvert_t0 = memoire::reserver_f64(nf, "indice de couvert de t0")?;
+    couvert_t0.resize(nf, 0.0);
     let mut bilan = BilanBloc::default();
     let resultats: Vec<Result<BilanBloc, Erreur>> = tiges
         .par_chunks(CELLULES_PAR_BLOC * sk)
         .zip(h_dom.par_chunks_mut(CELLULES_PAR_BLOC))
+        .zip(couvert_t0.par_chunks_mut(CELLULES_PAR_BLOC))
         .enumerate()
-        .map(|(numero, (tiges_bloc, h_bloc))| {
+        .map(|(numero, ((tiges_bloc, h_bloc), couvert_bloc))| {
             let mut bloc = BilanBloc::default();
             let mut ba = vec![0.0_f64; s];
             for (i, h) in h_bloc.iter_mut().enumerate() {
                 let rang = numero * CELLULES_PAR_BLOC + i;
                 let cellule = moteur.foret.cellule_de_rang[rang] as usize;
-                let (h_fin, _) = etape_cellule(
+                let (h_fin, couvert) = etape_cellule(
                     moteur,
                     &tiges_bloc[i * sk..(i + 1) * sk],
                     *h,
@@ -908,13 +914,15 @@ pub fn initialiser_t0(moteur: &Moteur, tiges: Vec<f32>, t0: i32) -> Result<(Etat
                     &mut bloc,
                 )?;
                 *h = h_fin;
+                couvert_bloc[i] = couvert;
             }
             Ok(bloc)
         })
         .collect();
     reunir(resultats, &mut bilan)?;
 
-    // Semis en régime (Q2).
+    // Semis en régime (Q2) : état stationnaire à la survie de la cellule (ombre du couvert de t0).
+    let couvert_t0_ref = &couvert_t0;
     let mut classes_semis = Vec::with_capacity(moteur.modeles.candidates.len());
     let mut densites_semis = Vec::with_capacity(moteur.modeles.candidates.len());
     for (rang_candidat, essence) in moteur.modeles.candidates.iter().enumerate() {
@@ -945,7 +953,8 @@ pub fn initialiser_t0(moteur: &Moteur, tiges: Vec<f32>, t0: i32) -> Result<(Etat
                         t0,
                         &mut bloc.comptes.sorties_domaine,
                     )?;
-                    semis::en_regime(p, flux, classes_cellule);
+                    let survie = semis::survie(p, semis::ombre(p.coef_extinction, couvert_t0_ref[rang]));
+                    semis::en_regime_avec_survie(p, flux, survie, classes_cellule);
                 }
                 Ok(bloc)
             })
