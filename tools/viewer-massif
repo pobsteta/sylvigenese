@@ -32,4 +32,6 @@ while [ "$#" -gt 0 ]; do
   fi
 done
 
+# Les chemins de zone sont déjà absolus : on se place à la racine du dépôt, où est config.yml.
+cd "$racine"
 exec "$godot" --path "$racine/viewer-massif" -- "${args[@]}"

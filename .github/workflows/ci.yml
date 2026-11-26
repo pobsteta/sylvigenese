@@ -796,13 +796,19 @@ jobs:
           "$GODOT" --headless --path viewer-massif --export-release "Linux" "$RUNNER_TEMP/export/viewer-massif.x86_64"
           test -s "$RUNNER_TEMP/export/viewer-massif.x86_64"
           chmod +x "$RUNNER_TEMP/export/viewer-massif.x86_64"
+          # Le binaire exporté cherche config.yml (bloc viewer) dans la zone, dans le dossier courant, puis À CÔTÉ DE
+          # LUI (viewer_config.gd:candidates) ; « res://../config.yml » n'existe que dans l'éditeur. Copie voulue,
+          # pas un repli : même fichier que la racine du dépôt.
+          cp config.yml "$RUNNER_TEMP/export/config.yml"
           echo "VIEWER_BIN=$RUNNER_TEMP/export/viewer-massif.x86_64" >> "$GITHUB_ENV"
           ls -l "$RUNNER_TEMP/export"
 
       # Le binaire exporté, sur la zone d'essai versionnée, avec les arguments de la fiche web (--zone --x --y --year).
       - name: Exécuter --selftest sur le binaire exporté
+        working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
+          pwd; ls config.yml
           "$VIEWER_BIN" --headless -- --selftest --zone "$PWD/viewer-massif/tests/fixtures/zone_m6" --x 700250 --y 6500250 --year 2022 2>&1 | tee "$RUNNER_TEMP/selftest.log"
           grep '^SELFTEST ' "$RUNNER_TEMP/selftest.log" | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
 
