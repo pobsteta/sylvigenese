@@ -1,0 +1,5 @@
+date,commit,n,threads,annees_ecrites,volume_sim_octets,volume_entrees_octets,note
+2026-11-26,04ea094,1000,1,2,,41620376,volume de sim/ non relevé (remplacé par l'exécution à 4 fils avant le relevé) ; entrées du générateur relevées
+2026-11-26,04ea094,1000,4,2,324960412,41620376,du -sb de data/ser_fictive_1000/sim (t0 2022 et 2032)
+2026-11-26,04ea094,2000,1,2,1299816312,165789692,du -sb de data/ser_fictive_2000/sim (t0 2022 et 2032)
+2026-11-26,04ea094,2000,4,2,1299816313,165789692,du -sb de data/ser_fictive_2000/sim (t0 2022 et 2032) ; un octet de plus que T = 1 (run.json)

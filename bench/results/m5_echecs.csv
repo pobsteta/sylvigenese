@@ -1,0 +1,3 @@
+date,commit,n,threads,etape,code,cause,memoire_ou_disque
+2026-11-26,04ea094,4000,1,génération (tests/m5/ser_fictive.py),1,"pyarrow.lib.ArrowInvalid: Take operation overflowed binary array capacity (ligne 209, colonne source castée en pa.string() : 4000² × 8 lignes × 66 octets = 8,4 Go > 2^31 octets)",non (8,2 Go libres sur le disque ; simulate non lancé)
+2026-11-26,04ea094,4000,4,non lancé,,taille arrêtée après l'échec de la génération à 1 fil (consigne : ne pas forcer),non
