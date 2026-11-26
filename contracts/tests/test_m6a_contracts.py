@@ -422,7 +422,7 @@ def test_trees_init_index_refuses_a_recruitment_mode(tmp_path, capsys):
 def exemplar(tmp, name="Fagus_sylvatica_mature.parquet", metadata=None, columns=None):
     meta = {"frame": "z-up", "units": "m", "essence": "Fagus_sylvatica", "stage": "mature",
             "D_cm": "40.0", "H_m": "28.0", "hbh_m": "12.6", "Rh_m": "5.6", "b_cible": "1.8",
-            "seed": "1", "source_commit": "4ee122c", "synthetic": "true"}
+            "seed": "1", "source_commit": "4ee122c", "synthetic": "true", "calage": "calé"}
     meta.update(metadata or {})
     meta = {k: v for k, v in meta.items() if v is not None}
     # tige verticale (z), une branche vers l'est (x) : cas asymétrique, x != y
@@ -457,6 +457,7 @@ def test_exemplar_with_optional_column_conform(tmp_path, capsys):
     ({"b_cible": "nan"}, r"b_cible"),
     ({"seed": "1.5"}, r"seed"),
     ({"synthetic": "false"}, r"synthetic"),
+    ({"calage": None}, r"métadonnée Parquet obligatoire absente.*calage"),     # jamais déduit de b_cible
 ])
 def test_exemplar_metadata_faults(tmp_path, capsys, metadata, pattern):
     refused(capsys, "exemplars", exemplar(tmp_path, metadata=metadata), pattern)
