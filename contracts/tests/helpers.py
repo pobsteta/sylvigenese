@@ -285,6 +285,7 @@ def post_run_json():
             "out_of_domain": {"09": {"dbh_below": 800, "dbh_above": 0, "h_below": 0,
                                      "h_above": 0, "hd_below": 0, "hd_above": 300}},
             "without_tarif": {"02": 100},
+            "without_vegetation_type": {"cells": [1423], "tree_years": 7},
             "provisional_share": 1.0, "duration_s": 42.5}
 
 

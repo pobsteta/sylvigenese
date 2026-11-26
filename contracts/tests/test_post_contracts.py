@@ -280,6 +280,31 @@ def test_post_run_with_no_tree_out_of_the_domain_is_conform(capsys, tmp_path):
     assert code == 0, out
 
 
+def test_post_run_without_untyped_cell_is_conform(capsys, tmp_path):
+    """Mission 053 : sans cellule hors type de végétation, le compte s'écrit quand même (liste vide, 0)."""
+    code, out = post_check(capsys, tmp_path,
+                           lambda d: d.update(without_vegetation_type={"cells": [], "tree_years": 0}))
+    assert code == 0, out
+
+
+def test_untyped_cells_rule_is_written_in_summary_zone_and_post_run():
+    """Mission 053 : une cellule sans type de végétation n'entre pas dans summary_zone (aucun type inventé)."""
+    zone = json.loads((CONTRACTS / "tables/sim/summary_zone.schema.json").read_text("utf-8"))["description"]
+    post = json.loads((CONTRACTS / "json/post.schema.json").read_text("utf-8"))
+    assert "SANS TYPE DE VÉGÉTATION" in zone and "without_vegetation_type" in zone
+    assert "without_vegetation_type" in post["required"]
+
+
+def test_tarif_description_names_the_terms_of_each_form():
+    """Mission 053 : les termes de chaque forme sont écrits (NEMETON v5 et forme synthétique du jeu fictif)."""
+    d = json.loads((CONTRACTS / "tables/params/tarif.schema.json").read_text("utf-8"))["description"]
+    for term in ("sigma_log", "facteur_biais_sigma2", "k0", "k1", "beta", "lam", "x0", "sx", "h_ref", "n_points",
+                 "marge_sommet", "u_min", "D_plafond", "synth_p1", "synth_p2", "synth_E", "rho_moyenne",
+                 "rho_pente_10cm", "pas_D", "facteur_arbre_entier", "fraction", "ratio", "dbh_min", "hd_max"):
+        assert re.search(rf"\b{term}\b", d), term
+    assert "synth_p1 + synth_p2 / 2" in d
+
+
 def test_post_run_is_found_by_its_catalog_path():
     spec = catalog.get("post.run")
     assert spec["paths"] == ["sim/post.json"] and spec["kind"] == "json"
@@ -327,6 +352,17 @@ POST_FAULTS = [
     ("without_tarif zero", lambda d: d["without_tarif"].update({"02": 0}), r"02"),
     ("without_tarif species written 2", lambda d: d["without_tarif"].update({"2": 5}),
      r"nom de clé|2"),
+    ("without_vegetation_type missing", drop("without_vegetation_type"), r"without_vegetation_type"),
+    ("without_vegetation_type cell negative",
+     lambda d: d["without_vegetation_type"].update(cells=[-1]), r"cells|-1"),
+    ("without_vegetation_type cell repeated",
+     lambda d: d["without_vegetation_type"].update(cells=[1423, 1423]), r"cells|1423"),
+    ("without_vegetation_type count missing",
+     lambda d: d["without_vegetation_type"].pop("tree_years"), r"tree_years"),
+    ("without_vegetation_type count negative",
+     lambda d: d["without_vegetation_type"].update(tree_years=-1), r"tree_years"),
+    ("without_vegetation_type unknown key",
+     lambda d: d["without_vegetation_type"].update(vegetation_type="inventé"), r"vegetation_type"),
     ("provisional_share above one", lambda d: d.update(provisional_share=1.5),
      r"provisional_share"),
     ("provisional_share missing", drop("provisional_share"), r"provisional_share"),

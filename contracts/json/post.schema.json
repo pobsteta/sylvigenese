@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sylvigenese:post_run",
   "title": "sim/post.json (post)",
-  "description": "Compte rendu d'une exécution de post (mission 051 ; plan post-volume-carbone §4) : de quoi retrouver, sans relire le code, quel tarif et quelles entrées ont donné sim/summary.parquet et sim/summary_zone.parquet. Il porte la PROVENANCE : empreinte de config.yml copiée de sim/run.json (post refuse, code 2, si elle diffère de celle de config.yml), commit de tarif-nemeton et source de chaque modèle du tarif, empreintes SHA-256 des entrées lues. Il porte les COMPTES de ce que post n'a pas calculé (décision Q5 du 26/11/2026 : pas d'extrapolation, pas d'emprunt) : un compte nul s'écrit 0, un compte absent est une erreur. Les comptes sont en arbres-années : un couple (arbre, année) vivant, ou mort dans l'année, compté une fois. Un arbre hors domaine est rangé dans la PREMIÈRE raison qui s'applique, dans l'ordre dbh_below, dbh_above, h_below, h_above, hd_below, hd_above : la somme des raisons d'une essence est donc son nombre d'arbres-années hors domaine. Il alimente rapport_post.html. Valeurs techniques, non validées écologiquement.",
+  "description": "Compte rendu d'une exécution de post (mission 051 ; plan post-volume-carbone §4) : de quoi retrouver, sans relire le code, quel tarif et quelles entrées ont donné sim/summary.parquet et sim/summary_zone.parquet. Il porte la PROVENANCE : empreinte de config.yml copiée de sim/run.json (post refuse, code 2, si elle diffère de celle de config.yml), commit de tarif-nemeton et source de chaque modèle du tarif, empreintes SHA-256 des entrées lues. Il porte les COMPTES de ce que post n'a pas calculé (décision Q5 du 26/11/2026 : pas d'extrapolation, pas d'emprunt) : un compte nul s'écrit 0, un compte absent est une erreur. Les comptes sont en arbres-années : un couple (arbre, année) vivant, ou mort dans l'année, compté une fois. Un arbre hors domaine est rangé dans la PREMIÈRE raison qui s'applique, dans l'ordre dbh_below, dbh_above, h_below, h_above, hd_below, hd_above : la somme des raisons d'une essence est donc son nombre d'arbres-années hors domaine. CELLULES SANS TYPE DE VÉGÉTATION (ajout de la mission 053, décision de l'orchestrateur du 26/11/2026) : une cellule qui porte des arbres mais n'a pas de type de végétation dans vegetation_map.tif (sur le jeu fictif, des recrues en cellule 1423) est dans sim/summary.parquet, mais pas dans sim/summary_zone.parquet, où aucun type n'est inventé pour elle ; without_vegetation_type la compte (cellules et arbres-années), et rapport_post.html la liste avec ses totaux par année. Il alimente rapport_post.html. Valeurs techniques, non validées écologiquement.",
   "x-schema-version": "0.1",
   "type": "object",
   "required": [
@@ -15,6 +15,7 @@
     "tree_years_not_computed",
     "out_of_domain",
     "without_tarif",
+    "without_vegetation_type",
     "provisional_share",
     "duration_s"
   ],
@@ -171,6 +172,31 @@
       "additionalProperties": {
         "type": "integer",
         "minimum": 1
+      }
+    },
+    "without_vegetation_type": {
+      "description": "cellules qui portent au moins un arbre-année mais n'ont pas de type de végétation (vegetation_map.tif) : absentes de sim/summary_zone.parquet (aucun type inventé), présentes dans sim/summary.parquet ; aucune cellule : cells vide et tree_years 0",
+      "type": "object",
+      "required": [
+        "cells",
+        "tree_years"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "description": "cell_id de ces cellules, croissants, sans doublon",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "tree_years": {
+          "description": "arbres-années (vivants, ou morts dans l'année) de ces cellules",
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "provisional_share": {

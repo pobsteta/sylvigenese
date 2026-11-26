@@ -6,6 +6,7 @@ dépôt n'est pas lu. Le validateur appelé est le vrai (`contracts/validate`, c
 le jeu fictif versionné n'est jamais écrasé.
 """
 
+import math
 import shutil
 import subprocess
 import sys
@@ -337,3 +338,171 @@ def test_bornes_en_double_ou_nombre_illisible_refuses(tmp_path):
     f.write_text(BORNES_HEADER + BORNES_ROWS[0].replace("1.2673", "abc") + "\n", encoding="utf-8")
     with pytest.raises(ModuleError, match="pas un nombre"):
         import_tarif.read_crown_bounds_table(f)
+
+
+# ------------------------------------------------------------------ tarif NEMETON v5 : params/tarif.parquet (mission 053)
+# Un parametres_tarif_v5.csv réduit, de la forme de celui de la mission 050 (colonnes, modèles, termes, renvois), avec
+# des valeurs D'ESSAI : aucune n'est celle de tarif-nemeton. Le commit est lu dans un faux .git.
+TARIF_HEADER = "essence_ou_groupe,modele,terme,valeur,unite,source_code,source_biblio,note\n"
+TARIF_ROWS = [
+    "Fagus_sylvatica,volume_feuillu,a,,sans unité,resultats/tarif_v5/coefficients_feuillus_v5.csv:2#a,essai,renvoi",
+    "Fagus_sylvatica,volume_feuillu,b_logD,,sans unité,resultats/tarif_v5/coefficients_feuillus_v5.csv:2#b_logD,essai,",
+    "Fagus_sylvatica,volume_feuillu,c_logH,,sans unité,resultats/tarif_v5/coefficients_feuillus_v5.csv:2#c_logH,essai,",
+    "Fagus_sylvatica,volume_feuillu,sigma_log,,ln(m3),resultats/tarif_v5/coefficients_feuillus_v5.csv:2#sigma_log,essai,",
+    "Quercus_spec,volume_feuillu,a,,sans unité,resultats/tarif_v5/coefficients_feuillus_v5.csv:3#a,essai,",
+    "Quercus_spec,volume_feuillu,b_logD,,sans unité,resultats/tarif_v5/coefficients_feuillus_v5.csv:3#b_logD,essai,",
+    "Quercus_spec,volume_feuillu,c_logH,,sans unité,resultats/tarif_v5/coefficients_feuillus_v5.csv:3#c_logH,essai,",
+    "Quercus_spec,volume_feuillu,sigma_log,,ln(m3),resultats/tarif_v5/coefficients_feuillus_v5.csv:3#sigma_log,essai,",
+    "feuillu,volume_feuillu,D_ref,30,cm,code/x.py:1,non citée,",
+    "feuillu,volume_feuillu,H_ref,25,m,code/x.py:1,non citée,",
+    "feuillu,volume_feuillu,facteur_biais_sigma2,0.5,sans unité,code/x.py:2,non citée,",
+    *[f"Abies_alba,profil_tige_resineux,{t},{v},{u},code/x.py:3,essai,"
+      for t, v, u in (("k0", 0.7, "sans unité"), ("k1", 1.5, "sans unité"), ("beta", 0.08, "sans unité"),
+                      ("lam", 2.0, "m"), ("a", 0.2, "sans unité"), ("x0", 0.9, "sans unité (hauteur relative)"),
+                      ("sx", 0.1, "sans unité (hauteur relative)"))],
+    "conifere,profil_tige_resineux,h_ref,1.3,m,code/x.py:4,non citée,",
+    "conifere,profil_tige_resineux,D_ref,30,cm,code/x.py:4,non citée,",
+    "conifere,integration_tige_resineux,n_points,400,points,code/x.py:5,non citée,",
+    "conifere,integration_tige_resineux,marge_sommet,0.001,m,code/x.py:5,non citée,",
+    "conifere,integration_tige_resineux,u_min,1e-09,sans unité,code/x.py:5,non citée,",
+    "Abies_alba,expansion_resineux,a,0.05,sans unité,code/x.py:6,essai,",
+    "Abies_alba,expansion_resineux,b,-0.2,sans unité,code/x.py:6,essai,",
+    "Abies_alba,expansion_resineux,D_plafond,20.0,cm,code/x.py:6,essai,",
+    "conifere,expansion_resineux,D_ref,30,cm,code/x.py:7,non citée,",
+    "Fagus_sylvatica,infradensite,rho_moyenne,600,kg/m3,code/x.py:8,essai,",
+    "Fagus_sylvatica,infradensite,rho_pente_10cm,-4.0,kg/m3 par 10 cm,code/x.py:8,essai,",
+    "Quercus_spec,infradensite,rho_moyenne,590,kg/m3,code/x.py:8,essai,",
+    "Quercus_spec,infradensite,rho_pente_10cm,-8.0,kg/m3 par 10 cm,code/x.py:8,essai,",
+    "Abies_alba,infradensite,rho_moyenne,410,kg/m3,code/x.py:8,essai,",
+    "Abies_alba,infradensite,rho_pente_10cm,-1.0,kg/m3 par 10 cm,code/x.py:8,essai,",
+    "tous,infradensite,D_ref,30,cm,code/x.py:9,non citée,",
+    "tous,infradensite,pas_D,10,cm,code/x.py:9,non citée,",
+    "Fagus_sylvatica,facteur_arbre_entier,facteur,0.92,sans unité,code/x.py:10,essai,",
+    "Quercus_spec,facteur_arbre_entier,facteur,0.94,sans unité,code/x.py:10,essai,",
+    "Abies_alba,facteur_arbre_entier,facteur,1.0,sans unité,code/x.py:10,essai,",
+    "feuillu,carbone,fraction_carbone,0.49,t C / t matière sèche,code/x.py:11,Thomas & Martin 2012,",
+    "conifere,carbone,fraction_carbone,0.51,t C / t matière sèche,code/x.py:11,Thomas & Martin 2012,",
+    "Fagus_sylvatica,domaine_feuillu,D_min_calage,8,cm,code/x.csv:2,non citée,",
+    "Fagus_sylvatica,domaine_feuillu,D_max_calage,70,cm,code/x.csv:2,non citée,",
+    "Fagus_sylvatica,domaine_feuillu,H_min_calage,8,m,code/x.csv:2,non citée,",
+    "Fagus_sylvatica,domaine_feuillu,H_max_calage,36,m,code/x.csv:2,non citée,",
+    "Quercus_spec,domaine_feuillu,D_min_calage,12,cm,code/x.csv:3,non citée,",
+    "Quercus_spec,domaine_feuillu,D_max_calage,80,cm,code/x.csv:3,non citée,",
+    "Quercus_spec,domaine_feuillu,H_min_calage,10,m,code/x.csv:3,non citée,",
+    "Quercus_spec,domaine_feuillu,H_max_calage,35,m,code/x.csv:3,non citée,",
+    "feuillu,domaine_feuillu,facteur_D_min,0.9,sans unité,code/x.py:12,non citée,",
+    "feuillu,domaine_feuillu,facteur_D_max,1.1,sans unité,code/x.py:12,non citée,",
+    "feuillu,domaine_feuillu,marge_H,2,m,code/x.py:12,non citée,",
+    "conifere,domaine_resineux,HD_min,40,m/m,code/x.py:13,non citée,",
+    "conifere,domaine_resineux,HD_max,160,m/m,code/x.py:13,non citée,",
+    "tous,conversion,masse_molaire_CO2,44,g/mol,code/x.py:14,non citée,",
+    "Fagus_sylvatica,incertitude,rho_ecart_type,46,kg/m3,code/x.py:15,non citée,",
+    "Essence_inconnue,infradensite,rho_moyenne,500,kg/m3,code/x.py:16,essai,",
+]
+COEF_FEUILLUS = ("essence,nom,a,b_logD,c_logH,sigma_log\n"
+                 "Fagus_sylvatica,Hêtre,-0.53,0.09,-0.21,0.15\n"
+                 "Quercus_spec,Chênes,-0.52,0.06,-0.25,0.14\n")
+
+
+@pytest.fixture
+def v5_setup(tarif_setup):
+    tarif = tarif_setup["tarif"]
+    (tarif / "resultats" / "tarif_v5").mkdir(parents=True)
+    (tarif / "resultats" / "tarif_v5" / "parametres_tarif_v5.csv").write_text(
+        TARIF_HEADER + "\n".join(TARIF_ROWS) + "\n", encoding="utf-8")
+    (tarif / "resultats" / "tarif_v5" / "coefficients_feuillus_v5.csv").write_text(COEF_FEUILLUS, encoding="utf-8")
+    git = tarif / ".git"
+    (git / "refs" / "heads").mkdir(parents=True)
+    (git / "HEAD").write_text("ref: refs/heads/claude/parametres-tarif-v5\n", encoding="utf-8")
+    (git / "refs" / "heads" / "claude").mkdir()
+    (git / "refs" / "heads" / "claude" / "parametres-tarif-v5").write_text("9821693" + "0" * 33 + "\n", encoding="utf-8")
+    tarif_setup["tarif_output"] = tarif_setup["output"].with_name("tarif.parquet")
+    return tarif_setup
+
+
+def tarif_terms(path):
+    """{(essence ou groupe, modèle, terme): (valeur, unité)} de params/tarif.parquet."""
+    return {(r["essence"] or r["groupe"], r["modele"], r["terme"]): (r["valeur"], r["unite"])
+            for r in pq.read_table(path).to_pylist()}
+
+
+def test_tarif_v5_ecrit_et_conforme_au_contrat(v5_setup, capsys):
+    assert import_tarif.main(["--config", str(v5_setup["config"])]) == 0   # le validateur import_tarif.tarif passe
+    err = capsys.readouterr().err
+    assert "contrat import_tarif.tarif" in err or "terme(s) de tarif" in err
+    rows = pq.read_table(v5_setup["tarif_output"]).to_pylist()
+    assert {r["source_commit"] for r in rows} == {"9821693"}
+    assert all(r["provisoire"] is True for r in rows)
+    assert {r["modele"] for r in rows} == {"volume_feuillus", "profil_tige_resineux", "expansion_resineux",
+                                           "infradensite", "fraction_carbone", "domaine"}, "racines : aucune ligne inventée"
+
+
+def test_tarif_v5_noms_du_csv_rendus_dans_ceux_du_contrat_et_renvoi_lu(v5_setup):
+    import_tarif.main(["--config", str(v5_setup["config"])])
+    t = tarif_terms(v5_setup["tarif_output"])
+    # renvoi : la valeur vient de coefficients_feuillus_v5.csv (ligne 2 = hêtre), b_logD -> b, c_logH -> c
+    assert t[("09", "volume_feuillus", "a")] == (-0.53, "sans_unite")
+    assert t[("09", "volume_feuillus", "b")][0] == 0.09 and t[("09", "volume_feuillus", "c")][0] == -0.21
+    assert t[("09", "volume_feuillus", "sigma_log")] == (0.15, "ln(m3)")
+    assert t[("feuillu", "volume_feuillus", "facteur_biais_sigma2")][0] == 0.5
+    # Quercus_spec : 02 et 03, et rien d'autre
+    assert t[("02", "volume_feuillus", "a")][0] == t[("03", "volume_feuillus", "a")][0] == -0.52
+    assert not any(k[0] == "05" for k in t)
+    # conifere -> resineux ; integration_tige_resineux -> profil_tige_resineux ; tous -> les deux groupes
+    assert t[("resineux", "profil_tige_resineux", "n_points")][0] == 400
+    assert t[("resineux", "profil_tige_resineux", "h_ref")] == (1.3, "m")
+    assert t[("61", "profil_tige_resineux", "x0")] == (0.9, "sans_unite")
+    assert t[("feuillu", "infradensite", "pas_D")] == t[("resineux", "infradensite", "pas_D")] == (10.0, "cm")
+    assert t[("09", "infradensite", "facteur_arbre_entier")][0] == 0.92
+    assert t[("resineux", "fraction_carbone", "fraction")] == (0.51, "sans_unite")
+    # D_ref et H_ref de la forme du contrat : vérifiés, non écrits ; incertitude et conversion non importées
+    assert not any(k[1] == "volume_feuillus" and k[2] in ("D_ref", "H_ref") for k in t)
+    assert not any(k[2] in ("masse_molaire_CO2", "rho_ecart_type") for k in t)
+
+
+def test_tarif_v5_domaine_de_la_table_de_tarif_nemeton(v5_setup, capsys):
+    import_tarif.main(["--config", str(v5_setup["config"])])
+    t = tarif_terms(v5_setup["tarif_output"])
+    assert math.isclose(t[("09", "domaine", "dbh_min")][0], 8 * 0.9) and t[("09", "domaine", "dbh_min")][1] == "cm"
+    assert math.isclose(t[("09", "domaine", "dbh_max")][0], 70 * 1.1)
+    assert t[("09", "domaine", "h_min")] == (6.0, "m") and t[("09", "domaine", "h_max")] == (38.0, "m")
+    assert t[("03", "domaine", "dbh_min")][0] == t[("02", "domaine", "dbh_min")][0]
+    # résineux : H/D seulement, aucune borne de diamètre ni de hauteur inventée
+    assert t[("61", "domaine", "hd_min")] == (40.0, "sans_unite") and t[("61", "domaine", "hd_max")][0] == 160.0
+    assert not any(k[0] == "61" and k[1] == "domaine" and k[2].startswith(("dbh", "h_")) for k in t)
+    err = capsys.readouterr().err
+    assert "Essence_inconnue" in err and "racines" in err
+
+
+def test_tarif_v5_sans_fichier_signale_rien_d_ecrit(tarif_setup, capsys):
+    assert import_tarif.main(["--config", str(tarif_setup["config"])]) == 0
+    assert "parametres_tarif_v5.csv absent" in capsys.readouterr().err
+    assert not tarif_setup["output"].with_name("tarif.parquet").exists()
+
+
+def _rewrite_tarif_csv(setup, old, new):
+    p = setup["tarif"] / "resultats" / "tarif_v5" / "parametres_tarif_v5.csv"
+    text = p.read_text(encoding="utf-8")
+    assert old in text
+    p.write_text(text.replace(old, new), encoding="utf-8")
+
+
+@pytest.mark.parametrize("old,new,message", [
+    ("Abies_alba,expansion_resineux,b,", "Abies_alba,expansion_resineux,b_inconnu,", "n'a pas de correspondance"),
+    ("feuillu,volume_feuillu,D_ref,30,", "feuillu,volume_feuillu,D_ref,25,", "la forme a changé"),
+    ("coefficients_feuillus_v5.csv:2#a", "coefficients_feuillus_v5.csv:3#a", "vise l'essence"),
+    ("Fagus_sylvatica,infradensite,rho_moyenne,600,", "Fagus_sylvatica,infradensite,rho_moyenne,abc,", "pas un nombre"),
+    ("Quercus_spec,domaine_feuillu,H_max_calage,35,m,code/x.csv:3,non citée,\n", "", "domaine de Quercus_spec incomplet"),
+])
+def test_tarif_v5_refus_sans_deviner(v5_setup, capsys, old, new, message):
+    _rewrite_tarif_csv(v5_setup, old, new)
+    assert import_tarif.main(["--config", str(v5_setup["config"])]) == 2
+    assert message in capsys.readouterr().err
+    assert not v5_setup["tarif_output"].exists() and not v5_setup["output"].exists()
+
+
+def test_tarif_v5_sans_commit_lisible_refuse(v5_setup, capsys):
+    shutil.rmtree(v5_setup["tarif"] / ".git")
+    assert import_tarif.main(["--config", str(v5_setup["config"])]) == 2
+    assert "source_commit est exigé" in capsys.readouterr().err
+    assert not v5_setup["tarif_output"].exists()

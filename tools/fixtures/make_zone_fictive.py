@@ -102,9 +102,11 @@ CROWN_WIDTH = {"09": (-0.30, 0.55), "61": (-0.90, 0.60), "62": (-0.90, 0.60),
 # modele, terme, valeur, unite…). Toutes les valeurs sont SYNTHÉTIQUES et provisoires : inventées pour
 # exercer post (recalcul exact à la main), elles ne viennent ni de tarif-nemeton ni d'aucune source.
 #   volume_feuillus (feuillus 09 et 03) : ln V = ln(pi/4 D² H) + a + b ln(D/30) + c ln(H/25).
-#   profil_tige_resineux et expansion_resineux (61, 62, 64) : les termes du vrai profil de tige et de
-#     E(D) sont fixés par la mission 050 ; les termes synth_p1, synth_p2 et synth_E sont des
-#     PLACEHOLDERS synthétiques, à remplacer quand parametres_tarif_v5.csv existera.
+#   profil_tige_resineux et expansion_resineux (61, 62, 64) : forme SYNTHÉTIQUE écrite au contrat
+#     params/tarif (mission 053), différente de la forme NEMETON v5 (k0, k1… , importée de
+#     parametres_tarif_v5.csv) : tige = pi/4 (D/100)² H (synth_p1 + synth_p2 / 2), cylindre pour la
+#     part synth_p1, paraboloïde pour la part synth_p2 ; V aérien = tige × synth_E (D en cm, H en m).
+#     Sapin (61) de 30 cm et 25 m : tige = pi/4 × 0,09 × 25 × 0,70 = 1,23700 m3 ; aérien × 1,10 = 1,36070 m3.
 #   infradensite, fraction_carbone et racines : par groupe (feuillu, resineux).
 #   domaine : dbh_min, dbh_max (cm), h_min, h_max (m), et hd_min, hd_max (H/D) pour les résineux.
 #     Les bornes basses laissent hors domaine les recrues de 7,5 cm (comptées, non calculées).

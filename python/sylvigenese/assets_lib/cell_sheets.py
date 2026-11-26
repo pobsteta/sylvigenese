@@ -2,7 +2,9 @@
 
 Étape du BRIEF codée : spec §1 (la fiche affiche station, type de végétation, composition,
 volume, carbone, mention « provisoire ») ; mission 028, état initial (version 1) ; mission 047,
-évolution simulée (version 2, voir `build_cell_sheets_v2` plus bas).
+évolution simulée (version 2, voir `build_cell_sheets_v2` plus bas) ; mission 053, évolution simulée
+avec le volume aérien total et le carbone aérien de `sim/summary.parquet` (version 3, écrite dès que
+`post` a tourné ; BRIEF §6, décisions de Pascal Q1 à Q5 du 26/11/2026 ; voir `year_entry_v3`).
 
 - Une fiche par tuile 3D (mêmes noms que les tuiles), une entrée par cellule de 25 m qui porte
   au moins un arbre ou un type de végétation.
@@ -19,14 +21,17 @@ volume, carbone, mention « provisoire ») ; mission 028, état initial (version
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import pyarrow.parquet as pq
 import rasterio
 
+from sylvigenese import common
 from sylvigenese.common import ModuleError
 from sylvigenese.assets_lib.tiles import TILE_M, tile_name
 
@@ -135,6 +140,122 @@ NOTES_V2 = [
 ]
 
 
+# Fiche version 3 (mission 053, contrat cell_sheet v3 de la mission 051, décisions de Pascal Q1 à Q5 du 26/11/2026) :
+# écrite quand sim/summary.parquet existe ; mêmes notes que la v2, sauf « volume et carbone non calculés », remplacée
+# par les définitions du volume et du carbone.
+NOTES_V3_HEAD = [
+    NOTES_V2[0],
+    "volume_m3_ha : volume aérien total (tige et branches, sur écorce) des arbres vivants calculés, lu dans "
+    "sim/summary.parquet (post) ; même définition pour toutes les essences (décision de Pascal Q3) ; ni bois fort ni "
+    "volume au-dessus de 7 cm",
+    "carbon_t_ha : carbone aérien = biomasse aérienne sèche (volume aérien total × infradensité) × fraction de carbone, "
+    "en tC/ha ; pas de CO2",
+    "sol et bois mort : non modélisés (hors v1), ni dans le volume ni dans le carbone",
+    "tarif provisoire (« coefficients non stabilisés ») : voir tarif et sim/post.json pour le commit et les sources",
+]
+NOTE_PARTIAL = ("volume partiel : une partie des tiges n'est pas calculée (hors du domaine du tarif, ou essence sans "
+                "tarif ; ni extrapolation ni emprunt, décision de Pascal Q5) ; basal_area_not_computed_share en donne la "
+                "part de surface terrière ; quand elle vaut 1, rien n'est calculé : volume et carbone null, raison dans "
+                "not_computed_reason")
+NOTE_ROOTS = ("racines : root_carbon_t_ha, carbone des racines, à part du carbone aérien et jamais additionné, "
+              "PROVISOIRE (GIEC 2006, tableau 4.4 ; décision de Pascal Q4)")
+NOTE_NO_ROOTS = ("carbone souterrain non calculé : le rapport du GIEC 2006 (tableau 4.4) n'est pas encore lu ni cité "
+                 "(décision de Pascal Q4) ; aucune valeur n'est prise à sa place")
+REASON_NOTHING = ("aucune tige vivante de la cellule n'est calculée : toutes sont hors du domaine du tarif ou d'une "
+                  "essence sans tarif (ni extrapolation ni emprunt, décision de Pascal Q5)")
+TARIF_NAME = "tarif NEMETON v5 (tarif-nemeton), provisoire"
+TARIF_NAME_FICTIVE = ("forme du tarif NEMETON v5, valeurs synthétiques du jeu fictif (zone marquée fictive, aucun sens "
+                      "écologique)")
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def read_post_summary(zone: Path, retained: list[int]) -> dict | None:
+    """Lignes de sim/summary.parquet des années retenues, par (cell_id, année), si post a tourné ; None sinon.
+
+    Refus (code 2, cause nommée) : summary sans sim/post.json, ou post.json d'un autre run de simulate (empreinte de
+    sim/run.json différente) : la fiche ne mêle pas deux runs."""
+    path = zone / "sim" / "summary.parquet"
+    if not path.is_file():
+        return None
+    post_path = zone / "sim" / "post.json"
+    if not post_path.is_file():
+        raise ModuleError(f"{path} existe sans sim/post.json : post a été interrompu ; relancer post")
+    try:
+        post = json.loads(post_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ModuleError(f"{post_path} illisible : {error}") from error
+    run_hash = _sha256(zone / "sim" / "run.json")
+    if (post.get("inputs_sha256") or {}).get("sim_run") != run_hash:
+        raise ModuleError("sim/summary.parquet vient d'un autre run de simulate (empreinte de sim/run.json différente "
+                          "de celle de sim/post.json) : relancer post avant assets")
+    code = common.call_validator(["post.summary", str(path)])
+    if code != 0:
+        raise ModuleError(f"{path} non conforme au contrat post.summary (validateur, code {code}) : il n'est pas lu")
+    table = pq.read_table(path)
+    has_roots = "carbon_roots_t_ha" in table.schema.names
+    keep = set(retained)
+    rows: dict[tuple[int, int], dict[str, dict]] = defaultdict(dict)
+    names = ["cell_id", "year", "species", "volume_m3_ha", "carbon_t_ha", "stems_not_computed_ha",
+             "basal_area_not_computed_share"] + (["carbon_roots_t_ha"] if has_roots else [])
+    columns = {n: table.column(n).to_pylist() for n in names}
+    for i, year in enumerate(columns["year"]):
+        if year in keep:
+            rows[(int(columns["cell_id"][i]), int(year))][str(columns["species"][i])] = {n: columns[n][i] for n in names}
+    marker = zone / "zone.yml"
+    fictive = marker.is_file() and common.read_config(marker).get("fictive") is True
+    return {"rows": rows, "has_roots": has_roots, "commit": post["tarif_commit"],
+            "name": TARIF_NAME_FICTIVE if fictive else TARIF_NAME}
+
+
+def year_entry_v3(rows: list[dict], summary: dict[str, dict], has_roots: bool, year: int, cid: int) -> dict:
+    """Une année de la fiche v3 (contrat cell_sheet, year_v3) : l'année v2, plus le volume et le carbone de
+    sim/summary.parquet (sommes sur les essences) et la part non calculée. Les essences du summary doivent être
+    celles de sim/cells (mêmes arbres vivants) : sinon refus, on ne complète pas."""
+    item = year_entry_v2(rows, year, cid)
+    species = [c["species"] for c in item["composition"]]
+    if sorted(summary) != sorted(species):
+        raise ModuleError(f"année {year}, cellule {cid} : essences de sim/summary.parquet {sorted(summary)} différentes "
+                          f"de celles de sim/cells {sorted(species)} : summary et cells ne viennent pas du même run")
+    if not summary:   # aucun arbre vivant : 0 est un fait arithmétique, pas une valeur devinée
+        item.update(volume_m3_ha=0.0, carbon_t_ha=0.0, stems_not_computed_ha=0.0, basal_area_not_computed_share=0.0,
+                    volume_partiel=False)
+        if has_roots:
+            item["root_carbon_t_ha"] = 0.0
+        return item
+    g_total = g_not_computed = volume = carbon = roots = stems_nc = 0.0
+    for entry in item["composition"]:
+        r = summary[entry["species"]]
+        share = float(r["basal_area_not_computed_share"])
+        entry["basal_area_not_computed_share"] = share
+        entry["volume_m3_ha"] = None if share == 1.0 else float(r["volume_m3_ha"])
+        entry["carbon_t_ha"] = None if share == 1.0 else float(r["carbon_t_ha"])
+        g_total += entry["basal_area_m2_ha"]
+        g_not_computed += share * entry["basal_area_m2_ha"]
+        volume += float(r["volume_m3_ha"])
+        carbon += float(r["carbon_t_ha"])
+        roots += float(r["carbon_roots_t_ha"]) if has_roots else 0.0
+        stems_nc += float(r["stems_not_computed_ha"])
+    if all(e["basal_area_not_computed_share"] == 1.0 for e in item["composition"]):
+        share = 1.0
+    else:   # au moins une tige calculée : la part reste sous 1 (1 veut dire « rien n'est calculé »)
+        share = min(g_not_computed / g_total, math.nextafter(1.0, 0.0)) if g_total > 0 else 0.0
+    nothing = share == 1.0
+    item.update(volume_m3_ha=None if nothing else volume, carbon_t_ha=None if nothing else carbon,
+                stems_not_computed_ha=stems_nc, basal_area_not_computed_share=share, volume_partiel=share > 0)
+    if has_roots:
+        item["root_carbon_t_ha"] = None if nothing else roots
+    if nothing:
+        item["not_computed_reason"] = REASON_NOTHING
+    return item
+
+
 def _optional_value(array: np.ndarray, nodata, r: int, c: int) -> float | None:
     v = float(array[r, c])
     if not np.isfinite(v) or (nodata is not None and v == nodata):
@@ -145,7 +266,8 @@ def _optional_value(array: np.ndarray, nodata, r: int, c: int) -> float | None:
 def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], retained: list[int], t0: int,
                          flags: dict[tuple[int, int], list[dict]], species_table: dict[str, str]
                          ) -> tuple[dict[str, dict], dict, dict[int, np.ndarray]]:
-    """Fiches v2 par tuile, comptes, et carte de surface terrière (m2/ha, NaN hors forêt) par année retenue.
+    """Fiches v2 (ou v3 si sim/summary.parquet existe) par tuile, comptes, et carte de surface terrière (m2/ha,
+    NaN hors forêt) par année retenue.
 
     `rows` : lignes de sim/cells des années retenues, par (cell_id, année). Une cellule a sa fiche si elle est
     forestière (un type de végétation), porte une ligne de sim/cells ou un signalement une année retenue.
@@ -174,6 +296,12 @@ def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], re
         raise ModuleError(f"sim/cells : essence(s) absente(s) de contracts/species.csv : {', '.join(unknown)}")
     forest = {int(r * width + c) for r, c in zip(*np.nonzero(veg != nodata_veg))}
     wanted = forest | {cid for cid, y in rows} | {cid for cid, y in flags}
+    post = read_post_summary(zone, retained)
+    if post is not None:
+        stray = sorted({key for key in post["rows"] if key[0] not in wanted})
+        if stray:
+            raise ModuleError(f"sim/summary.parquet a des lignes pour des cellules sans fiche (par exemple {stray[0]}) : "
+                              "summary et cells ne viennent pas du même run")
 
     g_maps = {y: np.full((height, width), np.nan) for y in retained}
     for y in retained:
@@ -200,7 +328,11 @@ def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], re
         counts["without_ceiling"] += h_ceiling is None
         years = []
         for year in retained:
-            item = year_entry_v2(rows.get((cid, year), []), year, cid)
+            if post is None:
+                item = year_entry_v2(rows.get((cid, year), []), year, cid)
+            else:
+                item = year_entry_v3(rows.get((cid, year), []), post["rows"].get((cid, year), {}), post["has_roots"],
+                                     year, cid)
             item["flags"] = list(flags.get((cid, year), []))
             if year == t0:
                 h0_value = _optional_value(h0, src_h0.nodata, r, c)
@@ -216,8 +348,19 @@ def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], re
                                                  "vegetation_type": vegetation_name, "h_ceiling_m": h_ceiling,
                                                  "years": years})
         counts["cells"] += 1
-    docs = {name: {"schema_version": 2, "tile": name, "source": "sim", "notes": list(NOTES_V2), "cells": cells}
-            for name, cells in sorted(tiles.items())}
+    if post is None:
+        docs = {name: {"schema_version": 2, "tile": name, "source": "sim", "notes": list(NOTES_V2), "cells": cells}
+                for name, cells in sorted(tiles.items())}
+        return docs, counts, g_maps
+    docs = {}
+    for name, cells in sorted(tiles.items()):
+        notes = list(NOTES_V3_HEAD)
+        if any(e["volume_partiel"] for c in cells for e in c["years"]):
+            notes.append(NOTE_PARTIAL)
+        notes.append(NOTE_ROOTS if post["has_roots"] else NOTE_NO_ROOTS)
+        notes += NOTES_V2[2:]
+        docs[name] = {"schema_version": 3, "tile": name, "source": "sim", "notes": notes,
+                      "tarif": {"name": post["name"], "commit": post["commit"], "provisoire": True}, "cells": cells}
     return docs, counts, g_maps
 
 
