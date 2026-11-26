@@ -266,9 +266,10 @@ fn le_nombre_de_classes_est_le_premier_entier_qui_atteint_la_hauteur_de_passage(
 
 #[test]
 fn le_stock_en_regime_vaut_le_flux_fois_le_temps_de_passage() {
+    // À survie 1, l'état stationnaire est la formule de Pascal (Q2) : flux × temps de passage.
     let p = parametres_d_essai();
     let mut classes = vec![0.0; p.classes()];
-    semis::en_regime(&p, 40.0, &mut classes);
+    semis::en_regime_avec_survie(&p, 40.0, 1.0, &mut classes);
     assert_eq!(classes.len(), 4);
     assert!((semis::total(&classes) - 40.0 * 1.3 / 0.4).abs() < 1e-12);
     assert_eq!(&classes[..3], &[40.0, 40.0, 40.0]);
@@ -284,6 +285,82 @@ fn le_stock_en_regime_vaut_le_flux_fois_le_temps_de_passage() {
     assert_eq!(recrues[2], (40.0, false));
     assert!(recrues[3].1 && (recrues[3].0 - 10.0).abs() < 1e-12, "{:?}", recrues[3]);
     assert_eq!(recrues[4], (0.0, true));
+}
+
+/// Une année de la dynamique (survie, montée, installation de `nouveaux`, passage de F) depuis
+/// `classes` ; rend (recrues, borné).
+fn une_annee(classes: &mut [f64], survie: f64, nouveaux: f64, flux: f64) -> (f64, bool) {
+    semis::avancer(classes, survie, nouveaux);
+    semis::passage_esperance(classes, Some(flux))
+}
+
+#[test]
+fn le_stock_en_regime_est_stationnaire_a_flux_constant_meme_si_la_survie_est_sous_1() {
+    let p = parametres_d_essai();
+    for survie in [1.0, 0.9, 0.716, 0.35] {
+        for flux in [40.0, 2.5, 1234.5] {
+            let mut classes = vec![0.0; p.classes()];
+            semis::en_regime_avec_survie(&p, flux, survie, &mut classes);
+            let initiales = classes.clone();
+            // Avec l'installation du régime (la classe 0 de l'état stationnaire), une année redonne
+            // le même état, et le flux entier passe : rien n'est borné.
+            for annee in 0..5 {
+                let (recrues, borne) = une_annee(&mut classes, survie, initiales[0], flux);
+                assert!(!borne, "survie {survie}, flux {flux}, année {annee} : stock limitant");
+                assert!((recrues - flux).abs() <= 1e-12 * flux);
+                for (a, b) in classes.iter().zip(initiales.iter()) {
+                    assert!((a - b).abs() <= 1e-12 * b.abs().max(flux), "survie {survie} : {classes:?} contre {initiales:?}");
+                }
+            }
+            // Sans aucune graine nouvelle, la première année n'est pas bornée non plus.
+            let mut sans_graines = initiales.clone();
+            let (recrues, borne) = une_annee(&mut sans_graines, survie, 0.0, flux);
+            assert!(!borne && (recrues - flux).abs() <= 1e-12 * flux, "survie {survie} : première année bornée");
+        }
+    }
+}
+
+#[test]
+fn le_stock_en_regime_suit_la_formule_ecrite_et_se_refuse_a_survie_nulle() {
+    let p = parametres_d_essai();
+    let (f, s) = (40.0, 0.9);
+    let mut classes = vec![0.0; 4];
+    semis::en_regime_avec_survie(&p, f, s, &mut classes);
+    let w = f * (1.3 / 0.4 - 3.0);
+    let e = (f + w) / s - w;
+    let attendu = [e / (s * s), e / s, e, w];
+    for (a, b) in classes.iter().zip(attendu.iter()) {
+        assert!((a - b).abs() < 1e-12 * b, "{classes:?} contre {attendu:?}");
+    }
+    assert!(semis::total(&classes) > f * 1.3 / 0.4, "à survie < 1, il faut plus que flux × temps de passage");
+    // en_regime prend la survie à pleine lumière de l'essence.
+    let mut pleine = vec![0.0; 4];
+    semis::en_regime(&p, f, &mut pleine);
+    assert_eq!(pleine, classes);
+    // Survie nulle : aucun état stationnaire, aucun semis initial (le manque sera compté).
+    let mut nulle = vec![9.0; 4];
+    semis::en_regime_avec_survie(&p, f, 0.0, &mut nulle);
+    assert_eq!(nulle, vec![0.0; 4]);
+    // Une seule classe : les semis de l'année passent l'année même ; la première année reste couverte.
+    let mut court = parametres_d_essai();
+    court.hauteur_passage_m = 0.3;
+    let mut une = vec![0.0; 1];
+    semis::en_regime_avec_survie(&court, f, s, &mut une);
+    let (r, borne) = une_annee(&mut une, s, 0.0, f);
+    assert!(!borne && (r - f).abs() < 1e-12 * f);
+}
+
+#[test]
+fn en_mode_cohortes_aucun_couple_n_est_borne_la_premiere_annee() {
+    // Zone d'essai, un an : le stock initial stationnaire suffit partout au flux IFN de l'année.
+    let dossier = dossier_neuf("cohortes-premiere-annee");
+    let bilan = sorties::simuler_et_ecrire(&zone_cohortes(1), &lancement(1), &dossier).unwrap();
+    assert_eq!(bilan.comptes.stock_de_semis_limitant, 0);
+    let run: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dossier.join("run.json")).unwrap()).unwrap();
+    assert_eq!(run["seedling_stock_limited"], 0);
+    assert!(bilan.comptes.recrues > 0, "le test ne discriminerait rien sans recrue");
+    std::fs::remove_dir_all(&dossier).unwrap();
 }
 
 #[test]

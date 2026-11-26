@@ -1411,8 +1411,11 @@ fn flux_ifn_ha(
 }
 
 /// Le stock de semis initial « en régime » (Q2) : dans chaque cellule simulée à H_dom non nulle,
-/// flux IFN de t0 (covariables de l'état à t0) × temps de passage, par [`semis::en_regime`] ; rien
-/// en trouée ni hors de la grille. Rend aussi les sorties de domaine de ces prédicteurs.
+/// l'état stationnaire du flux IFN de t0 (covariables de l'état à t0), porté au nombre entier
+/// d'arbres que l'arrondi aléatoire peut demander (⌈λ⌉ / aire), à la survie de la cellule (ombre de
+/// l'état à t0, celle-là même que lira le premier pas), par
+/// [`semis::en_regime_avec_survie`] ; rien en trouée ni hors de la grille. Rend aussi les sorties de
+/// domaine de ces prédicteurs.
 pub fn etat_semis_initial(
     t0: &ResultatPas,
     cellules: &Cellules,
@@ -1422,9 +1425,11 @@ pub fn etat_semis_initial(
 ) -> Result<(EtatSemis, SortiesParSens), Erreur> {
     let geometrie = &cellules.geometrie;
     let n = geometrie.nombre_cellules();
+    let aire_ha = geometrie.aire_cellule_ha();
     let index = concurrence::indexer(&t0.etat, geometrie)?;
     let essence_de = essences_des_arbres(&t0.etat, modeles)?;
     let resumes = resumer_cellules(&t0.etat, &index, &essence_de, geometrie);
+    let couvert = indice_de_couvert(&t0.etat, &index, &t0.cw, geometrie);
     let mut classes = Vec::with_capacity(modeles.candidates.len());
     let mut densites = Vec::with_capacity(modeles.candidates.len());
     let mut sorties_totales = SortiesParSens::default();
@@ -1443,7 +1448,12 @@ pub fn etat_semis_initial(
                     return Ok(sorties);
                 }
                 let flux = flux_ifn_ha(cellules, &resumes[cellule], modele, *essence, cellule, annee_t0, &mut sorties)?;
-                semis::en_regime(p, flux, classes_cellule);
+                let survie = semis::survie(p, semis::ombre(p.coef_extinction, couvert[cellule]));
+                // Au massif, l'arrondi aléatoire peut demander ⌈λ⌉ arbres (λ = F × aire) : le régime
+                // est celui de ce flux en arbres entiers, sinon le stock initial bornerait le tirage
+                // dès la première année là où λ n'est pas entier (la part en plus attend au stock).
+                let flux_regime = (flux * aire_ha).ceil() / aire_ha;
+                semis::en_regime_avec_survie(p, flux_regime, survie, classes_cellule);
                 Ok(sorties)
             })
             .collect();

@@ -60,12 +60,34 @@
 //! - **en trouée** (H_dom nulle) : le modèle IFN ne s'applique pas ; tout le stock à la hauteur de
 //!   passage passe.
 //!
-//! # Stock initial « en régime » (Q2)
+//! # Stock initial « en régime » (Q2, état stationnaire de la dynamique ci-dessus)
 //!
-//! À t0, sous couvert : flux IFN de t0 × temps de passage T_p = H_p / g, réparti à F par classe
-//! annuelle (A − 1 classes) et F × (T_p − (A − 1)) dans le stock. Le stock est donc **déduit des
-//! modèles, non observé** ; il est provisoire et le rapport doit le dire. En trouée, le flux IFN ne
-//! s'applique pas : pas de stock initial.
+//! À t0, sous couvert, le stock est celui d'un **état stationnaire** : avec un flux de passage
+//! constant F (flux IFN de t0, tiges/ha/an) et la survie annuelle s de la cellule, une année de
+//! [`avancer`] puis de passage de F redonne exactement les mêmes classes. Avec T_p = H_p / g et
+//! W = F × (T_p − (A − 1)) le semis qui attend dans le stock après le passage (la part du temps de
+//! passage au-delà des A − 1 classes annuelles) :
+//!
+//! - stock (classe A − 1) : W ;
+//! - classe A − 2 : E = (F + W) / s − W (elle rejoint le stock en survivant : (W + E) × s = F + W,
+//!   dont F passe et W reste) ;
+//! - classe k < A − 2 : c_k = c_{k+1} / s, soit c_k = E × s^−(A − 2 − k).
+//!
+//! Le total vaut W + E × Σ_{j=0}^{A−2} s^−j. À s = 1, c'est F × T_p, la formule de la décision de
+//! Pascal (flux × temps de passage) ; à s < 1, il faut plus de jeunes semis pour qu'il en reste F
+//! à la hauteur de passage (c'est la correction de la reprise de 062 : sans elle, le stock partait
+//! trop bas pour la survie, et bornait le flux dès les premières années). La première année n'est
+//! donc jamais bornée par le stock initial : (W + E) × s = F + W ≥ F. Au niveau massif, où le
+//! passage se fait en arbres entiers et où l'arrondi aléatoire du flux IFN peut demander ⌈λ⌉
+//! arbres (λ = F × aire de la cellule), le régime est calculé pour F' = ⌈λ⌉ / aire
+//! ([`crate::pas::etat_semis_initial`]) : sans cela, un λ de 0,7 donnait un stock de 0,875 arbre et
+//! un tirage de 1 était borné dès la première année. Si A = 1 (une seule classe,
+//! où les semis installés dans l'année passent l'année même), le stock vaut (F + W) / s, ce qui
+//! garantit encore la première année sans connaître les graines de l'année. Si s = 0, aucun état
+//! stationnaire n'existe (tout semis meurt dans l'année) : le stock initial est nul, et le manque
+//! est compté (`seedling_stock_limited`), jamais comblé. Le stock est **déduit des modèles, non
+//! observé** ; il est provisoire et le rapport doit le dire. En trouée, le flux IFN ne s'applique
+//! pas : pas de stock initial.
 //!
 //! Règle de lisibilité (CLAUDE.md) : structures concrètes et fonctions libres, aucune macro maison
 //! ni générique.
@@ -77,6 +99,10 @@ use crate::parametres::{Referentiel, TOUTES_ESSENCES};
 /// TreeMigDocu_251218_Model.pdf p. 16 : « half of the mortality used in the predecessor patch
 /// model ForClim »). C'est la seule constante de la forme de survie ; elle est citée.
 pub const MORTALITE_DE_STRESS_TREEMIG: f64 = 0.184;
+
+/// Tolérance relative de l'arrondi des arbres offerts par le stock au niveau massif (erreur
+/// d'arrondi des f64, sans sens écologique).
+pub const TOLERANCE_ARRONDI: f64 = 1e-12;
 
 /// Plus grand nombre de classes annuelles admis (H_p / g) : au-delà, la croissance est sûrement
 /// mal saisie (unités) et c'est refusé (code 2).
@@ -316,17 +342,36 @@ pub fn survie(parametres: &ParametresSemis, ombre_cellule: f64) -> f64 {
 // ------------------------------------------------------------------------------------------
 // Cohortes
 
-/// Le stock initial « en régime » d'une cellule (Q2) pour un flux IFN F (tiges/ha/an) : F par
-/// classe annuelle, F × (T_p − (A − 1)) dans le stock à la hauteur de passage. `classes` reçoit
-/// les A valeurs.
+/// Le stock initial « en régime » d'une cellule (Q2) pour un flux IFN F (tiges/ha/an), à la survie
+/// à pleine lumière de l'essence (`seedling_survival_full_light_yr`). Voir
+/// [`en_regime_avec_survie`] ; à préférer quand la survie de la cellule (son ombre) est connue.
 pub fn en_regime(parametres: &ParametresSemis, flux_ha: f64, classes: &mut [f64]) {
+    en_regime_avec_survie(parametres, flux_ha, parametres.survie_pleine_lumiere, classes);
+}
+
+/// Le stock initial « en régime » d'une cellule (Q2) : l'état stationnaire de [`avancer`] suivi du
+/// passage d'un flux constant F, à la survie annuelle `survie_annuelle` (voir la documentation du
+/// module pour la formule). `classes` reçoit les A valeurs. Survie nulle (ou non finie) : classes
+/// nulles, aucun état stationnaire n'existe.
+pub fn en_regime_avec_survie(parametres: &ParametresSemis, flux_ha: f64, survie_annuelle: f64, classes: &mut [f64]) {
     let a = classes.len();
-    for valeur in classes.iter_mut().take(a.saturating_sub(1)) {
-        *valeur = flux_ha;
+    for valeur in classes.iter_mut() {
+        *valeur = 0.0;
     }
-    if a > 0 {
-        let reste = parametres.temps_de_passage() - (a - 1) as f64;
-        classes[a - 1] = flux_ha * reste.max(0.0);
+    if a == 0 || !(survie_annuelle > 0.0) || !survie_annuelle.is_finite() {
+        return;
+    }
+    let attente = flux_ha * (parametres.temps_de_passage() - (a - 1) as f64).max(0.0);
+    if a == 1 {
+        classes[0] = (flux_ha + attente) / survie_annuelle;
+        return;
+    }
+    classes[a - 1] = attente;
+    classes[a - 2] = (flux_ha + attente) / survie_annuelle - attente;
+    let mut k = a - 2;
+    while k > 0 {
+        classes[k - 1] = classes[k] / survie_annuelle;
+        k -= 1;
     }
 }
 
@@ -418,7 +463,8 @@ pub fn passage_massif(classes: &mut [f64], aire_ha: f64, demandees: Option<u64>)
         return (0, demandees.unwrap_or(0) > 0);
     }
     let disponible = classes[a - 1];
-    let offertes = (disponible * aire_ha).floor().max(0.0) as u64;
+    // Tolérance d'arrondi (calcul, pas écologie) : un stock de 2,9999999999999996 arbres en offre 3.
+    let offertes = (disponible * aire_ha * (1.0 + TOLERANCE_ARRONDI)).floor().max(0.0) as u64;
     let (n, borne) = match demandees {
         Some(d) => {
             if offertes < d {
