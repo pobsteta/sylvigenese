@@ -1,0 +1,14 @@
+modele,sorte,essence,stade,calage,octets,niveaux,sommets_lod0,sommets_lod1,sommets_lod2,triangles_lod0,triangles_lod1,triangles_lod2,sous_budget,budget_lod0,budget_lod1,budget_lod2
+02_mature,generateur,Quercus_spec,mature,calé,177444,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+02_old,generateur,Quercus_spec,old,calé,177428,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+02_pole,generateur,Quercus_spec,pole,calé,177440,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+02_young,generateur,Quercus_spec,young,calé,177452,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+09_mature,generateur,Fagus_sylvatica,mature,calé,177448,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+09_old,generateur,Fagus_sylvatica,old,calé,177440,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+09_pole,generateur,Fagus_sylvatica,pole,calé,177444,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+09_young,generateur,Fagus_sylvatica,young,calé,177452,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+61_mature,generateur,Abies_alba,mature,non calé,177548,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+61_old,generateur,Abies_alba,old,non calé,177540,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+61_pole,generateur,Abies_alba,pole,non calé,177548,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+61_young,generateur,Abies_alba,young,non calé,177552,3,3796,2088,32,3308,1792,26,True,20000,2000,200
+generique_resineux,generique,,,,6644,3,34,22,16,48,28,20,True,20000,2000,200

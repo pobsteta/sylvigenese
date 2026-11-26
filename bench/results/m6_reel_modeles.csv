@@ -1,0 +1,22 @@
+modele,sorte,essence,stade,codes_espar,segments,calage,octets,sommets_lod0,sommets_lod1,sommets_lod2,triangles_lod0,triangles_lod1,triangles_lod2,sous_budget
+02_mature,own,Quercus_spec,mature,02 03,56553,non calé,609244,18720,1792,32,16860,1644,26,True
+02_old,own,Quercus_spec,old,02 03,119900,non calé,612252,18840,1784,32,16920,1640,26,True
+02_pole,own,Quercus_spec,pole,02 03,604,non calé,301504,8208,1768,32,7728,1632,26,True
+02_young,own,Quercus_spec,young,02 03,740,non calé,366688,10432,1776,32,9656,1636,26,True
+09_mature,own,Fagus_sylvatica,mature,09,55317,non calé,625672,19232,1888,32,17116,1692,26,True
+09_old,own,Fagus_sylvatica,old,09,70857,non calé,628956,19392,1848,32,17196,1672,26,True
+09_pole,own,Fagus_sylvatica,pole,09,4478,non calé,616392,18912,1864,32,16956,1680,26,True
+09_young,own,Fagus_sylvatica,young,09,3672,non calé,623088,19128,1896,32,17064,1696,26,True
+61_mature,own,Abies_alba,mature,61,74417,non calé,604776,18432,1912,32,16716,1704,26,True
+61_old,own,Abies_alba,old,61,147990,non calé,602204,18368,1880,32,16684,1688,26,True
+61_pole,own,Abies_alba,pole,61,2090,non calé,594388,18024,1936,32,16512,1716,26,True
+61_young,own,Abies_alba,young,61,1652,non calé,588552,17832,1912,32,16416,1704,26,True
+62_old,own,Picea_abies,old,62,141888,non calé,593996,18128,1816,32,16564,1656,26,True
+62_pole,own,Picea_abies,pole,62,1803,non calé,585760,17744,1896,32,16372,1696,26,True
+62_young,own,Picea_abies,young,62,1186,non calé,538748,16096,1888,32,15164,1692,26,True
+64_mature,own,Pseudotsuga_menziesii,mature,64,81480,non calé,600680,18328,1864,32,16664,1680,26,True
+64_old,own,Pseudotsuga_menziesii,old,64,127869,non calé,598104,18256,1840,32,16628,1668,26,True
+64_pole,own,Pseudotsuga_menziesii,pole,64,1549,non calé,583820,17704,1864,32,16352,1680,26,True
+64_young,own,Pseudotsuga_menziesii,young,64,1197,non calé,548332,16428,1896,32,15396,1696,26,True
+generique_feuillu,generic,,,,,,9744,98,38,22,176,60,32,True
+generique_resineux,generic,,,,,,6644,34,22,16,48,28,20,True

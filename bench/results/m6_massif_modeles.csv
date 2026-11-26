@@ -1,0 +1,10 @@
+source,annee,arbres,modele_propre,alias,generique,blocs
+"fixture, ifn_direct",2022,14080,6449,3542,4089,4
+"fixture, ifn_direct",2032,45954,22159,13461,10334,4
+"fixture, ifn_direct",2037,60620,29455,17983,13182,4
+"fixture, cohorts",2022,14080,6449,3542,4089,4
+"fixture, cohorts",2032,55225,27182,17727,10316,4
+"fixture, cohorts",2037,69242,34171,22021,13050,4
+"contrôle réel, ifn_direct",2022,14080,10537,3542,1,4
+"contrôle réel, ifn_direct",2032,45954,32493,13461,0,4
+"contrôle réel, ifn_direct",2037,60620,42637,17983,0,4
