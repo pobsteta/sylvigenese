@@ -38,8 +38,45 @@
         "seed": {"description": "graine du générateur à compteur (spec §6 ; bench/SPEC.md AM2)", "type": "integer", "minimum": 0, "maximum": 9007199254740991},
         "t0": {"description": "année de départ de la simulation (état initial = année t0) ; jeu fictif : 2022, année du vol le plus récent de chm_date.tif ; l'état initial est celui de la fin de l'année t0, la hauteur ne se recule pas", "type": "integer"},
         "years": {"description": "horizon en années (défaut du BRIEF §8 : 100)", "type": "integer", "minimum": 1},
-        "threads": {"description": "nombre de fils", "type": "integer", "minimum": 1}
-      }
+        "threads": {"description": "nombre de fils", "type": "integer", "minimum": 1},
+        "recruitment": {
+          "description": "mode de recrutement (M5a, décision de Pascal Q4 du 26/11/2026, mission 060). `ifn_direct` : le recrutement de M3a, flux du modèle IFN tiré par arrondi aléatoire, sans semis (référence tests/m3/reference/nominal.json). `cohorts` : régénération par cohortes de semis, un seul module pour les deux niveaux ; le bloc `regeneration` est alors exigé. Le schéma ne l'impose pas à tout config.yml (les configs de M3a et des autres modules restent conformes) : c'est `simulate` qui s'arrête (code 2) sans cette clé, aucune valeur par défaut silencieuse.",
+          "enum": ["ifn_direct", "cohorts"]
+        },
+        "regeneration": {
+          "description": "réglages numériques, non écologiques, de la régénération par cohortes ; exigé quand recruitment vaut `cohorts`. Les paramètres écologiques (noyau, maturité, fécondité…) sont dans params/regeneration.parquet, jamais ici.",
+          "type": "object",
+          "required": ["kernel_truncation_cells", "zero_threshold"],
+          "additionalProperties": false,
+          "properties": {
+            "kernel_truncation_cells": {"description": "demi-largeur, en cellules de 25 m, du noyau de dispersion tronqué ; c'est aussi la largeur de la zone tampon (source de graines seulement, bord absorbant, spec §7). Réglage numérique : il change les résultats, le rapport le dit.", "type": "integer", "minimum": 1},
+            "zero_threshold": {"description": "seuil relatif de la règle |Q| (spec §6) : une valeur de dispersion |Q| < zero_threshold × max|Q| est mise à zéro et comptée (run.json zeroed_values) ; une valeur négative au-delà du seuil arrête le moteur (code 3). Strictement entre 0 et 1.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+          }
+        },
+        "ser": {
+          "description": "réglages du niveau SER (ADR 0006, projet) ; exigé quand level vaut `ser`. Largeur et nombre de classes sont des réglages numériques qui changent les résultats : le rapport le dit.",
+          "type": "object",
+          "required": ["diameter_class_width_cm", "diameter_classes", "write_step"],
+          "additionalProperties": false,
+          "properties": {
+            "diameter_class_width_cm": {"description": "largeur d'une classe de diamètre, en cm ; la première classe commence au seuil de recrutement du modèle IFN (C13 = 0,235 m, soit 7,48 cm) ; la dernière est ouverte", "type": "number", "exclusiveMinimum": 0},
+            "diameter_classes": {"description": "nombre de classes de diamètre K, dernière ouverte comprise ; au moins 2", "type": "integer", "minimum": 2},
+            "write_step": {"description": "une année écrite sur N dans sim/cells et sim/cohorts : t0, t0 + N, t0 + 2N… et toujours la dernière année simulée (même règle que assets.year_step)", "type": "integer", "minimum": 1}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "description": "recruitment = cohorts exige le bloc regeneration (aucune valeur par défaut)",
+          "if": {"required": ["recruitment"], "properties": {"recruitment": {"const": "cohorts"}}},
+          "then": {"required": ["regeneration"]}
+        },
+        {
+          "description": "level = ser exige le bloc ser (aucune valeur par défaut)",
+          "if": {"required": ["level"], "properties": {"level": {"const": "ser"}}},
+          "then": {"required": ["ser"]}
+        }
+      ]
     },
     "assets": {
       "description": "réglages de assets (plan m4a-suite-temps §3, T1) ; exigé dès que sim/ existe : sans lui, assets s'arrête (code 2), aucune valeur par défaut silencieuse. Le schéma ne peut pas savoir si sim/ existe : c'est assets qui refuse.",

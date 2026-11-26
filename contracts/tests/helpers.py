@@ -441,3 +441,38 @@ def tiles_index_initial():
             "notes": ["état initial : arbres du générateur, sans simulation"],
             "years": [{"year": 2022, "instances": 100, "tileset": "2022/tileset.json",
                        "tiles": [{"tile": "t_700000_6500000", "instances": 100}]}]}
+
+
+# --- contrats de M5a (mission 060)
+TERMS = [("kernel_scale_m", "m"), ("kernel_shape", "1"), ("maturity_d130_cm", "cm"),
+         ("fecundity_seeds_per_m2_ba_yr", "graines/m2/an"), ("establishment_share", "1"),
+         ("seedling_height_growth_m_yr", "m/an"), ("shade_tolerance", "1"),
+         ("light_extinction_coef", "1"), ("seedling_survival_full_light_yr", "1"),
+         ("passage_height_m", "m")]
+
+
+def regeneration_params():
+    """Un terme par ligne pour le hêtre (09), plus un terme par groupe ; valeurs synthétiques."""
+    n = len(TERMS)
+    return {"species": ["09"] * n + [None],
+            "species_group": [None] * n + ["toutes_essences"],
+            "term": [t for t, _ in TERMS] + ["light_extinction_coef"],
+            "value": [1.0] * (n + 1),
+            "unit": [u for _, u in TERMS] + ["1"],
+            "provisoire": [True] * (n + 1),
+            "source": ["synthétique"] * (n + 1)}
+
+
+REGENERATION_TYPES = {"species": pa.string(), "species_group": pa.string()}
+
+
+def cohorts_init():
+    return {"cell_id": [0, 0, 0, 1], "species": ["09", "09", "02", "09"], "d_class": [0, 1, 0, 0],
+            "stems_ha": [120.0, 40.0, 0.0, 80.0], "source": ["synthétique"] * 4}
+
+
+def sim_cohorts(year=2030):
+    return {"cell_id": [0, 0, 1], "year": [year] * 3, "species": ["09", "09", "09"],
+            "d_class": [0, 1, 0], "stems_ha": [120.0, 40.0, 80.0]}
+
+

@@ -17,3 +17,9 @@
 ## Tests
 
 - tests unitaires, dont FFT contre convolution directe à 1e-9 et somme du noyau égale à 1 à 1e-12 ; **une source de coordonnées connues** (est 700 012,5 ; nord 6 500 987,5 ; EPSG:2154) **ensemence les cellules attendues**, avec un cas asymétrique qui détecte une transposition ; SHA-256 identiques de 1 à 7 fils ; `cargo test --locked` et `tests/m3` (mode `ifn_direct`) verts
+
+## Précisions de l'orchestrateur (rendu de 060, 26/11/2026)
+
+- Le mode s'appelle `simulate.recruitment` (`ifn_direct` | `cohorts`) ; le bloc de réglages s'appelle `regeneration`.
+- `simulate` s'arrête en code 2, avec un message, si `simulate.recruitment` est absent (le schéma ne l'exige pas, pour rester rétrocompatible).
+- `config.yml` passe à `cohorts` avec cette mission, sous réserve que `tests/m3` reste jugé en `ifn_direct` (référence de M3a).

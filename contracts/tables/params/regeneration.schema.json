@@ -1,0 +1,93 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Paramètres de la régénération (params/regeneration.parquet, M5a)",
+  "description": "Format long, un nombre par ligne, avec son unité, son statut provisoire et sa source (spec §10), sur le modèle de dynamics_params. AUCUNE VALEUR n'est dans ce contrat : il fixe les termes que le moteur lit, chacun avec sa grandeur et son unité ; les valeurs viennent d'une source citée (référentiel docs/referentiels/regeneration, mission 059) ou sont marquées provisoire = vrai (sur le jeu fictif, valeurs synthétiques, provisoires). Par essence (species) ou par groupe (species_group) : au moins l'un des deux ; une essence sans ligne propre prend son groupe (colonne groupe de contracts/species.csv), sinon toutes_essences ; sur une zone réelle, une essence sans valeur pour un terme que le moteur lit arrête simulate (code 2) : aucune valeur d'emprunt sans décision de Pascal. TERMES (la liste est fermée ; un terme de plus passe par l'orchestrateur) : (1) NOYAU DE DISPERSION, par essence : k(r) ∝ exp(−(r / kernel_scale_m)^kernel_shape), r en mètres entre centres de cellules, tronqué à kernel_truncation_cells de config.yml et normalisé de façon que la somme sur la grille tronquée soit 1 (à 1e-12) ; kernel_shape = 1 donne l'exponentielle, 2 la gaussienne. (2) maturity_d130_cm : diamètre à partir duquel un arbre est semencier, cm. (3) fecundity_seeds_per_m2_ba_yr : graines produites par an et par m² de surface terrière semencière. (4) establishment_share : part des graines arrivées qui s'installent en semis, de 0 à 1 (filtre de la station). (5) seedling_height_growth_m_yr : croissance annuelle en hauteur d'un semis à pleine lumière, m/an. (6) LUMIÈRE ET OMBRE SEULES (décision de Pascal Q3 du 26/11/2026 ; sous-bois, gibier et fructification non simulés) : shade_tolerance (indice de tolérance à l'ombre, Niinemets et Valladares 2006, sans unité), light_extinction_coef (extinction de la lumière sous couvert, sans unité), seedling_survival_full_light_yr (survie annuelle à pleine lumière, de 0 à 1). (7) passage_height_m : hauteur de passage du semis à la classe des 7,5 cm (C13 = 0,235 m), m (décision de Pascal Q1 : sous couvert, le flux de passage est celui du modèle IFN, borné par le stock de semis à cette hauteur). Les formes (l'exponentielle-puissance du noyau, l'effet de la lumière) sont celles de l'ADR 0006 ; elles ne portent aucune valeur.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 060 (plan m5a §3, décisions Q1 à Q3 de Pascal du 26/11/2026)",
+  "fieldsMatch": "equal",
+  "primaryKey": [
+    "species",
+    "species_group",
+    "term"
+  ],
+  "fields": [
+    {
+      "name": "species",
+      "type": "string",
+      "description": "code espar de l'IFN en chaîne, avec son zéro de tête (spec §8, contracts/species.csv)",
+      "constraints": {
+        "pattern": "[0-9]{2}[A-Z0-9]{0,3}"
+      }
+    },
+    {
+      "name": "species_group",
+      "type": "string",
+      "description": "groupe d'essences : colonne groupe de contracts/species.csv, ou toutes_essences",
+      "constraints": {
+        "enum": [
+          "feuillu",
+          "resineux",
+          "toutes_essences"
+        ]
+      }
+    },
+    {
+      "name": "term",
+      "type": "string",
+      "description": "nom du terme (liste fermée, voir la description du contrat), unique par essence ou groupe",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "kernel_scale_m",
+          "kernel_shape",
+          "maturity_d130_cm",
+          "fecundity_seeds_per_m2_ba_yr",
+          "establishment_share",
+          "seedling_height_growth_m_yr",
+          "shade_tolerance",
+          "light_extinction_coef",
+          "seedling_survival_full_light_yr",
+          "passage_height_m"
+        ]
+      }
+    },
+    {
+      "name": "value",
+      "type": "number",
+      "description": "valeur du terme, dans l'unité de la colonne unit",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "unit",
+      "type": "string",
+      "description": "unité de la valeur : m, cm, m/an, graines/m2/an, 1/an ou 1 (sans unité)",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "provisoire",
+      "type": "boolean",
+      "description": "vrai si la valeur n'est pas encore sourcée ou validée (spec §10)",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "source citée de la valeur ; sur le jeu fictif : « synthétique »",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    }
+  ],
+  "x-require-one-of": [
+    "species",
+    "species_group"
+  ]
+}
