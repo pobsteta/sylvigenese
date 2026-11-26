@@ -10,6 +10,36 @@ import helpers_m6 as M
 import helpers_m4 as H
 
 
+VERSIONNES = ("zone.yml", "README.md", "inputs", "params/allometry.parquet", "params/indicator_values.csv",
+              "params/tarif.parquet")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def zone_de_base():
+    """Zone de départ des tests M6 : les ENTRÉES VERSIONNÉES de tests/fixtures/zone_fictive copiées sous data/m6_base,
+    puis `make prepare biomes trees assets` sans réseau (comme tests/m4). Aucun test ne dépend d'une sortie ignorée
+    par git du jeu fictif (trees_init, site_potential.tif, tiles/...). `H.ZONE` pointe dessus le temps de la session."""
+    ancien = H.ZONE
+    base = H.ROOT / "data" / "m6_base"
+    shutil.rmtree(base, ignore_errors=True)
+    for rel in VERSIONNES:
+        src = ancien / rel
+        dst = base / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_dir():
+            shutil.copytree(src, dst)
+        else:
+            shutil.copy2(src, dst)
+    H.ZONE = base
+    try:
+        r = H.run_make(*H.CHAIN, zone="m6_base")
+        assert r.returncode == 0, f"chaîne prepare biomes trees assets en échec :\n{(r.stdout + r.stderr)[-2500:]}"
+        yield base
+    finally:
+        H.ZONE = ancien
+        H.remove_zone_copy("m6_base")
+
+
 @pytest.fixture(scope="session")
 def zone_a():
     """Jeu fictif + exemplaires synthétiques de la fixture : `assets` une fois."""

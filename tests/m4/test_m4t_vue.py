@@ -124,7 +124,7 @@ def test_la_fiche_de_l_annee_montre_son_evolution(vue_temps, temps_index, temps_
             hd = T.expected_year(temps_cells.get((cellule_suivie, y)))["h_dom_m"]
             s1 = f"{hd:.1f}"
             assert s1 in txt or s1.replace(".", ",") in txt, f"fiche en {a} : H_dom {s1} m de {y} absente"
-        m = re.search(r"viewer-massif\s+--\s+--x\s+\S+\s+--y\s+\S+\s+--year\s+(\d{4})", txt)
+        m = re.search(r"viewer-massif\s+--\s+--zone\s+data/\S+\s+--x\s+\d+(?:[.,]\d+)?\s+--y\s+\d+(?:[.,]\d+)?\s+--year\s+(\d{4})", txt)
         assert m and int(m.group(1)) == a, f"{a} : commande viewer-massif absente ou à une autre année"
 
 
