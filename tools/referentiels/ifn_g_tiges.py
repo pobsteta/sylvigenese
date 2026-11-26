@@ -5,8 +5,9 @@ Référentiel : docs/referentiels/ifn-g-tiges.md (décision éclairée : bornes 
 docs/spec.md §11, « surface terrière et tiges par hectare entre les quantiles 5 et 95 % de l'IFN »,
 et recalage du jeu fictif).
 
-ÉTAT : écrit par l'acquéreur le 2026-11-26, JAMAIS EXÉCUTÉ (pas d'outil d'exécution dans sa
-session). À lancer d'abord avec --self-test, puis sur l'export réel.
+ÉTAT : écrit par l'acquéreur le 2026-11-26 ; exécuté pour la première fois le 2026-11-26
+(mission 058) sur l'export du 07/10/2026 (UTF-8 avec BOM, séparateur « ; », point décimal).
+Test : tools/referentiels/tests/test_ifn_g_tiges.py.
 
 Données (hors dépôt, sous data/) :
     https://inventaire-forestier.ign.fr/dataifn/data/export_dataifn_2005_2025.zip
@@ -23,6 +24,7 @@ metadonnees.csv de l'archive de documentation 2025) :
   - placette retenue : CAMPAGNE dans la période, VISITE = 1, CSA dans {1 boisée fermée,
     3 boisée ouverte} (5 = peupleraie, exclue par défaut), PEUPNR = 0 (peuplement recensable) ;
   - arbre retenu : VEGET = 0 (vivant sur pied), C13 >= 0,235 m (D13 >= 7,5 cm) ;
+  - placette écartée (et comptée) si un de ses arbres vivants n'a pas de C13 ou de W ;
   - g d'un arbre = C13² / (4 π) (m², C13 en mètres) ; G/ha = Σ W·g ; tiges/ha = Σ W, où W est le
     poids de l'arbre fourni par l'IGN (88,4 / 39,3 / 14,1 pour les cercles de 6, 9, 15 m, corrigé
     en lisière) ;
@@ -147,7 +149,10 @@ def read_trees(handle, plots, live_codes, report):
             continue
         c13, w = parse_number(row["C13"]), parse_number(row["W"])
         if c13 is None or w is None:
+            # Sans W, pas de G ni de tiges/ha : la placette entière est écartée plus bas
+            # (exclude_incomplete), sinon elle compterait comme un faux G = 0.
             report["arbres_sans_c13_ou_w (signalés, exclus)"] += 1
+            plot["incomplete"] = True
             continue
         if c13 > 20:
             raise InputError(f"ARBRE.csv : C13 = {c13} pour {key} ; l'export est en mètres "
@@ -165,6 +170,20 @@ def read_trees(handle, plots, live_codes, report):
         group = next((name for name, codes in SPECIES_GROUPS.items() if species in codes), "autre")
         plot["g_group"][group] += g
         report["arbres_retenus"] += 1
+
+
+def exclude_incomplete(plots, report):
+    """Écarte les placettes dont un arbre vivant n'a pas de C13 ou de W, et les compte.
+
+    Export du 07/10/2026, campagnes 2021-2025, VISITE = 1, CSA 1 ou 3, PEUPNR = 0 : 232 placettes
+    ont tous leurs arbres vivants sans W (surtout en lisière) ; en VISITE = 2, aucun arbre n'a de W. Les garder en ferait des
+    placettes à G = 0 ; leur donner un W par défaut serait deviner.
+    """
+    incomplete = [key for key, plot in plots.items() if plot.get("incomplete")]
+    for key in incomplete:
+        del plots[key]
+    report["placettes_exclues_c13_ou_w_absent (signalées)"] = len(incomplete)
+    report["placettes_calculees"] = len(plots)
 
 
 def stand_type(plot):
@@ -253,8 +272,10 @@ def run(export, csv_path, period, visits, cover_codes, live_codes, encoding):
         plots, report = read_plots(handle, period, visits, cover_codes)
     with open_table(export, "ARBRE", encoding) as handle:
         read_trees(handle, plots, live_codes, report)
+    exclude_incomplete(plots, report)
     filters = (f"VISITE in {sorted(visits)} ; CSA in {sorted(cover_codes)} ; PEUPNR = 0 ; "
-               f"VEGET in {sorted(live_codes)} ; C13 >= {C13_MIN_M} m")
+               f"VEGET in {sorted(live_codes)} ; C13 >= {C13_MIN_M} m ; "
+               "placettes avec un arbre vivant sans C13 ou W exclues")
     rows = rows_for(summarise(plots), period, filters)
     if csv_path is not None:
         merge_into(Path(csv_path), rows)

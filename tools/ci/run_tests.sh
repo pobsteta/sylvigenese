@@ -15,7 +15,8 @@
 #   rust     cargo test (make test-rust)
 #   python   pytest python (make test-python)
 #   web      node --test (make test-web)
-#   contrats pytest tests/contracts, contracts/tests, tools/fixtures/tests et python
+#   contrats pytest tests/contracts, contracts/tests, tools/fixtures/tests, tools/referentiels/tests
+#            et python
 #   m1 m2 m4 m3   tests d'acceptation des jalons, une session pytest chacun
 #            (m3 et m4 compilent d'abord simulate en release : leurs tests tournent sans réseau)
 #   post     tests d'acceptation de post, volume et carbone (mission 052) : chaîne R, simulate sur 5 ans,
@@ -80,7 +81,7 @@ run_section() {
     web)      make test-web ;;
     contrats)
       # shellcheck disable=SC2086
-      run_pytest tests/contracts contracts/tests tools/fixtures/tests python ${SYLVIGENESE_PYTEST_EXTRA:-} ;;
+      run_pytest tests/contracts contracts/tests tools/fixtures/tests tools/referentiels/tests python ${SYLVIGENESE_PYTEST_EXTRA:-} ;;
     # Tests d'acceptation du jalon M1a (mission 021) : session séparée, car leurs modules
     # d'aide portent le même nom que ceux des contrats (helpers.py).
     m1)       run_pytest tests/m1 ;;
