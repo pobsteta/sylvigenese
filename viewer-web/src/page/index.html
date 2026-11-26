@@ -26,6 +26,18 @@
   #fiche table.evolution th:nth-child(n+6), #fiche table.evolution td:nth-child(n+6) { text-align: left; }
   #fiche table.evolution tr.choisie td { background: #fff1b8; font-weight: 700; }
   #fiche table.evolution td.haut { color: #a63b00; }
+  /* fiche v3 (mission 054) : volume et carbone en tête du tableau ; colonnes de texte repérées par classe */
+  #fiche.large.v3 { width: 800px; }
+  #fiche.v3 .tete { font-size: 22px; }
+  #fiche.v3 .mentions { font-size: 13px; color: #333; margin: 2px 0; }
+  #fiche.v3 .contexte { font-size: 14px; color: #444; margin: 2px 0 4px; }
+  #fiche.v3 table.evolution th:nth-child(n+6), #fiche.v3 table.evolution td:nth-child(n+6) { text-align: right; }
+  #fiche.v3 table.evolution th.txt, #fiche.v3 table.evolution td.txt { text-align: left; }
+  #fiche.v3 table.evolution td.vol { font-weight: 700; }
+  #fiche.v3 table.evolution td.nc { color: #a63b00; font-weight: 400; font-style: italic; }
+  #fiche.v3 table.evolution td.racines { color: #555; font-style: italic; }
+  #fiche.v3 table.evolution .partiel { display: block; font-size: 11px; font-weight: 400; color: #a63b00; white-space: nowrap; }
+  #fiche.v3 .raisons { font-size: 13px; color: #a63b00; margin: 4px 0; }
   #legende-g-barre { height: 14px; width: 220px; border: 1px solid #fff8; margin-top: 4px; }
   #legende-g-reperes { display: flex; justify-content: space-between; width: 222px; }
   #legende-g-mention, #legende-g-hors { max-width: 240px; white-space: normal; font-size: 12px; margin-top: 4px; }

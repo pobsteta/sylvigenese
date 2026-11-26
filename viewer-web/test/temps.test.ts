@@ -196,3 +196,21 @@ test("couches d'arbres : une couche en échec est rendue une seule fois", () => 
   assert.deepEqual(slots.abandon("2032"), []);
   assert.equal(slots.count, 0);
 });
+
+// ---------------------------------------------------------------- images par seconde (run 45777046842 : fps 0)
+import { FPS_MAX_MS, FPS_MIN_FRAMES, fpsMeasureDone, fpsValue } from "../src/temps.ts";
+
+test("la mesure des images par seconde attend au moins deux images au-delà de la durée demandée", () => {
+  assert.equal(FPS_MIN_FRAMES, 2);
+  assert.equal(fpsMeasureDone(3000, 1, 3000), false); // une image de plus de 3 s (SwiftShader) : on continue
+  assert.equal(fpsMeasureDone(9000, 2, 3000), true);
+  assert.equal(fpsMeasureDone(2000, 50, 3000), false); // la durée demandée est tenue
+  assert.equal(fpsMeasureDone(FPS_MAX_MS, 0, 3000), true); // plafond de 60 s
+});
+
+test("les images par seconde gardent trois chiffres significatifs, jamais 0 en silence", () => {
+  assert.equal(fpsValue(2, 9000), 0.222); // l'ancien arrondi à 0,1 aurait donné 0,2 ; 1 image en 3,2 s donnait 0
+  assert.equal(fpsValue(1, 60000), 0.0167);
+  assert.equal(fpsValue(180, 3000), 60);
+  assert.equal(fpsValue(0, 60000), null);
+});

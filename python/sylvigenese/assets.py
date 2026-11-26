@@ -53,6 +53,25 @@ INDEX_NOTES_SIM = [
     "modèles d'arbres génériques et provisoires (remplacés en M6) ; carte des types de végétation : état initial",
     "semis non simulés ; volume et carbone non calculés (post, après M4a)",
 ]
+# Dernière note de l'index quand post a tourné (sim/summary.parquet présent, fiches v3, mission 054) : elle remplace
+# « volume et carbone non calculés », qui serait faux. Le nom du tarif est celui des fiches (cell_sheets.TARIF_NAME,
+# ou celui du jeu fictif).
+INDEX_NOTE_POST = ("semis non simulés ; volume aérien total et carbone aérien calculés par post (sim/summary.parquet), "
+                   "tarif provisoire : {tarif} ; sol et bois mort non comptés")
+
+
+def index_notes_sim(docs: dict[str, dict]) -> list[str]:
+    """Notes de tiles/index.json en mode sim : celles de INDEX_NOTES_SIM, la dernière dite selon les fiches écrites
+    (v2 : volume et carbone non calculés ; v3 : calculés par post, avec le tarif)."""
+    tarifs = sorted({d["tarif"]["name"] for d in docs.values() if d["schema_version"] == 3})
+    if not tarifs:
+        return list(INDEX_NOTES_SIM)
+    return INDEX_NOTES_SIM[:-1] + [INDEX_NOTE_POST.format(tarif=" ; ".join(tarifs))]
+
+
+def sheet_version(docs: dict[str, dict]) -> str:
+    """Version(s) des fiches réellement écrites, pour le message final (par exemple « v3 »)."""
+    return "/".join(f"v{v}" for v in sorted({d["schema_version"] for d in docs.values()}))
 INDEX_NOTES_INITIAL = [
     "état initial (trees_init) : sim/ absent, aucune année simulée",
     "résultat provisoire : surface de houppier et d130 provisoires (spec §4.3) ; modèles d'arbres génériques (M6)",
@@ -285,7 +304,7 @@ def write_sim_state(config: dict, zone: Path, out: Path) -> dict:
         entry["tiles"] = [{"tile": name, "instances": int(counts_year.get(name, 0))} for name in all_tiles]
     write_json(out / "tiles" / "index.json", {
         "schema_version": 1, "source": "sim", "t0": t0, "year_step": step, "run_config_sha256": run["config_sha256"],
-        "provisoire": True, "notes": INDEX_NOTES_SIM,
+        "provisoire": True, "notes": index_notes_sim(docs),
         "basal_area_map": {"unit": "m2/ha", "scale_min_m2_ha": scale_min, "scale_max_m2_ha": scale_max,
                            "mention": "surface terrière par cellule (m2/ha), web/rasters/g_<année>.tif, échelle fixe sur "
                                       f"toutes les années simulées ({t0} à {t0 + horizon}) ; " + MENTION_SIM},
@@ -296,7 +315,8 @@ def write_sim_state(config: dict, zone: Path, out: Path) -> dict:
         cog.write_basal_area_cog(zone / "grid.tif", g_maps[year], out / "web" / "rasters" / f"g_{year}.tif")
     return {"mode": "sim", "year": retained[0], "years": retained, "trees": sum(e["instances"] for e in index_years),
             "dead": sum(e["dead"] for e in index_years), "tiles": len(all_tiles), "models": len(written_models),
-            "sheets": len(written_sheets), "cells": counts, "scale": (scale_min, scale_max)}
+            "sheets": len(written_sheets), "sheet_version": sheet_version(docs), "cells": counts,
+            "scale": (scale_min, scale_max)}
 
 
 # ------------------------------------------------------------------ contrôle et point d'entrée
@@ -349,7 +369,7 @@ def run(config_path: str) -> int:
     c = summary["cells"]
     if summary["mode"] == "sim":
         say(f"années simulées {', '.join(map(str, summary['years']))} : {summary['trees']} instances (vivants) au total, "
-            f"{summary['dead']} morts non dessinés, {summary['tiles']} tuile(s), {summary['sheets']} fiche(s) v2 de "
+            f"{summary['dead']} morts non dessinés, {summary['tiles']} tuile(s), {summary['sheets']} fiche(s) {summary['sheet_version']} de "
             f"{c['cells']} cellule(s), {len(summary['years'])} carte(s) de surface terrière (échelle "
             f"{summary['scale'][0]:.3f} à {summary['scale'][1]:.3f} m2/ha) ; {MENTION_SIM} ; tous les contrats assets.* conformes")
         return EXIT_OK

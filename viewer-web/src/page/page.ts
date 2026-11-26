@@ -14,9 +14,10 @@ import {
 } from "../sheet.ts";
 import {
   chooseYear, formatEvolution, indexTiles, indexYear, legendTicks, neighbourYear, positionOfYear, rampColor, rampCss,
-  readTilesIndex, yearAtPosition, yearLabel, MENTION_ECO, TreeLayerSlots,
+  readTilesIndex, yearAtPosition, yearLabel, MENTION_ECO, TreeLayerSlots, fpsMeasureDone, fpsValue,
   type CellV2, type TileSheetsV2, type TilesIndex,
 } from "../temps.ts";
+import { formatEvolutionV3, sheetVersion, type CellV3, type Tarif, type TileSheetsV3 } from "../volume.ts";
 
 interface YearRecord {
   instanceCount: number;
@@ -34,14 +35,14 @@ interface State {
   instancesAttendues: number | null;
   meshesInstancies: number;
   tilesetsEnMemoire: number;
-  fps: number;
+  fps: number | null;
   chargementMs: number | null;
   parAnnee: Record<string, YearRecord>;
   terrain: string;
   fond: string;
   setYear: (a: number) => Promise<void>;
   openCell: (id: number) => boolean;
-  mesurerFps: (ms?: number) => Promise<number>;
+  mesurerFps: (ms?: number) => Promise<number | null>;
   placer: (range: number, tilt: number, heading: number) => Promise<void>;
 }
 
@@ -333,12 +334,20 @@ async function startViewer(): Promise<void> {
   const firstTileset = await json<Tileset>(tilesetUrlOf(firstYear));
   const tileNames = index ? indexTiles(index)
     : (firstTileset.root.children ?? []).map((c) => c.extras?.tile).filter((t): t is string => !!t);
-  // Fiches : v2 dès que sim/ existe (la version 1 est alors refusée), v1 pour l'état initial.
-  const files = await Promise.all(tileNames.map((t) => json<TileSheets | TileSheetsV2>(`/zone/web/cells/${t}.json`)));
+  // Fiches : v1 pour l'état initial ; dès que sim/ existe, v2 (sans post) ou v3 (avec volume et carbone de post),
+  // déduite de l'index et des fiches (la version 1 est alors refusée).
+  const files = await Promise.all(tileNames.map((t) => json<TileSheets | TileSheetsV2 | TileSheetsV3>(`/zone/web/cells/${t}.json`)));
+  const version = sheetVersion(index, files);
   const sheetsV1 = sim ? new Map<number, Cell>() : indexSheets(files as TileSheets[], 1);
-  const sheetsV2 = sim ? indexSheets(files as TileSheetsV2[], 2) : new Map<number, CellV2>();
+  const sheetsV2 = version === 2 ? indexSheets(files as TileSheetsV2[], 2) : new Map<number, CellV2>();
+  const sheetsV3 = version === 3 ? indexSheets(files as TileSheetsV3[], 3) : new Map<number, CellV3>();
   const sheetNotesOfFiles = sim ? (files as TileSheetsV2[]).flatMap((f) => f.notes ?? []) : [];
-  const vegetationOf = (id: number) => (sim ? sheetsV2.get(id)?.vegetation_type : sheetsV1.get(id)?.vegetation_type);
+  // Tarif : un par tuile dans le fichier ; la vue le dit s'il diffère d'une tuile à l'autre (rien n'est choisi).
+  const tarifs = version === 3 ? [...new Map((files as TileSheetsV3[]).map((f) => [JSON.stringify(f.tarif), f.tarif])).values()] : [];
+  if (tarifs.length > 1) throw new Error(`fiches v3 : ${tarifs.length} tarifs différents selon la tuile ; assets n'a pas tout réécrit`);
+  const tarif: Tarif | null = tarifs[0] ?? null;
+  const simSheet = (id: number) => (version === 3 ? sheetsV3.get(id) : sheetsV2.get(id));
+  const vegetationOf = (id: number) => (sim ? simSheet(id)?.vegetation_type : sheetsV1.get(id)?.vegetation_type);
 
   const cog = await readRaster("/zone/web/rasters/vegetation_map.tif");
   // Légende des types : la valeur du COG et le nom du type viennent des fiches (source unique : web/).
@@ -485,7 +494,30 @@ async function startViewer(): Promise<void> {
     const year = state.year as number;
     let html: string;
     let command: string;
-    if (sim) {
+    if (version === 3) {
+      const c = sheetsV3.get(id);
+      if (!c) { el.hidden = true; openedCell = null; return false; }
+      const f = formatEvolutionV3(c, year, sheetNotesOfFiles, tarif);
+      command = f.command;
+      const roots = f.hasRoots ? `<th>Racines tC/ha (provisoire, à part)</th>` : "";
+      html = `<h2>${f.title} <small>(${f.year})</small></h2>` +
+        `<div class="prov">Résultat provisoire : ${esc(MENTION_ECO)}</div>` +
+        `<div class="tete">${esc(f.headline)}</div>` +
+        `<div class="mentions">${esc(f.mentions)}</div>` +
+        `<div class="contexte">${esc(f.context)}</div>` +
+        `<dl>${f.rows.map((l) => `<dt>${esc(l.label)}</dt><dd>${esc(l.value)}</dd>`).join("")}</dl>` +
+        `<table class="evolution"><caption>Évolution de la cellule, chiffres provisoires (tarif provisoire ; H_dom ↑ : au-dessus du plafond, signalé, jamais corrigé)</caption>` +
+        `<thead><tr><th>Année</th><th>Volume aérien total m³/ha</th><th>Carbone aérien tC/ha</th>${roots}<th>Tiges/ha</th><th>G m²/ha</th><th>d moyen cm</th><th>H_dom m (${esc(f.ceiling)})</th><th class="txt">Essences (part des tiges)</th><th class="txt">Signalements</th></tr></thead><tbody>` +
+        f.table.map((r) => `<tr${r.selected ? ' class="choisie"' : ""}><td>${r.year}</td>` +
+          `<td class="vol${r.notComputed ? " nc" : ""}">${esc(r.volume)}${r.partial ? `<span class="partiel">${esc(r.partial)}</span>` : ""}</td>` +
+          `<td${r.notComputed ? ' class="nc"' : ""}>${esc(r.carbon)}</td>` +
+          (r.roots === null ? "" : `<td class="racines">${esc(r.roots)}</td>`) +
+          `<td>${r.stems}</td><td>${r.basalArea}</td><td>${r.d130}</td>` +
+          `<td${r.aboveCeiling ? ' class="haut"' : ""}>${r.hdom}${r.aboveCeiling ? " ↑" : ""}</td><td class="txt">${esc(r.composition)}</td><td class="txt">${esc(r.flags.join(" ; "))}</td></tr>`).join("") +
+        `</tbody></table>` +
+        (f.reasons.length ? `<div class="raisons">${f.reasons.map((r) => `<div>Non calculé en ${r.years.join(", ")} : ${esc(r.reason)}</div>`).join("")}</div>` : "") +
+        `<ul>${f.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    } else if (sim) {
       const c = sheetsV2.get(id);
       if (!c) { el.hidden = true; openedCell = null; return false; }
       const f = formatEvolution(c, year, sheetNotesOfFiles);
@@ -514,6 +546,7 @@ async function startViewer(): Promise<void> {
     openedCell = id;
     el.hidden = false;
     el.classList.toggle("large", sim);
+    el.classList.toggle("v3", version === 3);
     el.setAttribute("data-cell-id", String(id));
     el.innerHTML = `<button class="fermer" type="button">×</button>` + html +
       `<div>Commande à copier pour la vue massif :</div><code>${command}</code>` +
@@ -539,20 +572,24 @@ async function startViewer(): Promise<void> {
     view.notifyChange(view.camera3D);
   };
 
-  // Mesure des images par seconde : force un rendu par image pendant la durée demandée ; rangée sous l'année affichée.
+  // Mesure des images par seconde : force un rendu par image pendant la durée demandée, prolongée jusqu'à
+  // FPS_MIN_FRAMES images rendues, plafonnée à FPS_MAX_MS (60 s) ; règle dans temps.ts (fpsMeasureDone, fpsValue).
+  // Rangée sous l'année affichée. Aucune image au plafond : null et state.error, jamais 0 en silence.
   let images = 0;
   view.addFrameRequester(itowns.MAIN_LOOP_EVENTS.AFTER_RENDER, () => { images++; });
   state.mesurerFps = (ms = 3000) => new Promise((ok) => {
     const t0m = performance.now(), i0 = images;
     const frame = () => {
       view.notifyChange(view.camera3D);
-      if (performance.now() - t0m < ms) requestAnimationFrame(frame);
-      else {
-        state.fps = Math.round(((images - i0) * 10000) / (performance.now() - t0m)) / 10;
-        const rec = state.year === null ? undefined : state.parAnnee[String(state.year)];
-        if (rec) rec.fps = state.fps;
-        ok(state.fps);
+      const elapsed = performance.now() - t0m;
+      if (!fpsMeasureDone(elapsed, images - i0, ms)) { requestAnimationFrame(frame); return; }
+      state.fps = fpsValue(images - i0, elapsed);
+      if (state.fps === null) {
+        state.error = `images par seconde : aucune image rendue en ${Math.round(elapsed / 1000)} s (plafond de la mesure)`;
       }
+      const rec = state.year === null ? undefined : state.parAnnee[String(state.year)];
+      if (rec) rec.fps = state.fps;
+      ok(state.fps);
     };
     frame();
   });

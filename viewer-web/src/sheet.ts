@@ -45,9 +45,10 @@ export class SheetError extends Error {}
 
 // Rassemble les fiches de plusieurs tuiles ; refuse un cell_id en double (deux tuiles ne partagent pas de cellule).
 // La version attendue est dictée par tiles/index.json : 1 pour l'état initial, 2 dès que sim/ existe (mission 048 ;
-// la vue refuse alors la version 1, plan m4a-suite-temps §3).
+// la vue refuse alors la version 1, plan m4a-suite-temps §3), 3 quand post a tourné (mission 054 : voir
+// sheetVersion dans volume.ts, qui la déduit de l'index et des fiches).
 export function indexSheets<C extends { cell_id: number }>(
-  tiles: { schema_version: number; tile: string; cells: C[] }[], version: 1 | 2 = 1,
+  tiles: { schema_version: number; tile: string; cells: C[] }[], version: 1 | 2 | 3 = 1,
 ): Map<number, C> {
   const index = new Map<number, C>();
   for (const tile of tiles) {
