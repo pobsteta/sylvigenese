@@ -38,13 +38,13 @@ def test_repere_z_up_base_en_zero_et_sommet_a_H(path):
 
 @pytest.mark.parametrize("path", FICHIERS, ids=lambda p: p.stem)
 def test_cime_asymetrique_et_branche_repere(path):
-    """x et y ne se valent pas (piège de la Somalie) : tout est à y >= 0, la branche repère finit en (2, 5, 0,6 H)."""
+    """x et y ne se valent pas (piège de la Somalie) : tout est à y >= 0, la branche repère finit en (12, 3, 0,6 H)."""
     meta = {k.decode(): v.decode() for k, v in pq.read_schema(path).metadata.items()}
     seg = {k: np.array(v) for k, v in pq.read_table(path).to_pydict().items()}
     assert min(seg["y0"].min(), seg["y1"].min()) >= -1e-9
-    assert seg["y1"].max() > 4.9
+    assert seg["y1"].max() > 2.9
     k = len(seg["x1"]) - 1
-    assert (seg["x1"][k], seg["y1"][k]) == (2.0, 5.0)
+    assert (seg["x1"][k], seg["y1"][k]) == (12.0, 3.0)
     assert abs(seg["z1"][k] - 0.6 * float(meta["H_m"])) < 1e-9
 
 

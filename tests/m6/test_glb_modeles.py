@@ -5,6 +5,7 @@ budgets de config.yml, étendue de LOD0 en +Y = H_ref_m à 1 %, sommets finis, e
 species.csv, repère (x, y, z) -> (x, z, -y). Lus par l'analyseur indépendant tests/m6/glb.py.
 Rouge attendu tant que les missions 070 (D) n'ont pas rendu les .glb.
 """
+import itertools
 import json
 import subprocess
 
@@ -88,28 +89,98 @@ def test_etendue_de_lod0_en_y_egale_H_ref_a_1_pour_cent_base_en_zero(zdir, essen
         assert abs(p[:, 1].max() - h_ref) <= 0.05 * h_ref and abs(p[:, 1].min()) <= 0.05 * h_ref, f"LOD{k} hors de [0, H_ref]"
 
 
-@pytest.mark.parametrize("essence,code,stage", COUPLES, ids=IDS)
-def test_repere_un_segment_connu_et_etendues_est_nord(zdir, essence, code, stage):
-    """Piège de la Somalie : le générateur est z-up (x est, y nord, z haut) ; glTF est y-up (x est, y haut, z = -nord).
-    La branche repère finit en (2, 5, 0,6 H) ; son extrémité doit être en (2, 0,6 H, -5), et rien ne doit exister
-    aux conversions fausses ((2, 0,6 H, +5) = nord pris pour sud, (5, 0,6 H, -2) = x et y échangés)."""
-    g = Glb(M.glb_files(zdir)[f"{code}_{stage}"])
-    pos, _ = g.lod(0)
-    seg = M.exemplar_segments(essence, stage)
-    k = len(seg["x1"]) - 1
-    p1 = np.array([seg["x1"][k], seg["y1"][k], seg["z1"][k]])
-    assert tuple(p1[:2]) == (2.0, 5.0)
-    r1 = seg["r1_m"][k]
-    bon = z_up_to_y_up(p1)
+def _conversions_fausses(p1):
+    """Toutes les permutations signées de (x, y, z) du générateur, sauf la bonne (x, z, -y) : (x, y, z) laissé tel quel,
+    (x, z, y) = nord pris pour sud, (y, z, -x) = x et y échangés, (x, -z, y), etc. (47 points)."""
+    bon = tuple(z_up_to_y_up(p1))
+    out = []
+    for perm in itertools.permutations(range(3)):
+        for signes in itertools.product((1.0, -1.0), repeat=3):
+            q = tuple(signes[i] * p1[perm[i]] for i in range(3))
+            if q != bon:
+                out.append(np.array(q))
+    return out
+
+
+def _distance_aux_segments(seg, q, pas=0.05):
+    """Distance minimale (m) d'un point de glTF aux tubes des segments de l'exemplaire convertis par la BONNE conversion,
+    rayon déduit : la géométrie légitime, calculée ici et non lue dans le .glb."""
+    a = z_up_to_y_up(np.stack([seg["x0"], seg["y0"], seg["z0"]], axis=1))
+    b = z_up_to_y_up(np.stack([seg["x1"], seg["y1"], seg["z1"]], axis=1))
+    ab = b - a
+    t = np.clip(np.einsum("ij,ij->i", q - a, ab) / np.maximum(np.einsum("ij,ij->i", ab, ab), 1e-12), 0.0, 1.0)
+    d = np.linalg.norm(a + t[:, None] * ab - q, axis=1) - np.maximum(seg["r0_m"], seg["r1_m"])
+    return float(d.min())
+
+
+def _verdict_repere(pos, p1, r1, seg):
+    """Vérifie le repère d'un sommet glTF `pos` : sommets au point juste, aucun aux conversions fausses. None si bon."""
     marge = r1 + 0.5          # tube (r1) et, selon Q2, carte de feuillage (moitié de card_size_m 0,6 en diagonale)
+    bon = z_up_to_y_up(p1)
 
     def proche(q):
         return float(np.min(np.linalg.norm(pos - q, axis=1)))
 
-    assert np.allclose(bon, [2.0, 0.6 * float(M.exemplar_meta(essence, stage)["H_m"]), -5.0])
-    assert proche(bon) <= marge, f"aucun sommet près de {bon} (le plus proche : {proche(bon):.3f} m)"
-    for faux in ([bon[0], bon[1], +5.0], [5.0, bon[1], -2.0], [2.0, 5.0, -bon[1]], [-2.0, bon[1], -5.0]):
-        assert proche(np.array(faux)) > marge + 0.5, f"des sommets existent à la conversion fausse {faux}"
+    if proche(bon) > marge:
+        return f"aucun sommet près de {bon} (le plus proche : {proche(bon):.3f} m)"
+    for faux in _conversions_fausses(p1):
+        if proche(faux) <= marge + 0.5:
+            return f"des sommets existent à la conversion fausse {faux}"
+    return None
+
+
+def _tip(seg):
+    k = len(seg["x1"]) - 1
+    return np.array([seg["x1"][k], seg["y1"][k], seg["z1"][k]]), float(seg["r1_m"][k])
+
+
+@pytest.mark.parametrize("essence,code,stage", COUPLES, ids=IDS)
+def test_oracle_du_repere_les_fausses_conversions_sont_loin_de_toute_geometrie_legitime(essence, code, stage):
+    """Garde de l'oracle (sans .glb) : aucune fausse conversion de l'extrémité repère ne tombe près d'un sommet légitime
+    de la fixture (distance aux segments ; marge du test + 0,5 m), sinon le test de repère ne discriminerait pas."""
+    seg = M.exemplar_segments(essence, stage)
+    p1, r1 = _tip(seg)
+    assert tuple(p1[:2]) == (12.0, 3.0)
+    for faux in _conversions_fausses(p1):
+        d = _distance_aux_segments(seg, faux)
+        assert d > r1 + 0.5 + 0.5, f"{faux} à {d:.2f} m de la géométrie légitime : fausse conversion indétectable"
+
+
+@pytest.mark.parametrize("essence,code,stage", COUPLES, ids=IDS)
+def test_oracle_du_repere_accepte_la_bonne_conversion_et_rejette_les_fausses(essence, code, stage):
+    """Démonstration que l'oracle discrimine : la fixture convertie correctement passe ; convertie par (x, z, y),
+    (x, -z, y), (x, y, z), (y, z, -x), (-x, z, -y), (x, z, -y) à l'est inversé... elle échoue."""
+    seg = M.exemplar_segments(essence, stage)
+    p1, r1 = _tip(seg)
+    n = len(seg["x0"])
+    t = np.linspace(0.0, 1.0, 21)[None, :, None]
+    a = np.stack([seg["x0"], seg["y0"], seg["z0"]], axis=1)[:, None, :]
+    b = np.stack([seg["x1"], seg["y1"], seg["z1"]], axis=1)[:, None, :]
+    nuage = (a + t * (b - a)).reshape(-1, 3)          # points de la fixture en repère z-up, tubes échantillonnés
+    x, y, z = nuage[:, 0], nuage[:, 1], nuage[:, 2]
+    assert _verdict_repere(np.stack([x, z, -y], axis=1), p1, r1, seg) is None, "la bonne conversion doit passer"
+    fausses = {
+        "(x, z, y)": (x, z, y), "(x, -z, y)": (x, -z, y), "(x, y, z)": (x, y, z), "(x, y, -z)": (x, y, -z),
+        "(y, z, -x)": (y, z, -x), "(-x, z, -y)": (-x, z, -y), "(z, x, -y)": (z, x, -y), "(x, z, -y) sans signe": (x, z, y),
+    }
+    for nom, (u, v, w) in fausses.items():
+        assert _verdict_repere(np.stack([u, v, w], axis=1), p1, r1, seg) is not None, f"conversion fausse {nom} non détectée"
+
+
+@pytest.mark.parametrize("essence,code,stage", COUPLES, ids=IDS)
+def test_repere_un_segment_connu_et_etendues_est_nord(zdir, essence, code, stage):
+    """Piège de la Somalie : le générateur est z-up (x est, y nord, z haut) ; glTF est y-up (x est, y haut, z = -nord).
+    La branche repère (horizontale, longue, décentrée) finit en (12, 3, 0,6 H) ; son extrémité doit être en
+    (12, 0,6 H, -3), et rien ne doit exister aux 47 autres permutations signées de ces trois nombres (nord pris pour
+    sud, x et y échangés, hauteur inversée...), vérifiées loin de toute géométrie légitime par le test précédent."""
+    g = Glb(M.glb_files(zdir)[f"{code}_{stage}"])
+    pos, _ = g.lod(0)
+    seg = M.exemplar_segments(essence, stage)
+    p1, r1 = _tip(seg)
+    assert tuple(p1[:2]) == (12.0, 3.0)
+    assert np.allclose(z_up_to_y_up(p1), [12.0, 0.6 * float(M.exemplar_meta(essence, stage)["H_m"]), -3.0])
+    erreur = _verdict_repere(pos, p1, r1, seg)
+    assert erreur is None, erreur
     # étendues : l'est reste +x, le nord (y >= 0 du générateur) est -z de glTF, rien au sud
     x_ex, y_ex = max(seg["x0"].max(), seg["x1"].max()), max(seg["y0"].max(), seg["y1"].max())
     assert pos[:, 0].max() >= x_ex - 0.1, "l'est du générateur n'est pas en +x"

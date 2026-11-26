@@ -28,7 +28,7 @@ STAGES = ("young", "pole", "mature", "old")
 D_CM = {"young": 10.0, "pole": 20.0, "mature": 30.0, "old": 40.0}
 H_M = {"young": 8.0, "pole": 16.0, "mature": 24.0, "old": 32.0}
 ESSENCES = {"Fagus_sylvatica": 11, "Quercus_spec": 22, "Abies_alba": 33}   # essence -> graine de base
-MARQUEUR = {"x1": 2.0, "y1": 5.0, "z_frac": 0.6, "r1": 0.04}               # branche repère, asymétrique (x != y)
+MARQUEUR = {"x1": 12.0, "y1": 3.0, "z_frac": 0.6, "r1": 0.04}               # branche repère longue, loin des branches aléatoires (<= 0,4 H)
 N_TRONC = 24
 N_BRANCHES = 30
 NOTE = "synthetique : fixture de test de M6a, aucune valeur ecologique, ne valide aucun tarif"
@@ -74,14 +74,17 @@ def tree_segments(essence: str, stage: str) -> tuple[dict, dict]:
             q1 = q0 + np.array([np.cos(az2), np.sin(az2), rng.uniform(0.0, 0.3)]) * length * 0.3
             add(tuple(q0), tuple(q1), 0.008, 0.003, 2, axe + 1 + t)
         axe += 4
-    # branche repère : extrémité en (2, 5, 0.6 H) ; rayon final 0,04 m (> 1 cm : présente au LOD0)
+    # branche repère : extrémité en (12, 3, 0.6 H), horizontale, longue et décentrée (loin de toute autre branche) ; rayon final 0,04 m (> 1 cm : présente au LOD0)
     zm = h * MARQUEUR["z_frac"]
     add((0.0, 0.0, zm - 0.3), (MARQUEUR["x1"], MARQUEUR["y1"], zm), 0.06, MARQUEUR["r1"], 1, axe)
     meta = {
         "frame": "z-up", "units": "m", "essence": essence, "stage": stage,
         "D_cm": repr(d), "H_m": repr(h), "hbh_m": repr(h * 0.5), "Rh_m": repr(h * 0.25), "b_cible": "1.0",
+        "calage": "non calé" if essence == "Abies_alba" else "calé",
         "seed": str(seed), "source_commit": "0000000", "synthetic": "true", "fixture_note": NOTE,
     }
+    if essence == "Abies_alba":
+        meta["calage_raisons"] = "resineux : densite des rameaux tiree, stades jeune et perche extrapoles (fixture)"
     return seg, meta
 
 
