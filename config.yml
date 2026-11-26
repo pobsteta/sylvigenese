@@ -68,6 +68,8 @@ viewer:
     blade_height_m: 0.35
     blades_per_m2_at_full_cover: 100
     color: "#5b7f3a"
+  seedlings:
+    max_instances: 20000   # plafond de dessin des semis (illustration, non mesurée) ; les effectifs restent ceux de sim/cells
   foliage:
     card_size_m: 0.6
     color_by_group: {feuillu: "#4f7a32", resineux: "#2f5a3a"}

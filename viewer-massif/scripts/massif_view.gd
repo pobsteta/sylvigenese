@@ -38,9 +38,11 @@ var block_size := 500.0
 var model_cache := {}       # chemin .glb -> résultat du chargeur
 var species_model := {}     # code espar -> {model, kind}
 var seedling_models := {}   # code espar -> {path, res} ou {missing: raison}
-var stats := {"blocks": 0, "trees": 0, "generic_trees": 0, "non_cale_trees": 0, "grass_instances": 0, "seedlings": 0, "truncated": false}
+var stats := {"blocks": 0, "trees": 0, "generic_trees": 0, "non_cale_trees": 0, "grass_instances": 0, "seedlings": 0, "truncated": false, "seedlings_truncated": false}
+var non_cale_models := {}   # nom du .glb -> nombre d'arbres qui en dépendent (extras.calage = « non calé »)
 var notes: Array = []        # lignes de signalement pour l'écran
 var grass_message := ""
+var seedling_message := ""
 var camera: Camera3D
 
 var _gate := Gate.new()
@@ -200,6 +202,8 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 			stats["generic_trees"] += 1
 		if str(extras.get("calage", "")) == "non calé":
 			stats["non_cale_trees"] += 1
+			var mname := str(mf["path"]).get_file().get_basename()
+			non_cale_models[mname] = int(non_cale_models.get(mname, 0)) + 1
 	for gk in groups:
 		var grp: Dictionary = groups[gk]
 		var res := _load_model(grp["path"])
@@ -227,8 +231,6 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 			mi.visibility_range_end_margin = fade if mi.visibility_range_end > 0.0 else 0.0
 			mi.name = "arbres_%s_lod%d" % [str(gk).validate_node_name(), k]
 			root.add_child(mi)
-	if bool(stats["non_cale_trees"] > 0) and notes.find("non calé") < 0:
-		notes.append("non calé")
 	return {"ok": true, "error": ""}
 
 
@@ -365,8 +367,13 @@ func _compute(id: int, center: Vector2) -> Dictionary:
 		buf[o + 9] = 0.0
 		buf[o + 10] = cs
 		buf[o + 11] = -(p.y - center.y)
-	var seedlings := {}   # essence -> Array[Transform3D] relatives au centre
+	# semis : cellules les plus proches d'abord ; le plafond de dessin (viewer.seedlings.max_instances) coupe le lointain
+	var seedlings := {}   # essence -> {case "i,j" -> {items: Array[Transform3D] relatives au centre, scale_sum: float}}
+	var seedling_cap := int(cfg["seedlings"]["max_instances"])
+	var seedling_total := 0
+	var seedling_truncated := false
 	var cell_area_ha := cell_size * cell_size / M2_PER_HA
+	seedling_cells.sort_custom(func(a, b): return a["d"] < b["d"])
 	for sc in seedling_cells:
 		var c: Dictionary = sc["cell"]
 		for s in c["seedlings"]:
@@ -376,14 +383,26 @@ func _compute(id: int, center: Vector2) -> Dictionary:
 			var n := SeedLib.count(zone, int(c["cell_id"]), sp, float(s["seedlings_ha"]), cell_area_ha)
 			if n == 0:
 				continue
+			if seedling_total + n > seedling_cap:
+				n = seedling_cap - seedling_total
+				seedling_truncated = true
+			if n <= 0:
+				break
 			var res: Dictionary = seedling_models[sp]["res"]
 			var sc_h := float(s["h_mean_m"]) / float(res["height_m"])
 			if not seedlings.has(sp):
-				seedlings[sp] = []
+				seedlings[sp] = {}
 			for p in SeedLib.positions(zone, int(c["cell_id"]), sc["cx"], sc["cy"], cell_size, sp, n):
 				var h2 := height_world(p.x, p.y)
-				seedlings[sp].append(Transform3D(Basis.from_scale(Vector3(sc_h, sc_h, sc_h)), Vector3(p.x - center.x, 0.0 if is_nan(h2) else h2, -(p.y - center.y))))
-	return {"id": id, "center": center, "buffer": buf, "count": pos.size(), "truncated": built["truncated"], "message": built["message"], "seedlings": seedlings, "unknown_cover": unknown_cover}
+				var ck := "%d,%d" % [floori((p.x + float(ref_origin["x"])) / CHUNK_M), floori((p.y + float(ref_origin["y"])) / CHUNK_M)]
+				if not seedlings[sp].has(ck):
+					seedlings[sp][ck] = {"items": [], "scale_sum": 0.0}
+				seedlings[sp][ck]["items"].append(Transform3D(Basis.from_scale(Vector3(sc_h, sc_h, sc_h)), Vector3(p.x - center.x, 0.0 if is_nan(h2) else h2, -(p.y - center.y))))
+				seedlings[sp][ck]["scale_sum"] += sc_h
+			seedling_total += n
+		if seedling_truncated:
+			break
+	return {"id": id, "center": center, "buffer": buf, "count": pos.size(), "truncated": built["truncated"], "message": built["message"], "seedlings": seedlings, "seedling_truncated": seedling_truncated, "seedling_cap": seedling_cap, "unknown_cover": unknown_cover}
 
 
 func request_grass(center: Vector2) -> void:
@@ -441,23 +460,42 @@ func _apply_grass(r: Dictionary) -> void:
 		n.queue_free()
 	_seedling_nodes.clear()
 	var total := 0
+	var fade := float(cfg["lod"]["fade_margin_m"])
 	for sp in r["seedlings"]:
-		var items: Array = r["seedlings"][sp]
 		var res: Dictionary = seedling_models[sp]["res"]
-		var smm := MultiMesh.new()
-		smm.transform_format = MultiMesh.TRANSFORM_3D
-		smm.mesh = res["levels"][0]["mesh"]
-		smm.instance_count = items.size()
-		for i in range(items.size()):
-			smm.set_instance_transform(i, items[i])
-		var mi := MultiMeshInstance3D.new()
-		mi.multimesh = smm
-		mi.position = Vector3(c.x, 0.0, -c.y)
-		mi.material_override = _material_for(res)
-		mi.name = "semis_" + sp
-		add_child(mi)
-		_seedling_nodes.append(mi)
-		total += items.size()
+		for ck in r["seedlings"][sp]:
+			var grp: Dictionary = r["seedlings"][sp][ck]
+			var items: Array = grp["items"]
+			var centroid := Vector3.ZERO
+			for tr in items:
+				centroid += tr.origin
+			centroid /= float(items.size())
+			# les distances de visibilité du modèle valent pour sa hauteur de référence : réduites à l'échelle moyenne du semis
+			var mean_scale: float = float(grp["scale_sum"]) / float(items.size())
+			for k in range(3):
+				var lv: Dictionary = res["levels"][k]
+				var smm := MultiMesh.new()
+				smm.transform_format = MultiMesh.TRANSFORM_3D
+				smm.mesh = lv["mesh"]
+				smm.instance_count = items.size()
+				for i in range(items.size()):
+					smm.set_instance_transform(i, Transform3D(items[i].basis, items[i].origin - centroid))
+				var mi := MultiMeshInstance3D.new()
+				mi.multimesh = smm
+				mi.position = Vector3(c.x, 0.0, -c.y) + centroid
+				mi.material_override = _material_for(res)
+				mi.visibility_range_begin = float(lv["visibility_range_begin"]) * mean_scale
+				mi.visibility_range_end = float(lv["visibility_range_end"]) * mean_scale
+				mi.visibility_range_begin_margin = fade if mi.visibility_range_begin > 0.0 else 0.0
+				mi.visibility_range_end_margin = fade if mi.visibility_range_end > 0.0 else 0.0
+				mi.name = "semis_%s_%s_lod%d" % [sp, str(ck).validate_node_name(), k]
+				add_child(mi)
+				_seedling_nodes.append(mi)
+			total += items.size()
+	seedling_message = ""
+	if bool(r["seedling_truncated"]):
+		seedling_message = "plafond de %d semis atteint : semis tronqués au loin" % int(r["seedling_cap"])
+	stats["seedlings_truncated"] = bool(r["seedling_truncated"])
 	stats["seedlings"] = total
 
 

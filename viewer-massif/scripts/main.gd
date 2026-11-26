@@ -46,7 +46,7 @@ func _ready() -> void:
 		var s: Dictionary = view.stats
 		print("SELFTEST " + JSON.stringify({
 			"blocks": s["blocks"], "trees": s["trees"], "generic_trees": s["generic_trees"], "non_cale_trees": s["non_cale_trees"],
-			"grass_instances": s["grass_instances"], "seedlings": s["seedlings"], "truncated": s["truncated"],
+			"grass_instances": s["grass_instances"], "seedlings": s["seedlings"], "truncated": s["truncated"], "seedlings_truncated": s["seedlings_truncated"],
 		}))
 		get_tree().quit(0)
 		return
@@ -87,14 +87,27 @@ func _build_hud(view: Node3D, a: Dictionary, block_id: String, cfg: Dictionary) 
 	bottom.anchor_top = 1.0
 	bottom.anchor_bottom = 1.0
 	bottom.offset_left = 12
-	bottom.offset_top = -120
+	bottom.offset_top = -160
 	var mention := str(cfg["mention"])
 	var lines := [mention.substr(0, 1).to_upper() + mention.substr(1)]
 	if view.stats["non_cale_trees"] > 0:
-		lines.append("%d arbre(s) non calé(s) : résineux du générateur" % view.stats["non_cale_trees"])
-	lines.append_array(view.notes.filter(func(n): return n != "non calé"))
+		lines.append(non_cale_text(view.non_cale_models))
+	lines.append_array(view.notes)
+	if view.seedling_message != "":
+		lines.append(view.seedling_message)
 	if view.grass_message != "":
 		lines.append(view.grass_message)
 	lines.append("Zone %s, année %d, bloc %s" % [view.zone, a["year"], block_id])
 	bottom.text = "\n".join(lines)
 	layer.add_child(bottom)
+
+
+## « Non calé » d'après les extras `calage` des .glb chargés : modèles nommés, arbres comptés, groupe jamais supposé.
+static func non_cale_text(models: Dictionary) -> String:
+	var parts := []
+	var total := 0
+	for m in models:
+		parts.append("%s (%d)" % [m, models[m]])
+		total += int(models[m])
+	parts.sort()
+	return "%d arbre(s) dépendent de modèles non calés : %s" % [total, ", ".join(parts)]

@@ -6,7 +6,7 @@
 extends RefCounted
 
 const REQUIRED := ["grass.radius_m", "grass.recenter_distance_m", "grass.max_instances", "grass.blade_height_m",
-	"grass.blades_per_m2_at_full_cover", "grass.color", "foliage.color_by_group", "lod.fade_margin_m", "mention", "provisoire"]
+	"grass.blades_per_m2_at_full_cover", "grass.color", "seedlings.max_instances", "foliage.color_by_group", "lod.fade_margin_m", "mention", "provisoire"]
 
 
 static func candidates(zone_dir: String) -> Array:
