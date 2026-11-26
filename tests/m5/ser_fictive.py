@@ -33,6 +33,7 @@ Ligne de commande :
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime
 import shutil
 import sys
@@ -51,10 +52,17 @@ RES = 25.0
 X0_DEFAUT, Y0_DEFAUT = 700_000.0, 6_501_000.0     # coin nord-ouest : (700 012,5 ; 6 500 987,5) est le centre de cell_id 0
 T0_DEFAUT = 2022
 ESSENCES_DEFAUT = ("03", "61")                    # contracts/species.csv : 03 feuillu, 61 résineux
+ESSENCES_AJOUTEES = ("09", "62", "02", "64", "11", "51", "10", "52", "04", "53S", "05", "54", "06", "55")
+# Essences ajoutées par --essences S (S > 2), dans l'ordre, feuillus et résineux en alternance (codes de
+# contracts/species.csv). Ce sont des COPIES SYNTHÉTIQUES des deux essences de base : mêmes valeurs d'essai que 03
+# (feuillu) ou 61 (résineux), provisoires, sans aucune valeur écologique ; le code ne sert qu'à exister au référentiel.
 SER_CODES = ("H10", "H21")                        # docs/referentiels/surfaces-ser.csv
 CLASSES_DEFAUT = 6                                # K : doit égaler simulate.ser.diameter_classes de la config
 CLASSES_REMPLIES = 4                              # classes 0 à 3 garnies à t0
 SOURCE = "synthétique (tests/m5/ser_fictive.py) ; aucune valeur écologique"
+SOURCE_COPIE = "synthétique (copie d'une essence de base, tests/m5/ser_fictive.py) ; aucune valeur écologique"
+SEUIL_OCTETS_CHAINE = 2**31 - 1                   # capacité d'une colonne pa.string() (offsets int32)
+LIGNES_PAR_MORCEAU = 2**20                        # taille d'un groupe de lignes Parquet par défaut de pyarrow
 NODATA_F = -9999.0
 NODATA_U = 65535
 
@@ -94,10 +102,30 @@ REGEN_SCHEMA = pa.schema([
     ("species", pa.string()), ("species_group", pa.string()), ("term", pa.string()), ("value", pa.float64()),
     ("unit", pa.string()), ("provisoire", pa.bool_()), ("source", pa.string()),
 ])
-COHORTS_SCHEMA = pa.schema([
-    ("cell_id", pa.int64()), ("species", pa.string()), ("d_class", pa.int64()), ("stems_ha", pa.float64()),
-    ("source", pa.string()),
-])
+
+
+def schema_cohortes(nlignes: int) -> pa.Schema:
+    """Schéma de cohorts_init pour `nlignes` lignes : la colonne `source` passe en large_string quand ses octets
+    dépasseraient la capacité d'un pa.string() (2^31 − 1, soit N ≈ 2 016 à 2 essences et 4 classes) ; le contrat
+    accepte les deux types (contracts/validator/tables.py : is_text). En dessous, pa.string() : mêmes octets qu'avant."""
+    return pa.schema([("cell_id", pa.int64()), ("species", pa.string()), ("d_class", pa.int64()),
+                      ("stems_ha", pa.float64()), ("source", type_colonne_source(nlignes))])
+
+
+def type_colonne_source(nlignes: int) -> pa.DataType:
+    return pa.large_string() if nlignes * len(SOURCE.encode("utf-8")) >= SEUIL_OCTETS_CHAINE else pa.string()
+
+
+def colonne_source(nlignes: int, type_: pa.DataType | None = None) -> pa.Array:
+    """La colonne `source` (la même chaîne partout) de `nlignes` lignes, du type demandé (par défaut celui que
+    type_colonne_source donne pour ce nombre de lignes)."""
+    type_ = type_ or type_colonne_source(nlignes)
+    # pa.repeat, pas un dictionnaire casté : le cast d'un dictionnaire vers large_string déborde aussi (« Take operation
+    # overflowed binary array capacity ») quand les octets dépassent 2^31.
+    return pa.repeat(pa.scalar(SOURCE, type_), nlignes)
+
+
+COHORTS_SCHEMA = schema_cohortes(0)
 
 
 # ------------------------------------------------------------------ tables de paramètres
@@ -161,6 +189,34 @@ def regeneration_rows(species=ESSENCES_DEFAUT, overrides: dict | None = None, pa
     return rows
 
 
+def groupe_de(code: str) -> str:
+    """Groupe (feuillu ou resineux) d'un code de contracts/species.csv."""
+    with open(ROOT / "contracts" / "species.csv", encoding="utf-8", newline="") as f:
+        for r in csv.DictReader(f):
+            if r["espar"] == code:
+                return r["groupe"]
+    raise ValueError(f"essence {code} absente de contracts/species.csv")
+
+
+def write_allometry(path: Path, species) -> None:
+    """params/allometry : la copie du jeu fictif versionné, telle quelle (octets inchangés) si elle couvre toutes les
+    essences ; sinon, ses lignes plus, pour chaque essence absente, une COPIE SYNTHÉTIQUE des lignes de 03 (feuillu)
+    ou de 61 (résineux), provisoire, qui ne porte aucune valeur écologique."""
+    src = pq.read_table(ALLOMETRY_SRC)
+    connues = set(src.column("species").to_pylist())
+    manquantes = [s for s in species if s not in connues]
+    if not manquantes:
+        shutil.copy(ALLOMETRY_SRC, path)
+        return
+    rows = src.to_pylist()
+    for sp in manquantes:
+        base = "03" if groupe_de(sp) == "feuillu" else "61"
+        for r in src.to_pylist():
+            if r["species"] == base:
+                rows.append({**r, "species": sp, "provisoire": True, "source": SOURCE_COPIE})
+    write_table(rows, src.schema, path)
+
+
 def write_table(rows: list[dict], schema: pa.Schema, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     t = pa.Table.from_pylist(rows, schema=schema) if rows else schema.empty_table()
@@ -197,17 +253,43 @@ def jours_fin_annee(t0: int) -> int:
 
 
 # ------------------------------------------------------------------ cohortes initiales
-def cohortes_generiques(n: int, rng: np.random.Generator, species, classes_remplies: int) -> pa.Table:
-    """Chaque cellule porte les deux essences, classes 0 à classes_remplies − 1, densités tirées (tiges/ha)."""
+def classes_remplies_pour(k: int) -> int:
+    """Classes garnies à t0 pour K classes : 4 sur 6 par défaut, soit ⌈2K/3⌉ (K = 15 : 10), au moins 1."""
+    return CLASSES_REMPLIES if k == CLASSES_DEFAUT else max(1, (2 * k + 2) // 3)
+
+
+def essences_pour(s_essences: int) -> tuple:
+    """Les S essences de la SER fictive : 03 et 61, puis des copies synthétiques (ESSENCES_AJOUTEES)."""
+    if s_essences < 1 or s_essences > len(ESSENCES_DEFAUT) + len(ESSENCES_AJOUTEES):
+        raise ValueError(f"S doit être entre 1 et {len(ESSENCES_DEFAUT) + len(ESSENCES_AJOUTEES)}")
+    return (ESSENCES_DEFAUT + ESSENCES_AJOUTEES)[:s_essences]
+
+
+def cohortes_morceaux(n: int, rng: np.random.Generator, species, classes_remplies: int, type_source=None):
+    """Les cohortes tirées, par morceaux d'environ 2^20 lignes (cellules entières) : mémoire bornée à toute taille.
+    Les tirages se suivent dans le même ordre qu'en un seul bloc, donc mêmes valeurs. Chaque cellule porte toutes
+    les essences, classes 0 à classes_remplies − 1, densités tirées (tiges/ha)."""
     ncell, ns, nk = n * n, len(species), classes_remplies
-    stems = rng.uniform(5.0, 60.0, size=(ncell, ns, nk))
-    stems = np.round(stems, 3)                       # trois décimales : valeurs lisibles
-    cell = np.repeat(np.arange(ncell, dtype=np.int64), ns * nk)
-    sp_idx = np.tile(np.repeat(np.arange(ns, dtype=np.int32), nk), ncell)
-    dcl = np.tile(np.arange(nk, dtype=np.int64), ncell * ns)
-    sp = pa.DictionaryArray.from_arrays(pa.array(sp_idx), pa.array(list(species))).cast(pa.string())
-    src = pa.DictionaryArray.from_arrays(pa.array(np.zeros(len(cell), dtype=np.int32)), pa.array([SOURCE])).cast(pa.string())
-    return pa.table([pa.array(cell), sp, pa.array(dcl), pa.array(stems.reshape(-1)), src], schema=COHORTS_SCHEMA)
+    par_cellule = ns * nk
+    cellules = max(1, LIGNES_PAR_MORCEAU // par_cellule)
+    type_source = type_source or type_colonne_source(ncell * par_cellule)
+    schema = pa.schema([("cell_id", pa.int64()), ("species", pa.string()), ("d_class", pa.int64()),
+                        ("stems_ha", pa.float64()), ("source", type_source)])
+    sp_dict = pa.array(list(species))
+    for debut in range(0, ncell, cellules):
+        c = min(cellules, ncell - debut)
+        stems = np.round(rng.uniform(5.0, 60.0, size=(c, ns, nk)), 3)   # trois décimales : valeurs lisibles
+        cell = np.repeat(np.arange(debut, debut + c, dtype=np.int64), par_cellule)
+        sp_idx = np.tile(np.repeat(np.arange(ns, dtype=np.int32), nk), c)
+        dcl = np.tile(np.arange(nk, dtype=np.int64), c * ns)
+        sp = pa.DictionaryArray.from_arrays(pa.array(sp_idx), sp_dict).cast(pa.string())
+        yield pa.table([pa.array(cell), sp, pa.array(dcl), pa.array(stems.reshape(-1)),
+                        colonne_source(len(cell), type_source)], schema=schema)
+
+
+def cohortes_generiques(n: int, rng: np.random.Generator, species, classes_remplies: int) -> pa.Table:
+    """Les mêmes cohortes en une seule table (petites tailles) ; au-delà, passer par cohortes_morceaux."""
+    return pa.concat_tables(list(cohortes_morceaux(n, rng, species, classes_remplies)))
 
 
 def cohortes_explicites(n: int, lignes: list[tuple], species) -> pa.Table:
@@ -227,15 +309,23 @@ def cohortes_explicites(n: int, lignes: list[tuple], species) -> pa.Table:
 
 # ------------------------------------------------------------------ zone complète
 def generer(dest: Path, n: int, graine: int = 1, *, species=ESSENCES_DEFAUT, t0: int = T0_DEFAUT,
-            x0: float = X0_DEFAUT, y0: float = Y0_DEFAUT, classes_remplies: int = CLASSES_REMPLIES,
+            x0: float = X0_DEFAUT, y0: float = Y0_DEFAUT, classes: int = CLASSES_DEFAUT,
+            classes_remplies: int | None = None,
             cohortes: list[tuple] | None = None, dynamique: dict | None = None, regeneration: dict | None = None,
             regeneration_par_essence: bool = True, regeneration_omis: tuple = ()) -> Path:
     """Écrit la SER fictive de N × N cellules sous `dest` (vidé d'abord). Renvoie `dest`.
 
     `cohortes` : liste explicite (cell_id, essence, d_class, tiges/ha) à la place des cohortes tirées ;
+    `species` : les essences (voir essences_pour pour S essences) ; `classes` : K, nombre de classes de diamètre
+    (les classes garnies à t0 en découlent, sauf `classes_remplies` donné) ;
     `dynamique`, `regeneration` : remplacements de valeurs synthétiques (voir dynamique_rows, regeneration_rows)."""
     if n < 1:
         raise ValueError("N doit être au moins 1")
+    if classes < 1:
+        raise ValueError("K doit être au moins 1")
+    species = tuple(species)
+    if classes_remplies is None:
+        classes_remplies = classes_remplies_pour(classes)
     dest = Path(dest)
     if dest.exists():
         shutil.rmtree(dest)
@@ -263,17 +353,25 @@ def generer(dest: Path, n: int, graine: int = 1, *, species=ESSENCES_DEFAUT, t0:
     (dest / "ser.csv").write_text('"value","name","alluvium_code"\n' + f'1,"{SER_CODES[0]}",\n2,"{SER_CODES[1]}",\n',
                                   encoding="utf-8")
 
-    table = cohortes_explicites(n, cohortes, species) if cohortes is not None \
-        else cohortes_generiques(n, rng, species, classes_remplies)
-    pq.write_table(table, dest / "cohorts_init.parquet", compression="snappy")
+    if cohortes is not None:
+        morceaux, schema = [cohortes_explicites(n, cohortes, species)], COHORTS_SCHEMA
+    else:
+        schema = schema_cohortes(n * n * len(species) * classes_remplies)
+        morceaux = cohortes_morceaux(n, rng, species, classes_remplies, schema.field("source").type)
+    with pq.ParquetWriter(dest / "cohorts_init.parquet", schema, compression="snappy") as w:
+        for morceau in morceaux:
+            w.write_table(morceau)
 
     write_dynamique(dest, dynamique)
     write_regeneration(dest, regeneration_rows(species, regeneration, regeneration_par_essence, regeneration_omis))
-    shutil.copy(ALLOMETRY_SRC, dest / "params" / "allometry.parquet")
+    write_allometry(dest / "params" / "allometry.parquet", species)
 
     raison = (f"SER fictive synthétique (tests/m5/ser_fictive.py, N = {n}, graine {graine}) : deux SER, "
               f"{SER_CODES[0]} (moitié ouest, valeur 1 de ser.tif) et {SER_CODES[1]} (moitié est, valeur 2) ; "
               "coordonnées et valeurs inventées, aucune source réelle")
+    if tuple(species) != ESSENCES_DEFAUT or classes != CLASSES_DEFAUT:
+        raison += (f" ; {len(species)} essence(s) ({', '.join(species)}), {classes} classe(s) de diamètre : les "
+                   "essences au-delà de 03 et 61 sont des copies synthétiques provisoires, sans valeur écologique")
     (dest / "zone.yml").write_text(f"schema_version: 1\nfictive: true\nreason: \"{raison}\"\n", encoding="utf-8")
     return dest
 
@@ -285,12 +383,26 @@ def main(argv=None) -> int:
     p.add_argument("--graine", type=int, default=1, help="graine des tirages (mêmes octets à graine égale)")
     p.add_argument("--sortie", type=Path, required=True, help="dossier de zone à écrire (vidé d'abord)")
     p.add_argument("--t0", type=int, default=T0_DEFAUT, help="année de départ (date de vol = fin de t0)")
+    p.add_argument("--essences", type=int, default=len(ESSENCES_DEFAUT),
+                   help="nombre S d'essences (défaut 2 : 03 et 61 ; au-delà, copies synthétiques provisoires de "
+                        f"codes de contracts/species.csv, jusqu'à {len(ESSENCES_DEFAUT) + len(ESSENCES_AJOUTEES)})")
+    p.add_argument("--classes", type=int, default=CLASSES_DEFAUT,
+                   help="nombre K de classes de diamètre (défaut 6 : doit égaler simulate.ser.diameter_classes)")
     a = p.parse_args(argv)
     if a.n < 1:
         print("ser_fictive : N doit être au moins 1", file=sys.stderr)
         return 2
-    generer(a.sortie, a.n, a.graine, t0=a.t0)
-    print(f"SER fictive de {a.n} × {a.n} cellules écrite sous {a.sortie}")
+    if a.classes < 1:
+        print("ser_fictive : K (--classes) doit être au moins 1", file=sys.stderr)
+        return 2
+    try:
+        especes = essences_pour(a.essences)
+    except ValueError as e:
+        print(f"ser_fictive : S (--essences) invalide : {e}", file=sys.stderr)
+        return 2
+    generer(a.sortie, a.n, a.graine, species=especes, t0=a.t0, classes=a.classes)
+    print(f"SER fictive de {a.n} × {a.n} cellules, {a.essences} essence(s), {a.classes} classe(s), "
+          f"écrite sous {a.sortie}")
     return 0
 
 

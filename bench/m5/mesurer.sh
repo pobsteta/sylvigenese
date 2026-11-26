@@ -17,12 +17,17 @@
 # qui part de ces lignes et les dit extrapolées.
 #
 # Réglages numériques des exécutions (non écologiques) : graine 42, t0 2022, write_step = Y (t0 et
-# la dernière année écrites), noyau tronqué à 3 cellules, seuil |Q| 1e-9, 6 classes de 5 cm ; les
+# la dernière année écrites), noyau tronqué à 3 cellules, seuil |Q| 1e-9, classes de 5 cm (6 par défaut) ; les
 # paramètres sont les valeurs synthétiques du générateur (provisoires, aucune valeur écologique).
+# Par défaut S = 2 essences et K = 6 classes ; --essences S et --classes K les changent (S de 1 à 16, K au moins 1) :
+# les essences au-delà de 03 et 61 sont des copies synthétiques provisoires de codes de contracts/species.csv, sans
+# valeur écologique (tests/m5/ser_fictive.py), et K est écrit aussi dans simulate.ser.diameter_classes de la config
+# de mesure. Hors défaut, la zone s'appelle data/ser_fictive_<N>_s<S>_k<K> ; au défaut, data/ser_fictive_<N>, comme
+# avant. Les colonnes essences et classes sont les deux dernières du CSV (les autres gardent leur rang).
 #
 # Usage :
 #   bash bench/m5/mesurer.sh [--n "1000 2000 4000"] [--fils "1 4"] [--annees 10]
-#                            [--sortie data/bench_m5/m5_mesures.csv]
+#                            [--essences 2] [--classes 6] [--sortie data/bench_m5/m5_mesures.csv]
 #   bash bench/m5/mesurer.sh --a-vide     # part fixe du programme (PART_FIXE_SER de memoire.rs) :
 #                                         # N = 4, 1 an, trois fois à 1 et à 4 fils ; la part fixe
 #                                         # est le plus grand VmHWM (le validateur, enfant de
@@ -37,16 +42,28 @@ FILS="1 4"
 ANNEES=10
 SORTIE="data/bench_m5/m5_mesures.csv"
 A_VIDE=0
+ESSENCES=2
+CLASSES=6
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --n) TAILLES="$2"; shift 2 ;;
     --fils) FILS="$2"; shift 2 ;;
     --annees) ANNEES="$2"; shift 2 ;;
+    --essences) ESSENCES="$2"; shift 2 ;;
+    --classes) CLASSES="$2"; shift 2 ;;
     --sortie) SORTIE="$2"; shift 2 ;;
     --a-vide) A_VIDE=1; shift ;;
     *) echo "mesurer.sh : option inconnue « $1 »" >&2; exit 2 ;;
   esac
 done
+case "$ESSENCES" in ''|*[!0-9]*) echo "mesurer.sh : --essences doit être un entier de 1 à 16 (reçu « $ESSENCES »)." >&2; exit 2 ;; esac
+case "$CLASSES" in ''|*[!0-9]*) echo "mesurer.sh : --classes doit être un entier d'au moins 1 (reçu « $CLASSES »)." >&2; exit 2 ;; esac
+if [ "$ESSENCES" -lt 1 ] || [ "$ESSENCES" -gt 16 ]; then
+  echo "mesurer.sh : --essences doit être de 1 à 16 (reçu $ESSENCES)." >&2; exit 2
+fi
+if [ "$CLASSES" -lt 1 ]; then
+  echo "mesurer.sh : --classes doit être d'au moins 1 (reçu $CLASSES)." >&2; exit 2
+fi
 if [ "$A_VIDE" -eq 1 ]; then
   TAILLES="4"; FILS="1 4 1 4 1 4"; ANNEES=1
 fi
@@ -66,27 +83,34 @@ BINAIRE=simulate/target/release/simulate
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo inconnu)"
 mkdir -p "$(dirname "$SORTIE")"
 if [ ! -f "$SORTIE" ]; then
-  echo "date,commit,n,cellules,threads,years,calcul_s,ecriture_s,duration_s,ecoule_s,rss_time_bytes,memory_peak_rss_bytes,memory_estimate_max_bytes,ecart_estimation_rss" > "$SORTIE"
+  echo "date,commit,n,cellules,threads,years,calcul_s,ecriture_s,duration_s,ecoule_s,rss_time_bytes,memory_peak_rss_bytes,memory_estimate_max_bytes,ecart_estimation_rss,essences,classes" > "$SORTIE"
+elif ! head -n 1 "$SORTIE" | grep -q ',essences,classes$'; then
+  echo "mesurer.sh : $SORTIE a l'ancien en-tête (sans les colonnes essences et classes) : choisir une autre --sortie." >&2
+  exit 2
 fi
 
 for n in $TAILLES; do
   zone="ser_fictive_$n"
+  if [ "$ESSENCES" -ne 2 ] || [ "$CLASSES" -ne 6 ]; then
+    zone="ser_fictive_${n}_s${ESSENCES}_k${CLASSES}"
+  fi
   if [ ! -f "data/$zone/cohorts_init.parquet" ]; then
-    echo "== génération de la SER fictive N = $n (data/$zone)"
-    python3 tests/m5/ser_fictive.py --n "$n" --graine 1 --sortie "data/$zone"
+    echo "== génération de la SER fictive N = $n, S = $ESSENCES, K = $CLASSES (data/$zone)"
+    python3 tests/m5/ser_fictive.py --n "$n" --graine 1 --essences "$ESSENCES" --classes "$CLASSES" \
+      --sortie "data/$zone"
   fi
   for t in $FILS; do
     cfg="data/$zone/config_mesure.yml"
-    python3 - "$cfg" "$zone" "$ANNEES" "$t" <<'PY'
+    python3 - "$cfg" "$zone" "$ANNEES" "$t" "$CLASSES" <<'PY'
 import re, sys
 import yaml
-cfg, zone, annees, fils = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+cfg, zone, annees, fils, classes = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5])
 texte = open("config.yml", encoding="utf-8").read()
 texte = re.sub(r"(?m)^zone:\s*\S+", f"zone: {zone}", texte)
 texte = re.sub(r"(?m)^simulate:\n(?:[ \t#][^\n]*\n?|\n(?=[ \t]))*", "", texte)
 bloc = {"level": "ser", "seed": 42, "t0": 2022, "years": annees, "threads": fils, "recruitment": "cohorts",
         "regeneration": {"kernel_truncation_cells": 3, "zero_threshold": 1e-9},
-        "ser": {"diameter_class_width_cm": 5.0, "diameter_classes": 6, "write_step": annees}}
+        "ser": {"diameter_class_width_cm": 5.0, "diameter_classes": classes, "write_step": annees}}
 texte = texte.rstrip("\n") + "\n\n" + yaml.safe_dump({"simulate": bloc}, sort_keys=False)
 open(cfg, "w", encoding="utf-8").write(texte)
 PY
@@ -99,9 +123,9 @@ PY
       exit 1
     fi
     fin=$(date +%s.%N)
-    python3 - "$journal" "data/$zone/sim/run.json" "$SORTIE" "$COMMIT" "$n" "$t" "$ANNEES" "$debut" "$fin" <<'PY'
+    python3 - "$journal" "data/$zone/sim/run.json" "$SORTIE" "$COMMIT" "$n" "$t" "$ANNEES" "$debut" "$fin" "$ESSENCES" "$CLASSES" <<'PY'
 import datetime, json, re, sys
-journal, run, sortie, commit, n, t, annees, debut, fin = sys.argv[1:]
+journal, run, sortie, commit, n, t, annees, debut, fin, essences, classes = sys.argv[1:]
 texte = open(journal, encoding="utf-8", errors="replace").read()
 calcul = sum(float(x) for x in re.findall(r"calcul ([0-9.]+) s", texte))
 ecriture = sum(float(x) for x in re.findall(r"écriture ([0-9.]+) s", texte))
@@ -111,7 +135,7 @@ j = json.load(open(run, encoding="utf-8"))
 est, pic = j["memory_estimate_max_bytes"], j["memory_peak_rss_bytes"]
 ecart = (est - rss) / rss if rss else float("nan")
 ligne = [datetime.date.today().isoformat(), commit, n, int(n) ** 2, t, annees, f"{calcul:.3f}", f"{ecriture:.3f}",
-         f"{j['duration_s']:.3f}", f"{float(fin) - float(debut):.3f}", rss, pic, est, f"{ecart:.4f}"]
+         f"{j['duration_s']:.3f}", f"{float(fin) - float(debut):.3f}", rss, pic, est, f"{ecart:.4f}", essences, classes]
 open(sortie, "a", encoding="utf-8").write(",".join(str(v) for v in ligne) + "\n")
 print(f"   calcul {calcul:.1f} s, écriture {ecriture:.1f} s ; mémoire résidente {rss / 2**20:.1f} Mio "
       f"(VmHWM {pic / 2**20:.1f}) ; estimation {est / 2**20:.1f} Mio : écart {100 * ecart:+.2f} %")
