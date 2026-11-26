@@ -1,255 +1,320 @@
 # Régénération : ce que la littérature publie, essence par essence (mission 059, mission A du plan M5a)
 
 - **Propriétaire :** Pascal
-- **Date de consultation :** 2026-11-26
+- **Date de consultation :** 2026-11-26 (trois passes ; la troisième lit les documents téléchargés en local)
 - **Produit par :** agent `acquereur`, mission 059 (`pilotage/missions/059-referentiel-regeneration.md`)
-- **Mission redite :** relever, pour chaque essence de `contracts/species.csv` et pour sept grandeurs (dispersion, maturité, fécondité, tolérance à l'ombre, L d'Ellenberg, croissance et survie des semis sous couvert), ce que la littérature publie et où. Le but : que le contrat `params/regeneration` (mission 060) ne porte que des termes qui existent.
-- **Décision éclairée :** les termes de `params/regeneration.parquet` (plan `docs/plans/m5a.md` §3), dans le cadre des réponses de Pascal du 26/11/2026 (journal l. 323-325) :
+- **Mission redite :** relever, pour chaque essence de `contracts/species.csv` et pour sept grandeurs (dispersion, maturité, fécondité, tolérance à l'ombre, L d'Ellenberg, croissance et survie des semis sous couvert), ce que la littérature publie et où, pour que le contrat `params/regeneration` (mission 060) ne porte que des termes qui existent.
+- **Décision éclairée :** les termes et les sources de `params/regeneration.parquet` (plan `docs/plans/m5a.md` §3 ; contrat `contracts/tables/params/regeneration.schema.json`), dans le cadre des réponses de Pascal du 26/11/2026 (journal l. 323-325) :
   - Q1 : passage calé sur le flux IFN, borné par le stock de semis ;
   - Q2 : stock initial « en régime » (flux IFN × temps de passage) ;
   - Q3 : survie par la seule lumière et la tolérance à l'ombre.
-- **Fichier tabulaire :** `docs/referentiels/regeneration.csv`, 44 lignes, une par couple (grandeur, source), plus une ligne `absent` par grandeur pour les essences qu'aucune source ne nomme. Colonnes : `statut`, `valeur` et `lecture`, définies ci-dessous.
+- **Fichier tabulaire :** `docs/referentiels/regeneration.csv`, 195 lignes de données. Ce sont :
+  - les 44 lignes des passes 1 et 2, mises à jour ;
+  - 140 lignes `T01-<espar>`, une par espar appariée à Niinemets et Valladares ;
+  - une ligne `T01-ABS` pour les 51 taxons absents de Niinemets ;
+  - 7 lignes `D01-C1` à `D01-C7` (classes de Lososová) ;
+  - 2 lignes `D01-14` et `D01-15P` ;
+  - une ligne `R01` (GIEC, pour `post`).
+- **Colonnes du CSV :**
   - `statut` :
-    - `publie` : la source nomme l'essence pour cette grandeur ;
-    - `couverture_non_lue` : la source couvre beaucoup d'espèces, mais sa liste n'a pas été ouverte ;
+    - `lu` : la page ou la ligne a été ouverte dans le fichier téléchargé, l'emplacement est donné ;
+    - `manquant` : la source qui publie la valeur est identifiée et lue en partie, mais le fichier qui porte les valeurs n'a pas pu être téléchargé ;
+    - `publie` : vu dans un résumé de recherche (passes 1 et 2), page non ouverte ;
+    - `couverture_non_lue` : source à large couverture, non téléchargée ;
     - `absent` : aucune source trouvée.
-  - `valeur` : `non recopiée`, `non lue` ou `absent`. **Aucune valeur numérique n'est écrite**, car aucune page n'a été ouverte (voir plus bas).
-  - `lecture` : `recherche web seule` (vu dans un résumé du moteur de recherche, page non ouverte, ce qui n'a pas valeur de lecture).
+  - `valeur` : un nombre n'y est écrit que si la licence lue dans le document permet de le reprendre. C'est le cas des seules classes de Lososová (CC BY). Sinon : `lue, non recopiée`, `non lue` ou `absent`.
+  - `lecture` : comment la ligne a été établie.
 
-## 0. Seconde passe du 26/11/2026 (demandée par Pascal) : aucune table ouverte
+## 0. Historique des passes
 
-- **Pourquoi :** Pascal a approuvé neuf hôtes publics (journal l. 332) pour que les tables soient lues.
-- **Ce qui a été fait :** chaque hôte a été essayé deux fois, avec un délai entre les deux essais :
-  - `esapubs.org` ;
-  - `figshare.com` (et `wiley.figshare.com`, une fois) ;
-  - `zenodo.org` ;
-  - `treemig.wsl.ch` ;
-  - `www.frontiersin.org` ;
-  - `hal.inrae.fr` ;
-  - `hal.science` ;
-  - `www.ipcc-nggip.iges.or.jp` ;
-  - `www.sci.muni.cz`.
-- **Résultat :** les neuf refusent les deux fois, avec la même erreur de résolution de nom (« ENOTFOUND, hors des domaines autorisés de la session »). L'approbation n'est pas encore appliquée au réseau de cette session.
-- **Conséquence :**
-  - aucune ligne ne passe au statut `lu` ;
-  - aucune valeur n'est écrite ;
-  - l'appariement de `species.csv` aux listes des sources n'est pas fait ;
-  - le tableau de couverture du §3 reste valable tel quel ;
-  - le tableau 4.4 du GIEC 2006 (pour `post`) n'est pas lu non plus.
-- **Seule information nouvelle**, tirée d'un résumé de recherche et non d'une page ouverte : **la licence de TreeMig n'est pas une seule licence.** D'après le résumé :
-  - le code FORTRAN serait sous CC-BY-NC-SA 4.0 (page `treemig.wsl.ch/en/treemig-framework/`) ;
-  - les données d'entrée seraient sous CC BY 4.0 (page `treemig.wsl.ch/en/details/`) ;
-  - le paquet sur EnviDat serait sous CC-BY-SA ;
-  - aucune licence propre aux fichiers de paramètres d'espèces n'apparaît.
+1. **Passes 1 et 2 (26/11).** Recherche web seule. Tous les hôtes étaient refusés par la session, y compris après l'approbation de Pascal (journal l. 332). Aucune table n'a été lue.
+2. **Passe 3 (26/11, cette version).** Un `dev` a téléchargé les documents publics par `curl` sous `data/sources/regeneration/`, hors dépôt. `INDEX.md` y donne, pour chaque fichier, l'URL, la date, le sha256 et la licence annoncée. Je les ai lus en local, avec l'outil Read.
 
-  C'est un écart avec `moteurs-existants.md:25`, qui donnait CC-BY-NC-SA pour TreeMig en bloc. La question reste ouverte jusqu'à ce que la page soit lue (CSV, ligne D06).
-- **Pages à ouvrir dès que le réseau suit**, dans l'ordre de valeur pour la décision :
-  1. annexe A de Niinemets et Valladares 2006 (T01) ;
-  2. `treemig.wsl.ch/en/details/` et `SpecParsMeanings.pdf` : licence, puis paramètres (D06, M01, F01, T02) ;
-  3. le PDF de Lososová 2023 sur `www.sci.muni.cz` : tableau des classes (D01) ;
-  4. le Data Sheet 1 sur Frontiers (D07, M02, T03) ;
-  5. HAL : thèse de Gaudio et Amm 2012 (G05, D05) ;
-  6. le tableau 4.4 du GIEC (pour `post`).
+| Fichier lu | Ce qui a été lu |
+|---|---|
+| `niinemets_appendixA.htm` | tout le tableau : 806 noms comptés ; 2 418 cellules de tolérance (806 × 3), toutes remplies ; appariement des 195 codes de `species.csv` par genre |
+| `SpecParsMeanings.pdf` | p. 1 (unique) |
+| `TreeMigDocu_251218_Model.pdf` | p. 1-4, 9-17, 19-20 |
+| `TreeMigDocu_23_Code.pdf`, `InfosSettingsControlFileAndGUI.pdf` | p. 1-2 : aucune valeur d'espèce |
+| `treemig_details.html`, `treemig_framework.html`, `treemig_starter-kit.html`, `treemig_core-model.html` | recherche des mots « licence », « Creative Commons », « EnviDat », « species param », et lecture des lignes trouvées |
+| `lososova2023.pdf` | p. 1485-1492 (article entier sauf la bibliographie) |
+| `ipcc_v4_ch4.pdf` | p. 4.1, 4.2, 4.49 (tableau 4.4), 4.50 |
+| `frontiers_article.html` | mentions de licence, tableau 2, passages sur la dispersion, la maturité et la tolérance |
 
-## 1. Limites de la collecte (à lire d'abord)
+## 1. Licences, confirmées ou corrigées d'après les documents
 
-- **Hôtes bloqués dans cette session :**
-  - `esapubs.org`, qui porte l'annexe A de Niinemets et Valladares 2006 ;
-  - `figshare.com`, son miroir.
+| Source | Ce que dit le document (emplacement) | Conséquence |
+|---|---|---|
+| **Niinemets et Valladares 2006, annexe A** | **aucune licence** dans la page ; seulement des liens vers l'annexe B et mobot.org (`INDEX.md`, et en-tête lu ligne 24) | Valeurs **lues mais non recopiées** dans le dépôt : sans licence dite, la redistribution n'est pas établie. Chaque espar porte sa ligne exacte dans le fichier (sha256 donné). Voir la question n° 2. |
+| **TreeMig, code** | « This FORTRAN code is available on request, under licence CC-BY-NC-SA 4.0 » (`treemig_framework.html:478`) | **confirmé : NC.** On ne reprend rien du code. |
+| **TreeMig, données de la page `details`** | « All data are available under the Creative Commons license CC BY 4.0 » (`treemig_details.html:883`), dans le paragraphe sur les scénarios climatiques suisses CH2018 | **Correction de la seconde passe.** Ce CC BY 4.0 vise CH2018, pas les données de TreeMig. |
+| **TreeMig, paramètres d'espèces** | fichiers TreePars du dossier P de TMEnvironment (`TreeMigDocu_251218_Model.pdf` p. 19) ; exemples pour « the 30 most common tree species in Central Europe » (`treemig_details.html:589`), dans le zip du starter kit sur EnviDat (`treemig_starter-kit.html:438-439`) ; **aucune licence** dans les pages et PDF lus | Licence **inconnue**, fichiers non obtenus. Rien à reprendre ; à lire sur la notice EnviDat avant tout usage. La mention CC-BY-SA pour EnviDat (seconde passe, résumé de recherche) n'est **pas vérifiée**. |
+| **TreeMig, documentation** (PDF) | aucune licence vue dans les pages lues | Seuls les noms de paramètres, les unités et les numéros d'équation sont cités ; aucune constante n'est recopiée. |
+| **Lososová et al. 2023** | « This is an open access article under the terms of the Creative Commons Attribution License, which permits use, distribution and reproduction in any medium, provided the original work is properly cited » (p. 1485 ; version non précisée) | Article **CC BY confirmé** : les distances par classe (tableau 1, p. 1488) sont reprises avec citation. La licence du Supplement S1 et de FloraVeg.EU n'est pas lue. |
+| **Suárez-Muñoz et al. 2021 (Frontiers)** | « Creative Commons Attribution License (CC BY) », copyright 2021 des auteurs (`frontiers_article.html:92`) | Article **CC BY confirmé** ; Data Sheet 1 non obtenu, licence non lue. |
+| **GIEC 2006, vol. 4, chap. 4** | **aucune licence** dans les pages lues | Tableau 4.4 **lu, non recopié** (voir §6 et la question n° 10). |
 
-  Les deux échouent par « ENOTFOUND ». La consigne de l'outil est de ne plus essayer d'autre site après deux échecs : **aucune autre page n'a donc été ouverte.**
-- **Déjà relevés comme bloqués le 24/11** (`moteurs-existants.md:16`), et non réessayés ici :
-  - `zenodo.org` (Tichý 2023) ;
-  - `treemig.wsl.ch` (paramètres de TreeMig) ;
-  - `hal.inrae.fr` (thèse à l'origine de RReShar) ;
-  - `www.landis-ii.org` ;
-  - `www.frontiersin.org` (LANDIS-II en Sierra Nevada) ;
-  - `pmc.ncbi.nlm.nih.gov`, `gmd.copernicus.org`.
-- **Conséquence : aucune table de paramètres n'a été lue.** Tout ce qui suit vient des résumés de la recherche web. On sait quelles sources existent, ce qu'elles publient, et parfois quelles essences elles nomment. Ni les valeurs, ni la liste complète des essences de chaque source ne sont lues.
-- **Dépôts non lus :**
-  - `/home/user/tarif-nemeton`, dépôt privé, par l'interdit de la mission ;
-  - `sylvostation` : je ne cite que ce que `ifn-dynamique.md` en a écrit.
-- **Tichý 2023 n'est pas recopié, par règle.** Pascal a décidé le 25/11 que ses valeurs sont utilisées sans redistribution, lues hors dépôt par une clé `external.*` (journal l. 203).
-
-## 2. Les sources au CQQCOQP
-
-Le **Pourquoi** est le même pour toutes : choisir les termes et les sources de `params/regeneration`.
-
-| Source (lignes du CSV) | Qui, dans quel but | Quoi | Comment | Où | Quand | Combien (précision, coût, licence) |
-|---|---|---|---|---|---|---|
-| **Niinemets et Valladares 2006** (T01) | écophysiologistes, pour comparer les tolérances | tolérance à l'ombre, à la sécheresse et à l'engorgement de 806 espèces ligneuses | synthèse de la littérature et d'avis d'experts sur une échelle commune ; pour l'Europe, fondée en partie sur des valeurs indicatrices de lumière (résumé) | hémisphère Nord tempéré | 2006 | une moyenne et un écart-type par espèce ; ESA, licence non lue ; **annexe non ouverte (hôtes bloqués)** |
-| **Tichý et al. 2023** (L01) | phytosociologues, pour harmoniser les valeurs indicatrices européennes | L (lumière) et cinq autres valeurs, 8 908 espèces, dont 8 168 avec L | moyenne de 13 jeux régionaux de type Ellenberg | Europe, noms Euro+Med | v2.0 du 2022-11-07 (`ifn-dynamique.md:145`) | indice ordinal ; CC BY 4.0, avec une réserve CC BY-SA 2.0 sur Julve ; non redistribué (décision de Pascal) |
-| **Lososová et al. 2023** (D01) | écologues, pour la biogéographie et les modèles de végétation | classe de distance de dispersion (7 classes) et mode de dispersion | règles : mode, diaspore, forme de vie, hauteur, masse des graines, habitat | Europe, 10 327 espèces | 2023 | une classe, pas un noyau propre à l'espèce ; article CC BY 4.0 ; licence des données non lue |
-| **Vittoz et Engler 2007** (D02) | botanistes suisses, pour une typologie | distance à 50 % et à 99 % des graines par type | 80e centile des distances publiées par type | flore suisse, 1 262 espèces | 2007 | les distances varient d'un facteur 5 000 entre types et de moins de 50 au sein d'un type |
-| **Bullock et al. 2017** (D03) | synthèse mondiale de noyaux | 168 noyaux ajustés, 144 espèces | 11 lois ajustées sur des données publiées | monde | 2017 | Dryad ; essences de `species.csv` non vérifiées |
-| **Sagnard 2007, Amm 2012** (D04, D05) | généticiens et écologues (France), pour la recolonisation | distance médiane de dispersion du sapin et du hêtre | modélisation inverse sur pièges à graines ou sur semis | sud-est de la France (Mont Ventoux pour Amm) | 2007, 2012 | quelques peuplements ; Elsevier ou HAL |
-| **TreeMig** (D06, M01, F01, T02, G06, S05) | WSL, pour la migration des essences à l'échelle du paysage | `alfa1`, `alfa2`, `dispFac`, `minmat` (hauteur), `maxseed`, paramètres de lumière des semis et des adultes | paramètres de modèle (Lischke et al. 2006 ; conifères revus d'après Rickebusch et al. 2007) | 30 essences d'Europe centrale | 2006, puis révisions | **liste et valeurs non lues** ; licence CC-BY-NC-SA annoncée, non lue (`moteurs-existants.md:25`) ; d'après la recherche du 26/11, elle viserait le code seul, et les données seraient sous CC BY 4.0 (voir §0) |
-| **LANDIS-II, Sierra Nevada** (D07, M02, T03) | université de Grenade, pour caler PnET-Succession | dispersion efficace et maximale, maturité, tolérance (100-300) | TRY et littérature, puis calage sur la biomasse | Espagne méditerranéenne | 2021 | CC BY ; seules deux lignes vues (57A, 69JC) |
-| **LANDIS-II, Roumanie** (D08, M03) | modélisateurs roumains (Fagaraş) | paramètres LANDIS-II (§2.4) | calage, non lu | Carpates | 2021 | MDPI, non ouvert |
-| **4C** (T04, L02) | PIK Potsdam | tolérance en 5 classes, tirée d'Ellenberg 1986 | dérivation qualitative | Allemagne | projet de 1999 | trois essences ; non indépendant de Tichý |
-| **Kunstler 2005, Petriţan 2007, Ameztegui et Coll 2011** (T06-T08, G01-G03, S01-S03) | écologues forestiers : coexistence et tolérance des jeunes arbres | croissance et mortalité des jeunes arbres selon la lumière | mesures de terrain le long d'un gradient de lumière | sud de la France ; Allemagne ; Pyrénées espagnoles | 2005-2011 | 2 ou 3 essences par article ; textes non ouverts |
-| **SORTIE-ND Pyrénées** (G04, S04) | Ameztegui, Coll et Messier | paramètres de croissance et de mortalité juvéniles | modèle individuel calé sur le terrain | Pyrénées | 2015 | annexe non lue |
-| **RReShar** (D09, G05) | Balandier et Gaudio (Irstea) | concurrence pour la lumière et l'eau entre strates ; croissance des semis de pin sylvestre | thèse et expériences en pépinière ; Beer-Lambert pour le sous-bois | chênaie-pinède, France | vers 2010-2019 | **aucune table de paramètres d'espèces trouvée** ; la classe « espèce » de Capsis doit fournir croissance et survie (page technique) |
-
-**Une deuxième source qui se tromperait pour une autre raison :**
-
-- **Tolérance à l'ombre.** Niinemets et Valladares (synthèse, en partie fondée sur des valeurs indicatrices) contre les mesures de croissance et de survie des jeunes arbres : Kunstler, Petriţan, Ameztegui. Les mesures se tromperaient autrement : un site, quelques années. TreeMig, 4C et Kulha ne sont **pas** indépendants : 4C vient d'Ellenberg, et Kulha reprend Niinemets.
-- **L d'Ellenberg.** Aucune seconde source indépendante. Ellenberg 1986 (via 4C) est l'un des 13 jeux que Tichý harmonise (déjà relevé dans `ifn-dynamique.md:152`).
-- **Dispersion.** Les classes à règles (Lososová, Vittoz) contre les noyaux mesurés (Sagnard, Amm). Une règle par trait se trompe autrement qu'une mesure sur un site.
-- **Maturité, fécondité, croissance, survie.** Je n'ai pas trouvé de seconde source pour une même essence, sauf pour le hêtre : Kunstler et Petriţan pour la croissance et la survie.
-
-## 3. Tableau de couverture (essence × grandeur)
+## 2. Tableau de couverture (essence × grandeur)
 
 Légende :
-- **S** : sourcé, une source nomme l'essence (résumé seul, page non ouverte) ;
-- **L** : une source à large couverture existe, mais sa liste n'a pas été lue, donc à lire ;
+- **lu** : valeur ou classe lue dans un document téléchargé (ligne ou page dans le CSV) ;
+- **manquant** : publiée dans un fichier identifié mais non obtenu (Data Sheet 1 de Frontiers ; TreePars de TreeMig ; S1 de Lososová ; thèse HAL de Gaudio) ;
+- **résumé** : vu dans un résumé de recherche seulement (passes 1 et 2) ;
+- **hors dépôt** : Tichý 2023, non recopié par décision de Pascal ;
 - **—** : absent.
-
-Les numéros renvoient aux lignes du CSV.
 
 | espar | Essence | Dispersion | Maturité | Fécondité | Tolérance | L Ellenberg | Croissance semis | Survie semis |
 |---|---|---|---|---|---|---|---|---|
-| 09 | *Fagus sylvatica* | S (D04) + L | L (M01) | S* (F02, F03) | S (T04, T06, T07) + L | S (L02) + L | S (G01, G02) | S (S01, S02) |
-| 61 | *Abies alba* | S (D04, D05) + L | S (M04) + L | L (F01) | S (T08) + L | L | S (G03) | S (S03) |
-| 52 | *Pinus sylvestris* | L | L | L | S (T04, T08) + L | S (L02) + L | S (G03, G05) | S (S03) |
-| 58 | *Pinus mugo* subsp. *uncinata* | L | L | L | S (T08) + L | L | S (G03) | S (S03) |
-| 62 | *Picea abies* | L | L | S* (F02) | S (T04) + L | S (L02) + L | — | — |
-| 05 | *Quercus pubescens* | L | L | L | S (T07) + L | L | S (G01) | S (S01) |
-| 15S | *Acer pseudoplatanus* | L | L | L | S (T06) + L | L | S (G02) | S (S02) |
-| 17C | *Fraxinus excelsior* | L | L | L | S (T06) + L | L | S (G02) | S (S02) |
-| 57A | *Pinus halepensis* | S (D07) + L | S (M02) | L | S (T03) + L | L | — | — |
-| 69JC | *Juniperus communis* subsp. *communis* | S (D07) + L | S (M02) | L | S (T03) + L | L | — | — |
-| 181 autres espar à taxon | (voir `species.csv`) | L (D01-D03, D06) | L, TreeMig et LANDIS-II Roumanie seulement (M01, M03) | L, TreeMig seulement (F01) | L (T01) | L (L01) | — (G07) | — (S06) |
+| 09 | *Fagus sylvatica* | résumé (D04) ; manquant (S1) | manquant (TreeMig) | résumé* (F02, F03) | **lu** (T01-09) ; résumé (T04, T06, T07) | hors dépôt | résumé (G01, G02) | résumé (S01, S02) |
+| 61 | *Abies alba* | résumé (D04, D05) ; manquant (S1) | résumé (M04) ; manquant | manquant (TreeMig) | **lu** (T01-61) ; résumé (T08) | hors dépôt | résumé (G03) | résumé (S03) |
+| 52 | *Pinus sylvestris* | manquant (S1, Data Sheet 1) | manquant (Data Sheet 1) | manquant | **lu** (T01-52) ; manquant (T03) ; résumé (T04, T08) | hors dépôt | résumé (G03) ; manquant (G05, thèse HAL) | résumé (S03) |
+| 58 | *Pinus mugo* subsp. *uncinata* | manquant (S1) | manquant | manquant | **lu, synonyme à valider** (T01-58) ; résumé (T08) | hors dépôt | résumé (G03) | résumé (S03) |
+| 62 | *Picea abies* | manquant (S1) | manquant | résumé* (F02) | **lu** (T01-62) ; résumé (T04) | hors dépôt | — | — |
+| 05 | *Quercus pubescens* | manquant (S1) | manquant | manquant | **lu** (T01-05) ; résumé (T07) | hors dépôt | résumé (G01) | résumé (S01) |
+| 15S | *Acer pseudoplatanus* | manquant (S1) | manquant | manquant | **lu** (T01-15S) ; résumé (T06) | hors dépôt | résumé (G02) | résumé (S02) |
+| 17C | *Fraxinus excelsior* | manquant (S1) | manquant | manquant | **lu** (T01-17C) ; résumé (T06) | hors dépôt | résumé (G02) | résumé (S02) |
+| 15P | *Acer platanoides* | **lu : classe 4** (D01-15P) | manquant | manquant | **lu** (T01-15P) | hors dépôt | — | — |
+| 14 | *Robinia pseudoacacia* | **lu : classe 7, ou 4 sans l'homme** (D01-14) | manquant | manquant | **lu** (T01-14) | hors dépôt | — | — |
+| 57A | *Pinus halepensis* | manquant (Data Sheet 1, S1) | manquant (Data Sheet 1) | manquant | **lu** (T01-57A) ; manquant (T03) | hors dépôt | — | — |
+| 69JC | *Juniperus communis* subsp. *communis* | manquant (Data Sheet 1, S1) | manquant (Data Sheet 1) | manquant | **lu** (T01-69JC) ; manquant (T03) | hors dépôt | — | — |
+| 06, 07, 51, 53CA, 53CO, 53S, 54, 33N, 69JO | essences du tableau 2 de Frontiers | manquant (Data Sheet 1, S1) | manquant (Data Sheet 1) | manquant | **lu** pour 06, 54 ; **lu, rang espèce à valider** pour 33N, 53CA, 53CO, 53S ; **absent** de Niinemets pour 07, 51, 69JO (manquant au Data Sheet 1) | hors dépôt | — | — |
+| les 122 autres espar appariées à Niinemets | voir les lignes `T01-<espar>` | manquant (S1) | manquant (TreeMig pour certaines, liste inconnue) | manquant (idem) | **lu** (dont 7 appariements à valider : 20X, 26E, 37, 23PC, 68CB, 49AE, 49AM) | hors dépôt | — | — |
+| les 48 autres espar absentes de Niinemets | voir `T01-ABS` | manquant (S1) | manquant ou — | manquant ou — | **—** | hors dépôt | — | — |
 | 19, 36 | *Populus*, *Eucalyptus* (genres) | — | — | — | — (T09) | — (L03) | — | — |
 | 29AF, 68CE | autre feuillu, autre résineux | — | — | — | — (T09) | — (L03) | — | — |
 
 \* F02 et F03 mesurent la **fructification** (fréquence et intensité des glandées), pas une fécondité par arbre.
 
-**Décomptes.** `species.csv` compte 195 codes :
-- 191 taxons d'espèce ou de rang inférieur ;
-- 2 codes de genre (19, 36) ;
-- 2 codes génériques sans taxon (29AF, 68CE).
+**Décomptes (195 codes = 191 taxons + 2 genres + 2 génériques) :**
+- **Tolérance à l'ombre (Niinemets), 140 taxons sur 191 appariés et lus** :
+  - 111 au nom identique ;
+  - 1 au nom identique mais à parenté à vérifier : 74H ;
+  - 16 autonymes ramenés à l'espèce : 02, 03, 13B, 17F, 18M, 20G, 21O, 22G, 23SO, 25D, 49BO, 49SR, 54, 62, 63, 69JC ;
+  - 5 au rang de l'espèce seulement : 33N, 53CA, 53CO, 53S, 68CB ;
+  - 5 par synonymie ou par un autre rang : 20X, 26E, 37, 58, 23PC ;
+  - 2 à un agrégat : 49AE, 49AM.
 
-Avec une source qui nomme l'essence :
-- **dispersion :** 4 espar (09, 61, 57A, 69JC) ;
-- **maturité :** 3 (61, 57A, 69JC) ;
-- **fécondité par arbre :** 0 ; fructification seulement : 2 (09, 62) ;
-- **tolérance :** 10 ;
-- **L :** 3 ;
-- **croissance des semis :** 7 ;
-- **survie des semis :** 7.
+  **51 taxons sont absents** (liste dans `T01-ABS`). Parmi eux : *Quercus suber*, *Q. pyrenaica*, *Pinus pinaster*, *P. pinea*, *Cedrus atlantica*, *Celtis australis*, *Juniperus oxycedrus*, *J. thurifera*, *Abies pinsapo*, *Olea europaea*, et *Pinus contorta* (68PC), dont seules deux sous-espèces sont listées.
+- **Dispersion :**
+  - classe lue pour 2 espar (15P, 14), dans le texte de l'article ;
+  - pour toutes les autres, la classe est dans le Supplement S1, non obtenu ;
+  - les distances des 7 classes sont lues (D01-C1 à D01-C7).
+- **Maturité, fécondité :** **0 valeur lue.** TreeMig (30 essences, liste inconnue) et le Data Sheet 1 (10 essences) sont manquants.
+- **L d'Ellenberg :** hors dépôt par décision ; non téléchargé.
+- **Croissance et survie des semis :** **0 valeur lue.**
+  - Sources à l'essence : résumés seulement, pour 7 espar (09, 05, 15S, 17C, 61, 52, 58).
+  - TreeMig publie les **formes** (équations lues), mais pas les valeurs d'espèces.
 
-Remarques sur les 181 autres espar :
-- elles ne sont **sourcées essence par essence pour aucune grandeur** ;
-- pour la croissance et la survie des semis, elles sont **absentes** ;
-- pour la tolérance et L, elles dépendent de deux tables (Niinemets, Tichý) à lire et à apparier.
+## 3. Les sources au CQQCOQP (ce que la lecture a changé)
+
+Le **Pourquoi** est le même pour toutes : choisir les termes et les sources de `params/regeneration`. Les sources qui n'ont pas été téléchargées (Vittoz, Bullock, Sagnard, Amm, 4C, Kulha, Kunstler, Petriţan, Ameztegui, SORTIE-ND, Atlas JRC, LANDIS-II Roumanie) restent décrites dans le CSV comme aux passes 1 et 2.
+
+| Source | Qui, dans quel but | Quoi | Comment | Où | Quand | Combien |
+|---|---|---|---|---|---|---|
+| **Niinemets et Valladares 2006**, annexe A (T01) | écophysiologistes, pour comparer les tolérances | tolérance à l'ombre, à la sécheresse et à l'engorgement de 806 espèces ligneuses | estimations tirées de la littérature, avec une erreur standard quand deux sources ou plus (ligne 24) ; noms W3TROPICOS 2005 | hémisphère Nord tempéré | 2006 | **0 à 5** (en-tête ligne 24) ; une valeur à 5,01 (ligne 77) ; licence non dite |
+| **TreeMig** (D06, M01, F01, T02, G06, S05) | WSL (Lischke, Löffler, Zimmermann, Böhm), pour la migration des essences, du peuplement au continent (p. 20) | 28 paramètres d'espèces (tableau 1, p. 19) ; **formes** de la production de graines (éq. 13-14), du noyau (éq. 16), de l'installation (éq. 29-30), de la mortalité (éq. 37-40) et de la croissance (éq. 43, 47-49) | modèle à classes de hauteur et à classes de lumière | Europe centrale, 30 essences ; paramétrages aussi pour l'Amérique du Nord et la Chine (p. 20) | doc. du 18/12/2025 | valeurs non obtenues ; code NC ; licence des paramètres inconnue |
+| **Lososová et al. 2023** (D01) | botanistes et écologues, pour la biogéographie et les modèles de végétation | classe de distance (1-7) et mode de dispersion de 10 327 espèces | arbre de décision (figure 1, p. 1489) sur le mode, la diaspore, la forme de vie, la hauteur, l'habitat ; contrôle par le modèle de Tamme et al. 2014 (R² = 0,75 sur six classes, p. 1490) | Europe ; noms Euro+Med, sous-espèces fusionnées (p. 1486) | 2023 | CC BY ; deux quantiles par classe (50 %, 99 %) |
+| **Suárez-Muñoz et al. 2021** (D07, M02, T03) | université de Grenade, pour caler LANDIS-II PnET | 10 essences et 3 groupes d'arbustes (tableau 2) ; le tableau 2 ne porte que des paramètres de PnET (longévité, azote foliaire, photosynthèse) | TRY, littérature, calage | Sierra Nevada | 2021 | CC BY ; paramètres de régénération dans le Data Sheet 1, non obtenu |
+
+**Une deuxième source qui se tromperait pour une autre raison :**
+- **Tolérance.** Niinemets, une synthèse, contre les mesures de terrain, dont aucune n'est encore lue :
+  - le hêtre au-dessus du chêne pubescent concorde avec le résumé de Kunstler 2005 (T07) ;
+  - le pin à crochets sous le pin sylvestre chez Niinemets va **contre** le résumé d'Ameztegui et Coll 2011 (T08). C'est un écart à vérifier, voir le point au sol n° 3.
+- **Dispersion.** Les classes de Lososová ne sont pas indépendantes de Vittoz et Engler 2007, que Lososová modifie (p. 1487). La seconde source reste une mesure (Sagnard, Amm), non lue.
 
 ## 4. Écarts relevés entre sources
 
-1. **Trois sens d'échelle pour une même idée :**
-   - Niinemets : 1 = très intolérante, 5 = très tolérante ;
-   - TreeMig : 1 = tolérante, 9 = intolérante ;
-   - 4C : 5 = tolérante, à l'inverse d'Ellenberg, dont il dérive ;
-   - LANDIS-II PnET : 100 à 300.
+1. **Sens des échelles de tolérance :**
+   - Niinemets : 0 (« no tolerance ») à 5 (« maximal tolerance »), ligne 24 ;
+   - TreeMig `klighs`/`kligha` : 1 (tolérante) à 9 (intolérante), SpecParsMeanings p. 1 et tableau 1 p. 19 ;
+   - 4C : 1 à 5 (non lu) ;
+   - LANDIS-II PnET : 100 à 300 (non lu).
 
-   Toute reprise doit dire son sens. Le contrat devra fixer le sien et citer la source.
-2. **Échelle de Niinemets et Valladares :** 1-5 selon Kulha et al. 2023, 0-5 selon d'autres articles citants. À lire dans l'annexe A.
-3. **Le BRIEF et la spec ne nomment pas le même indice de tolérance.** BRIEF §7.3 : « tolérance à l'ombre (indice L d'Ellenberg) ». Spec §8 (`docs/spec.md:259-260`) : « Tolérance à l'ombre : Niinemets et Valladares 2006 ». Or Q3 ne fait entrer que la lumière et la tolérance. L est une valeur d'habitat de la plante adulte, la tolérance une aptitude de l'espèce : il faut savoir lequel entre dans la survie.
-4. **Maturité : deux grandeurs.** TreeMig l'exprime par une hauteur minimale (`minmat`, m), LANDIS-II par un âge (ans). Aucune source trouvée ne donne un **diamètre** de maturité.
-5. **Dispersion du sapin :** le résumé attribue des médianes voisines à Sagnard 2007 et à Amm 2012, deux articles et deux méthodes différents. Il y a peut-être eu un mélange dans le résumé ; aucune valeur n'est reprise.
-6. **Noyau de LANDIS-II :** double exponentielle (page d'iLand) ou noyau de Ward (LandR) ; repris de `moteurs-existants.md:41`, non tranché.
-7. **TreeMig a au moins deux jeux de paramètres :** Lischke 2006, et des conifères revus d'après Rickebusch et al. 2007 (supplément GMD 8 : 3563, 2015). Il faudra dire lequel on lit.
-8. **Petriţan 2007** est publié dans *Forestry* 80 : 397-412, et non dans *Annals of Forest Science* : l'article des Annales de ce premier auteur date de 2010.
-9. **RReShar n'est pas une source de paramètres d'espèces.** C'est une référence de conception (BRIEF §7), calée sur le pin sylvestre de chênaie-pinède. Sa classe « espèce » doit recevoir des fonctions de croissance et de survie ; elle n'en publie pas pour nos essences.
-10. **Fructification et fécondité :** les jeux de glandée (Ascoli 2017, hêtre 2024) mesurent l'intermittence, ce que le BRIEF §7 range dans les scénarios, reportés par Q3. Ils ne donnent pas un nombre de graines par semencier.
+   L'écart n° 2 de la première passe (« 1-5 ou 0-5 ? ») est **levé** : l'annexe dit 0-5. Kulha et al. 2023, qui disait 1-5 d'après le résumé, n'est pas lu.
+2. **Une valeur au-dessus de l'échelle :** *Abies balsamea* vaut 5,01 (ligne 77), au-delà du 5 annoncé. Ce taxon est hors `species.csv`, mais le contrôle des bornes ne peut pas être strict à 5.
+3. **BRIEF et spec ne nomment pas le même indice** (BRIEF §7.3 : L d'Ellenberg ; spec §8 et contrat : Niinemets). Inchangé (question n° 1).
+4. **Maturité.**
+   - TreeMig l'exprime en **hauteur** (`minmat`, éq. 13, p. 9), alors que le contrat attend `maturity_d130_cm`.
+   - L'éq. (10) de TreeMig (p. 9) relie diamètre et hauteur. Convertir l'un en l'autre serait une dérivation (question n° 8).
+5. **Fécondité.**
+   - TreeMig : `maxseed` = nombre maximal de graines **par arbre** et par an (tableau 1, p. 19 ; éq. 14).
+   - Contrat : graines par m² de **surface terrière** et par an. Ce n'est pas la même grandeur.
+   - SpecParsMeanings ne donne pas l'unité de `maxseed` ; la doc du modèle la donne.
+6. **Noyau de dispersion.**
+   - TreeMig : somme pondérée de **deux** exponentielles négatives (éq. 16, p. 10).
+   - Contrat (ADR 0006) : **une** exponentielle-puissance. Le noyau TreeMig ne s'écrit pas dans le contrat.
+   - Lososová ne donne pas de noyau, mais deux quantiles par classe.
+7. **Deux documents TreeMig se contredisent :**
+   - unité de la croissance maximale : `G` en cm/an (SpecParsMeanings), `kG` en kg/an (tableau 1, p. 19) ;
+   - `dispFac` : « [0-1] » d'un côté, « Either 0 or 0.001 » de l'autre ;
+   - `sType/N` : « shading capability » d'un côté, « Foliage type » de l'autre.
+8. **Licence de TreeMig :** la seconde passe donnait CC BY 4.0 aux « données d'entrée ». La page vise en fait **CH2018** (`treemig_details.html:883`). Corrigé.
+9. **Classes de Lososová non monotones sur la distance à 50 % :** 40 m en classe 4, 10 m en classe 5 (tableau 1, p. 1488). L'ordre des classes suit plutôt la distance à 99 % de 1 à 6. Un noyau par classe doit utiliser les deux quantiles, pas le rang.
+10. **Robinier (14), deux classes :** 4 par son mode naturel, 7 dans le schéma de 2023 parce qu'il est planté par l'homme (p. 1487). Six ou sept classes : les auteurs conseillent six à l'échelle du paysage (p. 1490).
+11. **Frontiers, tolérance trop haute selon les auteurs eux-mêmes :** « species shade tolerances being higher than in reality » (Discussion). T03 est donc à prendre avec réserve, même une fois le Data Sheet obtenu.
+12. **Appariements non exacts dans Niinemets** (question n° 3) :
+    - *Pinus uncinata* est rangé au rang d'espèce, à part de *P. mugo* (58 ≠ 60) ;
+    - *Tilia × vulgaris* pour *T. × europaea* ;
+    - *Platanus × acerifolia* pour *P. × hispanica* ; sa ligne 5091 le dit en outre « Evergreen : Y », ce qu'il faut signaler ;
+    - *Alnus viridis* pour *A. alnobetula* ;
+    - *Pyrus pyraster* pour *P. communis* subsp. *pyraster* ;
+    - *Larix × marschlinsii* donné comme *L. sibirica* × *L. kaempferi*, à côté d'un *L. × eurolepis* (*L. decidua* × *L. kaempferi*, ligne 3646). La parenté de 74H n'est pas vérifiée dans TAXREF.
+13. **Tolérance (Niinemets) contre mesure (Ameztegui et Coll 2011, résumé) pour les pins :** voir le §3.
+14. Inchangés depuis les passes 1 et 2, sources non téléchargées :
+    - le sapin chez Sagnard et chez Amm ;
+    - Petriţan 2007 dans *Forestry* ;
+    - RReShar, qui n'est pas une source de paramètres ;
+    - fructification n'est pas fécondité.
 
 ## 5. Recommandation par grandeur (l'IA propose, Pascal tranche)
 
-Rappel du cadre posé par Pascal :
-- par Q1, sous couvert, le flux de passage est celui de l'IFN : dispersion, maturité et fécondité n'agissent qu'en trouée, ou quand le stock manque ;
-- par Q2, le stock initial vaut flux IFN × temps de passage : **la croissance des semis est donc nécessaire pour toute essence qui recrute à l'IFN** ;
-- par Q3, la survie dépend de la lumière et de la tolérance : **la tolérance est nécessaire pour toutes les essences**.
+Rappel du cadre : par Q1, la dispersion, la maturité et la fécondité n'agissent qu'en trouée ou quand le stock manque. Par Q2, la croissance des semis est nécessaire pour toute essence qui recrute à l'IFN. Par Q3, la tolérance est nécessaire pour toutes les essences.
 
-1. **Dispersion.**
-   - Proposition :
-     - les **classes de Lososová et al. 2023** comme source unique : CC BY 4.0, Europe, 10 327 espèces, appariement par nom latin comme sylvostation le fait pour Tichý ;
-     - un noyau par classe, avec les distances publiées pour chaque classe, à lire dans l'article ;
-     - un terme `dispersal_class` par essence, et un noyau par classe.
-   - Contrôle : Sagnard 2007 et Amm 2012 pour le sapin et le hêtre.
-   - TreeMig (`alfa1`, `alfa2`, `dispFac`) seulement si sa licence le permet, après lecture.
-2. **Maturité.**
-   - Proposition : un **seuil de hauteur** à la manière de TreeMig (`minmat`). `simulate` connaît les hauteurs, et aucune source ne donne de diamètre.
-   - Valeurs à lire dans le fichier d'espèces de TreeMig (hôte bloqué). D'ici là :
-     - terme `absent`, et code 2 sur une zone réelle ;
-     - `provisoire: true` sur le jeu fictif.
-3. **Fécondité.**
-   - **Aucune source par essence.** Trois voies :
-     - (a) `maxseed` de TreeMig, après lecture et vérification de sa licence ;
-     - (b) un terme provisoire non sourcé, signalé ;
-     - (c) pas de fécondité absolue : l'arrivée de graines est relative (noyau × semenciers mûrs), et le nombre de semis installés en trouée se règle sur le stock « en régime » de Q2, déduit des modèles comme lui.
-   - Je propose (c), qui n'invente aucune valeur, à condition que Pascal accepte que l'abondance des semis en trouée soit déduite et non observée.
-4. **Tolérance à l'ombre.**
-   - **Niinemets et Valladares 2006, annexe A, source unique**, comme la spec §8. Lecture à faire, en autorisant `esapubs.org` ou `figshare.com`.
-   - Contrôle : les mesures de terrain (T06-T08). TreeMig et 4C, non indépendants, ne servent pas de contrôle.
-   - Les codes de genre et les codes génériques n'ont pas de valeur sans une règle de rattachement décidée par Pascal.
-5. **L d'Ellenberg.**
-   - Tichý 2023, colonne `LIGHT`, lue hors dépôt (décision du 25/11), jamais recopiée.
-   - Proposition : L **ne multiplie pas** la survie en plus de la tolérance. Elle sert de contrôle à Niinemets, pour lever l'écart n° 3 entre BRIEF et spec. Sinon, la lumière compterait deux fois.
-6. **Croissance en hauteur des semis sous couvert.**
-   - **Absente pour 181 espar sur 191**, et sourcée pour 7 seulement (09, 05, 15S, 17C, 61, 52, 58), sans valeurs lues.
-   - Or Q2 en a besoin pour toutes. Trois voies :
-     - (a) code 2 pour toute essence sans source ;
-     - (b) des courbes par classe de tolérance, empruntées aux 7 essences sourcées et marquées provisoires ;
-     - (c) des essences regroupées.
-   - Le risque n° 6 du plan interdit tout emprunt « de la même famille » sans décision de Pascal. Je propose de lire d'abord Kunstler 2005, Petriţan 2007 et Ameztegui et Coll 2011, puis de poser (b) à Pascal, avec la liste des essences concernées.
-7. **Survie des semis sous couvert.**
-   - Même couverture que la croissance.
-   - Proposition : une seule forme fonctionnelle, de la lumière et de la tolérance de Niinemets (Q3). Elle est à prendre dans un modèle publié et cité (TreeMig ou SORTIE-ND, à lire), pas écrite par le `dev`. Les mesures des 7 essences servent de contrôle.
-   - Kunstler 2005 relie la mortalité à la croissance, et non directement à la lumière : c'est une autre forme possible, à soumettre à Pascal.
+1. **Tolérance à l'ombre (`shade_tolerance`).**
+   - Niinemets et Valladares 2006, annexe A, **source unique**, conformément à la spec §8 et au contrat. Elle est lue pour 140 taxons sur 191.
+   - Proposition : la lire **hors dépôt**, par une clé `external.*` pointant le fichier téléchargé et son sha256, comme Tichý. Ne pas la recopier tant que sa licence n'est pas connue (question n° 2).
+   - Les 12 appariements non exacts et les 51 absents attendent la décision de Pascal (questions n° 3 et 4). D'ici là : code 2 sur zone réelle, `provisoire: true` sur le jeu fictif.
+   - Les bornes du validateur : 0 à 5, avec la valeur 5,01 de la ligne 77 à signaler (écart n° 2).
+2. **Survie des semis (`seedling_survival_full_light_yr` et l'effet de la lumière).**
+   - TreeMig publie une forme de la mortalité qui ne dépend que de la lumière et d'un seuil de tolérance (éq. 39-40, p. 16 ; installation, éq. 29-30, p. 14). C'est exactement le cadre de Q3, et une forme publiée et citée plutôt qu'écrite par le `dev`.
+   - Mais elle prend `klighs` sur l'échelle TreeMig 1-9, pas Niinemets 0-5. Deux voies, à poser à Pascal (question n° 5) :
+     - (a) obtenir les `klighs` de TreeMig (EnviDat, licence à lire), pour 30 essences seulement ;
+     - (b) passer de Niinemets à l'échelle TreeMig par une règle écrite et marquée provisoire.
+3. **Croissance des semis (`seedling_height_growth_m_yr`).**
+   - Aucune valeur lue. TreeMig donne la forme (éq. 35, 43, 49), pas les valeurs.
+   - Kunstler, Petriţan, Ameztegui : 7 espar, à télécharger.
+   - Pour les autres, la question n° 6 (voie de la passe 1 : code 2, emprunt par classe de tolérance marqué provisoire, ou regroupement) reste ouverte.
+4. **Dispersion (`kernel_scale_m`, `kernel_shape`).**
+   - Proposition : les **classes de Lososová**, source unique (CC BY).
+   - Chaque classe donne **deux quantiles** (50 % et 99 %, tableau 1). Deux quantiles fixent deux paramètres : on peut en tirer `kernel_scale_m` et `kernel_shape` de l'exponentielle-puissance du contrat, par classe. C'est un calcul, pas une invention, mais c'est une dérivation : elle passe par Pascal (question n° 9).
+   - Il faut S1 (FloraVeg.EU) pour la classe de chaque essence. Six classes plutôt que sept (p. 1490).
+   - Le noyau de TreeMig (deux exponentielles) ne s'écrit pas dans le contrat : à n'utiliser qu'en contrôle.
+5. **Maturité (`maturity_d130_cm`).**
+   - Aucune valeur lue. La seule source de valeurs identifiée (TreeMig) parle en hauteur.
+   - Proposition : soit changer le terme du contrat en hauteur, soit convertir par l'éq. (10) de TreeMig (question n° 8). Code 2 d'ici là.
+6. **Fécondité (`fecundity_seeds_per_m2_ba_yr`).**
+   - Aucune source par surface terrière. TreeMig donne un nombre par arbre, avec une fonction de hauteur et un cycle de glandée.
+   - Proposition inchangée : la voie (c) de la passe 1 (abondance en trouée déduite du stock en régime), ou un terme par arbre sourcé TreeMig (question n° 7).
+7. **L d'Ellenberg.** Inchangé : Tichý, hors dépôt. L sert de contrôle à Niinemets, pas de second facteur de survie (question n° 1).
 
-## 6. Ce qui reste à décider par Pascal (une question à la fois, dans cet ordre)
+## 6. GIEC 2006 et les racines (pour `post`, hors régénération)
 
-1. Quel indice entre dans la survie : Niinemets (spec §8) ou L d'Ellenberg (BRIEF §7.3) ? L'autre sert de contrôle (écart n° 3).
-2. Pour les essences sans croissance ni survie publiées (181 sur 191), quelle voie : code 2, emprunt par classe de tolérance marqué provisoire, ou regroupement ? Cela touche tout le stock « en régime » de Q2.
-3. Fécondité : accepter la voie (c), où l'abondance en trouée est déduite du stock en régime ?
-4. Maturité exprimée par une hauteur (TreeMig) plutôt que par un âge ou un diamètre ?
-5. Dispersion : accepter un noyau par classe (Lososová), commun à toutes les essences d'une classe ?
-6. Hôtes à autoriser : **approuvés par Pascal le 26/11 (journal l. 332)**, mais encore refusés par le réseau de la session lors de la seconde passe (§0). Ce n'est plus une question pour Pascal, c'est un réglage de l'environnement à vérifier par l'orchestrateur. Il faut toujours lire la licence de TreeMig avant d'en reprendre une valeur : elle diffère entre code et données (§0).
-7. Règle de rattachement des codes de genre (19 *Populus*, 36 *Eucalyptus*) et des codes génériques (29AF, 68CE) pour la tolérance et L.
+- **Où :** vol. 4, chap. 4 « Forest Land », **tableau 4.4**, p. 4.49 : « Ratio of below-ground biomass to above-ground biomass (R) ».
+- **Unité :** tonne de racines (matière sèche) par tonne de parties aériennes (matière sèche).
+- **Licence :** **aucune n'est dite** dans les pages lues (4.1, 4.2, 4.49, 4.50). Les valeurs ne sont pas recopiées (ligne `R01` du CSV).
+- **Ce que le tableau publie :**
+  - un R moyen et sa plage, par domaine et zone écologique ;
+  - pour la zone tempérée (« oceanic, continental, mountain systems »), quatre types :
+    - conifères, en trois classes de biomasse aérienne (moins de 50, 50 à 150, plus de 150 t/ha) ;
+    - *Quercus* spp., une seule classe (plus de 70 t/ha) ;
+    - *Eucalyptus* spp., en trois classes ;
+    - autres feuillus, en trois classes (moins de 75, 75 à 150, plus de 150 t/ha) ;
+  - la source des lignes tempérées est **Mokany et al., 2006** ;
+  - les zones subtropicales ont leurs propres lignes, et « Subtropical mountain systems » porte « no estimate available ».
+- **Ce que `post` pourrait en tirer :**
+  - une biomasse racinaire **par cellule ou par placette**, égale à R × biomasse aérienne par hectare ;
+  - R se choisit par type, que `species.csv` donne par sa colonne `groupe` (feuillu/résineux), plus l'exception *Quercus* (codes 02 à 08S, 29CE, 29CM, 34) et le code 36 *Eucalyptus* ;
+  - R se choisit aussi par classe de biomasse aérienne.
+- **Réserves :**
+  - R est un rapport de **peuplement**, défini sur une biomasse par hectare : il ne s'applique pas arbre par arbre ;
+  - la ligne *Quercus* ne couvre pas les chênaies de moins de 70 t/ha ;
+  - la France méditerranéenne pourrait relever des lignes subtropicales selon la carte des zones écologiques FAO du même chapitre (non lue ici) ;
+  - la source primaire, Mokany et al. 2006, est à lire : elle aura peut-être une licence claire. C'est aussi la seconde source à comparer.
 
-## 7. Trois points au sol (à vérifier par Pascal)
+## 7. Questions pour Pascal (une à la fois, dans cet ordre)
 
-1. **Une trouée de hêtraie-sapinière (61, 09), bordée de semenciers.** Relever la distance des semis au semencier le plus proche, et comparer au noyau de classe (Lososová) et aux médianes mesurées (Sagnard, Amm). C'est là que la dispersion décide, par Q1, de la recolonisation, et que les sources peuvent diverger.
-2. **Un sous-étage de chêne pubescent sous hêtre (05, 09), dans le sud de la France**, comme le site de Kunstler 2005. Compter les semis vivants des deux essences sous couvert dense. C'est là que le rang de tolérance de Niinemets, la valeur L de Tichý et la mesure peuvent se contredire (écart n° 3).
-3. **Érable sycomore et frêne sous hêtraie fermée (15S, 17C, 09).** Ce sont des essences mi-tolérantes d'après Petriţan. Avec Q3, leur survie ne dépendra que de l'indice de tolérance : voir si elles persistent sous couvert, ou seulement en trouée. C'est le cas où une erreur d'un cran sur l'échelle change la composition des recrues.
+Chaque question tient seule ; l'orchestrateur les pose une par une.
 
-## 8. Question de contrôle
+1. **Quel indice entre dans la survie des semis : Niinemets (spec §8, contrat) ou L d'Ellenberg (BRIEF §7.3) ?**
+   - Contexte : Niinemets est maintenant lu pour 140 taxons sur 191 ; Tichý reste hors dépôt.
+   - Proposition : Niinemets ; L en contrôle.
+   - Ce que change la réponse : si c'est L, le terme `shade_tolerance` du contrat change de source et d'échelle.
+2. **Niinemets ne dit pas sa licence : la lire hors dépôt (clé `external.*`, comme Tichý) ou la recopier dans le dépôt ?**
+   - Proposition : hors dépôt, avec le sha256 du fichier.
+   - Ce que change la réponse : recopier, c'est 140 valeurs dans `params/regeneration` ; hors dépôt, c'est un fichier de plus à fournir pour rejouer (règle des 30 minutes).
+3. **Valider les 12 appariements non exacts :**
+   - 5 synonymes ou autres rangs : 20X, 26E, 37, 58, 23PC ;
+   - 5 au rang de l'espèce : 33N, 53CA, 53CO, 53S, 68CB ;
+   - 2 agrégats : 49AE, 49AM ;
+   - plus la parenté de 74H.
 
-*Quelle décision cette donnée va-t-elle éclairer ?* Les termes et les sources du contrat `params/regeneration` (mission 060), et ce que Pascal doit trancher avant les missions 061 et 062 : quel indice de tolérance, quelle règle pour les essences sans croissance ni survie publiées, quelle fécondité, quelle maturité.
+   Proposition : les accepter, sauf 58. Pour 58, Niinemets distingue *P. uncinata* de *P. mugo*, et le choix change la tolérance. Ce que change la réponse : 12 essences ont une valeur, ou un code 2.
+4. **Règle pour les 51 taxons absents de Niinemets et les 4 codes de genre ou génériques (19, 36, 29AF, 68CE).**
+   - Proposition : code 2 sur zone réelle, sans emprunt « de la même famille » (risque n° 6 du plan).
+   - Ce que change la réponse : *Quercus suber*, *Q. pyrenaica*, *Pinus pinaster*, *P. pinea*, *Cedrus atlantica* sont des essences fréquentes du Sud ; un code 2 arrête `simulate` là où elles recrutent.
+5. **Forme de la survie : celle de TreeMig (éq. 39-40), avec quelle échelle de tolérance ?**
+   - (a) Les `klighs` de TreeMig, 30 essences, licence à lire sur EnviDat.
+   - (b) Niinemets passé à l'échelle 1-9 par une règle écrite et provisoire.
 
-## 9. Ligne de journal proposée
+   Proposition : (b), si Pascal accepte une règle de passage ; sinon (a), pour 30 essences seulement.
+6. **Croissance des semis pour les essences sans source (184 sur 191) : code 2, emprunt par classe de tolérance marqué provisoire, ou regroupement ?** Ce que change la réponse : tout le stock « en régime » de Q2.
+7. **Fécondité : voie (c), où l'abondance des semis en trouée est déduite du stock en régime, ou un terme en graines par arbre tiré de TreeMig (`maxseed`, à obtenir) à la place du terme par surface terrière du contrat ?** Proposition : (c), qui n'invente aucune valeur.
+8. **Maturité : changer le terme du contrat en hauteur (comme TreeMig), ou garder le diamètre et convertir par l'éq. (10) de TreeMig ?** Proposition : la hauteur, que `simulate` connaît, sans dérivation.
+9. **Dispersion : tirer, pour chacune des six classes naturelles de Lososová, l'échelle et la forme du noyau de ses deux quantiles (50 % et 99 %) ?** Proposition : oui, calcul documenté, une ligne par classe, avec Sagnard et Amm en contrôle. Ce que change la réponse : un noyau commun à toutes les essences d'une classe.
+10. **Racines pour `post` : le tableau 4.4 du GIEC n'a pas de licence dite.** Faut-il le lire hors dépôt, ou aller à sa source, Mokany et al. 2006, et lire sa licence ?
+11. **Demande d'effort : déposer à la main les trois fichiers que le proxy ou l'anti-robot refusent ?**
+    - le Data Sheet 1 de Frontiers ;
+    - la thèse HAL de Gaudio (tel-00587487) ;
+    - le starter kit TreeMig sur EnviDat (1,5 Go, dont seuls les fichiers TreePars du dossier P servent).
 
-`2026-11-26 · acquereur · 059 · rendu : docs/referentiels/regeneration.{md,csv} (44 lignes, 7 grandeurs, 20 sources) ; aucune table ouverte (esapubs.org et figshare.com bloqués, puis arrêt ; zenodo, treemig.wsl.ch, hal.inrae.fr déjà bloqués le 24/11) ; aucune valeur recopiée ; croissance et survie des semis sourcées pour 7 espar sur 191, absentes ailleurs ; aucune fécondité par arbre ; maturité en hauteur (TreeMig) ou en âge (LANDIS-II), jamais en diamètre ; écart BRIEF §7.3 (L d'Ellenberg) / spec §8 (Niinemets) sur l'indice de tolérance ; 7 questions pour Pascal.`
+    Ou bien l'orchestrateur fait autoriser les hôtes. La liste de S1 (FloraVeg.EU) est à ajouter à ces fichiers.
 
-Seconde passe :
+## 8. Ce qui manque (fichiers non obtenus)
 
-`2026-11-26 · acquereur · 059 (seconde passe) · les 9 hôtes approuvés par Pascal (esapubs.org, figshare.com, zenodo.org, treemig.wsl.ch, www.frontiersin.org, hal.inrae.fr, hal.science, www.ipcc-nggip.iges.or.jp, www.sci.muni.cz) refusés deux fois chacun (ENOTFOUND) : approbation non appliquée au réseau de la session ; aucune table lue, aucune valeur ni appariement écrit, couverture inchangée ; seul ajout : la licence de TreeMig différerait entre code (CC-BY-NC-SA) et données (CC BY 4.0) selon un résumé de recherche, écart avec moteurs-existants.md:25 ; rendu : regeneration.{md,csv} (§0, colonnes lecture et licence).`
+| Manque | Ce qu'il porterait | Pourquoi il manque (`INDEX.md`) | Lignes du CSV |
+|---|---|---|---|
+| **Data Sheet 1, Suárez-Muñoz et al. 2021** | dispersion, maturité, tolérance pour 10 essences : 06, 07, 33N, 51, 52, 53*/54, 57A, 69JC, 69JO, et *Q. faginea* | le lien redirige vers `public-pages-files-2025.frontiersin.org`, refusé par le proxy (trois essais) | D07, M02, T03 |
+| **Thèse HAL de Gaudio (tel-00587487)** | croissance des semis de pin sylvestre selon la lumière | `hal.inrae.fr` et `hal.science` servent un défi anti-robot, non contourné ; `api.archives-ouvertes.fr` est refusé par le proxy | G05 (et D05, Amm 2012, sur HAL aussi) |
+| **Fichiers d'espèces TreeMig (TreePars, dossier P)** | `alfa1`, `alfa2`, `dispFac`, `minmat`, `maxseed`, `klighs`, `kligha`, `kG` pour 30 essences | aucun lien direct dans les pages ; ils sont dans le zip du starter kit sur EnviDat (`treemig_starter-kit.html:438`) et dans le GitLab du WSL, refusé par le proxy | D06, M01, F01, T02, G06, S05 |
+| **Supplement S1 de Lososová 2023, ou FloraVeg.EU** | classe de dispersion de chaque espèce | non demandé à cette passe ; adresse donnée p. 1492 | D01 |
+| Kunstler 2005, Petriţan 2007, Ameztegui et Coll 2011, SORTIE-ND 2015 | croissance et survie mesurées, 7 espar | non téléchargés (hors liste de cette passe) | T06-T08, G01-G04, S01-S04 |
 
-## 10. Liste de contrôle
+## 9. Trois points au sol (à vérifier par Pascal)
 
-**Aucune liste de contrôle n'était jointe à la consigne.** J'ai passé les trois points génériques de ma fiche.
+1. **Une trouée de hêtraie-sapinière (61, 09), bordée de semenciers.**
+   - Relever la distance des semis au semencier le plus proche.
+   - La comparer aux quantiles de la classe Lososová de ces essences (classe dans S1, à obtenir) et aux médianes mesurées (Sagnard, Amm).
+   - C'est là que la dispersion décide, par Q1, de la recolonisation, et qu'un noyau par classe peut s'écarter de la mesure.
+2. **Un sous-étage de chêne pubescent sous hêtre (05, 09), dans le sud de la France**, comme le site de Kunstler 2005.
+   - Compter les semis vivants des deux essences sous couvert dense.
+   - Niinemets range le hêtre nettement au-dessus du chêne pubescent (lignes 2761 et 6193). Le terrain dira si l'écart de survie est aussi fort, et si L (Tichý) raconte la même chose (question n° 1).
+3. **Pin à crochets et pin sylvestre sous couvert, en montagne (58, 52)**, dans les Pyrénées ou les Alpes du Sud.
+   - Niinemets donne au pin à crochets (*P. uncinata*, ligne 4994) une tolérance plus basse qu'au pin sylvestre (ligne 4961), et plus basse que *P. mugo* (ligne 4807).
+   - Le résumé d'Ameztegui et Coll 2011 dit l'inverse sous ombre forte.
+   - Voir lequel persiste sous couvert. C'est le cas où l'appariement (question n° 3) et la source décident de la composition des recrues.
 
-1. **Sources et emplacements : coché avec réserves.**
-   - Chaque ligne du CSV porte une référence et une URL (ou un DOI), ou bien `absent`.
+## 10. Question de contrôle
+
+*Quelle décision cette donnée va-t-elle éclairer ?* Les termes et les sources du contrat `params/regeneration` (mission 060). D'abord la tolérance à l'ombre, maintenant lue pour 140 taxons. Puis ce que Pascal doit trancher avant les missions 061 et 062 : l'indice, la licence de Niinemets, les appariements, la forme de la survie, la croissance des essences sans source, la maturité et le noyau.
+
+## 11. Lignes de journal proposées
+
+Passes 1 et 2 (déjà proposées) :
+
+`2026-11-26 · acquereur · 059 · rendu : docs/referentiels/regeneration.{md,csv} (44 lignes, 7 grandeurs, 20 sources) ; aucune table ouverte ; aucune valeur recopiée ; 7 questions pour Pascal.`
+
+`2026-11-26 · acquereur · 059 (seconde passe) · les 9 hôtes approuvés refusés deux fois chacun (ENOTFOUND) ; aucune table lue ; licence de TreeMig différente entre code et données selon un résumé de recherche.`
+
+Passe 3 :
+
+`2026-11-26 · acquereur · 059 (troisième passe) · lecture locale de data/sources/regeneration/ (INDEX.md) ; Niinemets annexe A lue : échelle 0-5, 140 taxons de species.csv sur 191 appariés (12 à valider), 51 absents, valeurs non recopiées (licence non dite) ; Lososová 2023 lu (CC BY) : distances à 50 % et 99 % des 7 classes reprises, classes par espèce dans S1 non obtenu ; TreeMig : code CC-BY-NC-SA 4.0 confirmé, le CC BY 4.0 de la page details vise CH2018 (correction de la seconde passe), paramètres d'espèces sur EnviDat non obtenus, formes publiées (survie par lumière et seuil de tolérance, éq. 39-40) ; GIEC tableau 4.4 lu (R racines/aérien par type et classe de biomasse, Mokany 2006), licence non dite, non recopié ; maturité, fécondité, croissance, survie : 0 valeur lue ; manquent Data Sheet 1 Frontiers, thèse HAL Gaudio, TreePars TreeMig ; 11 questions pour Pascal ; rendu : regeneration.{md,csv} (195 lignes).`
+
+## 12. Liste de contrôle
+
+**Aucune liste de contrôle n'était jointe à la consigne de cette passe.** J'ai passé les trois points génériques de ma fiche.
+
+1. **Sources et emplacements : coché, avec réserves.**
+   - Chaque ligne `lu` porte le fichier local, la page ou la ligne, et le sha256 abrégé du fichier.
    - Non coché :
-     - aucune page n'a été ouverte ; aucun numéro de page ni de ligne de tableau n'est donné, faute d'avoir lu ;
-     - trois DOI ne sont pas lus : Kunstler 2005, Petriţan 2007, et le titre de la thèse RReShar. Ils sont écrits « non lu » plutôt que reconstitués ;
-     - le DOI de Niinemets et Valladares est repris d'un lien Google Scholar dont la fin était tronquée.
+     - les lignes `publie` et `couverture_non_lue` restent fondées sur des résumés (passes 1 et 2) ;
+     - les DOI de Kunstler 2005 et Petriţan 2007 ne sont toujours pas lus ;
+     - le DOI de Niinemets reste repris d'un lien tronqué ; l'en-tête de l'annexe (ligne 23) confirme la référence : *Ecological Monographs* 76 : 521-547.
 2. **Décomptes complets : coché.**
-   - Les 195 codes de `species.csv` sont couverts : 10 lignes du tableau de couverture, plus une ligne pour les 181 autres taxons et deux lignes pour les 4 codes de genre ou génériques (10 + 181 + 4 = 195).
-   - Le CSV compte 44 lignes : 10 pour la dispersion, 5 pour la maturité, 4 pour la fécondité, 9 pour la tolérance, 3 pour L, 7 pour la croissance, 6 pour la survie.
-   - Non coché : l'appariement des 191 taxons aux listes de Niinemets, de Tichý, de Lososová et de TreeMig, faute de les avoir ouvertes.
+   - 195 codes = 140 appariés + 51 absents + 4 genres ou génériques.
+   - Niinemets : 806 noms, 2 418 cellules de tolérance.
+   - CSV : 195 lignes de données.
+   - Non coché : l'appariement à Lososová (S1), à TreeMig et au Data Sheet 1, dont les listes ne sont pas obtenues.
 3. **Termes exacts : coché.**
-   - Les noms de paramètres sont ceux des sources : `minmat`, `maxseed`, `alfa1`, `alfa2`, `dispFac`, `LIGHT`, la feuille `Tab-IVs-Tichy-et-al2023`.
-   - Les codes sont les `espar` de `species.csv`.
-   - Les sens d'échelle sont dits (écart n° 1).
+   - Noms de paramètres et intitulés repris des documents : `minmat`, `maxseed`, `klighs`, `kligha`, `alfa1`, `alfa2`, `dispFac`, `kG`, « Shade tolerance », « Ratio of below-ground biomass to above-ground biomass (R) ».
+   - Noms latins de Niinemets recopiés tels quels, avec les signes d'hybride.
+   - Codes : `espar` de `species.csv`.
