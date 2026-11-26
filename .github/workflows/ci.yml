@@ -701,18 +701,20 @@ jobs:
   m6:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      # Godot et ses modèles vivent sous ce dossier ; XDG_DATA_HOME fait chercher les modèles d'export à Godot
-      # dans $XDG_DATA_HOME/godot/export_templates/<version>/ (donc dans le cache, pas dans ~).
-      GODOT_CI: ${{ github.workspace }}/../godot-ci
-      XDG_DATA_HOME: ${{ github.workspace }}/../godot-ci/xdg
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - name: Chronomètre du job
-        run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Chronomètre du job et dossiers de Godot
+        run: |
+          echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+          # Godot et ses modèles vivent sous ce dossier ; XDG_DATA_HOME fait chercher les modèles d'export à Godot
+          # dans $XDG_DATA_HOME/godot/export_templates/<version>/ (donc dans le cache, pas dans ~).
+          # Chemins SANS « .. » (ni liens) : avec « workspace/../godot-ci », le user:// de Godot est mal résolu et
+          # l'import écrit « ERROR: Could not create ObjectDB Snapshots directory » (reproduit en local, mission 073).
+          echo "GODOT_CI=$RUNNER_TEMP/godot-ci" >> "$GITHUB_ENV"
+          echo "XDG_DATA_HOME=$RUNNER_TEMP/godot-ci/xdg" >> "$GITHUB_ENV"
 
       # Cache : le binaire (72 Mo) et le SEUL gabarit linux_release extrait du .tpz (pas les 1,26 Go). Clé : version
       # de Godot. GitHub purge les entrées sans accès depuis 7 jours : le cas « à froid » revient et il compte.
@@ -720,7 +722,7 @@ jobs:
         id: cache-godot
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: ${{ github.workspace }}/../godot-ci
+          path: ${{ runner.temp }}/godot-ci
           key: godot-${{ env.GODOT_VERSION }}-linux-release-v1
 
       # À froid : télécharge (github.com seul, redirigé par lui vers ses propres serveurs de fichiers), vérifie le
