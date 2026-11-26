@@ -25,6 +25,7 @@ _Modèle de carte :_
 - M5b · clé `external.*` pour Niinemets (non recopié) ; mise à jour de BRIEF §7.3 · depuis le cycle 8
 - M5b · questions de sens à préparer pour Pascal : coefficient d'extinction pris comme conversion vers l'échelle de Niinemets ; troncature du noyau à K cellules · depuis le cycle 8
 - M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
+- M5b · mentions Q2 et Q3 : aujourd'hui en signalements de t0 (sim/flags.parquet) ; à porter au rapport de simulation quand il existera · depuis le cycle 8
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
