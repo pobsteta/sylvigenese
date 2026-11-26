@@ -3,12 +3,26 @@
 import numpy as np
 import pytest
 import rasterio
+import rasterio.transform
 import yaml
 
 from sylvigenese.assets_lib import stages
 from sylvigenese.common import ModuleError
 
-from test_assets import FICTITIOUS_ZONE, ROOT
+from test_assets import ROOT
+
+
+@pytest.fixture
+def zone(tmp_path):
+    """Zone d'essai : un site_potential.tif synthétique (grille de 25 m, 20 x 20, coin nord-ouest 700 000 ; 6 501 000,
+    EPSG:2154), écrit ici : aucun test ne dépend d'une sortie de prepare ignorée par git. Plafond = 20 + ligne + 0,5 colonne."""
+    rows, cols = np.mgrid[0:20, 0:20]
+    array = (20.0 + rows + 0.5 * cols).astype("float32")
+    profile = {"driver": "GTiff", "height": 20, "width": 20, "count": 1, "dtype": "float32", "crs": "EPSG:2154",
+               "transform": rasterio.transform.from_origin(700_000, 6_501_000, 25, 25)}
+    with rasterio.open(tmp_path / "site_potential.tif", "w", **profile) as dst:
+        dst.write(array, 1)
+    return tmp_path
 
 
 def test_les_seuils_sont_ceux_du_fichier_unique():
@@ -46,28 +60,29 @@ def test_fichier_de_seuils_mal_forme_est_refuse(tmp_path):
         stages.load_breaks(tmp_path / "absent.yml")
 
 
-def test_plafond_lu_a_la_cellule_de_l_arbre():
+def test_plafond_lu_a_la_cellule_de_l_arbre(zone):
     """Cellule (ligne 3, colonne 6) de la grille de 25 m dont le coin nord-ouest est (700 000 ; 6 501 000)."""
-    with rasterio.open(FICTITIOUS_ZONE / "site_potential.tif") as src:
+    with rasterio.open(zone / "site_potential.tif") as src:
         array = src.read(1)
+    assert float(array[3, 6]) == 26.0 and float(array[3, 7]) == 26.5     # valeurs synthétiques du fixture
     x, y = 700_000 + 6 * 25 + 24.9, 6_501_000 - 3 * 25 - 0.1
-    assert stages.ceiling_at(FICTITIOUS_ZONE, [x], [y]).tolist() == [pytest.approx(float(array[3, 6]))]
+    assert stages.ceiling_at(zone, [x], [y]).tolist() == [pytest.approx(float(array[3, 6]))]
     # un autre point de la même cellule, l'autre bord : même plafond
-    assert stages.ceiling_at(FICTITIOUS_ZONE, [700_000 + 6 * 25 + 0.1], [6_501_000 - 3 * 25 - 24.9]).tolist() \
+    assert stages.ceiling_at(zone, [700_000 + 6 * 25 + 0.1], [6_501_000 - 3 * 25 - 24.9]).tolist() \
         == [pytest.approx(float(array[3, 6]))]
     # la colonne voisine (7) a sa propre valeur
-    assert stages.ceiling_at(FICTITIOUS_ZONE, [700_000 + 7 * 25 + 1.0], [6_501_000 - 3 * 25 - 1.0]).tolist() \
+    assert stages.ceiling_at(zone, [700_000 + 7 * 25 + 1.0], [6_501_000 - 3 * 25 - 1.0]).tolist() \
         == [pytest.approx(float(array[3, 7]))]
 
 
-def test_arbre_hors_de_la_grille_est_une_erreur():
+def test_arbre_hors_de_la_grille_est_une_erreur(zone):
     with pytest.raises(ModuleError, match="hors de la grille"):
-        stages.ceiling_at(FICTITIOUS_ZONE, [699_990.0], [6_500_500.0])
+        stages.ceiling_at(zone, [699_990.0], [6_501_100.0])
 
 
-def test_stade_d_un_arbre_de_la_zone_fictive_suit_h_sur_plafond():
+def test_stade_d_un_arbre_suit_h_sur_plafond(zone):
     x, y = np.array([700_162.5]), np.array([6_500_987.5])
-    ceiling = float(stages.ceiling_at(FICTITIOUS_ZONE, x, y)[0])
+    ceiling = float(stages.ceiling_at(zone, x, y)[0])
     breaks = stages.load_breaks()
     for ratio, expected in ((breaks[0] - 0.01, "young"), (breaks[0], "pole"), (breaks[1], "mature"), (breaks[2], "old")):
-        assert stages.tree_stages(FICTITIOUS_ZONE, x, y, np.array([ratio * ceiling])).tolist() == [expected]
+        assert stages.tree_stages(zone, x, y, np.array([ratio * ceiling])).tolist() == [expected]

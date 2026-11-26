@@ -737,3 +737,66 @@ def test_schemas_carry_no_default_value():
                  "tables/assets/exemplars.schema.json", "tables/params/model_dimensions.schema.json"):
         text = (CONTRACTS / name).read_text(encoding="utf-8")
         assert '"default"' not in text, name
+
+
+# ======================================================================= reprises de 070 : hcb null, assets.gltf (tuiles)
+
+def test_massif_block_v2_hcb_null_is_conform_when_the_block_says_it(tmp_path, capsys):
+    block = block_v2()
+    block["trees"][0]["hcb"] = None
+    block["mentions"].append("hcb absent de trees_init : 1 arbre(s) sans hauteur de base de houppier, hcb écrit null")
+    accepted(capsys, "massif_block", h.write_json(tmp_path / "b.json", block))
+
+
+def test_massif_block_v2_hcb_null_without_a_mention_is_refused(tmp_path, capsys):
+    block = block_v2()
+    block["trees"][0]["hcb"] = None
+    refused(capsys, "massif_block", h.write_json(tmp_path / "b.json", block), r"mentions")
+
+
+def test_massif_block_v2_hcb_negative_or_text_is_still_refused(tmp_path, capsys):
+    for k, value in enumerate((-1.0, "0")):
+        block = block_v2()
+        block["trees"][0]["hcb"] = value
+        refused(capsys, "massif_block", h.write_json(tmp_path / f"{k}.json", block), r"hcb")
+
+
+def test_massif_block_v1_refuses_a_null_hcb(tmp_path, capsys):
+    block = h.massif_block()
+    block["trees"][0]["hcb"] = None
+    refused(capsys, "massif_block", h.write_json(tmp_path / "b.json", block), r"hcb")
+
+
+def gltf_tile(models):
+    doc = h.gltf_json()
+    doc["extras"] = {"generique": any(m.startswith("generique_") for m in models), "provisoire": True,
+                     "modeles": models}
+    return doc
+
+
+@pytest.mark.parametrize("models", [["09_mature"], ["09_mature", "61_old"], ["09_mature", "generique_resineux"],
+                                    ["generique_feuillu"]])
+def test_gltf_tile_conform_cases(tmp_path, capsys, models):
+    accepted(capsys, "gltf", h.write_json(tmp_path / "t.gltf", gltf_tile(models)))
+
+
+def test_gltf_tile_generique_true_without_a_generic_model_is_refused(tmp_path, capsys):
+    doc = gltf_tile(["09_mature"])
+    doc["extras"]["generique"] = True
+    refused(capsys, "gltf", h.write_json(tmp_path / "t.gltf", doc), r"generique")
+
+
+def test_gltf_tile_generique_false_with_a_generic_model_is_refused(tmp_path, capsys):
+    doc = gltf_tile(["09_mature", "generique_resineux"])
+    doc["extras"]["generique"] = False
+    refused(capsys, "gltf", h.write_json(tmp_path / "t.gltf", doc), r"generique")
+
+
+def test_gltf_tile_without_the_list_of_models_or_with_a_bad_name_is_refused(tmp_path, capsys):
+    doc = gltf_tile(["09_mature"])
+    del doc["extras"]["modeles"]
+    refused(capsys, "gltf", h.write_json(tmp_path / "a.gltf", doc), r"modeles")
+    for k, bad in enumerate(([], ["feuillu"], ["09_adulte"], ["09_mature", "09_mature"])):
+        doc = gltf_tile(["09_mature"])
+        doc["extras"]["modeles"] = bad
+        refused(capsys, "gltf", h.write_json(tmp_path / f"b{k}.gltf", doc), r"modeles")

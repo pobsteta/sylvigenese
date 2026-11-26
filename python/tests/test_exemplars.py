@@ -40,6 +40,7 @@ def test_lecture_d_un_dossier_et_codes_du_referentiel(tmp_path):
     ({"b_cible": None}, "b_cible absent"),
     ({"b_cible": "nan"}, "pas fini"),
     ({"calage": "peut-être"}, "calage"),
+    ({"calage": None}, "métadonnée.*calage"),                      # rien n'est déduit de b_cible : absent = refus
     ({"stage": "ancien"}, "stade"),
 ])
 def test_exemplaire_hors_contrat_est_refuse_avec_la_cause(tmp_path, meta, pattern):

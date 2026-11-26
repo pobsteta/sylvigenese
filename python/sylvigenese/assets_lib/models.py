@@ -36,15 +36,14 @@ from sylvigenese.assets_lib import lod
 GROUPS = ("feuillu", "resineux")
 COLORS = {"feuillu": [0.30, 0.52, 0.22, 1.0], "resineux": [0.10, 0.34, 0.22, 1.0]}
 TRUNK_COLOR = [0.38, 0.27, 0.17, 1.0]
-# Clés demandées à la racine des `.gltf` et du tileset par le contrat `assets.gltf` : elles disent « illustration
-# provisoire » (les modèles réellement employés sont dits dans `modeles`, clé ajoutée par tiles.py à chaque tuile).
+# Extras du tileset : « illustration provisoire ». `generique` y est une valeur de départ, réécrite par assets.py
+# (vrai seulement si un modèle générique sert dans l'année) ; les modèles employés sont dits dans `modeles`, clé des
+# `.gltf` de chaque tuile (contrat assets.gltf, tiles.py).
 GENERIC_EXTRAS = {
     "generique": True,
     "provisoire": True,
     "note": "illustration provisoire ; les modèles employés sont dits dans massif/index.json (models, notes)",
 }
-NON_CALE_CONIFERS = ("résineux : densité des rameaux tirée et non calée, aucun exposant b observé ; stades jeune et "
-                     "perche extrapolés (calage sans petit résineux) ; décision de Pascal du 26/11/2026")
 
 
 def _ring(radius: float, y: float, n: int) -> list[list[float]]:
@@ -279,8 +278,8 @@ def srgb_to_linear(color: str) -> list[float]:
 def own_model(exemplar: exemplar_lib.Exemplar, model: exemplar_lib.SpeciesModel, settings: Settings) -> lod.BuiltModel:
     """Modèle d'un exemplaire : maillage, trois niveaux, extras du contrat `assets.tree_model`.
 
-    « Non calé » : tout résineux (décision de Pascal du 26/11/2026) et tout exemplaire que son export dit
-    `calage = non calé` ; `b_cible` n'est écrit que si l'exemplaire en porte un."""
+    `calage` et `calage_raisons` sont lus dans l'export et recopiés (un résineux est « non calé » parce que
+    l'export le dit, décision de Pascal du 26/11/2026) ; `b_cible` n'est écrit que si l'exemplaire en porte un."""
     if settings.card_size_m is None or not settings.color_by_group:
         raise ModuleError("config.yml : viewer.foliage.card_size_m et color_by_group sont exigés pour dessiner les "
                           "cartes de feuillage (Q2) des modèles du générateur")
@@ -300,15 +299,11 @@ def own_model(exemplar: exemplar_lib.Exemplar, model: exemplar_lib.SpeciesModel,
               "feuillage": {"type": "cartes_couleur_unie", "couleur": color}}
     if "b_cible" in meta:
         extras["b_cible"] = float(meta["b_cible"])
-    if model.group == "resineux":
-        extras["calage"] = "non calé"
-        extras["calage_raisons"] = meta.get("calage_raisons") or NON_CALE_CONIFERS
-    else:
-        # `calage` est obligatoire au contrat : celui de l'export ; à défaut, « calé » si l'exemplaire porte un b_cible
-        # visé, « non calé » sinon (aucun b visé = aucune cible de calage)
-        extras["calage"] = meta.get("calage") or ("calé" if "b_cible" in meta else "non calé")
-        if "calage_raisons" in meta:
-            extras["calage_raisons"] = meta["calage_raisons"]
+    # `calage` et `calage_raisons` sont ceux de l'export (mission 071), recopiés tels quels : rien n'est déduit de
+    # `b_cible` ni du groupe de l'essence (`calage` absent : refus à la lecture, exemplars.read_exemplar)
+    extras["calage"] = meta["calage"]
+    if "calage_raisons" in meta:
+        extras["calage_raisons"] = meta["calage_raisons"]
     return lod.BuiltModel(stem, "own", levels, measures["h_ref_m"], measures["r_ref_m"], extras, measures=measures)
 
 

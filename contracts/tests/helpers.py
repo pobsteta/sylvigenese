@@ -397,7 +397,7 @@ def gltf_json():
             "buffers": [{"uri": "feuillu.bin", "byteLength": 36}],
             "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36}],
             "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}],
-            "extras": {"generique": True, "provisoire": True}}
+            "extras": {"generique": True, "provisoire": True, "modeles": ["generique_feuillu"]}}
 
 
 def cell_sheet():

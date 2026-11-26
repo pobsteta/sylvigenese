@@ -57,7 +57,7 @@ INDEX_NOTES_SIM = [
     "une année retenue sur year_step, puis toujours la dernière ; aucune interpolation entre deux années retenues",
     "instances : arbres vivants seulement ; les morts de l'année sont comptés dans dead et ne sont pas dessinés "
     "(bois mort non simulé)",
-    "modèles d'arbres génériques et provisoires (remplacés en M6) ; carte des types de végétation : état initial",
+    "carte des types de végétation : état initial",
     "semis non simulés ; volume et carbone non calculés (post, après M4a)",
 ]
 SEMIS_IFN_DIRECT = "semis non simulés"   # début de la dernière note, vrai en ifn_direct seulement (mission 066)
@@ -68,13 +68,29 @@ INDEX_NOTE_POST = ("semis non simulés ; volume aérien total et carbone aérien
                    "tarif provisoire : {tarif} ; sol et bois mort non comptés")
 
 
-def index_notes_sim(docs: dict[str, dict], run: dict | None = None) -> list[str]:
+def models_note(registry: models.ModelRegistry, generic: int, unit: str) -> str:
+    """Note de tiles/index.json sur l'origine des modèles d'arbres, exacte selon le cas (Q3) : modèles du générateur
+    pour N essence(s) et S stade(s), génériques pour les autres, ou tout générique sans exemplaire ; `generic` est le
+    nombre d'arbres dessinés par un modèle générique, `unit` dit ce qu'on compte (« arbre(s) » ou « arbre-année(s) »)."""
+    if not registry.exemplars:
+        return (f"aucun exemplaire du générateur de tarif-nemeton lu : tous les arbres sont dessinés par les modèles "
+                f"génériques feuillu et résineux, provisoires (Q3) : {generic} {unit} dessiné(s) en générique")
+    essences = sorted({e for e, _ in registry.exemplars})
+    grades = sorted({s for _, s in registry.exemplars})
+    return (f"modèles du générateur de tarif-nemeton (provisoires) pour {len(essences)} essence(s) du générateur et "
+            f"{len(grades)} stade(s) ({len(registry.exemplars)} exemplaire(s)) ; modèles génériques feuillu et résineux "
+            f"pour les autres : {generic} {unit} dessiné(s) en générique, sans emprunt à une autre essence (Q3)")
+
+
+def index_notes_sim(docs: dict[str, dict], run: dict | None = None, models_text: str | None = None) -> list[str]:
     """Notes de tiles/index.json en mode sim : celles de INDEX_NOTES_SIM, la dernière dite selon les fiches écrites
     (v2 : volume et carbone non calculés ; v3 : calculés par post, avec le tarif) et selon le mode de recrutement de
     sim/run.json. « semis non simulés » n'est dit qu'en ifn_direct (ou sans run.json) ; en mode cohorts, la note dit
     les semis simulés (techniques, non validés) et ce que run.json déclare non simulé (cell_sheets.seedling_note)."""
     tarifs = sorted({d["tarif"]["name"] for d in docs.values() if d["schema_version"] == 3})
     notes = list(INDEX_NOTES_SIM)
+    if models_text:
+        notes.insert(3, models_text)    # avant « carte des types de végétation »
     if tarifs:
         notes = notes[:-1] + [INDEX_NOTE_POST.format(tarif=" ; ".join(tarifs))]
     if run and run.get("recruitment") == "cohorts":
@@ -87,7 +103,7 @@ def sheet_version(docs: dict[str, dict]) -> str:
     return "/".join(f"v{v}" for v in sorted({d["schema_version"] for d in docs.values()}))
 INDEX_NOTES_INITIAL = [
     "état initial (trees_init) : sim/ absent, aucune année simulée",
-    "résultat provisoire : surface de houppier et d130 provisoires (spec §4.3) ; modèles d'arbres génériques (M6)",
+    "résultat provisoire : surface de houppier et d130 provisoires (spec §4.3)",
 ]
 
 
@@ -255,13 +271,13 @@ def write_initial_state(config: dict, zone: Path, out: Path, base_dir: Path | No
     tiles_dir.mkdir(parents=True, exist_ok=True)
     for t in built_tiles:
         tiles.write_content(tiles_dir, t, year, registry)
-    extras = {**models.GENERIC_EXTRAS, "annee": year, "etat": "initial", "origine_annee": year_origin,
+    extras = {**models.GENERIC_EXTRAS, "generique": bool((kinds == "generic").any()), "annee": year, "etat": "initial", "origine_annee": year_origin,
               "source": "trees_init/trees.parquet", "instances": int(len(trees["h"])),
               "repere": "ECEF (EPSG:4978) par le transform de chaque tuile ; repère local est-nord-haut ; contenu glTF Y haut",
               **altitude_info}
     tiles.write_tileset(tiles_dir, built_tiles, year, extras)
     write_json(out / "tiles" / "index.json", {
-        "schema_version": 1, "source": "trees_init", "t0": year, "provisoire": True, "notes": INDEX_NOTES_INITIAL,
+        "schema_version": 1, "source": "trees_init", "t0": year, "provisoire": True, "notes": [*INDEX_NOTES_INITIAL, models_note(registry, int((kinds == "generic").sum()), "arbre(s)")],
         "years": [{"year": year, "instances": int(len(trees["h"])), "tileset": f"{year}/tileset.json",
                    "tiles": [{"tile": t["name"], "instances": t["n"]} for t in built_tiles]}]})
     written_sheets = cell_sheets.write_cell_sheets(out / "web" / "cells", docs)
@@ -359,7 +375,7 @@ def write_sim_state(config: dict, zone: Path, out: Path, base_dir: Path | None =
         n_alive = int(alive.sum())
         if sum(t["n"] for t in built) != n_alive:
             raise ModuleError(f"{year} : {sum(t['n'] for t in built)} instances pour {n_alive} arbres vivants")
-        extras = {**models.GENERIC_EXTRAS, "annee": year, "etat": "simulé", "source": f"sim/trees/year={year}",
+        extras = {**models.GENERIC_EXTRAS, "generique": bool((kinds == "generic").any()), "annee": year, "etat": "simulé", "source": f"sim/trees/year={year}",
                   "instances": n_alive, "morts_non_dessines": dead, "run_config_sha256": run["config_sha256"],
                   "mention": MENTION_SIM, "rayon": "cw / 2 de sim/trees ; hauteur : h de sim/trees",
                   "repere": "ECEF (EPSG:4978) par le transform de chaque tuile ; repère local est-nord-haut ; contenu glTF Y haut",
@@ -379,7 +395,7 @@ def write_sim_state(config: dict, zone: Path, out: Path, base_dir: Path | None =
         entry["tiles"] = [{"tile": name, "instances": int(counts_year.get(name, 0))} for name in all_tiles]
     write_json(out / "tiles" / "index.json", {
         "schema_version": 1, "source": "sim", "t0": t0, "year_step": step, "run_config_sha256": run["config_sha256"],
-        "provisoire": True, "notes": index_notes_sim(docs, run),
+        "provisoire": True, "notes": index_notes_sim(docs, run, models_note(registry, generic_trees, "arbre-année(s)")),
         "basal_area_map": {"unit": "m2/ha", "scale_min_m2_ha": scale_min, "scale_max_m2_ha": scale_max,
                            "mention": "surface terrière par cellule (m2/ha), web/rasters/g_<année>.tif, échelle fixe sur "
                                       f"toutes les années simulées ({t0} à {t0 + horizon}) ; " + MENTION_SIM},

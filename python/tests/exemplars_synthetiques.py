@@ -67,8 +67,10 @@ def minimal(stage: str, trunk: int = 12) -> dict[str, np.ndarray]:
 def metadata(essence: str, stage: str, **overrides) -> dict[str, str]:
     h = HEIGHT[stage]
     meta = {"frame": "z-up", "units": "m", "essence": essence, "stage": stage, "D_cm": repr(DIAMETER[stage]),
-            "H_m": repr(h), "hbh_m": repr(h * 0.4), "Rh_m": repr(h * 0.2), "b_cible": "1.0", "seed": "7",
+            "H_m": repr(h), "hbh_m": repr(h * 0.4), "Rh_m": repr(h * 0.2), "b_cible": "1.0", "calage": "calé", "seed": "7",
             "source_commit": "0000000", "synthetic": "true", "fixture_note": NOTE}
+    if essence == "Abies_alba":           # comme l'export de tarif-nemeton : le résineux est dit non calé par l'export lui-même
+        meta.update(calage="non calé", calage_raisons="essai : résineux, densité des rameaux non calée")
     meta.update(overrides)
     return {k: v for k, v in meta.items() if v is not None}
 

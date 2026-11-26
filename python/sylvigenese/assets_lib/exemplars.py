@@ -9,8 +9,10 @@ Ce module ne contient AUCUN code du générateur : il lit des fichiers Parquet �
 - une ligne par segment (tronc de cône) `x0 y0 z0 x1 y1 z1 r0_m r1_m niveau axe`, en mètres, REPÈRE z-up du
   générateur (x est, y nord, z haut), dit par la métadonnée `frame` ;
 - métadonnées `frame`, `units`, `essence`, `stage`, `D_cm`, `H_m`, `hbh_m`, `Rh_m`, `seed`, `source_commit`,
-  `synthetic` ; `b_cible` (absente seulement si `calage` vaut « non calé »), `calage`, `calage_raisons`.
-Un fichier qui ne tient pas le contrat est refusé avec la cause : aucune valeur n'est complétée.
+  `synthetic`, `calage` (« calé » ou « non calé », toujours écrit par l'export, mission 071) ; `b_cible` (absente
+  seulement si `calage` vaut « non calé ») ; `calage_raisons` (facultatif).
+Un fichier qui ne tient pas le contrat est refusé avec la cause : aucune valeur n'est complétée ; en particulier
+`calage` absent est un refus (rien n'est déduit de `b_cible` ni de l'essence).
 
 Il porte aussi la table des modèles par code espar (`contracts/species.csv`) : deux codes de la même
 essence du générateur (02 et 03, 12P et 12V) partagent un fichier (alias, pas un emprunt) ; un code sans
@@ -39,7 +41,7 @@ from sylvigenese.assets_lib import initial_state, sim_state, stages
 SEGMENT_FLOATS = ("x0", "y0", "z0", "x1", "y1", "z1", "r0_m", "r1_m")
 SEGMENT_INTS = ("niveau", "axe")
 REQUIRED_META = ("frame", "units", "essence", "stage", "D_cm", "H_m", "hbh_m", "Rh_m", "seed", "source_commit",
-                 "synthetic")
+                 "synthetic", "calage")
 COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
 ESSENCE = re.compile(r"^[A-Z][a-z]+_[a-z]+$")
 CALAGE = ("calé", "non calé")
@@ -138,7 +140,7 @@ def read_exemplar(path: Path) -> Exemplar:
             refuse("b_cible n'est pas fini")
     elif meta.get("calage") != "non calé":
         refuse("b_cible absent alors que calage n'est pas « non calé » : jamais de valeur inventée")
-    if "calage" in meta and meta["calage"] not in CALAGE:
+    if meta["calage"] not in CALAGE:
         refuse(f"calage « {meta['calage']} » hors de {', '.join(CALAGE)}")
     columns = set(table.column_names)
     absent = [c for c in SEGMENT_FLOATS + SEGMENT_INTS if c not in columns]

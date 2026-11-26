@@ -183,7 +183,7 @@ def test_glb_trois_niveaux_msft_lod_et_extras(reg):
 
 def test_resineux_marque_non_cale_et_b_cible_absent(tmp_path):
     F.write(tmp_path, "Abies_alba", "young", meta={"b_cible": None, "calage": "non calé", "calage_raisons": "essai"})
-    F.write(tmp_path, "Abies_alba", "pole", meta={"b_cible": "1.0"})          # résineux sans calage dit : non calé quand même
+    F.write(tmp_path, "Abies_alba", "pole", meta={"b_cible": "1.0"})          # `calage` de la fixture : « non calé », recopié
     F.write(tmp_path, "Fagus_sylvatica", "young", meta={"b_cible": None, "calage": "non calé"})
     reg = registry(tmp_path)
     young = reg.model("61_young").extras

@@ -101,7 +101,10 @@ def test_instances_positions_et_annees_inchangees_par_rapport_aux_modeles_generi
     assert len(a) == len(b) == 14080 and np.array_equal(a, b)
     index_a = json.loads((zone_models["dir"] / "tiles" / "index.json").read_text(encoding="utf-8"))
     index_b = json.loads((zone_generic / "tiles" / "index.json").read_text(encoding="utf-8"))
-    assert index_a == index_b
+    assert {k: v for k, v in index_a.items() if k != "notes"} == {k: v for k, v in index_b.items() if k != "notes"}
+    differ = [n for n in index_a["notes"] if n not in index_b["notes"]]    # seule la note sur l'origine des modèles change
+    assert len(differ) == 1 and "modèles du générateur" in differ[0] and "en générique" in differ[0]
+    assert not any("remplacés en M6" in n or "(M6)" in n for n in index_a["notes"] + index_b["notes"])
     assert sorted(p.name for p in (zone_models["dir"] / "tiles").iterdir()) == [YEAR, "index.json"]
 
 
@@ -231,7 +234,8 @@ def test_terrain_cellules_et_couverts_du_bloc(zone_models):
     assert cells[0]["shrub_cover"] == biome["strates"]["arbustive"]["couvert"]
     assert cells[0]["biome_provisoire"] is True and "seedlings" not in cells[0] and block["seedlings_simulated"] is False
     assert any("semis non simulés" in m for m in block["mentions"]) and any("hcb absent" in m for m in block["mentions"])
-    assert all(t["hcb"] == 0.0 for t in block["trees"])
+    assert block["trees"] and all(t["hcb"] is None for t in block["trees"])                     # null, jamais 0
+    assert any(f"{len(block['trees'])} arbre(s) sans hauteur de base de houppier" in m for m in block["mentions"])
     assert block["provisoire"] is True and any("non validée écologiquement" in m for m in block["mentions"])
 
 
@@ -294,3 +298,27 @@ def test_stade_indetermine_est_une_erreur_et_rien_n_est_publie(tmp_path, zone_ch
     with pytest.raises(ModuleError, match="stade indéterminé"):
         assets.produce_initial_state(CONFIG, directory)
     assert not (directory / "massif").exists()
+
+
+def test_tuile_generique_vrai_seulement_si_un_modele_generique_sert(tmp_path, exemplars_dir):
+    reg = models.ModelRegistry.from_config(config_with(exemplars_dir))
+    trees = {"x": np.array([700100.0, 700200.0]), "y": np.array([6500100.0, 6500300.0]),
+             "crown_area": np.array([10.0, 10.0]), "h": np.array([12.0, 30.0])}
+    z = np.array([310.0, 312.0])
+    for names, expected in ((["09_mature", "09_mature"], False), (["09_mature", "generique_resineux"], True)):
+        directory = tmp_path / str(expected)
+        directory.mkdir()
+        tile = tiles.build_tile(700000, 6500000, trees, z, np.array(names, dtype=object), radius=np.array([3.0, 4.0]))
+        doc, _ = read_tile(tiles.write_content(directory, tile, int(YEAR), reg))
+        assert doc["extras"]["generique"] is expected and doc["extras"]["modeles"] == sorted(set(names))
+
+
+def test_note_de_l_index_dit_les_modeles_du_generateur_et_le_nombre_de_generiques(zone_models, zone_generic):
+    notes = json.loads((zone_models["dir"] / "tiles" / "index.json").read_text(encoding="utf-8"))["notes"]
+    generic = json.loads((zone_models["dir"] / "massif" / "index.json").read_text(encoding="utf-8"))["years"][0]["trees_by_kind"]["generic"]
+    said = [n for n in notes if n.startswith("modèles du générateur")]
+    assert len(said) == 1 and f"{generic} arbre(s) dessiné(s) en générique" in said[0] and "3 essence(s)" in said[0]
+    assert not any("remplacés en M6" in n for n in notes)
+    notes = json.loads((zone_generic / "tiles" / "index.json").read_text(encoding="utf-8"))["notes"]
+    said = [n for n in notes if n.startswith("aucun exemplaire")]
+    assert len(said) == 1 and "14080 arbre(s) dessiné(s) en générique" in said[0]

@@ -18,8 +18,9 @@ Ce que contient un bloc (une tuile de 500 m de `tiles/`, même identifiant `t_<x
 - `mentions[]` : provisoire, non validée écologiquement, jeu fictif, semis, modèles génériques employés.
 
 Les arbres sont ceux de `sim/trees` (vivants, années retenues) ou de `trees_init/` (état initial). Un arbre de
-`trees_init` n'a pas de hauteur de base du houppier (hcb) : le contrat l'exige, 0 est écrit et DIT dans les
-mentions ; la vue ne s'en sert pas pour dessiner (le modèle porte sa base de houppier).
+`trees_init` n'a pas de hauteur de base du houppier (hcb) : le contrat v2 admet null, null est écrit (jamais 0) et
+le bloc compte ces arbres dans ses mentions ; la vue ne s'en sert pas pour dessiner (le modèle porte sa base de
+houppier).
 """
 
 from __future__ import annotations
@@ -39,8 +40,8 @@ CELL_M = 25.0
 MENTION_INITIAL = ("état initial (trees_init) : photographie des arbres détectés, non validée écologiquement ; "
                    "hauteur du MNH non avancée jusqu'à t0")
 MENTION_SIM = "trajectoire technique, non validée écologiquement (décision du 25/11/2026) ; années de sim/, sans interpolation"
-MENTION_HCB = ("hcb absent de trees_init : 0 est écrit pour toutes les tiges (le contrat l'exige), non utilisé pour "
-               "dessiner (le modèle porte sa base de houppier)")
+MENTION_HCB = ("hcb absent de trees_init : {n} arbre(s) sans hauteur de base de houppier, hcb écrit null (jamais 0), "
+               "non utilisé pour dessiner (le modèle porte sa base de houppier)")
 MENTION_STAGE = ("stade de l'arbre = h / h_pot de l'arbre avec les seuils de biomes/stades/stage_breaks.yml, provisoires "
                  "(extension de BRIEF §6, décision de Pascal Q8 du 26/11/2026)")
 MENTION_GROUND = ("terrain : MNT de la grille de 25 m, lissé, pas le LiDAR à 1 m ; le pied d'un arbre est posé à moins de "
@@ -113,6 +114,7 @@ class MassifWriter:
         self._seedlings: dict[int, dict] = {}
         self.species_stems: dict[str, set[str]] = {}
         self.fallbacks: dict[str, set[str]] = {}
+        self.without_hcb = 0
 
     # ------------------------------------------------------------------ grilles
     def _read_grids(self) -> None:
@@ -189,6 +191,9 @@ class MassifWriter:
             for c in cells:
                 c["seedlings"] = self._seedlings[year].get(c["cell_id"], [])
         mentions = self.common_mentions() + static["mentions"]
+        without_hcb = sum(1 for item in items if item["hcb"] is None)
+        if without_hcb:
+            mentions.append(MENTION_HCB.format(n=without_hcb))
         if kinds["generic"]:
             mentions.append(f"{kinds['generic']} arbre(s) de ce bloc dessiné(s) par un modèle générique "
                             "(essence ou stade sans exemplaire du générateur, Q3), pas par un emprunt à une autre essence")
@@ -227,13 +232,15 @@ class MassifWriter:
                       "x": round(float(trees["x"][i] - x_sw), 3), "y": round(float(trees["y"][i] - y_sw), 3),
                       "z": round(float(z_ngf[i] - static["z0"]), 3), "h": round(float(trees["h"][i]), 3),
                       "d130": round(float(trees["d130"][i]), 3),
-                      "hcb": 0.0 if trees["hcb"] is None else round(float(trees["hcb"][i]), 3),
+                      "hcb": None if trees["hcb"] is None else round(float(trees["hcb"][i]), 3),
                       "cw": round(float(trees["cw"][i]), 3)} for i in selected]
             counts = {k: int((kinds[selected] == k).sum()) for k in by_kind}
             for k, v in counts.items():
                 by_kind[k] += v
             blocks.append(self._write_block(name, year, items, counts))
         total = int(len(trees["x"]))
+        if trees["hcb"] is None:
+            self.without_hcb += total
         if sum(b["trees"] for b in blocks) != total or sum(by_kind.values()) != total:
             raise ModuleError(f"{year} : {sum(b['trees'] for b in blocks)} arbres dans les blocs pour {total} arbres vivants")
         self.years.append({"year": year, "trees": total, "trees_by_kind": by_kind, "blocks": blocks})
@@ -244,8 +251,6 @@ class MassifWriter:
                     MENTION_MODELS if self.registry.exemplars else MENTION_NO_EXEMPLARS]
         if self.fictive:
             mentions.insert(1, "jeu fictif : coordonnées et valeurs inventées, aucune source réelle")
-        if self.source == "trees_init":
-            mentions.append(MENTION_HCB)
         if self.cohorts:
             mentions.append(cell_sheets.seedling_note(self.run))
             mentions.append(MENTION_SEEDLINGS_COHORTS)
@@ -281,6 +286,8 @@ class MassifWriter:
             else:
                 entry = {"species": code, "model": f"generique_{species[code].group}", "kind": "generic"}
             models.append(entry)
+        if self.without_hcb:
+            notes.append(MENTION_HCB.format(n=self.without_hcb) + " (arbre-années)")
         generic = sum(y["trees_by_kind"]["generic"] for y in self.years)
         notes.append(f"modèle générique employé pour {generic} arbre(s) (arbre-années) : essence ou stade sans exemplaire "
                      "du générateur (Q3) ; aucun emprunt à une essence voisine" if generic else

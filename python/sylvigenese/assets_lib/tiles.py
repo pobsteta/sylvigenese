@@ -95,9 +95,9 @@ def write_content(directory: Path, tile: dict, year: int, registry: models.Model
                              "extras": {"instances": int(selected.sum()), "modele": stem, "niveau_de_detail": "LOD2"}})
         doc["scenes"][0]["nodes"].append(len(doc["nodes"]) - 1)
     doc["extensionsUsed"] = doc["extensionsRequired"] = ["EXT_mesh_gpu_instancing"]
-    # `generique` et `provisoire` sont exigés par le contrat assets.gltf (illustration provisoire) ; les modèles
-    # réellement employés sont dits dans `modeles`.
-    doc["extras"] = {"generique": True, "provisoire": True, "annee": year, "etat": state, "tuile": name,
+    # Contrat assets.gltf : `generique` est vrai seulement si au moins un modèle générique sert dans cette tuile ;
+    # `modeles` liste les modèles employés ; `provisoire` dit « illustration provisoire ».
+    doc["extras"] = {"generique": any(stem.startswith("generique_") for stem in used), "provisoire": True, "annee": year, "etat": state, "tuile": name,
                      "modeles": used,
                      "echelle": "instance mise à l'échelle (rayon du houppier / r_ref, hauteur / h_ref, rayon / r_ref) "
                                 "du modèle ; générique : (r, h, r)",
