@@ -47,36 +47,54 @@ fichier `stderr.txt` du dossier temporaire de l'essai (`$BENCH_TMP/out_<variante
 ## M5 : mesure du niveau SER (mission 064)
 
 Cette section refait sur votre PC les mesures de `M5.md`, faites dans le conteneur. Elle couvre les SER
-fictives N = 1 000, 2 000 et 4 000, sur 10 ans, à 1, 4 et 8 fils. Il faut `cargo` (comme ci-dessus),
-`python3` avec `numpy`, `pyarrow`, `rasterio` et `pyyaml`, et le GNU time (`/usr/bin/time`). Aucun réseau
-n'est nécessaire une fois simulate compilé.
+fictives N = 1 000, 2 000 et 4 000 à 2 essences et 6 classes, et N = 1 000 à 8 essences et 15 classes, sur
+10 ans, à 1, 4 et 8 fils. Il faut `cargo` (comme ci-dessus), `python3` avec `numpy`, `pyarrow`, `rasterio` et
+`pyyaml`, et le GNU time (`/usr/bin/time`). Aucun réseau n'est nécessaire une fois simulate compilé.
 
-### Commande unique
+### Commandes
+
+Lancez les commandes une à une, depuis la racine du dépôt, et effacez chaque zone sitôt mesurée (le disque
+est la ressource qui manque en premier, voir plus bas) :
 
     cd <dépôt sylvigenese>
-    bash bench/m5/mesurer.sh --n "1000 2000 4000" --fils "1 4 8" --annees 10 --sortie bench/results/m5_mesures_pc.csv
+    S=bench/results/m5_mesures_pc.csv
+    for n in 1000 2000 4000; do for t in 1 4 8; do
+      bash bench/m5/mesurer.sh --n "$n" --fils "$t" --annees 10 --sortie "$S"
+      rm -rf "data/ser_fictive_$n/sim"
+    done; rm -rf "data/ser_fictive_$n"; done
+    for t in 1 4 8; do
+      bash bench/m5/mesurer.sh --n 1000 --fils "$t" --annees 10 --essences 8 --classes 15 --sortie "$S"
+      rm -rf data/ser_fictive_1000_s8_k15/sim
+    done; rm -rf data/ser_fictive_1000_s8_k15
 
-Le script compile simulate, génère chaque SER fictive sous `data/ser_fictive_<N>/` (hors dépôt), puis
-ajoute au CSV une ligne par exécution. Chaque ligne donne le temps de calcul, le temps d'écriture, la
-mémoire estimée, la mémoire résidente et leur écart.
+Le script compile simulate et génère chaque SER fictive sous `data/ser_fictive_<N>/`, ou sous
+`data/ser_fictive_<N>_s<S>_k<K>/` hors du défaut (hors dépôt). Il ajoute ensuite au CSV une ligne par exécution.
+Chaque ligne donne le temps de calcul et le temps d'écriture, la mémoire estimée, la mémoire résidente, leur écart,
+puis le nombre d'essences et de classes. Pour garder aussi le temps de chaque année, copiez
+`data/<zone>/mesure_stderr.txt` avant l'exécution suivante.
 
 ### À savoir avant de lancer
 
-- **N = 4 000 échoue aujourd'hui dans le générateur, avant simulate.** C'est un défaut connu, relevé le
-  26/11/2026 (`m5_echecs.csv`) : au-delà de N ≈ 2 016, la colonne `source` de `cohorts_init` dépasse
-  2^31 octets. Le script s'arrête alors avec un message, après avoir écrit les lignes de N = 1 000 et 2 000.
-  Tant que le générateur n'est pas corrigé, lancez `--n "1000 2000"`.
-- **Place libre.** Comptez environ 2 Go pour N = 1 000 et 2 000. N = 4 000 demandera environ 13 Go
-  (estimation, non mesurée), parce que le script garde les sorties d'une exécution pendant qu'il écrit la
-  suivante. Effacez ensuite `data/ser_fictive_*`.
-- **Mémoire.** N = 2 000 demande environ 1 Go. N = 4 000 en demandera environ 3,6 Gio (estimation du
-  moteur).
-- **Durée.** Dans le conteneur, N = 1 000 et 2 000, à 1 et 4 fils, ont pris environ 4 min, génération
-  comprise. N = 4 000 à 1, 4 et 8 fils devrait ajouter de 15 à 30 min, et le fil de plus ajoute un peu de
-  temps. Ce sont des **extrapolations**, pas des mesures de votre PC.
+- **Nouveau format du CSV.** Il a deux colonnes de plus en fin de ligne, `essences` et `classes`. Le script
+  refuse d'écrire dans un CSV qui a l'ancien en-tête. Si un `m5_mesures_pc.csv` d'une version antérieure existe,
+  renommez-le ou choisissez une autre `--sortie`.
+- **Options.** `--essences S` (de 1 à 16) et `--classes K` (au moins 1) changent la composition de la SER
+  fictive. Par défaut, S = 2 et K = 6. Le script écrit toujours `write_step` = Y, si bien que seules t0 et la
+  dernière année sont écrites.
+- **Place libre.** Il faut environ 6 Go pour N = 4 000 : 0,7 Go d'entrées et 5,2 Go de `sim/` (mesuré dans le
+  conteneur). simulate garde l'ancien `sim/` pendant qu'il écrit le nouveau. Sans le `rm -rf .../sim` des
+  commandes ci-dessus, il en faudrait environ 11 Go. Pour N = 1 000 à 8 essences et 15 classes, il faut environ
+  2 Go. Le validateur demande en plus environ 8 octets de disque temporaire par ligne pour les grandes tables.
+- **Mémoire** (mesurée dans le conteneur, elle dépend peu de la machine) : 0,97 Go pour N = 2 000 ; **3,83 Go
+  pour N = 4 000** ; 0,97 Go pour N = 1 000 à 8 essences et 15 classes.
+- **Durée dans le conteneur**, écoulé avec le validateur, génération à part (moins d'une minute) :
+  - N = 4 000 : 520 s à 1 fil et 292 s à 4 fils ;
+  - N = 1 000 à 8 essences et 15 classes : 282 s et 153 s.
+
+  Ce ne sont **pas** des mesures de votre PC.
 - Ne lancez rien d'autre pendant la mesure.
 
 ### Ce qu'il faut renvoyer
 
-Renvoyez `bench/results/m5_mesures_pc.csv`. Si le script s'arrête, joignez la sortie du terminal et le
-fichier `data/ser_fictive_<N>/mesure_stderr.txt`.
+Renvoyez `bench/results/m5_mesures_pc.csv` et les `mesure_stderr.txt` copiés. Si le script s'arrête, joignez la
+sortie du terminal et le fichier `data/<zone>/mesure_stderr.txt`.

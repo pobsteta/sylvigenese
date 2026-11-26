@@ -1,0 +1,5 @@
+date,commit,n,threads,annees_ecrites,volume_sim_octets,volume_entrees_octets,note,essences,classes
+2026-11-26,067f963,1000,1,2,1765703833,209576999,du -sb de data/ser_fictive_1000_s8_k15/sim (t0 2022 et 2032) ; entrées du générateur sans sim/,8,15
+2026-11-26,067f963,1000,4,2,1765703832,209576999,du -sb de data/ser_fictive_1000_s8_k15/sim (t0 2022 et 2032) ; un octet de moins que T = 1 (run.json),8,15
+2026-11-26,067f963,4000,1,2,5199165552,661492218,du -sb de data/ser_fictive_4000/sim (t0 2022 et 2032) ; disque libre au plus bas 4 582 686 720 octets (sim/ écrit),2,6
+2026-11-26,067f963,4000,4,2,5199165552,661492218,du -sb de data/ser_fictive_4000/sim (t0 2022 et 2032) après effacement du sim/ de T = 1 ; disque libre au plus bas 4 582 068 224 octets,2,6
