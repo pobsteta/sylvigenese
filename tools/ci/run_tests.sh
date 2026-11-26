@@ -18,12 +18,14 @@
 #   contrats pytest tests/contracts, contracts/tests, tools/fixtures/tests et python
 #   m1 m2 m4 m3   tests d'acceptation des jalons, une session pytest chacun
 #            (m3 et m4 compilent d'abord simulate en release : leurs tests tournent sans réseau)
+#   post     tests d'acceptation de post, volume et carbone (mission 052) : chaîne R, simulate sur 5 ans,
+#            post et assets, sans réseau (simulate compilé d'abord, comme pour m3 et m4)
 #   validate le validateur sur le jeu fictif
 # Chaque section écrit sa durée (sortie standard et, en CI, résumé du job).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-ALL_SECTIONS=(r rust python web contrats m1 m2 m4 m3 validate)
+ALL_SECTIONS=(r rust python web contrats m1 m2 m4 m3 post validate)
 
 out="$(mktemp)"
 current=""
@@ -85,6 +87,7 @@ run_section() {
     m2)       run_pytest tests/m2 ;;
     m4)       build_simulate; run_pytest tests/m4 ;;
     m3)       build_simulate; run_pytest tests/m3 ;;
+    post)     build_simulate; run_pytest tests/post ;;
     validate) make validate ZONE=zone_fictive ;;
     *)
       echo "run_tests.sh : section inconnue « $1 » (attendu : ${ALL_SECTIONS[*]})." >&2
