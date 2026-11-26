@@ -26,6 +26,8 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
   ombre seules ; gibier, sous-bois et fructification non simulés), Q4 (deux modes, `ifn_direct` et
   `cohorts`, même module de semis pour les deux niveaux), Q5 (clôture sur la mesure, l'extrapolation et
   l'estimation de mémoire).
+- Décisions de l'orchestrateur du 26/11/2026 (par délégation), prises au fil des missions 062 et 063 et
+  rattrapées ici par la mission 066 : voir les choix 11 à 16.
 - Cible du projet : la SER C20 (48 millions de cellules de 25 m, N équivalent ≈ 6 930) en 5 jours et
   31 Go sur le PC de Pascal (28 Go utilisables).
 
@@ -55,15 +57,22 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
    information, et le test du calage de Q1 est ainsi exact. Au niveau massif, la mort tirée et l'arrondi
    aléatoire des recrues sont gardés (décision de Pascal du 25/11/2026).
 6. **Semis.** Cohortes de semis par cellule et essence (densité, hauteur) aux deux niveaux ; état initial
-   « en régime » (Q2) ; survie par la lumière sous couvert et la tolérance à l'ombre seules (Q3) ; passage
-   à 7,5 cm calé sur le flux IFN, borné par le stock (Q1) ; le manque est compté (`seedling_stock_limited`).
+   « en régime » (Q2) ; survie par la lumière sous couvert et la tolérance à l'ombre seules (Q3, forme
+   précisée au choix 13) ; passage à 7,5 cm calé sur le flux IFN, borné par le stock (Q1) ; le manque est
+   compté (`seedling_stock_limited`). Le stock initial est l'état stationnaire de la dynamique des classes
+   annuelles à la survie de la cellule (reprise de la mission 062), signalé au rapport comme déduit des
+   modèles et non observé.
 7. **Dispersion (T2).** FFT réelle, essence par essence, sur toute la grille, zone tampon comprise
    (largeur du noyau tronqué, `simulate.regeneration.kernel_truncation_cells`) ; la zone tampon est source
    de graines seulement, son bord est absorbant (spec §7). Le noyau est normalisé (somme 1 à 1e-12).
    Forme du noyau fixée au contrat `params/regeneration` : exponentielle-puissance
-   k(r) ∝ exp(−(r / a)^b), a et b étant des paramètres par essence, **sans valeur** (à sourcer, mission
-   059). Cette forme est la seule hypothèse de modèle que le contrat porte : si le référentiel de la
-   mission 059 ne publie qu'une autre forme (par ex. 2Dt), le contrat change avant le code.
+   k(r) ∝ exp(−(r / a)^b), a et b étant des paramètres par essence, **sans valeur dans le contrat**. Les
+   valeurs se dérivent des deux distances de la classe de dispersion de l'essence dans Lososová et al.
+   2023 (tableau 1, p. 1488 : d50 et d99, distances contenant 50 % et 99 % des graines) : en deux
+   dimensions, la part des graines tombées à moins de r est P(2 / b, (r / a)^b) (gamma incomplète
+   régularisée), et a, b résolvent P(2 / b, (d50 / a)^b) = 0,5 et P(2 / b, (d99 / a)^b) = 0,99 (décision de
+   l'orchestrateur du 26/11/2026, mission 062). Cette dérivation est marquée `provisoire` avec la classe et
+   les deux distances en source ; une essence sans classe lue n'a pas de noyau (code 2).
    Convolution directe écartée : environ 4 jours à C20 pour 8 essences.
 8. **Règle |Q| (T3).** Mise à zéro symétrique de |Q| < `zero_threshold` × max|Q| par (essence, année),
    comptée dans `zeroed_values` ; une valeur négative au-delà du seuil arrête le moteur (code 3).
@@ -75,11 +84,44 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
     est une formule fermée (classes, semis, couches f64, tampons de FFT, tampon d'écriture) plus une part
     fixe du programme mesurée et écrite avec sa mesure.
 
+11. **Maturité en hauteur (mission 062).** Un arbre est semencier quand sa hauteur atteint
+    `maturity_height_m`, comme le paramètre de hauteur de maturité de TreeMig (éq. 13, p. 9 de
+    TreeMigDocu_251218_Model.pdf). Le terme `maturity_d130_cm` de la version 0.1 du contrat est retiré, sans
+    conversion du diamètre en hauteur (une conversion serait une dérivation non sourcée) : contrat en 0.2.
+12. **Refus de `ifn_direct` au niveau SER (mission 063).** Le niveau SER avance des espérances sans tirage (choix 5), alors que
+    le recrutement direct du modèle IFN (`ifn_direct`) arrondit au hasard des arbres entiers : `simulate.recruitment:
+    ifn_direct` avec `level: ser` est refusé, code 2 ; la motivation est celle de la mission 063, à confirmer. Le niveau SER n'a que le mode `cohorts`.
+13. **Survie des semis, forme de TreeMig (mission 062, terme ajouté en 066).** Ombre o = `light_extinction_coef`
+    × indice de couvert de la cellule ; seuil = `shade_tolerance` (échelle 0 à 5 de Niinemets et Valladares
+    2006, sans règle de conversion vers l'échelle de TreeMig : le coefficient d'extinction, provisoire, porte
+    l'ombre sur cette échelle) ; mortalité de stress μ̃ = 1 si o > seuil, 0 sinon (éq. 39, une seule classe de
+    lumière par cellule), comptée pour `stress_mortality` × μ̃ (éq. 40, p. 16) ; survie s = max(0,
+    `seedling_survival_full_light_yr` − `stress_mortality` × μ̃) (éq. 37). `stress_mortality` est un terme du
+    contrat `params/regeneration` (version 0.3, décision de Pascal du 26/11/2026) : la constante 0,184 de
+    TreeMig n'est plus dans le code, le jeu fictif l'écrit à 0,184 (`provisoire`), son absence arrête
+    `simulate` (code 2) en mode `cohorts`. Les résultats `cohorts` du jeu fictif sont identiques à ceux d'avant
+    (test d'identité sur les octets, `tests/m5/test_m5_stress_mortality.py`).
+14. **Essences candidates prises dans `cohorts_init` (mission 063).** Au niveau SER, les essences simulées
+    sont celles de `cohorts_init` ; parmi elles, sont candidates au recrutement celles qui ont les quatre jeux
+    de paramètres (T6). Une essence qui n'a que des lignes propres dans `params/` sans cohorte dans la SER
+    n'est pas candidate : sans adulte, elle n'aurait ni semenciers ni graines.
+15. **Validateur sobre (mission 063).** Au niveau SER, `simulate` appelle le validateur avec le pool mémoire
+    d'Arrow du système et un seul fil de calcul : environ 140 Mio au lieu de 240 à 270 Mio à N = 1 000, pour
+    10 à 20 % de durée en plus, sans effet sur ses verdicts. Le validateur est un enfant de `simulate` : sa
+    mémoire compte dans la mémoire résidente mesurée.
+16. **`malloc_trim` (mission 063).** Après l'écriture de t0 et de chaque année écrite, `simulate` appelle
+    `malloc_trim(0)` de la glibc (seul bloc `unsafe`, commenté, Linux et glibc seulement) pour rendre au
+    système la mémoire libérée : sans lui, la mémoire résidente dépasse l'estimation d'environ 40 Mio à
+    N = 1 000. Sans effet sur les résultats ; hors de la glibc, l'estimation peut être sous la mémoire
+    résidente.
+
 ## Conséquences
 
 - **Mémoire à C20 (risque n° 1, plan §6).** 4 octets × S × K par cellule forestière : avec S = 8 essences
   et K = 15 classes, 480 octets par cellule, soit environ 23 Go si les 48 millions de cellules étaient
-  toutes forestières, pour 28 Go utilisables. Le taux de boisement de C20 n'est pas connu du dépôt. Les
+  toutes forestières, pour 28 Go utilisables. Le taux de boisement de C20 est de 38 % (`docs/referentiels/surfaces-ser.csv` : 11 440 km² de
+  surface boisée sur 29 980 km²), soit environ 18,3 millions de cellules forestières et, à 480 octets,
+  environ 8,8 Go (la mesure et l'extrapolation sont dans `bench/results/M5.md`). Les
   leviers, chiffrés par la mission F (064) : moins de classes, essences regroupées, cellules forestières
   seules (déjà retenu), découpage de la SER en blocs. Un verdict négatif est porté à Pascal avant M5b
   (Q5).
@@ -96,7 +138,9 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
 - **`post` et `assets`** ne lisent pas le niveau SER : ils le refusent (code 2) jusqu'à M5b.
 - La mention « gibier, sous-bois et fructification non simulés » est écrite dans `run.json`
   (`not_simulated`), le rapport et la fiche ; la mention « semis non simulés » ne l'est plus en mode
-  `cohorts`.
+  `cohorts`. En mode `cohorts`, `sim/flags.parquet` porte aussi, à t0, `stock_initial_en_regime` (Q2) et
+  `lumiere_et_ombre_seules` (Q3) ; la note de l'index des tuiles (`assets`) dit les semis simulés, techniques
+  et non validés, et non « semis non simulés » (mission 066).
 
 ## Réversibilité
 

@@ -47,9 +47,11 @@
 //!   Niinemets et Valladares 2006 (0 à 5), sans règle de conversion vers l'échelle de TreeMig :
 //!   c'est le coefficient d'extinction, paramètre provisoire, qui porte l'ombre sur cette échelle ;
 //! - mortalité de stress μ̃ = 1 si o > seuil, 0 sinon (TreeMig éq. 39, une seule classe de
-//!   lumière par cellule), comptée pour [`MORTALITE_DE_STRESS_TREEMIG`] × μ̃ (éq. 40) ;
-//! - survie annuelle s = max(0, `seedling_survival_full_light_yr` − 0,184 × μ̃) : les mortalités
-//!   s'additionnent et sont bornées à 1 (éq. 37). Gibier, sous-bois et fructification ne sont pas
+//!   lumière par cellule), comptée pour `stress_mortality` × μ̃ (éq. 40) : `stress_mortality` est un
+//!   terme du contrat `params/regeneration` (TreeMig éq. 40, p. 16 ; aucune valeur dans le code,
+//!   mission 066) ;
+//! - survie annuelle s = max(0, `seedling_survival_full_light_yr` − `stress_mortality` × μ̃) : les
+//!   mortalités s'additionnent et sont bornées à 1 (éq. 37). Gibier, sous-bois et fructification ne sont pas
 //!   simulés (Q3) : `run.json` le dit.
 //!
 //! # Passage à la futaie (Q1, option a)
@@ -95,11 +97,6 @@
 use crate::erreurs::Erreur;
 use crate::parametres::{Referentiel, TOUTES_ESSENCES};
 
-/// Mortalité de stress d'un semis sous son seuil de lumière : 0,184 par an (TreeMig, éq. 40,
-/// TreeMigDocu_251218_Model.pdf p. 16 : « half of the mortality used in the predecessor patch
-/// model ForClim »). C'est la seule constante de la forme de survie ; elle est citée.
-pub const MORTALITE_DE_STRESS_TREEMIG: f64 = 0.184;
-
 /// Tolérance relative de l'arrondi des arbres offerts par le stock au niveau massif (erreur
 /// d'arrondi des f64, sans sens écologique).
 pub const TOLERANCE_ARRONDI: f64 = 1e-12;
@@ -109,7 +106,7 @@ pub const TOLERANCE_ARRONDI: f64 = 1e-12;
 pub const CLASSES_MAX: usize = 1000;
 
 /// Les termes du contrat `params/regeneration` lus par le moteur, avec leur unité.
-pub const TERMES: [(&str, &str); 10] = [
+pub const TERMES: [(&str, &str); 11] = [
     ("kernel_scale_m", "m"),
     ("kernel_shape", "1"),
     ("maturity_height_m", "m"),
@@ -120,6 +117,7 @@ pub const TERMES: [(&str, &str); 10] = [
     ("light_extinction_coef", "1"),
     ("seedling_survival_full_light_yr", "1"),
     ("passage_height_m", "m"),
+    ("stress_mortality", "1/an"),
 ];
 
 /// Une ligne de `params/regeneration.parquet` (contrat `dynamics.regeneration`).
@@ -158,6 +156,8 @@ pub struct ParametresSemis {
     pub survie_pleine_lumiere: f64,
     /// Hauteur de passage à la classe des 7,5 cm, m.
     pub hauteur_passage_m: f64,
+    /// Mortalité annuelle de stress d'un semis sous son seuil de lumière, 0 à 1 (TreeMig, éq. 40).
+    pub mortalite_stress: f64,
     /// Vrai si au moins un terme lu est provisoire.
     pub provisoire: bool,
 }
@@ -265,13 +265,13 @@ fn borne(espece: &str, terme: &str, valeur: f64, condition: bool, attendu: &str)
 
 /// Les paramètres de semis d'une essence (tous les termes du contrat). Code 2 si un terme manque
 /// ou sort de son domaine (échelle, forme, croissance et hauteur de passage strictement positives ;
-/// maturité, fécondité, tolérance et extinction positives ; parts et survie entre 0 et 1).
+/// maturité, fécondité, tolérance et extinction positives ; parts, survie et mortalité de stress entre 0 et 1).
 pub fn parametres_de(
     lignes: &[LigneRegeneration],
     espece: &str,
     referentiel: &Referentiel,
 ) -> Result<ParametresSemis, Erreur> {
-    let mut valeurs = [0.0_f64; 10];
+    let mut valeurs = [0.0_f64; 11];
     let mut provisoire = false;
     for (rang, (terme, unite)) in TERMES.iter().enumerate() {
         let (valeur, p) = chercher_terme(lignes, espece, referentiel, terme, unite)?;
@@ -290,6 +290,7 @@ pub fn parametres_de(
         coef_extinction: valeurs[7],
         survie_pleine_lumiere: valeurs[8],
         hauteur_passage_m: valeurs[9],
+        mortalite_stress: valeurs[10],
         provisoire,
     };
     borne(espece, "kernel_scale_m", p.echelle_noyau_m, p.echelle_noyau_m > 0.0, "> 0")?;
@@ -314,6 +315,13 @@ pub fn parametres_de(
         "entre 0 et 1",
     )?;
     borne(espece, "passage_height_m", p.hauteur_passage_m, p.hauteur_passage_m > 0.0, "> 0")?;
+    borne(
+        espece,
+        "stress_mortality",
+        p.mortalite_stress,
+        (0.0..=1.0).contains(&p.mortalite_stress),
+        "entre 0 et 1",
+    )?;
     if p.temps_de_passage() >= CLASSES_MAX as f64 {
         return Err(Erreur::entree_refusee(format!(
             "params/regeneration : essence {espece} : passage_height_m / seedling_height_growth_m_yr = {} ans, \
@@ -332,11 +340,11 @@ pub fn ombre(coef_extinction: f64, indice_couvert: f64) -> f64 {
     coef_extinction * indice_couvert
 }
 
-/// La survie annuelle d'un semis (forme de TreeMig, éq. 37, 39, 40) : s_pleine − 0,184 si l'ombre
-/// dépasse la tolérance, s_pleine sinon ; bornée à 0.
+/// La survie annuelle d'un semis (forme de TreeMig, éq. 37, 39, 40) : s_pleine − `stress_mortality`
+/// si l'ombre dépasse la tolérance, s_pleine sinon ; bornée à 0.
 pub fn survie(parametres: &ParametresSemis, ombre_cellule: f64) -> f64 {
     let stress = if ombre_cellule > parametres.tolerance_ombre { 1.0 } else { 0.0 };
-    (parametres.survie_pleine_lumiere - MORTALITE_DE_STRESS_TREEMIG * stress).max(0.0)
+    (parametres.survie_pleine_lumiere - parametres.mortalite_stress * stress).max(0.0)
 }
 
 // ------------------------------------------------------------------------------------------

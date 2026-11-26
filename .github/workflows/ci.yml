@@ -630,9 +630,11 @@ jobs:
   # Acceptation de M5a (mission 061) : SER fictive écrite par le générateur de tests/m5 et massif rebâti des entrées
   # figées de M3a, donc sans chaîne R ; simulate (Rust) compilé en release avant les tests, qui tournent sans réseau.
   # N = 1 000 seulement (T10 du plan m5a) : N = 2 000 et 4 000 restent hors CI (mission 064, rejouable).
+  # Délai de 20 min (plan m5a, T10) : le job a duré de 3 min 26 s à 4 min 16 s sur les trois passages de la CI de la
+  # PR n° 11 (mission 066), soit cinq fois moins ; 20 min laisse la marge et coupe un blocage plus tôt.
   m5:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -677,7 +679,8 @@ jobs:
 
       # /usr/bin/time -v : mesure de la mémoire résidente de simulate hors du moteur (tests/m5, mission 063).
       - name: Installer time
-        run: command -v /usr/bin/time >/dev/null || sudo apt-get install -y --no-install-recommends time
+        run: |
+          command -v /usr/bin/time >/dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends time; }
 
       # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
       # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.

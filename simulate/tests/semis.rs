@@ -49,6 +49,7 @@ fn parametres_d_essai() -> ParametresSemis {
         coef_extinction: 0.5,
         survie_pleine_lumiere: 0.9,
         hauteur_passage_m: 1.3,
+        mortalite_stress: 0.184,
         provisoire: true,
     }
 }
@@ -67,7 +68,7 @@ fn ligne_regen(species: Option<&str>, groupe: Option<&str>, term: &str, value: f
 
 /// Les dix termes du contrat, en `toutes_essences`, valeurs d'essai.
 fn lignes_d_essai() -> Vec<LigneRegeneration> {
-    let valeurs = [30.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3];
+    let valeurs = [30.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {
         lignes.push(ligne_regen(None, Some("toutes_essences"), terme, valeurs[rang], unite));
@@ -397,11 +398,41 @@ fn la_survie_suit_la_forme_de_treemig() {
     let p = parametres_d_essai();
     assert_eq!(semis::survie(&p, 0.0), 0.9);
     assert_eq!(semis::survie(&p, 3.0), 0.9, "au seuil, pas de stress");
-    assert!((semis::survie(&p, 3.01) - (0.9 - semis::MORTALITE_DE_STRESS_TREEMIG)).abs() < 1e-15);
+    assert!((semis::survie(&p, 3.01) - (0.9 - 0.184)).abs() < 1e-15);
     let mut faible = parametres_d_essai();
     faible.survie_pleine_lumiere = 0.1;
     assert_eq!(semis::survie(&faible, 10.0), 0.0, "bornée à 0");
     assert_eq!(semis::ombre(0.5, 4.0), 2.0);
+}
+
+#[test]
+fn la_mortalite_de_stress_est_lue_du_contrat_et_son_absence_est_refusee() {
+    let referentiel = referentiel();
+    // Lue : la valeur de la ligne, pas une constante du code.
+    let mut lignes = lignes_d_essai();
+    for l in lignes.iter_mut() {
+        if l.term == "stress_mortality" {
+            l.value = 0.3;
+        }
+    }
+    let p = semis::parametres_de(&lignes, "03", &referentiel).unwrap();
+    assert_eq!(p.mortalite_stress, 0.3);
+    assert!((semis::survie(&p, 10.0) - (0.9 - 0.3)).abs() < 1e-15);
+    // Absente : code 2 qui nomme le terme et l'essence, aucune valeur d'emprunt.
+    let sans: Vec<LigneRegeneration> = lignes_d_essai().into_iter().filter(|l| l.term != "stress_mortality").collect();
+    let erreur = semis::parametres_de(&sans, "03", &referentiel).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    assert!(erreur.message.contains("stress_mortality") && erreur.message.contains("03"), "{}", erreur.message);
+    // Hors domaine (une mortalité annuelle est entre 0 et 1) : code 2.
+    let mut hors = lignes_d_essai();
+    for l in hors.iter_mut() {
+        if l.term == "stress_mortality" {
+            l.value = 1.2;
+        }
+    }
+    let erreur = semis::parametres_de(&hors, "03", &referentiel).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    assert!(erreur.message.contains("stress_mortality"), "{}", erreur.message);
 }
 
 #[test]

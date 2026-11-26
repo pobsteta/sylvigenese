@@ -15,7 +15,7 @@ contrats (contracts/catalog.yml), sur une grille de N × N cellules de 25 m en E
                                 dans docs/referentiels/surfaces-ser.csv
     cohorts_init.parquet        adultes par cellule, essence et classe de diamètre (contrat prepare.cohorts_init)
     params/growth, mortality, recruitment, height_curve .parquet   (contrat dynamics_params)
-    params/regeneration.parquet (contrat dynamics.regeneration), les 10 termes pour chaque essence
+    params/regeneration.parquet (contrat dynamics.regeneration), les 11 termes pour chaque essence
     params/allometry.parquet    copie de tests/fixtures/zone_fictive/params/allometry.parquet
 
 AUCUNE VALEUR ÉCOLOGIQUE. Toutes les valeurs écrites ici sont des réglages d'essai, choisis pour que les tests
@@ -90,6 +90,7 @@ REGENERATION_DEFAUT = {
     "light_extinction_coef": (0.5, "1"),
     "seedling_survival_full_light_yr": (0.9, "1"),
     "passage_height_m": (1.3, "m"),
+    "stress_mortality": (0.184, "1/an"),    # valeur de TreeMig éq. 40 p. 16, reprise du code de simulate (mission 066)
 }
 TERMES_REGENERATION = tuple(REGENERATION_DEFAUT)
 

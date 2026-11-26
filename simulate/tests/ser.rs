@@ -364,7 +364,7 @@ fn l_estimation_du_niveau_ser_est_la_formule_fermee() {
 // Le niveau SER de bout en bout, sur la zone d'essai en mémoire
 
 fn lignes_regeneration() -> Vec<LigneRegeneration> {
-    let valeurs = [30.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3];
+    let valeurs = [30.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {
         lignes.push(LigneRegeneration {

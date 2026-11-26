@@ -64,6 +64,8 @@
 //! | Sorte | Entité | Valeur |
 //! |---|---|---|
 //! | [`SORTE_SEMIS_NON_SIMULES`] | la zone (`zone` de config.yml), année t0, mode `ifn_direct` seulement | vide |
+//! | [`SORTE_STOCK_INITIAL_EN_REGIME`] | la zone, année t0, mode `cohorts` seulement (Q2, mission 066) | vide |
+//! | [`SORTE_LUMIERE_ET_OMBRE_SEULES`] | la zone, année t0, mode `cohorts` seulement (Q3, mission 066) | vide |
 //! | [`SORTE_TOTAL_CELLULES_SANS_ARBRE`] | la zone, dernière année | nombre de couples (cellule, année) |
 //! | [`SORTE_TOTAL_RECRUES_CELLULE_VIDE`] | la zone, dernière année | nombre de recrues |
 //! | [`SORTE_TOTAL_SER_SANS_EFFET`] | la zone, dernière année | nombre de prédicteurs |
@@ -107,6 +109,10 @@ use crate::semis;
 
 /// Les semis ne sont pas simulés avant M5 (décision de Pascal, Q3).
 pub const SORTE_SEMIS_NON_SIMULES: &str = "semis_non_simules";
+/// Mode `cohorts` : le stock de semis de t0 est déduit des modèles, non observé (décision de Pascal Q2).
+pub const SORTE_STOCK_INITIAL_EN_REGIME: &str = "stock_initial_en_regime";
+/// Mode `cohorts` : la survie des semis ne dépend que de la lumière et de l'ombre (décision de Pascal Q3).
+pub const SORTE_LUMIERE_ET_OMBRE_SEULES: &str = "lumiere_et_ombre_seules";
 /// Total des couples (cellule, année) simulés sans arbre vivant (H_dom tenue, T5).
 pub const SORTE_TOTAL_CELLULES_SANS_ARBRE: &str = "total_cellules_sans_arbre";
 /// Total des recrues nées dans une cellule sans arbre (rel_d pris à 1).
@@ -741,6 +747,28 @@ pub fn ajouter_signalements_de_zone(
             sorte: SORTE_SEMIS_NON_SIMULES.to_string(),
             message: "semis non simulés (mode ifn_direct, recrutement de M3a) : les colonnes \
                       seedlings_ha et seedling_h_mean de sim/cells ne sont pas écrites"
+                .to_string(),
+            valeur: None,
+        });
+    }
+    if cohortes {
+        signalements.push(Signalement {
+            annee: t0,
+            entite: lancement.zone.clone(),
+            sorte: SORTE_STOCK_INITIAL_EN_REGIME.to_string(),
+            message: "stock de semis de t0 déduit des modèles (état stationnaire du flux de recrues du modèle IFN \
+                      et de la survie de la cellule), non observé : provisoire, à ne pas lire comme un inventaire \
+                      de semis (mode cohorts ; décision de Pascal Q2 du 26/11/2026)"
+                .to_string(),
+            valeur: None,
+        });
+        signalements.push(Signalement {
+            annee: t0,
+            entite: lancement.zone.clone(),
+            sorte: SORTE_LUMIERE_ET_OMBRE_SEULES.to_string(),
+            message: "survie des semis fondée sur la lumière et l'ombre seules (tolérance à l'ombre, extinction \
+                      sous couvert, mortalité de stress de TreeMig) : gibier, sous-bois et fructification ne sont \
+                      pas simulés (mode cohorts ; décision de Pascal Q3 du 26/11/2026)"
                 .to_string(),
             valeur: None,
         });
