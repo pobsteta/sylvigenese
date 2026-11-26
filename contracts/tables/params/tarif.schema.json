@@ -89,7 +89,7 @@
     {
       "name": "source_commit",
       "type": "string",
-      "description": "commit de tarif-nemeton lu par import_tarif, 7 à 40 caractères hexadécimaux minuscules (Q1 : v5 figée au commit 0f51b96)",
+      "description": "commit de tarif-nemeton lu par import_tarif, 7 à 40 caractères hexadécimaux minuscules (décision Q1 : tarif v5 ; parametres_tarif_v5.csv créé au commit 9821693, fusionné par Pascal au commit 4ee122c, résultats tarif_v5 inchangés ; sur le jeu fictif, commit synthétique 0000000)",
       "constraints": {
         "required": true,
         "pattern": "[0-9a-f]{7,40}"

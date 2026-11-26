@@ -157,15 +157,47 @@ NOTE_PARTIAL = ("volume partiel : une partie des tiges n'est pas calculée (hors
                 "tarif ; ni extrapolation ni emprunt, décision de Pascal Q5) ; basal_area_not_computed_share en donne la "
                 "part de surface terrière ; quand elle vaut 1, rien n'est calculé : volume et carbone null, raison dans "
                 "not_computed_reason")
-NOTE_ROOTS = ("racines : root_carbon_t_ha, carbone des racines, à part du carbone aérien et jamais additionné, "
-              "PROVISOIRE (GIEC 2006, tableau 4.4 ; décision de Pascal Q4)")
 NOTE_NO_ROOTS = ("carbone souterrain non calculé : le rapport du GIEC 2006 (tableau 4.4) n'est pas encore lu ni cité "
                  "(décision de Pascal Q4) ; aucune valeur n'est prise à sa place")
 REASON_NOTHING = ("aucune tige vivante de la cellule n'est calculée : toutes sont hors du domaine du tarif ou d'une "
                   "essence sans tarif (ni extrapolation ni emprunt, décision de Pascal Q5)")
-TARIF_NAME = "tarif NEMETON v5 (tarif-nemeton), provisoire"
-TARIF_NAME_FICTIVE = ("forme du tarif NEMETON v5, valeurs synthétiques du jeu fictif (zone marquée fictive, aucun sens "
-                      "écologique)")
+# Nom et sources du tarif : tirés de params/tarif.parquet (colonnes source_biblio et source_commit, et termes de la
+# forme de volume), jamais écrits d'avance (mission 056 : les résineux synthétiques du jeu fictif ne sont pas le
+# tarif NEMETON v5, et leurs racines ne viennent pas du GIEC). TARIF_NAME n'est dit que si toutes les formes de
+# volume sont celles de NEMETON v5 (contrat import_tarif.tarif).
+TARIF_NAME = "tarif NEMETON v5"
+VOLUME_MODELS = ("volume_feuillus", "profil_tige_resineux", "expansion_resineux")
+SYNTH_TERMS = ("synth_p1", "synth_p2", "synth_E")
+
+
+def quoted_sources(rows: list[dict]) -> str:
+    """Valeurs distinctes de source_biblio, citées telles quelles."""
+    return " ; ".join(f"« {b} »" for b in sorted({r["source_biblio"] for r in rows}))
+
+
+def tarif_name(rows: list[dict]) -> str:
+    """Nom du tarif de la fiche v3 : ses formes de volume et la source de ses valeurs (source_biblio)."""
+    volume = [r for r in rows if r["modele"] in VOLUME_MODELS]
+    has_hw = any(r["modele"] == "volume_feuillus" for r in volume)
+    sw = [r for r in volume if r["modele"] != "volume_feuillus"]
+    synthetic_sw = any(r["terme"] in SYNTH_TERMS for r in sw)
+    if not synthetic_sw:
+        forms = TARIF_NAME
+    else:
+        forms = (("forme NEMETON v5 pour les feuillus, " if has_hw else "")
+                 + "forme synthétique du jeu fictif pour les résineux (sans sens écologique)")
+    biblios = {r["source_biblio"] for r in volume}
+    values = (f"valeurs de source {quoted_sources(volume)}" if len(biblios) == 1 else
+              f"valeurs de {len(biblios)} sources (une par modèle, sim/post.json)")
+    return f"{forms} ; {values} ; provisoire"
+
+
+def note_roots(rows: list[dict], commit: str) -> str:
+    """Note « racines » de la fiche v3, avec la source du rapport racines/aérien lue dans params/tarif.parquet."""
+    roots = [r for r in rows if r["modele"] == "racines"]
+    return ("racines : root_carbon_t_ha, carbone des racines, à part du carbone aérien et jamais additionné, "
+            f"PROVISOIRE (rapport racines/aérien de params/tarif.parquet, source {quoted_sources(roots)}, "
+            f"source_commit {commit} ; décision de Pascal Q4)")
 
 
 def _sha256(path: Path) -> str:
@@ -208,10 +240,19 @@ def read_post_summary(zone: Path, retained: list[int]) -> dict | None:
     for i, year in enumerate(columns["year"]):
         if year in keep:
             rows[(int(columns["cell_id"][i]), int(year))][str(columns["species"][i])] = {n: columns[n][i] for n in names}
-    marker = zone / "zone.yml"
-    fictive = marker.is_file() and common.read_config(marker).get("fictive") is True
-    return {"rows": rows, "has_roots": has_roots, "commit": post["tarif_commit"],
-            "name": TARIF_NAME_FICTIVE if fictive else TARIF_NAME}
+    tarif_path = zone / "params" / "tarif.parquet"
+    if not tarif_path.is_file():
+        raise ModuleError(f"{tarif_path} absent : le nom et les sources du tarif de la fiche se lisent dans le tarif "
+                          "qu'a lu post ; rien n'est écrit à sa place")
+    if (post.get("inputs_sha256") or {}).get("params_tarif") != _sha256(tarif_path):
+        raise ModuleError(f"{tarif_path} a changé depuis post (empreinte différente de celle de sim/post.json) : "
+                          "relancer post avant assets")
+    tarif_rows = pq.read_table(tarif_path).to_pylist()
+    if has_roots and not any(r["modele"] == "racines" for r in tarif_rows):
+        raise ModuleError("sim/summary.parquet porte carbon_roots_t_ha mais params/tarif.parquet n'a pas de modèle "
+                          "racines : la source des racines ne peut pas être citée")
+    return {"rows": rows, "has_roots": has_roots, "commit": post["tarif_commit"], "name": tarif_name(tarif_rows),
+            "roots_note": note_roots(tarif_rows, post["tarif_commit"]) if has_roots else NOTE_NO_ROOTS}
 
 
 def year_entry_v3(rows: list[dict], summary: dict[str, dict], has_roots: bool, year: int, cid: int) -> dict:
@@ -357,7 +398,7 @@ def build_cell_sheets_v2(zone: Path, rows: dict[tuple[int, int], list[dict]], re
         notes = list(NOTES_V3_HEAD)
         if any(e["volume_partiel"] for c in cells for e in c["years"]):
             notes.append(NOTE_PARTIAL)
-        notes.append(NOTE_ROOTS if post["has_roots"] else NOTE_NO_ROOTS)
+        notes.append(post["roots_note"])
         notes += NOTES_V2[2:]
         docs[name] = {"schema_version": 3, "tile": name, "source": "sim", "notes": notes,
                       "tarif": {"name": post["name"], "commit": post["commit"], "provisoire": True}, "cells": cells}

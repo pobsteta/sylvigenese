@@ -57,7 +57,7 @@
       }
     },
     "tarif_commit": {
-      "description": "commit de tarif-nemeton d'où vient params/tarif.parquet (décision Q1 : v5 figée au commit 0f51b96), 7 à 40 caractères hexadécimaux minuscules ; c'est la valeur de source_commit de params/tarif.parquet",
+      "description": "commit de tarif-nemeton d'où vient params/tarif.parquet (décision Q1 : tarif v5 ; parametres_tarif_v5.csv créé au commit 9821693, fusionné par Pascal au commit 4ee122c, résultats tarif_v5 inchangés ; sur le jeu fictif, commit synthétique 0000000), 7 à 40 caractères hexadécimaux minuscules ; c'est la valeur de source_commit de params/tarif.parquet",
       "type": "string",
       "pattern": "^[0-9a-f]{7,40}$"
     },
@@ -143,7 +143,7 @@
           "h_below": {
             "type": "integer",
             "minimum": 0,
-            "description": "hauteur sous h_min"
+            "description": "hauteur sous h_min ; compte aussi un résineux de forme NEMETON v5 qui mesure au plus h_ref + marge_sommet (1,30 m plus la marge dans tarif-nemeton), dont le profil de tige ne s'intègre pas (mission 056) : il n'est pas calculé, et rapport_post.html en donne le nombre"
           },
           "h_above": {
             "type": "integer",

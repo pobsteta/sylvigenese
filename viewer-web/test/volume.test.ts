@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SheetError, indexSheets } from "../src/sheet.ts";
 import {
-  MENTIONS_COURTES, formatEvolutionV3, sheetNotesV3, sheetVersion, shareText,
+  BELOW_PRECISION, MENTIONS_COURTES, SIGNAL_MISSING, amountText, formatEvolutionV3, missingMentionsV3, sheetNotesV3, sheetVersion, shareText,
   type CellV3, type Tarif, type TileSheetsV3, type YearSheetV3,
 } from "../src/volume.ts";
 
@@ -39,6 +39,8 @@ const NOTES = [
   "carbon_t_ha : carbone aérien",
   "sol et bois mort : non modélisés (hors v1)",
 ];
+// Notes d'une fiche dont une année est partielle : le contrat y exige aussi « volume partiel ».
+const NOTES_PARTIEL = [...NOTES, "volume partiel : une partie des tiges n'est pas calculée"];
 
 test("v3 : volume aérien total et carbone aérien de chaque année, rangés, sans recalcul", () => {
   const f = formatEvolutionV3(cell(), 2022, NOTES, TARIF);
@@ -53,11 +55,12 @@ test("v3 : volume aérien total et carbone aérien de chaque année, rangés, sa
 });
 
 test("v3 : « volume partiel » avec la part de surface terrière non calculée", () => {
-  const f = formatEvolutionV3(cell(), 2032, NOTES, TARIF);
+  const f = formatEvolutionV3(cell(), 2032, NOTES_PARTIEL, TARIF);
   assert.equal(f.table[0]!.partial, "");
   assert.equal(f.table[1]!.partial, "volume partiel : 12 % de G non calculée");
   assert.equal(f.headline, "2032 : volume aérien total 401,3 m³/ha · carbone aérien 110,3 tC/ha, provisoires (volume partiel : 12 % de G non calculée)");
   assert.ok(f.notes.some((n) => n.includes("volume partiel")), "mention « volume partiel » absente des notes");
+  assert.deepEqual(f.notes, NOTES_PARTIEL, "les notes affichées sont celles de la fiche, rien d'ajouté");
 });
 
 test("v3 : une part non nulle n'est jamais dite 0 %, une part sous 1 jamais 100 %", () => {
@@ -102,17 +105,47 @@ test("v3 : avec root_carbon_t_ha, racines à part, marquées provisoires, jamais
   assert.equal(racines.value, "17,0 tC/ha");
 });
 
-test("v3 : les mentions du document sont toujours là, sans « volume et carbone non calculés »", () => {
-  const n = sheetNotesV3([], false);
-  for (const k of ["volume aérien total", "carbone aérien", "sol et bois mort", "non validée écologiquement"]) {
-    assert.ok(n.some((x) => x.includes(k)), `mention « ${k} » absente`);
-  }
-  assert.ok(!n.some((x) => x.includes("volume et carbone non calculés")));
-  assert.ok(!n.some((x) => x.includes("volume partiel")));
-  assert.equal(sheetNotesV3([...NOTES, NOTES[0]!], false).length, NOTES.length); // rien d'ajouté, pas de doublon
+test("v3 : les notes affichées sont celles de la fiche, sans doublon et sans rien ajouter", () => {
+  assert.deepEqual(sheetNotesV3(NOTES, false), NOTES);
+  assert.deepEqual(sheetNotesV3([...NOTES, NOTES[0]!], false), NOTES); // pas de doublon
+  assert.deepEqual(missingMentionsV3(NOTES, false), []);
+  assert.ok(!sheetNotesV3(NOTES, false).some((x) => x.includes("volume et carbone non calculés")));
   for (const k of ["volume aérien total", "carbone aérien", "sol et bois mort non comptés", "non validée écologiquement"]) {
     assert.ok(MENTIONS_COURTES.includes(k), `ligne courte sans « ${k} »`);
   }
+});
+
+test("v3 : une mention exigée absente de la fiche est signalée, jamais écrite à sa place (mission 056)", () => {
+  // fiche sans aucune mention : quatre signalements, aucune mention inventée par la vue
+  const vide = sheetNotesV3([], false);
+  assert.equal(vide.length, 4);
+  assert.ok(vide.every((n) => n.startsWith(SIGNAL_MISSING)), `ligne qui n'est pas un signalement : ${vide.join(" | ")}`);
+  assert.deepEqual(missingMentionsV3([], false), ["non validée écologiquement", "volume aérien total", "carbone aérien", "sol et bois mort"]);
+  // une année partielle sans « volume partiel » dans la fiche : les notes de la fiche, puis un seul signalement
+  const partiel = sheetNotesV3(NOTES, true);
+  assert.deepEqual(partiel.slice(0, NOTES.length), NOTES);
+  assert.equal(partiel.length, NOTES.length + 1);
+  assert.ok(partiel.at(-1)!.startsWith(SIGNAL_MISSING) && partiel.at(-1)!.includes("« volume partiel »"));
+  // même chose par la fiche affichée
+  const f = formatEvolutionV3(cell(), 2032, NOTES, TARIF);
+  assert.deepEqual(f.notes.filter((n) => !n.startsWith(SIGNAL_MISSING)), NOTES, "mention ajoutée par la vue");
+  assert.equal(f.notes.filter((n) => n.startsWith(SIGNAL_MISSING)).length, 1);
+});
+
+test("v3 : une valeur non nulle sous la précision affichée s'écrit « < 0,1 », jamais 0,0 (mission 056)", () => {
+  assert.equal(amountText(0.0197), "< 0,1");     // racines de la cellule 4 de la zone échantillon du testeur
+  assert.equal(amountText(0.049), "< 0,1");
+  assert.equal(amountText(0.05), "0,1");
+  assert.equal(amountText(0), "0,0");             // zéro est un fait (cellule sans arbre vivant)
+  assert.equal(amountText(312.44), "312,4");
+  const c = cell(true);
+  c.years[1] = { ...c.years[1]!, volume_m3_ha: 0.03, carbon_t_ha: 0.004, root_carbon_t_ha: 0.0197 };
+  const f = formatEvolutionV3(c, 2022, NOTES, TARIF);
+  assert.equal(f.table[0]!.volume, BELOW_PRECISION);
+  assert.equal(f.table[0]!.carbon, BELOW_PRECISION);
+  assert.equal(f.table[0]!.roots, BELOW_PRECISION);
+  assert.equal(f.rows.find((r) => /racines/i.test(r.label))!.value, "< 0,1 tC/ha");
+  assert.equal(f.headline, "2022 : volume aérien total < 0,1 m³/ha · carbone aérien < 0,1 tC/ha, provisoires");
 });
 
 test("v3 : le tarif est dit, provisoire, et la ligne « Volume et carbone : non calculés » de la v2 disparaît", () => {

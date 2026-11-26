@@ -20,7 +20,8 @@
 #   m1 m2 m4 m3   tests d'acceptation des jalons, une session pytest chacun
 #            (m3 et m4 compilent d'abord simulate en release : leurs tests tournent sans réseau)
 #   post     tests d'acceptation de post, volume et carbone (mission 052) : chaîne R, simulate sur 5 ans,
-#            post et assets, sans réseau (simulate compilé d'abord, comme pour m3 et m4)
+#            post et assets, sans réseau (simulate compilé d'abord, comme pour m3 et m4) ; la fiche v3 y est aussi
+#            vérifiée dans le navigateur (mission 057 : Node, Playwright et Chromium requis, comme pour m4)
 #   validate le validateur sur le jeu fictif
 # Chaque section écrit sa durée (sortie standard et, en CI, résumé du job).
 set -euo pipefail

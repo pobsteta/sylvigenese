@@ -538,7 +538,8 @@ jobs:
 
 
   # Acceptation de post, volume et carbone (mission 052) : chaîne R, simulate (Rust, compilé en release avant les
-  # tests, qui tournent sans réseau), post et assets sur 5 ans simulés. Sans Node ni Chromium : aucune vue n'y est testée.
+  # tests, qui tournent sans réseau), post et assets sur 5 ans simulés. Node et Chromium : la fiche v3 est vérifiée
+  # dans le navigateur (tests/post/test_post_vue.py, mission 057).
   post:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -600,6 +601,23 @@ jobs:
           uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
           uv pip install --python .venv/bin/python --no-deps -e python
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # Node : npm ci à partir de package-lock.json, cache npm (make viewer et la sonde Playwright).
+      - name: Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: viewer-web/package-lock.json
+
+      - name: Dépendances Node
+        run: npm ci
+        working-directory: viewer-web
+
+      # Chromium pour la fiche v3 dans le navigateur (tests/post/test_post_vue.py) ; version du paquet = PLAYWRIGHT_VERSION.
+      - name: Navigateur des tests de la vue (Chromium)
+        run: npx playwright install --with-deps chromium
+        working-directory: viewer-web
 
       # Une seule source de la commande de tests : tools/ci/run_tests.sh (la même que .claude/test-command).
       # Elle échoue si pytest saute un test, et écrit la durée de chaque section dans le résumé du job.

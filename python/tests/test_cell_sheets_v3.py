@@ -4,7 +4,9 @@ Valeurs d'essai, sans sens écologique. Les tests de bout en bout (assets après
 """
 
 import math
+from pathlib import Path
 
+import pyarrow.parquet as pq
 import pytest
 
 from sylvigenese.assets_lib import cell_sheets
@@ -60,3 +62,33 @@ def test_essences_du_summary_differentes_de_cells_refusees():
     with pytest.raises(ModuleError, match="ne viennent pas du même run"):
         cell_sheets.year_entry_v3([cells_row("09", 16.0, 2.0, 40.0)], {"61": summary_row(1.0, 0.1, 0.0, 0.0)},
                                   False, 2022, 0)
+
+
+# ------------------------------------------------------------------ nom du tarif et note des racines (mission 056)
+FIXTURE_TARIF = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "zone_fictive" / "params" / "tarif.parquet"
+
+
+def tarif_row(model, term, biblio, essence="61"):
+    return {"essence": essence, "groupe": None, "modele": model, "terme": term, "valeur": 1.0, "unite": "sans_unite",
+            "source_code": "essai", "source_biblio": biblio, "source_commit": "abcdef1", "provisoire": True}
+
+
+def test_jeu_fictif_ni_tarif_nemeton_v5_ni_giec_pour_les_valeurs_synthetiques():
+    rows = pq.read_table(FIXTURE_TARIF).to_pylist()
+    name = cell_sheets.tarif_name(rows)
+    assert "tarif NEMETON v5" not in name, name
+    assert "forme synthétique du jeu fictif pour les résineux" in name and "« synthetique_jeu_fictif »" in name
+    note = cell_sheets.note_roots(rows, "0000000")
+    assert "GIEC" not in note and "« synthetique_jeu_fictif »" in note and "source_commit 0000000" in note
+    assert "racines" in note and "PROVISOIRE" in note       # mention « racines » exigée par le contrat cell_sheet v3
+
+
+def test_nom_et_source_des_racines_suivent_les_colonnes_du_tarif():
+    rows = [tarif_row("volume_feuillus", "a", "source A", "09"), tarif_row("profil_tige_resineux", "k0", "source B"),
+            tarif_row("expansion_resineux", "D_plafond", "source B"),
+            {**tarif_row("racines", "ratio", "GIEC 2006, tableau 4.4"), "essence": None, "groupe": "resineux"}]
+    name = cell_sheets.tarif_name(rows)
+    assert name.startswith(cell_sheets.TARIF_NAME) and "valeurs de 2 sources" in name
+    assert "GIEC 2006, tableau 4.4" in cell_sheets.note_roots(rows, "abcdef1")
+    one_source = [{**r, "source_biblio": "source C"} for r in rows[:3]]
+    assert "valeurs de source « source C »" in cell_sheets.tarif_name(one_source)

@@ -258,14 +258,26 @@ class Tarif:
 
 
 # ------------------------------------------------------------------ calcul par arbre
+def profile_too_short(m: dict, h: np.ndarray) -> np.ndarray:
+    """Résineux de forme NEMETON v5 trop courts pour leur profil de tige : hauteur au plus h_ref + marge_sommet
+    (h_ref = 1,30 m dans tarif-nemeton). L'intégrale irait de h_ref à H − marge_sommet, donc à rebours (ou sur rien) : l'arbre
+    n'est pas calculé (décision Q5), il est compté en h_below et dit au rapport (mission 056). Faux partout pour
+    les autres formes, qui n'ont pas cette limite."""
+    if m["form"] != "resineux_nemeton":
+        return np.zeros(len(h), dtype=bool)
+    return h <= m["h_ref"] + m["marge_sommet"]
+
+
 def stem_volume_nemeton(m: dict, d: np.ndarray, h: np.ndarray, chunk: int = 20000) -> np.ndarray:
     """Volume de tige entière sur écorce des résineux, m³ (forme NEMETON v5, contrat import_tarif.tarif) :
     cylindre de 0 à h_ref au diamètre D, puis profil intégré par la règle des trapèzes de h_ref à H − marge_sommet
-    sur n_points hauteurs. Calcul par paquets d'arbres (mémoire bornée)."""
+    sur n_points hauteurs. Calcul par paquets d'arbres (mémoire bornée).
+    Les arbres trop courts (`profile_too_short`) sont écartés avant, par `compute_year`, et comptés non calculés ;
+    en recevoir un ici est une erreur de programme, pas une donnée : refus plutôt qu'un volume faux."""
     h0, eps, umin, n = m["h_ref"], m["marge_sommet"], m["u_min"], m["n_points"]
-    if (h <= h0 + eps).any():
-        raise ModuleError(f"résineux de hauteur inférieure à h_ref + marge_sommet ({h0 + eps} m) dans le domaine : "
-                          "le profil de tige ne s'intègre pas ; rien n'est deviné")
+    if profile_too_short(m, h).any():
+        raise ModuleError(f"stem_volume_nemeton appelé sur un résineux de hauteur au plus h_ref + marge_sommet "
+                          f"({h0 + eps} m) : il aurait dû être compté non calculé (h_below) avant le calcul")
     t = np.linspace(0.0, 1.0, n)
     out = np.empty(len(d))
     for start in range(0, len(d), chunk):
@@ -429,6 +441,7 @@ def compute_year(trees: dict, tarif: Tarif, grid: dict) -> dict:
     biomass = np.zeros(n)
     carbon = np.zeros(n)
     roots = np.zeros(n)
+    too_short = np.zeros(n, dtype=bool)               # résineux NEMETON sous h_ref + marge_sommet (h_below)
     codes, inverse = np.unique(trees["species"], return_inverse=True)
     for k, sp in enumerate(codes.tolist()):
         idx = np.nonzero(inverse == k)[0]
@@ -438,6 +451,9 @@ def compute_year(trees: dict, tarif: Tarif, grid: dict) -> dict:
             continue
         d, h = trees["d130"][idx], trees["h"][idx]
         r = first_reason(m, d, h)
+        short = (r < 0) & profile_too_short(m, h)     # dans le domaine, mais le profil ne s'intègre pas
+        r[short] = REASONS.index("h_below")
+        too_short[idx] = short
         reason[idx] = r
         ok = idx[r < 0]
         if len(ok):
@@ -451,7 +467,7 @@ def compute_year(trees: dict, tarif: Tarif, grid: dict) -> dict:
         raise ModuleError("volume non fini ou négatif calculé : arrêt plutôt qu'une valeur fausse")
     return {"species": trees["species"], "cell": cell, "veg": grid["veg_of_cell"][cell], "alive": trees["alive"],
             "g": np.pi * (trees["d130"] / 200.0) ** 2, "reason": reason, "volume": volume, "biomass": biomass,
-            "carbon": carbon, "roots": roots}
+            "carbon": carbon, "roots": roots, "too_short": too_short}
 
 
 def group_sums(keys: list[np.ndarray], mask: np.ndarray, values: dict[str, np.ndarray]) -> tuple[list[np.ndarray], dict]:
@@ -476,6 +492,7 @@ class Accumulator:
         self.zone: dict[str, list] = defaultdict(list)
         self.ood: dict[str, list[int]] = defaultdict(lambda: [0] * len(REASONS))
         self.without: dict[str, int] = defaultdict(int)
+        self.too_short: dict[str, int] = defaultdict(int)   # part de h_below due au profil des résineux NEMETON
         self.computed = 0
         self.not_computed = 0
         self.untyped_cells: set[int] = set()
@@ -497,6 +514,9 @@ class Accumulator:
                 counts = np.bincount(r[r >= 0], minlength=len(REASONS))
                 if counts.any():
                     self.ood[sp] = [a + int(b) for a, b in zip(self.ood[sp], counts)]
+                short = int(t["too_short"][inverse == k].sum())
+                if short:
+                    self.too_short[sp] += short
             else:
                 self.without[sp] += len(r)
         sp_index = inverse.astype(np.int64)
@@ -630,6 +650,104 @@ def fmt(value: float, digits: int = 3) -> str:
     return f"{value:.{digits}f}"
 
 
+# Formes de volume du contrat import_tarif.tarif, telles que le rapport les nomme (mission 056)
+FORM_LABELS = {"feuillus": "feuillus : forme NEMETON v5 (volume_feuillus)",
+               "resineux_nemeton": "résineux : forme NEMETON v5 (profil de tige et E(D))",
+               "resineux_synthetique": "résineux : forme synthétique du jeu fictif (synth_p1, synth_p2, synth_E), sans "
+                                       "sens écologique"}
+
+
+def quoted_sources(rows: list[dict]) -> str:
+    """Les valeurs distinctes de source_biblio des lignes, citées telles quelles."""
+    return " ; ".join(f"« {b} »" for b in sorted({r["source_biblio"] for r in rows}))
+
+
+def tarif_label(tarif: Tarif) -> str:
+    """Nom du tarif lu dans params/tarif.parquet : les formes de volume réellement présentes et la source des valeurs
+    (colonne source_biblio), jamais un nom écrit d'avance (mission 056 : les résineux synthétiques du jeu fictif ne
+    sont pas le tarif NEMETON v5)."""
+    forms = "; ".join(FORM_LABELS[f] for f in FORM_LABELS if any(m["form"] == f for m in tarif.species.values()))
+    biblios = {r["source_biblio"] for r in tarif.rows}
+    values = (f"valeurs de source {quoted_sources(tarif.rows)} pour tous les modèles" if len(biblios) == 1 else
+              f"valeurs de {len(biblios)} sources, citées modèle par modèle (tableau « Tarif et provenance »)")
+    return f"{forms} ; {values} ; source_commit {tarif.commit}"
+
+
+def bound_text(value: float | None) -> str:
+    return "non borné" if value is None else f"{value:g}"
+
+
+def domain_section(tarif: Tarif, acc: Accumulator) -> list[str]:
+    """Le domaine du tarif, écrit pour Pascal (mission 056) : la règle des feuillus (décision de Pascal du
+    26/11/2026), la règle H/D des résineux, la limite du profil NEMETON et les bornes de chaque essence. Toutes les
+    bornes sont lues dans params/tarif.parquet (Tarif.species[...]["domain"]) ; aucune n'est écrite ici."""
+    e = html.escape
+    domain_rows = [r for r in tarif.rows if r["modele"] == "domaine"]
+    hardwoods = sorted(sp for sp, m in tarif.species.items() if m["group"] == "feuillu")
+    softwoods = sorted(sp for sp, m in tarif.species.items() if m["group"] == "resineux")
+
+    def rows_of(species: list[str]) -> list[dict]:
+        return [r for r in domain_rows if r["essence"] in species
+                or (r["groupe"] and any(tarif.groups[sp] == r["groupe"] for sp in species))]
+
+    out = ["<h2>Domaine du tarif : où il vaut</h2>",
+           "<p>Un arbre n'est calculé que si son d130, sa hauteur et son H/D sont dans les bornes de son essence "
+           "(bornes fermées). Hors de ces bornes, il n'est ni extrapolé ni rattaché à une autre essence (décision Q5) : "
+           "il est compté dans « Ce qui n'est pas calculé ». Les bornes ci-dessous sont lues dans params/tarif.parquet "
+           f"(modèle domaine, source_commit {e(tarif.commit)}) ; post ne les recalcule pas et n'en choisit aucune. Une "
+           "borne absente veut dire que la source ne borne pas cette grandeur.</p>",
+           "<p><strong>Règle des feuillus (décision de Pascal du 26/11/2026)</strong> : le domaine élargi de la table de "
+           "tarif-nemeton est gardé, tel quel : les bornes de calage du v0 sont multipliées par 0,9 (minimum) et 1,1 "
+           "(maximum) en diamètre, et élargies de 2 m en hauteur (moins 2 m au minimum, plus 2 m au maximum). "
+           "Elle est appliquée par import_tarif quand il écrit params/tarif.parquet depuis tarif-nemeton ; post ne fait "
+           "que lire les bornes écrites, quelle que soit leur source (dite ci-dessous).</p>"]
+    if hardwoods:
+        out.append(f"<p>Sur ce tarif, les bornes des feuillus ({e(', '.join(hardwoods))}) ont pour source "
+                   f"{e(quoted_sources(rows_of(hardwoods)))} (colonne source_biblio).</p>")
+    else:
+        out.append("<p>Ce tarif n'a aucun feuillu.</p>")
+    if softwoods:
+        pairs: dict[tuple, list[str]] = defaultdict(list)
+        for sp in softwoods:
+            pairs[tarif.species[sp]["domain"]["hd"]].append(sp)
+        hd = " ; ".join(f"de {bound_text(lo)} à {bound_text(hi)} pour {', '.join(sps)}"
+                        for (lo, hi), sps in sorted(pairs.items(), key=lambda kv: kv[1]))
+        bounded = [sp for sp in softwoods if any(v is not None for k in ("dbh", "h")
+                                                 for v in tarif.species[sp]["domain"][k])]
+        extra = (f"le diamètre ou la hauteur y sont aussi bornés pour {', '.join(bounded)} (tableau)"
+                 if bounded else "la source ne borne ni leur diamètre ni leur hauteur")
+        out.append("<p><strong>Règle des résineux</strong> : le domaine est borné par le rapport H/D, hauteur en m sur "
+                   f"d130 en m (H / (d130/100)) ; sur ce tarif, H/D {e(hd)} ; {e(extra)}. Source : "
+                   f"{e(quoted_sources(rows_of(softwoods)))} (colonne source_biblio).</p>")
+        nemeton = [sp for sp in softwoods if tarif.species[sp]["form"] == "resineux_nemeton"]
+        if nemeton:
+            limits = sorted({tarif.species[sp]["h_ref"] + tarif.species[sp]["marge_sommet"] for sp in nemeton})
+            counts = ", ".join(f"{sp} : {acc.too_short[sp]}" for sp in nemeton if acc.too_short.get(sp))
+            out.append("<p><strong>Limite du profil de tige NEMETON v5</strong> : un résineux de hauteur au plus h_ref + "
+                       f"marge_sommet ({e(' ; '.join(f'{v:g}' for v in limits))} m) n'est pas calculé, même dans son "
+                       "domaine : le profil, intégré de h_ref à H − marge_sommet, ne s'intègre pas. Il est compté en "
+                       f"h_below. Arbres-années concernés : {e(counts) if counts else 'aucun'}.</p>")
+        else:
+            out.append("<p>Aucun résineux de ce tarif n'a la forme NEMETON v5 : la limite de hauteur de son profil de tige "
+                       "(h_ref + marge_sommet) ne s'applique pas.</p>")
+    else:
+        out.append("<p>Ce tarif n'a aucun résineux.</p>")
+    out.append("<h3>Bornes par essence (params/tarif.parquet)</h3>"
+               "<table><tr><th>essence</th><th>groupe</th><th>forme du volume</th><th>d130 min (cm)</th>"
+               "<th>d130 max (cm)</th><th>h min (m)</th><th>h max (m)</th><th>H/D min</th><th>H/D max</th>"
+               "<th>source_biblio</th><th>source_code</th></tr>")
+    for sp in sorted(tarif.species):
+        m = tarif.species[sp]
+        cells = "".join(f"<td>{bound_text(v)}</td>" for k in ("dbh", "h", "hd") for v in m["domain"][k])
+        rows = rows_of([sp])
+        codes = " ; ".join(sorted({r["source_code"] for r in rows}))
+        out.append(f"<tr><td>{e(sp)}</td><td>{e(m['group'])}</td><td style='text-align:left'>{e(m['form'])}</td>{cells}"
+                   f"<td style='text-align:left'>{e(quoted_sources(rows)) if rows else 'aucune borne'}</td>"
+                   f"<td style='text-align:left'>{e(codes)}</td></tr>")
+    out.append("</table>")
+    return out
+
+
 def write_report(path: Path, acc: Accumulator, tarif: Tarif, post: dict, zone: Path) -> None:
     """rapport_post.html : ce qui est calculé, ce qui ne l'est pas, et pourquoi (plan T10)."""
     e = html.escape
@@ -638,8 +756,8 @@ def write_report(path: Path, acc: Accumulator, tarif: Tarif, post: dict, zone: P
              "<style>body{font-family:sans-serif;max-width:60em;margin:1em auto}table{border-collapse:collapse}"
              "td,th{border:1px solid #999;padding:2px 6px;text-align:right}</style></head><body>",
              "<h1>post : volume, biomasse et carbone</h1>",
-             f"<p><strong>{e(MENTION_ECO)}</strong>. Tarif provisoire : tarif NEMETON v5 (tarif-nemeton, commit "
-             f"{e(tarif.commit)}), « coefficients non stabilisés » (décision Q1). Zone : {e(zone.name)}.</p>",
+             f"<p><strong>{e(MENTION_ECO)}</strong>. Tarif{' provisoire' if tarif.provisoire else ''} (décision Q1), "
+             f"lu dans params/tarif.parquet : {e(tarif_label(tarif))}. Zone : {e(zone.name)}.</p>",
              "<h2>Définitions</h2><ul>",
              "<li>Volume : volume aérien total (tige et branches, sur écorce), même définition pour toutes les essences "
              "(décision Q3) ; ni bois fort ni volume au-dessus de 7 cm.</li>",
@@ -647,15 +765,18 @@ def write_report(path: Path, acc: Accumulator, tarif: Tarif, post: dict, zone: P
              "<li>Carbone aérien = biomasse aérienne × fraction de carbone, pour les feuillus comme pour les résineux "
              "(l'écart n° 1 de tarif-nemeton, carbone des résineux sur la tige seule, n'est pas repris).</li>"]
     if tarif.has_roots:
+        roots_rows = [r for r in tarif.rows if r["modele"] == "racines"]
         parts.append("<li>Racines : carbone des racines = carbone aérien × rapport racines/aérien du groupe ; colonne à "
-                     "part, provisoire, jamais additionnée au carbone aérien (décision Q4).</li>")
+                     "part, provisoire, jamais additionnée au carbone aérien (décision Q4). Source du rapport : "
+                     f"{e(quoted_sources(roots_rows))}, source_commit {e(tarif.commit)}.</li>")
     else:
         parts.append("<li>Racines : <strong>non calculées</strong>. params/tarif.parquet n'a pas de modèle racines : le "
                      "rapport racines/aérien du GIEC 2006 (tableau 4.4) n'est pas encore lu ni cité (décision Q4) ; "
                      "aucune valeur n'est prise à sa place, et summary n'a pas de colonne carbon_roots_t_ha.</li>")
     parts += ["<li>Sol et bois mort : non modélisés (hors v1). Les morts de l'année sont un flux (summary_zone), pas un "
-              "stock.</li>", "</ul>",
-              "<h2>Ce qui n'est pas calculé (décision Q5)</h2>",
+              "stock.</li>", "</ul>"]
+    parts += domain_section(tarif, acc)
+    parts += ["<h2>Ce qui n'est pas calculé (décision Q5)</h2>",
               "<p>Un arbre hors du domaine du tarif (diamètre, hauteur, H/D) ou d'une essence sans tarif n'est pas "
               "calculé : ni extrapolation ni emprunt du tarif d'une autre essence. Il est compté ici, par essence, en "
               "arbres-années (un arbre vivant, ou mort dans l'année, compté une fois par année).</p>",

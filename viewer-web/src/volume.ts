@@ -11,7 +11,7 @@
 
 import { SheetError, type Row } from "./sheet.ts";
 import {
-  MENTION_ECO, format0, format1, formatEvolution,
+  format0, format1, formatEvolution,
   type CellSim, type CompositionV2, type DisplayedEvolution, type EvolutionRow, type TilesIndex, type YearSheetSim,
 } from "./temps.ts";
 
@@ -76,35 +76,49 @@ export function sheetVersion(index: Pick<TilesIndex, "source" | "notes"> | null,
 }
 
 // ---------------------------------------------------------------- mentions (Q3, Q4, Q5)
-export const MENTION_VOLUME = "volume aérien total (tige et branches) : le seul volume affiché, même définition pour toutes les essences";
-export const MENTION_CARBONE = "carbone aérien en tC/ha ; les racines, quand elles sont données, sont à part et provisoires";
-export const MENTION_SOL = "sol et bois mort non comptés (hors v1)";
-export const MENTION_PARTIEL = "volume partiel : une part de la surface terrière n'est pas calculée (hors du domaine du tarif ou essence sans tarif)";
 /** Ligne courte, toujours visible sous le chiffre principal. */
 export const MENTIONS_COURTES = "volume aérien total · carbone aérien · sol et bois mort non comptés · non validée écologiquement";
 
-/** Mentions de la fiche v3 : celles du fichier (source unique), complétées de celles exigées par Pascal si elles y
- *  manquaient (jamais retirées) ; aucun doublon ; jamais « volume et carbone non calculés ». */
+/** Mentions exigées par le contrat cell_sheet v3 dans les notes de la fiche (« volume partiel » seulement si une
+ *  année est partielle), absentes de `fileNotes`. La vue ne les écrit pas à la place de la fiche (mission 056). */
+export function missingMentionsV3(fileNotes: string[], anyPartial: boolean): string[] {
+  const need = ["non validée écologiquement", "volume aérien total", "carbone aérien", "sol et bois mort"];
+  if (anyPartial) need.push("volume partiel");
+  return need.filter((key) => !fileNotes.some((n) => n.includes(key)));
+}
+
+/** Préfixe des lignes de signalement ajoutées aux notes affichées : ce ne sont pas des mentions de la fiche. */
+export const SIGNAL_MISSING = "signalement : mention exigée absente de la fiche";
+
+/** Notes affichées de la fiche v3 : celles du fichier, telles quelles et sans doublon (source unique). Rien n'y est
+ *  ajouté pour la compléter : une mention exigée qui manque est dite par une ligne de SIGNALEMENT, qui nomme la
+ *  mention manquante, jamais par la mention elle-même. Jamais « volume et carbone non calculés ». */
 export function sheetNotesV3(fileNotes: string[], anyPartial: boolean): string[] {
   const out = [...new Set(fileNotes)];
-  const need: [string, string][] = [
-    ["non validée écologiquement", MENTION_ECO],
-    ["volume aérien total", MENTION_VOLUME],
-    ["carbone aérien", MENTION_CARBONE],
-    ["sol et bois mort", MENTION_SOL],
-  ];
-  if (anyPartial) need.push(["volume partiel", MENTION_PARTIEL]);
-  for (const [key, mention] of need) if (!out.some((n) => n.includes(key))) out.push(mention);
+  for (const key of missingMentionsV3(out, anyPartial)) {
+    out.push(`${SIGNAL_MISSING} : « ${key} » (contrat cell_sheet v3) ; la vue ne l'écrit pas à sa place`);
+  }
   return out;
 }
 
 // ---------------------------------------------------------------- nombres
 const NOT_COMPUTED = "non calculé";
 
+/** Précision affichée du volume, du carbone et des racines : une décimale. */
+export const BELOW_PRECISION = "< 0,1";
+
+/** Un volume, un carbone ou des racines, à une décimale ; une valeur strictement positive qui s'arrondirait à 0,0
+ *  s'écrit « < 0,1 » : jamais zéro pour une valeur non nulle (mission 056, comme « moins de 1 % » pour la part
+ *  de G). Zéro reste « 0,0 » : c'est un fait (cellule sans arbre vivant). */
+export function amountText(v: number): string {
+  if (v > 0 && v < 0.05) return BELOW_PRECISION;
+  return format1(v);
+}
+
 function valueText(v: number | null | undefined): string {
   if (v === null) return NOT_COMPUTED;
   if (v === undefined) return "absent de la fiche";
-  return format1(v);
+  return amountText(v);
 }
 
 /** Part de G non calculée, en pour cent entiers ; jamais « 0 % » pour une part non nulle, jamais « 100 % » pour une
@@ -175,14 +189,14 @@ export function formatEvolutionV3(c: CellV3, year: number, fileNotes: string[], 
   if (a.volume_m3_ha === null || a.carbon_t_ha === null) {
     headline = `${a.year} : rien n'est calculé (volume et carbone) — ${reasonOf(a)}`;
   } else {
-    headline = `${a.year} : volume aérien total ${format1(a.volume_m3_ha)} m³/ha · carbone aérien ${format1(a.carbon_t_ha)} tC/ha, provisoires`;
+    headline = `${a.year} : volume aérien total ${amountText(a.volume_m3_ha)} m³/ha · carbone aérien ${amountText(a.carbon_t_ha)} tC/ha, provisoires`;
     if (a.volume_partiel) headline += ` (${partialText(a)})`;
   }
 
   const rows: Row[] = base.rows.filter((r) => r.label !== "Volume et carbone");
   if (hasRoots) {
     const v = a.root_carbon_t_ha;
-    rows.push({ label: "Carbone des racines (à part, provisoire)", value: v === null || v === undefined ? valueText(v) : `${format1(v)} tC/ha` });
+    rows.push({ label: "Carbone des racines (à part, provisoire)", value: v === null || v === undefined ? valueText(v) : `${amountText(v)} tC/ha` });
   }
   rows.push({ label: "Tarif (provisoire)", value: tarif === null ? "non dit par la fiche" : `${tarif.name}, commit ${tarif.commit}` });
 

@@ -16,10 +16,12 @@ ORACLE (une seule déclaration des conventions ; ce qui n'est pas dans un contra
     avec D en MÈTRES dans le cylindre π/4·D²·H (pour des m³) et en CENTIMÈTRES dans D/30 (diamètre de référence de
     30 cm ; resultats/tarif_v5/LISEZMOI.md de tarif-nemeton : V = π/4 · (D/100)² · H · exp(…), D en cm). Le tarif
     synthétique n'a ni sigma_log ni facteur de biais : aucune correction n'est appliquée (rien n'est inventé).
-  - Résineux : le contrat ne nomme AUCUN terme du profil de tige ni de E(D) ; ceux du jeu fictif (synth_p1, synth_p2,
-    synth_E) sont des placeholders sans formule écrite (ADR 0005, projet). L'oracle NE RECALCULE PAS le volume d'un
-    résineux : il vérifie ce que le contrat fixe (V aérien = V tige × E, donc proportionnel à E ; biomasse, carbone et
-    racines déduits du volume ; domaine ; comptes). Limite déclarée au rendu.
+  - Résineux : quand ces tests ont été écrits (mission 052), le contrat ne nommait aucun terme du profil de tige ni de
+    E(D). Depuis la mission 053, le contrat params/tarif écrit les deux formes, NEMETON v5 et synthétique du jeu
+    fictif (tige = π/4 · (D/100)² · H · (synth_p1 + synth_p2 / 2), V aérien = tige × synth_E ; ADR 0005). L'oracle de
+    052 NE RECALCULE PAS le volume d'un résineux : il vérifie ce que le contrat fixe (V aérien = V tige × E, donc
+    proportionnel à E ; biomasse, carbone et racines déduits du volume ; domaine ; comptes). Le test exact du sapin
+    est confié au testeur (mission 057).
   - Biomasse aérienne (t) = V (m³) × infradensité (kg/m³) / 1000 ; infradensité de l'essence si elle a une ligne, sinon
     celle de son groupe (contracts/species.csv, colonne groupe).
   - Carbone aérien (tC) = biomasse × fraction_carbone du groupe (aérien total, feuillus comme résineux).
@@ -33,8 +35,10 @@ ORACLE (une seule déclaration des conventions ; ce qui n'est pas dans un contra
   - Arbre-année : une ligne de sim/trees (vivant à la fin de l'année, ou mort dans l'année, écrit une fois).
   - Type de végétation d'une cellule : vegetation_map.tif et .csv (état initial) ; surface forestière d'un type =
     nombre de cellules du type × surface d'une cellule (contrat summary_zone). Un arbre d'une cellule SANS type (le
-    jeu fictif simulé a des recrues en cellule 1423) n'est rangé dans aucun type par l'oracle : rien n'est inventé ;
-    la règle de post pour ce cas n'est écrite dans aucun contrat (question ouverte, rendu de 052).
+    jeu fictif simulé a des recrues en cellule 1423) n'est rangé dans aucun type par l'oracle : rien n'est inventé.
+    La règle de post pour ce cas, ouverte au rendu de 052, est écrite depuis la mission 053 (décision de
+    l'orchestrateur du 26/11/2026) aux contrats post.run (without_vegetation_type) et summary_zone : la cellule est
+    dans sim/summary.parquet, pas dans sim/summary_zone.parquet, et rapport_post.html la liste.
   - rapport_post.html à la racine de la zone, comme les autres rapports de module (convention, plan T10).
 """
 from __future__ import annotations
@@ -501,3 +505,43 @@ def rewrite_tarif(zone_dir: Path, fn) -> None:
     rows = fn(t.to_pylist())
     p.unlink()
     pq.write_table(pa.Table.from_pylist(rows, schema=t.schema), p)
+
+
+# ------------------------------------------------------------------ oracle exact des résineux (mission 057)
+# Forme SYNTHÉTIQUE du jeu fictif, écrite au contrat params/tarif (modèles profil_tige_resineux et
+# expansion_resineux, mission 053) : tige = π/4 · (D/100)² · H · (synth_p1 + synth_p2 / 2), V aérien = tige × synth_E.
+# Exemple du contrat : sapin (61) de 30 cm et 25 m : tige 1,23700 m³, V aérien 1,36070 m³.
+# Biomasse, carbone et racines comme en tête de ce fichier. Les « formes » autres que « contrat » sont des formes
+# FAUSSES, gardées ici pour prouver que le test exact les distingue (mutations du relecteur de la PR n° 10).
+FORMES_RESINEUX = {
+    "contrat": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p1 + p2 / 2.0) * e,
+    "synth_p2/3": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p1 + p2 / 3.0) * e,
+    "p1 et p2 échangés": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p2 + p1 / 2.0) * e,
+    "cylindre seul (p1 + p2)": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p1 + p2) * e,
+    "(p1 + p2) / 2": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p1 + p2) / 2.0 * e,
+    "sans E (volume de tige)": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p1 + p2 / 2.0),
+    "E divisé": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p1 + p2 / 2.0) / e,
+    "π sans le quart": lambda p1, p2, e, d, h: math.pi * (d / 100.0) ** 2 * h * (p1 + p2 / 2.0) * e,
+    "H − 1,30": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * (h - 1.3) * (p1 + p2 / 2.0) * e,
+    "E au carré": lambda p1, p2, e, d, h: math.pi / 4.0 * (d / 100.0) ** 2 * h * (p1 + p2 / 2.0) * e * e,
+}
+
+
+def resineux_synthetique(tarif: Tarif, sp: str, d: float, h: float, forme: str = "contrat") -> dict[str, float | None]:
+    """Volume aérien total (m³), biomasse aérienne (t), carbone aérien (tC) et carbone des racines (tC, None sans
+    modèle racines) d'UN résineux du tarif synthétique, recalculés depuis la seule formule du contrat params/tarif
+    et les lignes de params/tarif.parquet (terme d'essence d'abord, puis de groupe). Refuse un résineux qui n'a pas
+    la forme synthétique : rien n'est pris par défaut."""
+    assert tarif.group(sp) == "resineux", f"{sp} n'est pas un résineux (contracts/species.csv)"
+    prof = tarif.sp.get(sp, {}).get("profil_tige_resineux", {})
+    exp_ = tarif.sp.get(sp, {}).get("expansion_resineux", {})
+    assert {"synth_p1", "synth_p2"} <= set(prof) and "synth_E" in exp_, \
+        f"{sp} : forme synthétique absente du tarif (termes {sorted(prof)} / {sorted(exp_)})"
+    for k, (_, u) in (*prof.items(), *exp_.items()):
+        assert u == "sans_unite", f"{sp} : {k} en {u}, sans_unite attendu"
+    p1, p2, e = prof["synth_p1"][0], prof["synth_p2"][0], exp_["synth_E"][0]
+    v = FORMES_RESINEUX[forme](p1, p2, e, d, h)
+    b = v * tarif.density_t_m3(sp)
+    c = b * tarif.carbon_fraction(sp)
+    r = tarif.roots_ratio(sp)
+    return {"volume_m3": v, "biomass_t": b, "carbon_t": c, "carbon_roots_t": None if r is None else c * r}

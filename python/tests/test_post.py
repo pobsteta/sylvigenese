@@ -80,14 +80,75 @@ def test_forme_synthetique_des_resineux_du_jeu_fictif(tmp_path):
     assert math.isclose(v, 1.360702318086079, rel_tol=1e-12)
 
 
+# Profil NEMETON v5 d'essai : valeurs choisies pour les tests (aucune n'est celle de tarif-nemeton, sauf h_ref = 1,30 m,
+# hauteur de mesure du d130 qui définit la forme). Mission 056 : n_points, marge_sommet et u_min d'essai.
 NEMETON = {"form": "resineux_nemeton", "k0": 0.0, "k1": 0.0, "beta": 0.0, "lam": 2.0, "a": 0.0, "x0": 0.9, "sx": 0.1,
-           "h_ref": 1.3, "D_ref": 30.0, "n_points": 400, "marge_sommet": 0.001, "u_min": 1e-9,
+           "h_ref": 1.3, "D_ref": 30.0, "n_points": 301, "marge_sommet": 0.002, "u_min": 1e-6,
            "E_a": 0.0, "E_b": 0.0, "E_D_plafond": 20.0, "E_D_ref": 30.0}
 
 
 def test_profil_nemeton_a_exposant_nul_est_un_cylindre_exact():
     v = post.stem_volume_nemeton(NEMETON, one(30), one(20))[0]
-    assert math.isclose(v, math.pi / 4 * 0.09 * (20 - 0.001), rel_tol=1e-12)
+    assert math.isclose(v, math.pi / 4 * 0.09 * (20 - 0.002), rel_tol=1e-12)
+
+
+def test_profil_nemeton_lineaire_par_le_terme_a_valeur_analytique_exacte():
+    # k = k0 + (k1 − k0) σ + a ln(D/D_ref) = 0 + 0 + (1/ln 2) ln(60/30) = 1 : d² = D² (1 − x), section linéaire en
+    # hauteur, que la règle des trapèzes intègre EXACTEMENT. Avec x = (hg − h_ref)/(H − h_ref) et la borne haute
+    # H − marge_sommet : tige = π/4 (D/100)² [h_ref + (H − h_ref)(X − X²/2)], X = (H − marge − h_ref)/(H − h_ref).
+    m = {**NEMETON, "a": 1.0 / math.log(2.0)}
+    d, h = 60.0, 22.0
+    big_x = (h - 0.002 - 1.3) / (h - 1.3)
+    expected = math.pi / 4 * 0.36 * (1.3 + (h - 1.3) * (big_x - big_x ** 2 / 2))
+    assert math.isclose(post.stem_volume_nemeton(m, one(d), one(h))[0], expected, rel_tol=1e-12)
+    # D_ref compte : au diamètre de référence, ln(D/D_ref) = 0, k = 0, cylindre jusqu'à H − marge
+    assert math.isclose(post.stem_volume_nemeton(m, one(30), one(h))[0], math.pi / 4 * 0.09 * (h - 0.002), rel_tol=1e-12)
+
+
+def reference_stem_volume(m: dict, d: float, h: float, nodes: int = 400) -> float:
+    """Oracle indépendant du profil NEMETON v5 (contrat import_tarif.tarif, éq. 5b) : l'intégrale CONTINUE de π d(hg)²/4
+    de h_ref à H − marge_sommet, par quadrature de Gauss-Legendre (numpy), plus le cylindre de 0 à h_ref. Elle ne
+    reprend pas la règle des trapèzes de post : l'écart attendu est l'erreur des trapèzes (moins de 1e-4 en relatif
+    sur ces profils lisses), alors qu'un terme faussé du profil déplace le volume de plusieurs pour cent."""
+    h0, eps = m["h_ref"], m["marge_sommet"]
+    top = (h - eps - h0) / (h - h0)
+    t, w = np.polynomial.legendre.leggauss(nodes)
+    x = (t + 1.0) / 2.0 * top
+    w = w * top / 2.0
+    hg = h0 + x * (h - h0)
+    u = np.maximum(1.0 - x, m["u_min"])
+    k = np.maximum(m["k0"] + (m["k1"] - m["k0"]) / (1.0 + np.exp(-(x - m["x0"]) / m["sx"]))
+                   + m["a"] * np.log(d / m["D_ref"]), 0.0)
+    dg = d / 100.0 * np.exp(k / 2.0 * np.log(u) + m["beta"] * (np.exp(-(hg - h0) / m["lam"]) - 1.0))
+    return float((h - h0) * np.sum(w * np.pi * dg ** 2 / 4.0) + h0 * np.pi / 4.0 * (d / 100.0) ** 2)
+
+
+@pytest.mark.parametrize("terms", [
+    {"k0": 1.0, "k1": 3.0, "x0": 0.5, "sx": 0.1},                                   # transition de k : x0 et sx
+    {"k0": 1.0, "k1": 3.0, "x0": 0.5, "sx": 0.1, "beta": 0.3, "lam": 3.0},          # plus l'empattement : beta, lam
+    {"k0": 1.0, "k1": 3.0, "x0": 0.5, "sx": 0.1, "beta": 0.3, "lam": 3.0, "a": 0.4},  # plus l'effet du diamètre : a
+])
+def test_profil_nemeton_complet_egal_a_l_integrale_continue(terms):
+    # Discriminant (mission 056) : doubler sx, décaler x0 de 0,05 ou doubler lam déplace ces volumes de 2,6 à 9 %,
+    # quand la règle des trapèzes reste à moins de 2e-5 de l'intégrale continue.
+    m = {**NEMETON, **terms}
+    d, h = np.array([36.0, 18.0, 55.0]), np.array([24.0, 14.0, 33.0])
+    got = post.stem_volume_nemeton(m, d, h)
+    for i in range(len(d)):
+        assert math.isclose(got[i], reference_stem_volume(m, d[i], h[i]), rel_tol=1e-4), (terms, d[i], h[i])
+
+
+def test_expansion_nemeton_valeurs_analytiques_sous_et_au_dessus_du_plafond():
+    # E(D) = exp(a + b ln(min(D, D_plafond)/D_ref)) = e^a (min(D, D_plafond)/D_ref)^b ; a = ln 2, b = 1, D_ref = 20,
+    # D_plafond = 40 : E(30) = 2 × 1,5 = 3 ; E(40) = 4 ; E(50) = 4 (constant au-delà du plafond). Tige cylindrique
+    # (k = 0) : tige = π/4 (D/100)² (H − marge), connue exactement.
+    m = {**NEMETON, "E_a": math.log(2.0), "E_b": 1.0, "E_D_ref": 20.0, "E_D_plafond": 40.0}
+    d, h = np.array([30.0, 40.0, 50.0]), np.array([20.0, 20.0, 20.0])
+    stem = np.pi / 4 * (d / 100.0) ** 2 * (20.0 - 0.002)
+    assert np.allclose(post.aerial_volume(m, d, h), stem * np.array([3.0, 4.0, 4.0]), rtol=1e-12, atol=0.0)
+    # b compte : avec b = 2, E(30) = 2 × 1,5² = 4,5
+    m2 = {**m, "E_b": 2.0}
+    assert math.isclose(post.aerial_volume(m2, one(30), one(20))[0], stem[0] * 4.5, rel_tol=1e-12)
 
 
 def test_profil_nemeton_a_exposant_2_est_un_cone_au_dessus_de_h_ref():
@@ -110,6 +171,43 @@ def test_expansion_constante_au_dela_du_plafond():
     v = post.aerial_volume(m, np.array([25.0, 40.0]), np.array([20.0, 20.0]))
     e = math.exp(0.05 - 0.2 * math.log(20 / 30))
     assert np.allclose(v / stem, [e, e], rtol=1e-12)
+
+
+def nemeton_fir(rows: list[dict]) -> list[dict]:
+    """Tarif du jeu fictif où le sapin (61) prend la forme NEMETON v5, avec des valeurs d'essai (aucune de tarif-nemeton),
+    et un domaine borné en H/D seulement, comme les résineux du tarif réel : un petit sapin peut y être DANS le domaine.
+    Les termes partagés sont écrits à l'essence, pour laisser 62 et 64 sous la forme synthétique."""
+    base = next(r for r in rows if r["essence"] == "61")
+    kept = [r for r in rows if not (r["essence"] == "61" and (r["modele"] in ("profil_tige_resineux", "expansion_resineux")
+                                                              or r["terme"] in ("dbh_min", "dbh_max", "h_min", "h_max")))]
+    terms = [("profil_tige_resineux", t, v, u) for t, v, u in (
+        ("k0", 1.0, "sans_unite"), ("k1", 3.0, "sans_unite"), ("beta", 0.3, "sans_unite"), ("lam", 3.0, "m"),
+        ("a", 0.4, "sans_unite"), ("x0", 0.5, "sans_unite"), ("sx", 0.1, "sans_unite"), ("h_ref", 1.3, "m"),
+        ("D_ref", 30.0, "cm"), ("n_points", 301.0, "points"), ("marge_sommet", 0.002, "m"), ("u_min", 1e-6, "sans_unite"))]
+    terms += [("expansion_resineux", t, v, u) for t, v, u in (
+        ("a", math.log(2.0), "sans_unite"), ("b", 1.0, "sans_unite"), ("D_plafond", 40.0, "cm"), ("D_ref", 20.0, "cm"))]
+    return kept + [{**base, "modele": m, "terme": t, "valeur": v, "unite": u} for m, t, v, u in terms]
+
+
+def test_sapin_nemeton_sous_h_ref_compte_non_calcule_en_h_below(tmp_path):
+    # mission 056 : un résineux NEMETON dans son domaine (H/D = 125 dans [30 ; 200]) mais de 1,25 m, ou de h_ref +
+    # marge_sommet tout juste, n'a pas de profil intégrable : non calculé (h_below), sans refus de tout le run
+    t = fixture_tarif(tmp_path, nemeton_fir)
+    m = t.species["61"]
+    assert m["form"] == "resineux_nemeton" and m["domain"]["dbh"] == (None, None) and m["domain"]["h"] == (None, None)
+    d = np.array([1.0, 1.0416, 30.0])
+    h = np.array([1.25, 1.302, 25.0])
+    assert post.first_reason(m, d, h).tolist() == [-1, -1, -1], "les trois sapins sont dans le domaine du tarif"
+    assert post.profile_too_short(m, h).tolist() == [True, True, False]
+    trees = {"species": np.array(["61"] * 3, dtype=object), "alive": np.ones(3, bool), "d130": d, "h": h,
+             "x": np.full(3, X0 + 1.0), "y": np.full(3, Y0 - 1.0)}
+    grid = {"transform": from_origin(X0, Y0, RES, RES), "width": 1, "height": 1, "veg_of_cell": np.array([0])}
+    out = post.compute_year(trees, t, grid)
+    assert out["reason"].tolist() == [2, 2, -1] and out["too_short"].tolist() == [True, True, False]
+    assert out["volume"][0] == 0 and out["volume"][1] == 0
+    assert math.isclose(out["volume"][2], reference_stem_volume(m, 30.0, 25.0) * 2.0 * 1.5, rel_tol=1e-4)
+    with pytest.raises(ModuleError, match="aurait dû être compté non calculé"):
+        post.stem_volume_nemeton(m, one(1.0), one(1.25))
 
 
 def test_infradensite_fonction_du_diametre():
@@ -260,6 +358,38 @@ def test_mini_zone_sans_racines_pas_de_colonne(mini):
     assert post.main(["--config", str(mini["config"])]) == 0
     assert "carbon_roots_t_ha" not in pq.read_schema(mini["zone"] / "sim" / "summary.parquet").names
     assert "non calculées" in (mini["zone"] / "rapport_post.html").read_text(encoding="utf-8")
+
+
+def test_mini_zone_petit_sapin_nemeton_compte_et_le_run_passe(mini):
+    # mission 056 : avant, un seul résineux NEMETON de 1,30 m ou moins dans le domaine faisait refuser tout le run
+    rows = nemeton_fir(pq.read_table(FIXTURE_TARIF).to_pylist())
+    pq.write_table(pa.Table.from_pylist(rows, schema=pq.read_schema(FIXTURE_TARIF)), mini["zone"] / "params" / "tarif.parquet")
+    write_sim(mini["zone"], mini["config"], trees=[*TREES, ("F", "61", 1.0, 1.25, 1, "alive")])
+    assert post.main(["--config", str(mini["config"])]) == 0
+    j = json.loads((mini["zone"] / "sim" / "post.json").read_text(encoding="utf-8"))
+    assert j["out_of_domain"]["61"] == {**dict.fromkeys(post.REASONS, 0), "h_below": 2}
+    s = {(r["cell_id"], r["year"], r["species"]): r for r in pq.read_table(mini["zone"] / "sim" / "summary.parquet").to_pylist()}
+    assert s[(1, 2022, "61")]["stems_not_computed_ha"] == 1 / AREA
+    assert 0 < s[(1, 2022, "61")]["basal_area_not_computed_share"] < 1      # le grand sapin B reste calculé
+    report = (mini["zone"] / "rapport_post.html").read_text(encoding="utf-8")
+    assert "Limite du profil de tige NEMETON v5" in report and "61 : 2" in report
+
+
+def test_rapport_ecrit_le_domaine_lu_dans_le_tarif(mini):
+    # mission 056 : règle des feuillus (décision de Pascal du 26/11/2026), règle H/D des résineux, bornes par essence,
+    # toutes lues dans params/tarif.parquet : on change une borne du tarif, le rapport change avec elle
+    rows = pq.read_table(FIXTURE_TARIF).to_pylist()
+    rows = [{**r, "valeur": 17.25} if (r["essence"] == "09" and r["terme"] == "dbh_min") else r for r in rows]
+    pq.write_table(pa.Table.from_pylist(rows, schema=pq.read_schema(FIXTURE_TARIF)), mini["zone"] / "params" / "tarif.parquet")
+    assert post.main(["--config", str(mini["config"])]) == 0
+    report = (mini["zone"] / "rapport_post.html").read_text(encoding="utf-8")
+    assert "décision de Pascal du 26/11/2026" in report
+    assert "multipliées par 0,9 (minimum) et 1,1 (maximum) en diamètre" in report and "2 m en hauteur" in report
+    assert "<tr><td>09</td><td>feuillu</td><td style='text-align:left'>feuillus</td><td>17.25</td><td>100</td>" in report
+    assert "H/D de 30 à 200 pour 61, 62, 64" in report
+    assert "« synthetique_jeu_fictif »" in report
+    assert "tarif NEMETON v5" not in report, "le jeu fictif n'a pas le tarif NEMETON v5 (résineux synthétiques)"
+    assert "forme synthétique du jeu fictif" in report
 
 
 def test_x_et_y_inverses_sont_refuses_et_rien_n_est_publie(mini, capsys):
