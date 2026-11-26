@@ -37,7 +37,7 @@ func test_selftest_sort_a_zero_et_ecrit_les_comptes_de_la_zone_d_essai() -> void
 	assert_eq(int(c.get("trees", -1)), 4)
 	assert_eq(int(c.get("generic_trees", -1)), 1, "62 est dessiné par le générique, compté")
 	assert_gt(int(c.get("grass_instances", -1)), 0, "couvert herbacé 0,3 : de l'herbe autour de la caméra")
-	assert_le(int(c.get("grass_instances", -1)), 200000, "plafond de config.yml (viewer.grass.max_instances)")
+	assert_lte(int(c.get("grass_instances", -1)), 200000, "plafond de config.yml (viewer.grass.max_instances)")
 	assert_eq(int(c.get("seedlings", -1)), 0, "ifn_direct : aucun semis dessiné")
 
 

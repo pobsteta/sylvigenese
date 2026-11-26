@@ -9,7 +9,7 @@ import * as itowns from "itowns";
 import { fromUrl } from "geotiff";
 import proj4 from "proj4";
 import {
-  cellIdFromLambert, formatSheet, indexSheets,
+  cellIdFromLambert, formatSheet, indexSheets, withZone, zoneDirOf,
   type Cell, type TileSheets, type Grid,
 } from "../sheet.ts";
 import {
@@ -548,6 +548,7 @@ async function startViewer(): Promise<void> {
     el.classList.toggle("large", sim);
     el.classList.toggle("v3", version === 3);
     el.setAttribute("data-cell-id", String(id));
+    command = withZone(command, zoneDirOf(cfg.zone)); // la commande dit la zone (Q7, mission 073)
     el.innerHTML = `<button class="fermer" type="button">×</button>` + html +
       `<div>Commande à copier pour la vue massif :</div><code>${command}</code>` +
       `<button class="copier" type="button">Copier la commande</button>`;

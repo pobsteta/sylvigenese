@@ -64,7 +64,7 @@ Ce qu'on doit voir :
 - un bandeau « Résultat provisoire » ; au centre, les arbres (14 080 sur le jeu fictif, compteur en pied de page) posés sur
   la carte colorée des types de végétation, avec sa légende ; un curseur règle l'opacité de la carte ;
 - un clic sur une cellule ouvre sa fiche : station, type de végétation, composition, H0, densité ; volume et carbone
-  « non calculés » ; la commande `viewer-massif -- --x <X> --y <Y> --year <A>` à copier ;
+  « non calculés » ; la commande complète `viewer-massif -- --zone data/<zone> --x <X> --y <Y> --year <A>` à copier (décision Q7 : la vue massif a besoin de savoir où sont les données ; à lancer depuis la racine du dépôt avec `tools/viewer-massif`, qui ouvre la vue Godot avec ces arguments ; moteur : variable `GODOT` ou `godot` du PATH) ;
 - le curseur des années est désactivé (une seule année).
 
 Avec ou sans réseau : tout est servi en local, la page s'affiche sans réseau. Terrain : MNT local sur son emprise.
@@ -87,7 +87,8 @@ Figées au jalon M0 (mission 012) :
 | Rust | 1.97.0, édition 2021 |
 | Python | 3.13 (PyYAML 6.0.3, pytest 9.1.1, pyarrow 26.0.1, frictionless 5.21.0, jsonschema 4.26.0) |
 | Node | 22.23.5, npm 10.9.9, TypeScript 7.0.2 |
-| Godot | 4.6 (projet déclaré, pas encore installé dans la CI) |
+| Godot | 4.6.3-stable (MIT), export Linux seul ; binaire et gabarit `linux_release` vérifiés par SHA-512 dans le job `m6` de la CI (mission 073) |
+| GUT (tests de la vue Godot) | 9.6.1 (MIT), versionné dans `viewer-massif/addons/gut/` ; passer à Godot 4.7.x demande GUT 9.7.1 : décision à part |
 
 En CI, les paquets R (`testthat`, `yaml`, `terra`, `sf`, `targets`, `arrow`) viennent de r2u.
 

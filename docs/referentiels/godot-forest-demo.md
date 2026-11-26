@@ -151,3 +151,12 @@ Liste de contrôle passée, avec les points non cochés suivants :
 ## 11. Ligne de journal proposée
 
 `2026-11-24 | acquereur | Mission 007 : étude de godot-forest-demo (commit 623212f, Godot 4.6) livrée dans docs/referentiels/. Le projet fournit terrain par bruit, MultiMesh par morceaux et herbe centrée sur la caméra ; il ne lit ni sim/, ni parquet, ni EPSG:2154. Licences : dépôt CC BY 4.0, 9 modèles Sketchfab CC-BY-4.0, herbe MIT ; non établies : UniPlayer, textures d'herbe, SunShafts ; musique à exclure. Fil du forum et page FSF non lus (réseau). Décision de la base de viewer-massif : à Pascal.`
+
+## Attribution des reprises (mission 072, 26/11/2026)
+
+Seule reprise effective depuis `godot-forest-demo` (commit `623212f`), décidée par Pascal : le **shader d'herbe MIT**
+(`grass/shaders/grass.gdshader` et `grass.gdshaderinc`, « Copyright (c) 2023 IcterusGames », avis gardé en tête de fichier)
+et la texture **CC0** `grassbushcc008.png` (FabinhoSC, OpenGameArt ; `data/sources/m6a/INDEX.md`), copiés dans
+`viewer-massif/shaders/` et `viewer-massif/textures/`. Rien d'autre : ni les autres shaders ni les textures `normal`, `motion`,
+`wind_pattern` ni `grass.mesh` (origine non établie), ni le code ou les modèles de la démonstration. Mentions complètes :
+`viewer-massif/CREDITS.md`. Le clone d'étude a été supprimé après la copie.

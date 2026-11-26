@@ -1,6 +1,7 @@
-; Projet Godot 4.6 de viewer-massif (ADR 0003) : squelette vide de la mission 012.
-; Non ouvert ni exécuté : Godot n'est pas installé dans l'environnement de la mission.
-; Étape visée plus tard : consultation immersive du massif (lit massif/ et assets/trees/).
+; Projet Godot 4.6 de viewer-massif (ADR 0003, mission 072 : vue massif de M6a).
+; Lancer : godot --path viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A>   (+ --selftest)
+; Rendu : Forward+ par défaut ; repli Compatibility sans toucher à ce fichier :
+;   godot --path viewer-massif --rendering-method gl_compatibility -- ...   (plan T14)
 
 config_version=5
 
@@ -8,3 +9,54 @@ config_version=5
 
 config/name="sylvigenese viewer-massif"
 config/features=PackedStringArray("4.6")
+run/main_scene="res://main.tscn"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"
+rendering_device/fallback_to_opengl3=true
+
+[shader_globals]
+
+sgt_player_position={
+"type": "vec3",
+"value": Vector3(100000, 100000, 100000)
+}
+sgt_player_mov={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+sgt_normal_displacement={
+"type": "sampler2D",
+"value": ""
+}
+sgt_motion_texture={
+"type": "sampler2D",
+"value": ""
+}
+sgt_wind_direction={
+"type": "vec3",
+"value": Vector3(1, 0, 0)
+}
+sgt_wind_strength={
+"type": "float",
+"value": 0.15
+}
+sgt_wind_turbulence={
+"type": "float",
+"value": 1.0
+}
+sgt_wind_movement={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+sgt_wind_pattern={
+"type": "sampler2D",
+"value": ""
+}

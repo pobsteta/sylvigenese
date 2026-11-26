@@ -78,6 +78,26 @@ export function massifViewerCommand(x: number, y: number, year: number): string 
   return `viewer-massif -- --x ${formatNumber(x)} --y ${formatNumber(y)} --year ${year}`;
 }
 
+// Commande COMPLÈTE à copier (décision Q7 de Pascal, 26/11/2026 ; plan m6a T7) : la vue massif a besoin de savoir OÙ sont
+// les données, pas seulement la place. Forme : `viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A>` ; la vue
+// (viewer_args.gd) accepte ce même jeu d'arguments. Le dossier est celui de la zone sous data/ (relatif à la racine du dépôt).
+// Une zone vide est une erreur : jamais une commande sans zone ni une zone devinée.
+export function withZone(command: string, zoneDir: string): string {
+  if (zoneDir.trim() === "" || /\s/.test(zoneDir)) {
+    throw new SheetError(`dossier de zone invalide pour la commande de la vue massif : « ${zoneDir} »`);
+  }
+  const prefix = "viewer-massif -- ";
+  if (!command.startsWith(prefix) || command.includes("--zone")) {
+    throw new SheetError(`commande de la vue massif inattendue : « ${command} »`);
+  }
+  return `${prefix}--zone ${zoneDir} ${command.slice(prefix.length)}`;
+}
+
+// Dossier de la zone sous data/ (config.yml : zone, données sous data/<zone>/).
+export function zoneDirOf(zone: string): string {
+  return `data/${zone}`;
+}
+
 export function formatNumber(v: number): string {
   return Number.isInteger(v) ? String(v) : String(Math.round(v * 1000) / 1000);
 }
