@@ -131,6 +131,47 @@ def test_glb_extras_values_are_checked(tmp_path, capsys, key, value):
     refused(capsys, "tree_model", tree(tmp_path, mutate=bad), key)
 
 
+def test_glb_conifer_not_calibrated_without_b_cible_is_accepted(tmp_path, capsys):
+    """Résineux du générateur : « non calé », raisons en liste, sans b_cible (comme exemplars)."""
+    def not_calibrated(gltf):
+        del gltf["extras"]["b_cible"]
+        gltf["extras"]["calage"] = "non calé"
+        gltf["extras"]["calage_raisons"] = ["densité des rameaux tirée", "stades jeune et perche extrapolés"]
+    accepted(capsys, "tree_model", tree(tmp_path, "61_mature.glb", species="61", mutate=not_calibrated))
+
+
+def test_glb_not_calibrated_reason_may_be_a_string(tmp_path, capsys):
+    def not_calibrated(gltf):
+        gltf["extras"]["calage"] = "non calé"
+        gltf["extras"]["calage_raisons"] = "densité des rameaux tirée"
+    accepted(capsys, "tree_model", tree(tmp_path, "61_mature.glb", species="61", mutate=not_calibrated))
+
+
+def test_glb_calage_outside_enumeration_is_refused(tmp_path, capsys):
+    def bad(gltf):
+        gltf["extras"]["calage"] = "peut-être"
+    refused(capsys, "tree_model", tree(tmp_path, mutate=bad), r"calage")
+
+
+def test_glb_generator_model_without_calage_is_refused(tmp_path, capsys):
+    def no_calage(gltf):
+        del gltf["extras"]["calage"]
+    refused(capsys, "tree_model", tree(tmp_path, mutate=no_calage), r"calage")
+
+
+def test_glb_calibrated_without_b_cible_is_refused(tmp_path, capsys):
+    def no_b(gltf):
+        del gltf["extras"]["b_cible"]
+    refused(capsys, "tree_model", tree(tmp_path, mutate=no_b), r"b_cible")
+
+
+def test_glb_generic_model_with_calage_is_refused(tmp_path, capsys):
+    def with_calage(gltf):
+        gltf["extras"]["calage"] = "non calé"
+    refused(capsys, "tree_model", h.generic_glb(tmp_path / "generique_resineux.glb", "resineux",
+                                                mutate=with_calage), r"calage")
+
+
 def test_glb_unknown_extras_key_is_refused(tmp_path, capsys):
     def extra(gltf):
         gltf["extras"]["foret"] = "x"

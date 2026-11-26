@@ -187,7 +187,7 @@ def glb(path, *, version=2, asset_version="2.0", species="09", stage="mature", c
             "extensionsUsed": ["MSFT_lod"],
             "extras": extras if extras is not None else {
                 "species": species, "stage": stage, "source_commit": "4ee122c", "essence_generateur": essence,
-                "D_cm": 40.0, "H_m": 28.0, "hbh_m": 12.6, "Rh_m": 5.6, "b_cible": 1.8, "graine": 1,
+                "D_cm": 40.0, "H_m": 28.0, "hbh_m": 12.6, "Rh_m": 5.6, "b_cible": 1.8, "calage": "calé", "graine": 1,
                 "H_ref_m": h_ref, "rayon_houppier_ref_m": 5.6, "provisoire": True, "synthetique": True,
                 "feuillage": {"type": "cartes_couleur_unie", "couleur": "#4f7a32"}}}
     if mutate:
