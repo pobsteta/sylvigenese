@@ -16,6 +16,41 @@
   - `valeur` : `non recopiée`, `non lue` ou `absent`. **Aucune valeur numérique n'est écrite**, car aucune page n'a été ouverte (voir plus bas).
   - `lecture` : `recherche web seule` (vu dans un résumé du moteur de recherche, page non ouverte, ce qui n'a pas valeur de lecture).
 
+## 0. Seconde passe du 26/11/2026 (demandée par Pascal) : aucune table ouverte
+
+- **Pourquoi :** Pascal a approuvé neuf hôtes publics (journal l. 332) pour que les tables soient lues.
+- **Ce qui a été fait :** chaque hôte a été essayé deux fois, avec un délai entre les deux essais :
+  - `esapubs.org` ;
+  - `figshare.com` (et `wiley.figshare.com`, une fois) ;
+  - `zenodo.org` ;
+  - `treemig.wsl.ch` ;
+  - `www.frontiersin.org` ;
+  - `hal.inrae.fr` ;
+  - `hal.science` ;
+  - `www.ipcc-nggip.iges.or.jp` ;
+  - `www.sci.muni.cz`.
+- **Résultat :** les neuf refusent les deux fois, avec la même erreur de résolution de nom (« ENOTFOUND, hors des domaines autorisés de la session »). L'approbation n'est pas encore appliquée au réseau de cette session.
+- **Conséquence :**
+  - aucune ligne ne passe au statut `lu` ;
+  - aucune valeur n'est écrite ;
+  - l'appariement de `species.csv` aux listes des sources n'est pas fait ;
+  - le tableau de couverture du §3 reste valable tel quel ;
+  - le tableau 4.4 du GIEC 2006 (pour `post`) n'est pas lu non plus.
+- **Seule information nouvelle**, tirée d'un résumé de recherche et non d'une page ouverte : **la licence de TreeMig n'est pas une seule licence.** D'après le résumé :
+  - le code FORTRAN serait sous CC-BY-NC-SA 4.0 (page `treemig.wsl.ch/en/treemig-framework/`) ;
+  - les données d'entrée seraient sous CC BY 4.0 (page `treemig.wsl.ch/en/details/`) ;
+  - le paquet sur EnviDat serait sous CC-BY-SA ;
+  - aucune licence propre aux fichiers de paramètres d'espèces n'apparaît.
+
+  C'est un écart avec `moteurs-existants.md:25`, qui donnait CC-BY-NC-SA pour TreeMig en bloc. La question reste ouverte jusqu'à ce que la page soit lue (CSV, ligne D06).
+- **Pages à ouvrir dès que le réseau suit**, dans l'ordre de valeur pour la décision :
+  1. annexe A de Niinemets et Valladares 2006 (T01) ;
+  2. `treemig.wsl.ch/en/details/` et `SpecParsMeanings.pdf` : licence, puis paramètres (D06, M01, F01, T02) ;
+  3. le PDF de Lososová 2023 sur `www.sci.muni.cz` : tableau des classes (D01) ;
+  4. le Data Sheet 1 sur Frontiers (D07, M02, T03) ;
+  5. HAL : thèse de Gaudio et Amm 2012 (G05, D05) ;
+  6. le tableau 4.4 du GIEC (pour `post`).
+
 ## 1. Limites de la collecte (à lire d'abord)
 
 - **Hôtes bloqués dans cette session :**
@@ -48,7 +83,7 @@ Le **Pourquoi** est le même pour toutes : choisir les termes et les sources de 
 | **Vittoz et Engler 2007** (D02) | botanistes suisses, pour une typologie | distance à 50 % et à 99 % des graines par type | 80e centile des distances publiées par type | flore suisse, 1 262 espèces | 2007 | les distances varient d'un facteur 5 000 entre types et de moins de 50 au sein d'un type |
 | **Bullock et al. 2017** (D03) | synthèse mondiale de noyaux | 168 noyaux ajustés, 144 espèces | 11 lois ajustées sur des données publiées | monde | 2017 | Dryad ; essences de `species.csv` non vérifiées |
 | **Sagnard 2007, Amm 2012** (D04, D05) | généticiens et écologues (France), pour la recolonisation | distance médiane de dispersion du sapin et du hêtre | modélisation inverse sur pièges à graines ou sur semis | sud-est de la France (Mont Ventoux pour Amm) | 2007, 2012 | quelques peuplements ; Elsevier ou HAL |
-| **TreeMig** (D06, M01, F01, T02, G06, S05) | WSL, pour la migration des essences à l'échelle du paysage | `alfa1`, `alfa2`, `dispFac`, `minmat` (hauteur), `maxseed`, paramètres de lumière des semis et des adultes | paramètres de modèle (Lischke et al. 2006 ; conifères revus d'après Rickebusch et al. 2007) | 30 essences d'Europe centrale | 2006, puis révisions | **liste et valeurs non lues** ; licence CC-BY-NC-SA annoncée, non lue (`moteurs-existants.md:25`) |
+| **TreeMig** (D06, M01, F01, T02, G06, S05) | WSL, pour la migration des essences à l'échelle du paysage | `alfa1`, `alfa2`, `dispFac`, `minmat` (hauteur), `maxseed`, paramètres de lumière des semis et des adultes | paramètres de modèle (Lischke et al. 2006 ; conifères revus d'après Rickebusch et al. 2007) | 30 essences d'Europe centrale | 2006, puis révisions | **liste et valeurs non lues** ; licence CC-BY-NC-SA annoncée, non lue (`moteurs-existants.md:25`) ; d'après la recherche du 26/11, elle viserait le code seul, et les données seraient sous CC BY 4.0 (voir §0) |
 | **LANDIS-II, Sierra Nevada** (D07, M02, T03) | université de Grenade, pour caler PnET-Succession | dispersion efficace et maximale, maturité, tolérance (100-300) | TRY et littérature, puis calage sur la biomasse | Espagne méditerranéenne | 2021 | CC BY ; seules deux lignes vues (57A, 69JC) |
 | **LANDIS-II, Roumanie** (D08, M03) | modélisateurs roumains (Fagaraş) | paramètres LANDIS-II (§2.4) | calage, non lu | Carpates | 2021 | MDPI, non ouvert |
 | **4C** (T04, L02) | PIK Potsdam | tolérance en 5 classes, tirée d'Ellenberg 1986 | dérivation qualitative | Allemagne | projet de 1999 | trois essences ; non indépendant de Tichý |
@@ -179,7 +214,7 @@ Rappel du cadre posé par Pascal :
 3. Fécondité : accepter la voie (c), où l'abondance en trouée est déduite du stock en régime ?
 4. Maturité exprimée par une hauteur (TreeMig) plutôt que par un âge ou un diamètre ?
 5. Dispersion : accepter un noyau par classe (Lososová), commun à toutes les essences d'une classe ?
-6. Hôtes à autoriser pour lire les tables : `esapubs.org` ou `figshare.com` (Niinemets), `zenodo.org` (Tichý, hors dépôt), `treemig.wsl.ch` (TreeMig), `www.frontiersin.org` (LANDIS-II), `hal.inrae.fr` (RReShar), `www.sci.muni.cz` (Lososová, PDF vu en recherche). Il faut aussi lire la licence de TreeMig avant d'en reprendre une valeur.
+6. Hôtes à autoriser : **approuvés par Pascal le 26/11 (journal l. 332)**, mais encore refusés par le réseau de la session lors de la seconde passe (§0). Ce n'est plus une question pour Pascal, c'est un réglage de l'environnement à vérifier par l'orchestrateur. Il faut toujours lire la licence de TreeMig avant d'en reprendre une valeur : elle diffère entre code et données (§0).
 7. Règle de rattachement des codes de genre (19 *Populus*, 36 *Eucalyptus*) et des codes génériques (29AF, 68CE) pour la tolérance et L.
 
 ## 7. Trois points au sol (à vérifier par Pascal)
@@ -195,6 +230,10 @@ Rappel du cadre posé par Pascal :
 ## 9. Ligne de journal proposée
 
 `2026-11-26 · acquereur · 059 · rendu : docs/referentiels/regeneration.{md,csv} (44 lignes, 7 grandeurs, 20 sources) ; aucune table ouverte (esapubs.org et figshare.com bloqués, puis arrêt ; zenodo, treemig.wsl.ch, hal.inrae.fr déjà bloqués le 24/11) ; aucune valeur recopiée ; croissance et survie des semis sourcées pour 7 espar sur 191, absentes ailleurs ; aucune fécondité par arbre ; maturité en hauteur (TreeMig) ou en âge (LANDIS-II), jamais en diamètre ; écart BRIEF §7.3 (L d'Ellenberg) / spec §8 (Niinemets) sur l'indice de tolérance ; 7 questions pour Pascal.`
+
+Seconde passe :
+
+`2026-11-26 · acquereur · 059 (seconde passe) · les 9 hôtes approuvés par Pascal (esapubs.org, figshare.com, zenodo.org, treemig.wsl.ch, www.frontiersin.org, hal.inrae.fr, hal.science, www.ipcc-nggip.iges.or.jp, www.sci.muni.cz) refusés deux fois chacun (ENOTFOUND) : approbation non appliquée au réseau de la session ; aucune table lue, aucune valeur ni appariement écrit, couverture inchangée ; seul ajout : la licence de TreeMig différerait entre code (CC-BY-NC-SA) et données (CC BY 4.0) selon un résumé de recherche, écart avec moteurs-existants.md:25 ; rendu : regeneration.{md,csv} (§0, colonnes lecture et licence).`
 
 ## 10. Liste de contrôle
 
