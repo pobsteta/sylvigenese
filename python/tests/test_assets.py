@@ -16,16 +16,21 @@ import numpy as np
 import pyarrow.parquet as pq
 import pytest
 import rasterio
+import yaml
 from rasterio.transform import from_origin
 from rasterio.warp import transform as warp_transform
 
 from sylvigenese import assets
-from sylvigenese.assets_lib import altitude, initial_state, models, frame, tiles
+from sylvigenese.assets_lib import altitude, glb, initial_state, models, frame, tiles
 from sylvigenese.common import ModuleError
 
 ROOT = Path(__file__).resolve().parents[2]
 FICTITIOUS_ZONE = ROOT / "tests" / "fixtures" / "zone_fictive"
-CONFIG = {"zone": "zone_fictive", "crs": "EPSG:2154"}
+REPO_CONFIG = yaml.safe_load((ROOT / "config.yml").read_text(encoding="utf-8"))
+# réglages d'affichage du dépôt (assets.models, viewer) : exigés par assets depuis la mission 070 ; sans exemplars_dir,
+# tous les arbres sont dessinés par les modèles génériques
+DISPLAY = {"assets": {"models": REPO_CONFIG["assets"]["models"]}, "viewer": REPO_CONFIG["viewer"]}
+CONFIG = {"zone": "zone_fictive", "crs": "EPSG:2154", **DISPLAY}
 SUMMARY: dict = {}  # résumé rendu par produce_initial_state (rempli par la fixture `zone`)
 
 
@@ -34,7 +39,7 @@ def from_root(monkeypatch):
     monkeypatch.chdir(ROOT)
 
 
-ASSET_OUTPUTS = shutil.ignore_patterns("tiles", "web", "assets", "sim")
+ASSET_OUTPUTS = shutil.ignore_patterns("tiles", "web", "assets", "sim", "massif")
 
 
 @pytest.fixture(scope="module")
@@ -47,7 +52,7 @@ def zone(tmp_path_factory, zone_chain):
 
 
 def fingerprints(directory: Path) -> dict:
-    outputs = [p for subset in ("assets", "tiles", "web") for p in sorted((directory / subset).rglob("*")) if p.is_file()]
+    outputs = [p for subset in ("assets", "tiles", "web", "massif") for p in sorted((directory / subset).rglob("*")) if p.is_file()]
     return {str(p.relative_to(directory)): hashlib.sha256(p.read_bytes()).hexdigest() for p in outputs}
 
 
@@ -150,7 +155,7 @@ def test_un_arbre_connu_tombe_au_bon_endroit(zone):
             best = (distances[i], (node["name"], scale[i]))
     assert best[0] < 0.01  # à moins d'un centimètre
     name, scale = best[1]
-    assert name == "resineux_instances"  # espèce 61 (Abies alba), groupe résineux de species.csv
+    assert name == "generique_resineux"  # espèce 61 (Abies alba), groupe résineux de species.csv
     assert scale == pytest.approx([math.sqrt(15.75 / math.pi), 25.24, math.sqrt(15.75 / math.pi)], abs=1e-3)
 
 
@@ -181,7 +186,8 @@ def test_tuiles_et_volumes_englobants(zone):
 
 
 def test_contenu_porte_l_extension_et_les_marques_generiques(zone):
-    for file in sorted((zone / "tiles" / "2021").glob("t_*.gltf")) + sorted((zone / "assets" / "trees").glob("*.gltf")):
+    assert not list((zone / "assets" / "trees").glob("*.gltf")), "les modèles sont des .glb depuis la mission 070"
+    for file in sorted((zone / "tiles" / "2021").glob("t_*.gltf")):
         doc, binary = read_gltf(file)
         assert doc["asset"]["version"] == "2.0"
         assert doc["extras"]["generique"] is True and doc["extras"]["provisoire"] is True
@@ -191,9 +197,12 @@ def test_contenu_porte_l_extension_et_les_marques_generiques(zone):
 
 
 def test_deux_modeles_generiques(zone):
-    assert sorted(p.name for p in (zone / "assets" / "trees").glob("*.gltf")) == ["feuillu.gltf", "resineux.gltf"]
+    """Sans exemplars_dir, tous les arbres sont dessinés par les deux modèles génériques, trois niveaux chacun."""
+    assert sorted(p.name for p in (zone / "assets" / "trees").glob("*")) == ["generique_feuillu.glb", "generique_resineux.glb"]
     for group in models.GROUPS:
-        doc, binary = read_gltf(zone / "assets" / "trees" / f"{group}.gltf")
+        doc, binary = glb.read_container((zone / "assets" / "trees" / f"{group and 'generique_' + group}.glb").read_bytes())
+        assert doc["extras"] == {"generique": True, "groupe": group, "provisoire": True, "synthetique": True}
+        assert len(doc["meshes"]) == 3 and "MSFT_lod" in doc["extensionsUsed"]
         positions = doc["meshes"][0]["primitives"][1]["attributes"]["POSITION"]
         max_corner = doc["accessors"][positions]["max"]
         assert max(max_corner[0], max_corner[2]) <= 1.0 + 1e-6 and max_corner[1] == pytest.approx(1.0)  # 1 m de haut, 1 m de rayon
@@ -237,7 +246,7 @@ def test_validateur_conforme_sur_toutes_les_sorties(zone):
 
 def test_rejouable_a_l_identique(zone, tmp_path):
     before = fingerprints(zone)
-    assert len(before) == 19  # 4 modèles, 9 fichiers de tuiles, tiles/index.json (mission 047), 4 fiches, 1 COG
+    assert len(before) == 22  # 2 modèles .glb, 9 fichiers de tuiles, tiles/index.json, 4 fiches, 1 COG, massif/ (index + 4 blocs)
     assets.produce_initial_state(CONFIG, zone)
     assert fingerprints(zone) == before
 
@@ -263,21 +272,21 @@ def test_zone_sans_marqueur_et_sans_raf20_est_une_erreur(tmp_path, copy_without_
     (directory / "zone.yml").unlink()
     assert not assets.is_fictitious_zone(directory)
     with pytest.raises(ModuleError, match="raf20_grid"):
-        assets.produce_initial_state({"zone": "massif_reel"}, directory)
+        assets.produce_initial_state({**CONFIG, "zone": "massif_reel"}, directory)
 
 
 def test_marqueur_false_ne_dispense_pas_de_raf20(tmp_path, copy_without_outputs):
     directory = copy_without_outputs
     (directory / "zone.yml").write_text("schema_version: 1\nfictive: false\nreason: zone réelle\n", encoding="utf-8")
     with pytest.raises(ModuleError, match="raf20_grid"):
-        assets.produce_initial_state({"zone": "massif_reel"}, directory)
+        assets.produce_initial_state({**CONFIG, "zone": "massif_reel"}, directory)
 
 
 def test_copie_de_zone_sous_un_autre_nom_herite_du_marqueur(tmp_path, copy_without_outputs):
     """Variante copiée (autre nom de zone) : le marqueur fait foi, pas le nom ; l'état initial réussit."""
     directory = copy_without_outputs
     assert assets.is_fictitious_zone(directory)
-    summary = assets.produce_initial_state({"zone": "m4_variante"}, directory)
+    summary = assets.produce_initial_state({**CONFIG, "zone": "m4_variante"}, directory)
     assert summary["trees"] == 14080
     tileset = json.loads((directory / "tiles" / str(summary["year"]) / "tileset.json").read_text(encoding="utf-8"))
     assert tileset["extras"]["raf20"] is None and "fictive" in tileset["extras"]["altitude"]

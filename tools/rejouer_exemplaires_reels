@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Rejoue la construction des .glb sur un export RÉEL d'exemplaires (mission 070, plan m6a §6, « jeu de contrôle »).
+#
+# Pourquoi : la CI ne voit que la fixture synthétique ; elle prouve le chemin segments -> .glb -> tuiles et vue,
+# pas que les vrais exemplaires de tarif-nemeton le passent. Ce script rejoue ce chemin sur l'export réel, avec les
+# MÊMES fonctions que la CI, sans copier aucune donnée dans le dépôt (les exemplaires et les .glb réels restent hors
+# dépôt : licence du générateur, ADR 0007).
+#
+# Usage :
+#   tools/rejouer_exemplaires_reels <dossier_exemplaires> [--sortie <dossier>] [--config <config.yml>]
+#     <dossier_exemplaires>  les <essence>_<stade>.parquet écrits par synth_export_exemplaires.py (tarif-nemeton)
+#     --sortie               où écrire les .glb et le rapport (hors du dépôt, ou sous data/) ; défaut : dossier temporaire
+#     --config               config.yml (assets.models : budgets, MSFT_screencoverage ; viewer.foliage) ; défaut : celui du dépôt
+#
+# Ce qu'il fait : (1) valide chaque exemplaire au contrat assets.exemplars ; (2) construit les .glb (trois niveaux de
+# détail) deux fois et compare les octets ; (3) valide chaque .glb au contrat assets.tree_model ; (4) écrit
+# <sortie>/rejouer_exemplaires.csv (une ligne par modèle : segments lus, triangles par niveau, calage, empreinte), de
+# quoi compter les arbres réels traités (rapport bench/results/m6_controle_reel.md).
+# Codes de sortie : 0 tout conforme et identique ; 2 impossible (cause nommée) ; 3 non conforme ou non identique.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+PYTHONPATH="python${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m sylvigenese.assets_lib.glb "$@"

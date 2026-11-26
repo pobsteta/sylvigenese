@@ -554,3 +554,54 @@ def string_values(obj) -> list[str]:
 def sans_accent(s: str) -> str:
     import unicodedata
     return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn").lower()
+
+
+# ------------------------------------------------------------------ classes de modèle (M6a, mission 069)
+# Avant M6a, deux modèles génériques (feuillu, résineux). Avec M6a : un modèle par (essence, stade) quand un exemplaire
+# existe (assets.models.exemplars_dir de config.yml), sinon le générique du groupe (décision Q3 de Pascal, sans emprunt) ;
+# le stade d'un ARBRE est h / h_pot de l'arbre avec les seuils de biomes/stades/stage_breaks.yml (décision Q8).
+# Ces fonctions donnent la CLASSE attendue de chaque arbre ; les tests exigent « une classe = un modèle, deux classes =
+# deux modèles ». Sans exemplars_dir dans config.yml, il n'y a que deux classes (les deux génériques) : les tests passent
+# alors comme avant, et ils épinglent (essence, stade) dès que le dossier d'exemplaires est configuré.
+STAGES = ("young", "pole", "mature", "old")
+
+
+def configured_exemplars() -> set[tuple[str, str]]:
+    import yaml
+    cfg = yaml.safe_load((ROOT / "config.yml").read_text(encoding="utf-8"))
+    d = (((cfg.get("assets") or {}).get("models")) or {}).get("exemplars_dir")
+    if not d:
+        return set()
+    d = Path(d) if Path(d).is_absolute() else ROOT / d
+    out = set()
+    for p in sorted(d.glob("*.parquet")):
+        meta = {k.decode(): v.decode() for k, v in (pq.read_schema(p).metadata or {}).items()}
+        out.add((meta["essence"], meta["stage"]))
+    return out
+
+
+def stage_breaks() -> list[float]:
+    import yaml
+    d = yaml.safe_load((ROOT / "biomes" / "stades" / "stage_breaks.yml").read_text(encoding="utf-8"))
+    return [float(v) for v in d["breaks"]]
+
+
+def model_classes(zone_dir: Path, species, x, y, h) -> tuple[list, np.ndarray]:
+    """(classe de chaque arbre, masque des arbres loin d'un seuil de stade). Classe : ('generique', groupe) ou
+    (essence du générateur, stade)."""
+    available = configured_exemplars()
+    rows = list(csv.DictReader(open(SPECIES_CSV, encoding="utf-8", newline="")))
+    by = {r["espar"]: r for r in rows}
+    with rasterio.open(zone_dir / "site_potential.tif") as r:
+        hp = r.read(1)
+    rc = [cell_of(a, b) for a, b in zip(x, y)]
+    ratio = np.array([float(v) / float(hp[i, j]) for v, (i, j) in zip(h, rc)])
+    br = np.array(stage_breaks())
+    stage = [STAGES[int((q >= br).sum())] for q in ratio]
+    franc = ~np.any(np.abs(ratio[:, None] - br[None, :]) < 0.003, axis=1)
+    classes = []
+    for s, st in zip(species, stage):
+        row = by[str(s)]
+        ess = row["tarif_nemeton_code"]
+        classes.append((ess, st) if ess and (ess, st) in available else ("generique", row["groupe"]))
+    return classes, franc

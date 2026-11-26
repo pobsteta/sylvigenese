@@ -104,16 +104,22 @@ def test_echelle_verticale_proportionnelle_a_h_dans_chaque_modele(instances, ora
         assert r.max() / r.min() < 1.01, f"modèle {mod} : scale_y/h varie de {r.min():.4f} à {r.max():.4f}"
 
 
-def test_les_deux_groupes_ont_chacun_leur_modele(instances, oracle):
-    # Feuillu (03, 09) et résineux (61, 62, 64) : un modèle par groupe, pas de mélange.
+def test_chaque_classe_essence_stade_a_son_modele_et_deux_classes_n_en_partagent_pas(instances, oracle):
+    # M6a (mission 069) : feuillus (03, 09) et résineux (61, 62, 64) ; un modèle par (essence, stade) avec exemplaire, sinon le
+    # générique du groupe, jamais emprunté à une autre essence (Q3). Sans exemplars_dir : deux classes, comme avant.
     inst, m = instances["inst"], instances["match"]
-    groupe = H.species_group()
     ok = m["tree_of"] >= 0
-    g = np.array([groupe[str(s)] for s in oracle.trees["species"][m["tree_of"][ok]]])
-    models = inst["model"][ok]
-    par_groupe = {gr: set(models[g == gr]) for gr in ("feuillu", "resineux")}
-    assert all(len(v) == 1 for v in par_groupe.values()), f"modèles par groupe : {par_groupe}"
-    assert par_groupe["feuillu"] != par_groupe["resineux"], "feuillus et résineux ont le même modèle"
+    idx = m["tree_of"][ok]
+    cl, franc = H.model_classes(H.ZONE, oracle.trees["species"][idx], oracle.trees["x"][idx], oracle.trees["y"][idx], oracle.trees["h"][idx])
+    mo = inst["model"][ok]
+    par = {}
+    for c, f, k in zip(cl, franc, mo):
+        if f:
+            par.setdefault(c, set()).add(k)
+    assert all(len(v) == 1 for v in par.values()), f"une classe a plusieurs modèles : { {c: len(v) for c, v in par.items() if len(v) > 1} }"
+    modeles = [next(iter(v)) for v in par.values()]
+    assert len(set(modeles)) == len(modeles), "deux classes différentes partagent un modèle (emprunt)"
+    assert {c for c in par if c[0] == "generique"} >= {("generique", "feuillu")} or all(c[0] != "generique" for c in par)
 
 
 def test_les_essences_de_trees_init_ont_un_groupe_au_referentiel(oracle):

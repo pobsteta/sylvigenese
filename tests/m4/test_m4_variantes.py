@@ -63,15 +63,22 @@ def test_un_arbre_retire_retire_une_seule_instance(base, zone_sans_arbre):
     assert (ajoutees, retirees, changees) == (set(), {_cle(zone_sans_arbre["x"], zone_sans_arbre["y"])}, set())
 
 
-def test_un_arbre_change_de_groupe_change_de_modele_et_rien_d_autre(base, zone_essence):
+def test_un_arbre_change_d_essence_change_de_modele_et_rien_d_autre(base, zone_essence):
+    # 61 (résineux) devient 03 (chêne) : son modèle change (classe de l'essence et du stade de l'arbre, M6a) ; aucune place ne bouge.
     _ok(zone_essence)
     var, _, _ = H.per_tree_view(zone_essence["dir"])
     ajoutees, retirees, changees = _diff(base, var)
     k = _cle(zone_essence["x"], zone_essence["y"])
     assert (ajoutees, retirees, changees) == (set(), set(), {k}), f"changées : {len(changees)}"
-    assert var[k][1] != base[k][1], "le modèle devrait passer de résineux à feuillu"
-    autres_feuillus = {v[1] for key, v in base.items() if key != k and v[1] == var[k][1]}
-    assert autres_feuillus, "le nouveau modèle doit être celui des autres feuillus"
+    assert var[k][1] != base[k][1], "le modèle devrait changer avec l'essence"
+    t = H.read_trees_init(zone_essence["dir"])
+    cl, franc = H.model_classes(zone_essence["dir"], t["species"], t["x"], t["y"], t["h"])
+    i = list(map(str, t["tree_id"])).index(zone_essence["tid"])
+    memes = [j for j in range(len(cl)) if cl[j] == cl[i] and franc[j] and j != i]
+    assert memes, f"aucun autre arbre de la classe {cl[i]}"
+    xy = lambda j: _cle(float(t["x"][j]), float(t["y"][j]))     # noqa: E731
+    autres = {var[xy(j)][1] for j in memes if xy(j) in var}
+    assert autres == {var[k][1]}, "le nouveau modèle doit être celui des autres arbres de la même classe (essence, stade)"
 
 
 def test_une_cellule_dont_le_type_change_change_une_seule_fiche(chaine, zone_vegetation, oracle):
