@@ -203,7 +203,12 @@ def test_s8_les_essences_ajoutees_sont_des_copies_provisoires_sans_valeur_ecolog
     reg = pq.read_table(d / "params" / "regeneration.parquet").to_pydict()
     especes = set(pq.read_table(d / "cohorts_init.parquet").column("species").to_pylist())
     assert set(reg["species"]) == especes
-    assert all(reg["provisoire"]) and all("aucune valeur écologique" in s for s in reg["source"])
+    assert all(reg["provisoire"])
+    for term, val, s in zip(reg["term"], reg["value"], reg["source"]):
+        if term == "stress_mortality":
+            assert "TreeMig éq. 40" in s and val == 0.184, "stress_mortality hors TreeMig éq. 40"
+        else:
+            assert "aucune valeur écologique" in s, f"terme {term} : source sans « aucune valeur écologique »"
     par = {}
     for sp, term, v in zip(reg["species"], reg["term"], reg["value"]):
         par.setdefault(sp, {})[term] = v

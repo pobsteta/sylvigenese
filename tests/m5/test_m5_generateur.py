@@ -108,7 +108,13 @@ def test_toutes_les_valeurs_de_parametres_sont_synthetiques_et_provisoires(zone)
             continue
         t = pq.read_table(p).to_pydict()
         assert all(t["provisoire"]), f"{p.name} : valeur non provisoire"
-        assert all("synthétique" in s for s in t["source"]), f"{p.name} : source non dite synthétique"
+        termes = t.get("term", [None] * len(t["source"]))
+        for term, val, s in zip(termes, t["value"], t["source"]):
+            if p.name == "regeneration.parquet" and term == "stress_mortality":
+                # seul terme repris d'une source citée (TreeMig), toujours provisoire
+                assert "TreeMig éq. 40" in s and val == 0.184, f"{p.name} : stress_mortality hors TreeMig éq. 40"
+            else:
+                assert "synthétique" in s, f"{p.name} : source non dite synthétique"
     c = pq.read_table(zone["dir"] / "cohorts_init.parquet").to_pydict()
     assert all("synthétique" in s for s in c["source"])
 
