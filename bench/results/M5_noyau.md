@@ -23,6 +23,7 @@ extrapolations (E) viennent de `python3 bench/m5/extrapoler_noyau.py`, qui ne li
 | `m5_noyau_mesures.csv` | une ligne par exécution de `simulate` : calcul, écriture, durée, écoulé, mémoire résidente | « mesures Lx » |
 | `m5_noyau_pas.csv` | calcul et écriture de t0 et de chaque année | « pas Lx » |
 | `m5_noyau_fft.csv` | la convolution de dispersion seule (médiane de 5), appel de `simulate::dispersion` | « fft Lx » |
+| `m5_noyau_derive.csv` | calcul à K = 3 de cette séance contre M5.md §1, même configuration | « dérive Lx » |
 | `m5_noyau_rapports.csv` | rapports calcul et mémoire à K = 3 (même N, S, fils) | « rapports Lx » |
 | `m5_noyau_extrapolation.csv`, `m5_noyau_temps_c20.csv` | extrapolations (E) à C20 | « extra Lx », « temps C20 Lx » |
 
@@ -65,11 +66,16 @@ moteur dans les 22 lignes (colonnes `rss_time_bytes` et `memory_peak_rss_bytes`)
 
 - **K n'a pas d'effet détectable sur le calcul.** Les rapports à K = 3 (rapports L2 à L15) vont de 0,92 à 1,09, sans
   ordre : à N = 4 000, 0,99 (K = 20) et 0,94 (K = 60) ; à N = 2 000, 4 fils, 0,98 puis 1,09 ; à S = 8, 4 fils, 1,07
-  puis 1,08. Les 4 fils à N = 1 000, S = 2 donnent 9,93 s aux trois K. Une seule répétition : le bruit d'une
-  exécution (de l'ordre de ±5 à 9 %) couvre ce qu'on voit.
-- **Écart avec M5.md.** Dans cette séance, K = 3 est de 10 à 25 % plus lent que les mesures de M5.md à même
-  configuration (N = 1 000, 1 fil : 25,4 s contre 19,9 s ; N = 4 000, 4 fils : 133 s contre 118 s). C'est une
-  dérive entre séances, plus grande que l'effet de K. Les comparaisons de ce document se font donc **à
+  puis 1,08. Les 4 fils à N = 1 000, S = 2 donnent 9,93 s aux trois K. Une seule répétition par
+  exécution, et K a été joué **toujours dans l'ordre 3, 20, 60**, sans alternance : une dérive de la machine dans le
+  temps se confond donc avec l'effet de K. Conclusion : **aucun effet de K au-dessus du bruit d'une seule
+  exécution** ; la micro-mesure de la section 2 le justifie (au plus 0,3 à 0,6 s de FFT en plus sur des calculs de 65
+  à 133 s).
+- **Écart avec M5.md.** Dans cette séance, K = 3 est de **6 % à 56 % plus lent** que les mesures de M5.md §1 à même
+  configuration (`m5_noyau_derive.csv`, ligne par ligne : L2 N = 1 000, 1 fil, 25,4 s contre 19,9 s, +28 % ; L3
+  N = 1 000, 4 fils, +56 % ; L4 N = 2 000, 1 fil, +22 % ; L5 N = 2 000, 4 fils, +18 % ; L6 N = 4 000, 4 fils, 133 s
+  contre 118 s, +13 % ; L7 S = 8, N = 1 000, 1 fil, +10 % ; L8 4 fils, +6 %). C'est une dérive entre séances,
+  plus grande que l'effet de K. Les comparaisons de ce document se font donc **à
   l'intérieur de la séance**.
 - **Écriture** : sans lien avec K (3,0 à 3,5 s à N = 1 000, 11,2 à 12,6 s à N = 2 000, 52,6 à 55,1 s à N = 4 000).
 
@@ -113,14 +119,17 @@ que dans la **taille du tableau de la FFT**, `taille_rapide(N + 2K)` de côté, 
 - **Coût de K sur la FFT : de +3 % à +9 %** de K = 3 à K = 60 à N = 4 000 (0,500 → 0,516 s à 4 fils ; 0,787 →
   0,858 s à 1 fil), +18 % à N = 2 000, +34 % à N = 1 000 (4 fils). Il suit le carré du côté de la FFT, qui croît de
   +8,5 % à N = 4 000 (4 032 → 4 200) et de +23 % à N = 1 000 pour K = 60.
-- **Le spectre du noyau est un coût fixe, une fois par essence candidate** (0,4 à 0,5 s à N = 4 000), indépendant de
-  K à la précision de la mesure.
-- **Part de la FFT dans le calcul (E, hypothèse non vérifiée)** : si `simulate` fait une convolution par candidate et
-  par année (lecture de `simulate/src/pas.rs`, boucle de 5a), 10 années × 2 candidates = 20 convolutions à S = 2 et
-  80 à S = 8. La FFT pèserait alors 10,0 s sur 133,3 s à N = 4 000, 4 fils, K = 3 (7,5 %) et 10,3 s sur 125,3 s à
-  K = 60 ; à S = 8, N = 1 000, 4 fils : 1,9 s sur 65,9 s (2,9 %) et 2,5 s sur 71,0 s (3,6 %). **La dispersion est
-  donc de 3 à 8 % du calcul** : le reste est la démographie par cellule, qui ne dépend pas de K. Le surcoût de K = 60
-  vaut au plus de 0,3 à 0,6 s sur ces calculs, bien en dessous du bruit de la section 1.1.
+- **Le spectre du noyau est calculé une fois par essence candidate** (0,4 à 0,5 s à N = 4 000). Il croît un peu
+  avec K : de 0,037 à 0,085 s à N = 1 000, 4 fils (fft L3 et L7), 0,434 à 0,433 s à N = 4 000, 4 fils (fft L15 et
+  L19) ; négligeable (une fois par candidate, contre des centaines de secondes de calcul).
+- **Part de la FFT dans le calcul (E)** : la boucle du niveau SER (`simulate/src/ser.rs`, 1074 à 1098) fait **une
+  convolution par essence candidate et par pas annuel**, sautée si le champ de graines est entièrement nul (1087 à
+  1098 : `a_disperser`). Avec 10 pas annuels et le champ non nul (la SER fictive porte des semenciers partout, non
+  vérifié année par année), cela fait 10 × 2 = 20 convolutions à S = 2 et 10 × 8 = 80 à S = 8. La FFT pèse alors
+  10,0 s sur 133,3 s à N = 4 000, 4 fils, K = 3 (7,5 %) et 10,3 s sur 125,3 s à K = 60 ; à S = 8, N = 1 000,
+  4 fils : 1,9 s sur 65,9 s (2,9 %) et 2,5 s sur 71,0 s (3,6 %). **La dispersion est donc de 3 à 8 % du calcul.** Le
+  surcoût de K = 60 vaut au plus 0,3 à 0,6 s sur ces calculs. Ce que K pourrait changer ailleurs dans le calcul n'est
+  pas démontré : seules les exécutions de la section 1 le disent, sans effet visible.
 
 ## 3. Ce que K = 20 et 60 changent au verdict de M5.md §5 pour C20 (extrapolation (E))
 
@@ -131,21 +140,23 @@ N = 1 000), pas une mesure à C20 ni sur le PC de Pascal.** Elle garde les hypot
 **Mémoire (extra L2 à L4).** La formule du moteur, qui retrouve les 22 estimations mesurées à l'octet près, donne
 pour le cas de référence :
 
-| K | Côté de la FFT (E) | Mémoire (E) | Face à 28 Go utilisables (31 Go moins 10 %) |
+| K | Côté de la FFT (E) | Mémoire (E) | Face à 27,9 Go utilisables (31 × 0,9, hypothèse du banc, M5.md §4.2 qui l'arrondit à 28) |
 |---|---|---|---|
-| 3 | 7 000 | 21,49 Go | marge 6,5 Go (M5.md : 21,5 Go) |
-| 20 | 7 000 | 21,49 Go | marge 6,5 Go |
-| 60 | 7 056 | 21,55 Go | marge 6,45 Go |
+| 3 | 7 000 | 21,49 Go | marge 6,4 Go (M5.md : 21,5 Go) |
+| 20 | 7 000 | 21,49 Go | marge 6,4 Go |
+| 60 | 7 056 | 21,55 Go | marge 6,35 Go |
 
 **+63 Mo (+0,3 %) à K = 60, rien à K = 20** (le côté de 6 966 est arrondi au même 7 000 que pour K = 3).
-Les quatre conditions de M5.md §5 (12 essences, plus de dix classes de semis, rectangle englobant plus de deux
-fois la SER, toutes cellules) ne bougent pas : le cas « rectangle deux fois plus grand » passe de 27,65 à
-27,96 Go à K = 20 et 60 (extra L5 à L7), toujours à la limite de 28 Go (0,04 Go de marge) ; S = 12 passe de 30,38 à
-30,46 Go (toujours non). Les spectres pèsent 3,14 Go (M5.md §4.2) à K = 3 et 3,19 Go à K = 60. **K ne change pas le
-verdict mémoire : « oui sous conditions », avec les mêmes conditions.**
+Trois des quatre conditions de M5.md §5 (12 essences ou plus, plus de dix classes de semis, toutes les cellules)
+ne bougent pas ; S = 12 passe de 30,38 à 30,46 Go (toujours non, contre 27,9 Go). **La condition du rectangle
+englobant se resserre** : le cas « rectangle deux fois plus grand » passe de 27,65 Go (K = 3, sous 27,9 Go) à 27,96 Go
+à K = 20 et 60 (extra L5 à L7), soit **0,06 Go au-dessus de 27,9 Go**. Il faut donc que le rectangle reste un peu
+sous deux fois la SER pour K = 20 et 60 (encore à la limite à K = 3, 0,25 Go de marge). Les spectres pèsent 3,14 Go
+(M5.md §4.2) à K = 3 et 3,19 Go à K = 60. **Le verdict mémoire « oui sous conditions » reste vrai** pour les trois K,
+avec une condition resserrée.
 
 **Temps (temps C20 L2 et L3).** Aucun surcoût de K n'est détectable ; je majore donc le calcul de M5.md §4.1 par
-le plus grand rapport observé, 1,09 (rapports L13 : bruit, non un effet établi) et je laisse l'écriture et le
+le plus grand rapport observé, 1,09 (rapports L13, sans effet établi : K joué dans l'ordre 3, 20, 60) et je laisse l'écriture et le
 validateur inchangés :
 
 | Fils | Total à K = 3, M5.md (E) | Total majoré, K = 20 ou 60 (E) | Marge sur 5 jours (432 000 s) |
@@ -155,26 +166,25 @@ validateur inchangés :
 
 Cette majoration est très prudente : la FFT n'est que de 3 à 8 % du calcul (section 2), et à C20 le tableau de la
 FFT ne grossit que de 1,6 % de K = 3 à K = 60 (côté 7 000 → 7 056 ; le côté de la FFT à N = 4 000, lui, grossissait de
-8,5 %). À titre de comparaison, la dérive entre séances (10 à 25 %, section 1.1) pèse plus que K. **K = 20 et 60
+8,5 %). À titre de comparaison, la dérive entre séances (6 à 56 %, section 1.1 ; `m5_noyau_derive.csv`) pèse plus que K. **K = 20 et 60
 ne changent pas le verdict du temps : « oui », avec une marge de 2,9 (1 fil) à 7,0 (4 fils).**
 
 **Dit autrement.** Le coût de K, que la relecture du cycle 11 disait « non mesuré », est mesuré : au plus +1 à 4 %
-de mémoire et rien de détectable en temps jusqu'à N = 4 000. Le verdict de M5.md §5 tient pour les trois valeurs de K.
+de mémoire et rien de détectable en temps jusqu'à N = 4 000. Le verdict de M5.md §5 tient pour les trois valeurs de K, avec la condition du rectangle englobant resserrée.
 
 **Une remarque pour M5b (E, non mesurée).** Le levier « découpage en blocs » de M5.md §6 suppose une couronne de
 3 cellules à échanger entre blocs. Avec K = 60, cette couronne vaut 60 cellules (1,5 km) : pour 4 blocs de 3 463 de
-côté, le tableau de chaque bloc gagne (3 583 / 3 463)² − 1 = +7 %, au lieu de +0,2 %. Le levier reste valable, un
+côté, le tableau de chaque bloc gagne (3 583 / 3 463)² − 1 = +7 %, au lieu de +0,35 % ((3 469 / 3 463)² − 1). Le levier reste valable, un
 peu moins économe.
 
 ## 4. Limites
 
-- Une répétition par exécution de `simulate` ; le bruit (de l'ordre de ±5 à 9 %) est du même ordre que les écarts
-  de temps entre K. La micro-mesure de la FFT (médiane de 5) est plus fiable.
+- Une répétition par exécution de `simulate`, et K joué dans l'ordre 3, 20, 60 sans alternance : l'effet de K ne se
+  sépare pas d'une dérive dans le temps. Le bruit d'une exécution n'a pas été mesuré (pas de répétition). La micro-mesure de la FFT (médiane de 5) est plus fiable.
 - N = 4 000 n'est mesuré qu'à 4 fils, et S = 8, C = 15 qu'à N = 1 000.
-- La part de la FFT dans le calcul (section 2) suppose une convolution par candidate et par année ; `simulate` ne
-  l'écrit pas.
+- La part de la FFT (section 2) compte 10 pas annuels à champ de graines non nul ; le temps de la dispersion n'est pas écrit par `simulate`.
 - Les paramètres du noyau sont d'essai (d99 = 0,99 × K × 25 m, forme 1). Un noyau réel de classe 5 ou 6 de Lososová
   a d'autres a et b, mais ni la taille du tableau de la FFT ni le nombre de convolutions n'en dépendent : seul K
   compte pour le coût. La répartition des graines change les valeurs mises à zéro (règle |Q|), non mesurées ici.
 - La SER fictive est forestière à 100 % (comme en M5.md) ; l'extrapolation du temps à C20 est une borne haute.
-- Les mesures de ce document datent d'une seule séance, 10 à 25 % plus lente que celle de M5.md.
+- Les mesures de ce document datent d'une seule séance, de 6 à 56 % plus lente que celle de M5.md (`m5_noyau_derive.csv`).

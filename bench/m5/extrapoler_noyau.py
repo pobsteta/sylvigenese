@@ -69,8 +69,16 @@ def main():
         tot = total3 + calcul - calcul3
         t.append(f"{fils},{calcul3},{total3},{maxi:.4f},{calcul:.0f},{tot:.0f},{tot / 3600:.1f},{432000 / tot:.2f}")
     (RES / "m5_noyau_temps_c20.csv").write_text("\n".join(t) + "\n", encoding="utf-8")
+    # 4. dérive entre séances : calcul de cette séance à K = 3 contre M5.md §1 (même N, S x C, fils ; valeurs de M5.md recopiées)
+    m5 = {(1000, 2, 1): 19.901, (1000, 2, 4): 6.366, (2000, 2, 1): 79.646, (2000, 2, 4): 25.899,
+          (4000, 2, 4): 118.073, (1000, 8, 1): 194.579, (1000, 8, 4): 62.406}
+    der = ["n,essences,threads,calcul_m5_s,calcul_cette_seance_k3_s,derive"]
+    for (n, s, th), ref in m5.items():
+        c = m[(n, s, th, 3)][0]
+        der.append(f"{n},{s},{th},{ref},{c},{c / ref - 1:+.3f}")
+    (RES / "m5_noyau_derive.csv").write_text("\n".join(der) + "\n", encoding="utf-8")
     sortie.write_text("\n".join(lignes) + "\n", encoding="utf-8")
-    print("\n".join(lignes + rap + t))
+    print("\n".join(lignes + rap + t + der))
 
 
 if __name__ == "__main__":
