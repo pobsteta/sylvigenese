@@ -29,6 +29,7 @@ _Modèle de carte :_
 - M5b · suites des questions n° 12 à 17 (journal du 26/11/2026) : limite de Gaudio dite au rapport de params/regeneration (n° 13) ; obtenir S1 de Lososová pour la dispersion (n° 17) ; contrôle de la dimension critique de Gaudio pour 52 (n° 14) ; clé external.* pour le Data Sheet et la thèse (n° 12) · depuis le cycle 9
 - M6b · constantes d'affichage de la vue massif (rayon des blocs voisins, hauteur des yeux, champ de vision, couleur du sol, vitesse de la caméra) à déplacer des scripts vers le bloc viewer de config.yml ; densité d'herbe, fondu entre niveaux et retour en Lambert-93 (0,5 m) à juger sur le PC de Pascal · depuis le cycle 9
 - M6b · semis dessinés par un générique : échelle uniforme (rayon = h), à mettre à (r, h, r) faute de cw des semis ; essence à semis sans modèle young non dite dans les notes de l'index · depuis le cycle 9
+- M6b · ajouter le scénario 2022 (stade sans exemplaire) à bench/m6/mesurer.py, pour que m6_selftest.csv ne garde pas de lignes écrites à la main · depuis le cycle 9
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé

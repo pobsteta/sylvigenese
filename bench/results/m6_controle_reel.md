@@ -121,3 +121,32 @@ n'est pas promise (plan T12). Le rejeu dure 2,28 s et 353 Mo résidents (contrô
 
 Seul `bench/m6/mesurer.py` écrit ces CSV. Sorties conservées hors dépôt : `data/m6_reel/exemplaires/` (19 Parquet,
 52 Mo) et `data/m6_reel/glb/` (21 `.glb` et `rejouer_exemplaires.csv`).
+
+## Reprise 075 : le cas réel de l'épicéa mature en 2022 (27/11/2026, HEAD 1855708)
+
+Comptes seulement, aucune valeur des exemplaires. Cas : Picea abies (62), stade mature, 1 arbre en 2022, sans exemplaire
+réel (l'export n'en écrit pas : moins de 30 arbres). Rejoué avec le code de HEAD sur les 19 exemplaires réels de
+`data/m6_reel/exemplaires` (inchangés), sur une zone de contrôle rebâtie à l'identique (jeu fictif, 15 ans, `ifn_direct`).
+
+- **`assets` : code 0**, 4 tuiles par année, 20 modèles `.glb`, tous les contrats `assets.*` conformes ; 14 080 arbres
+  vivants en 2022, dont **1 dessiné par un modèle générique** (le même compte qu'en 074).
+- **`massif/index.json`, `stage_models`** : 20 couples (essence, stade), 19 `own` et **1 `generic`**. Le couple
+  (62, mature) dit **`generique_resineux.glb`** (genre `generic`) ; les trois autres stades de 62 disent
+  `62_young.glb`, `62_pole.glb`, `62_old.glb` ; les 16 couples des 4 autres essences disent `<code>_<stade>.glb`
+  (dont 61, 4 sur 4). Un seul couple générique, un seul arbre concerné.
+- **Godot 4.6.3** (SHA-512 vérifié, binaire dans le répertoire de travail de la session, effacé ensuite) : import 0, 0 ligne ERROR.
+  `--selftest --path viewer-massif`, point de vue au centre du bloc d'essai, sortie 0 et 0 ligne ERROR à chaque année :
+
+| Année | Code | Lignes ERROR | Blocs | Arbres | `generic_trees` | Non calés | `cw_zero_trees` |
+|---|---|---|---|---|---|---|---|
+| 2022 (avec le cas) | **0** | 0 | 4 | 14 080 | **1** | 14 079 | 0 |
+| 2032 (sans le cas) | **0** | 0 | 4 | 45 954 | **0** | 45 954 | 0 |
+| 2037 (sans le cas) | **0** | 0 | 4 | 60 620 | **0** | 60 620 | 0 |
+
+  Les comptes de 2022, 2032 et 2037 sont ceux de 074 (massif L8 à L10) ; la différence avec 074 est que la vue lit
+  maintenant le fichier de chaque couple dans `stage_models` au lieu de s'arrêter (code 5) sur le couple sans exemplaire.
+  Le seul arbre générique est compté et le non calé exclut le générique (14 079 sur 14 080).
+- **Limites** : un seul arbre ; temps et mémoire non mesurés dans cette reprise (deux lignes de `m6_selftest.csv` sans
+  ces colonnes) ; l'aspect du générique à l'échelle (r, h, r) ne se juge pas ici (M6b). Les lignes ajoutées à
+  `m6_selftest.csv` l'ont été à la main, hors `mesurer.py` (seul écrivain en principe) : un rejeu complet les effacera
+  et les refera à l'identique pour 2032 et 2037 seulement ; le scénario 2022 est à ajouter à `scenarios` du script.
