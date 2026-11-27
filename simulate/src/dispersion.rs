@@ -642,9 +642,12 @@ mod tests_gamma {
 
     #[test]
     fn branche_directe_x_au_moins_un_demi() {
-        // Γ(5) = 24 ; Γ(1/2) = √π (x = 0,5 : branche directe).
-        proche(ln_gamma(5.0), 24.0_f64.ln(), 1e-12);
-        proche(ln_gamma(0.5), PI.sqrt().ln(), 1e-12);
+        // Valeurs fermées qui exercent les coefficients de Lanczos (branche directe).
+        proche(ln_gamma(5.0), 24.0_f64.ln(), 1e-12); // Γ(5) = 24
+        proche(ln_gamma(10.0), 362_880.0_f64.ln(), 1e-12); // Γ(10) = 9!
+        proche(ln_gamma(0.5), PI.sqrt().ln(), 1e-12); // Γ(1/2) = √π
+        proche(ln_gamma(1.5), (PI.sqrt() / 2.0).ln(), 1e-12); // Γ(3/2) = √π / 2
+        proche(ln_gamma(2.5), (3.0 * PI.sqrt() / 4.0).ln(), 1e-12); // Γ(5/2) = 3√π / 4
     }
 
     #[test]
@@ -657,7 +660,9 @@ mod tests_gamma {
 
     #[test]
     fn identite_des_complements() {
-        // ln Γ(x) + ln Γ(1 − x) = ln(π / sin πx), x de part et d'autre de 1/2 (appelle les deux branches).
+        // Vérifie la formule de réflexion, pas les coefficients : pour x < 0,5, ln_gamma calcule
+        // justement ln(π / sin πx) − ln Γ(1 − x), le test y serait vrai avec des coefficients faux
+        // (les valeurs fermées ci-dessus, elles, exercent les coefficients).
         for x in [0.05, 0.1, 0.25, 0.4, 0.6, 0.75, 0.9] {
             proche(ln_gamma(x) + ln_gamma(1.0 - x), (PI / (PI * x).sin()).ln(), 1e-12);
         }
