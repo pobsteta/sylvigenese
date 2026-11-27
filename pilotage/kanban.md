@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 12 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 13 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -33,6 +33,7 @@ _Modèle de carte :_
 - M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
 - Réimporter le tarif réel (facteurs du domaine, mission 076) : chez Pascal ou quand le tarif réel est ici · depuis le cycle 11
 - M6b · défauts vus sur les captures du 27/11/2026 (rendu logiciel) : troncs colorés comme le feuillage (material_override sur tout le maillage, déjà relevé par la relecture de M6a) ; cartes de feuillage en blocs hachés noirs et verts (rendu logiciel ou vrai défaut, à trancher sur le PC de Pascal) ; arbres en perches peu branchues ; ligne « non calés » du bandeau coupée à droite ; aucune indication du nord ; caméra figée vers le nord sans clavier ; résolution 1280×720 · depuis le cycle 13
+- Mineurs du cycle 13 : nom du signalement classes_lumiere_et_extinction_provisoires à renommer (plus de classes) ; nommer les essences dont N sort de 1,5 à 4,6 ; garde des diviseurs (/ 10.0, / 2.5) ; contrôles fragiles de check_surfaces et _check_roles ; docstring de test_seuil_franchi_stress_entier_oracle_exact · depuis le cycle 13
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
@@ -46,6 +47,11 @@ _Modèle de carte :_
 
 
 ## Terminé
+
+- [083](missions/083-correspondance-niinemets-klighs.md) à [085](missions/085-troncs-bandeau-nord.md) (avec 084a, 084b, 084c) · depuis le cycle 13
+  - Homme : `analyste`, `acquereur`, `dev` ×2, `afficheur`, relus par `relecteur` (2 relectures)
+  - Mission : ombre des semis comparée au seuil (forme de TreeMig, tolérance de Niinemets), troncs bruns, bandeau, nord, surfaces écorce et feuillage au contrat ; captures de la vue rendues sans carte graphique
+  - Moyens : PR pobsteta/sylvigenese#15, #16, #17
 
 - [081](missions/081-mineurs-cycle-11.md) et [082](missions/082-cout-du-noyau.md) · depuis le cycle 12
   - Homme : `dev`, `analyste`, relus par `relecteur`
@@ -161,3 +167,4 @@ l'inscrit avec ce qu'elle nous apprend._
 - cycle 10 · livraison : M6a, les arbres du générateur de tarif-nemeton entrent dans les deux vues, et la vue massif Godot s'ouvre depuis la fiche web avec herbe et semis autour de la caméra · pour Pascal · on peut regarder le futur simulé de l'intérieur, arbre par arbre, chaque stade avec son modèle ; mauvaise nouvelle : les 19 vrais exemplaires sont tous « non calés » (dimensions du jeu fictif hors plage de calage), et ni l'aspect ni la fluidité ne sont prouvés sans le PC de Pascal
 - cycle 11 · livraison : reprises techniques avant M6b et M5b (simulate refuse un noyau trop court pour la dispersion d'une essence, post refuse les cohortes, la vue lit toutes ses constantes dans config.yml) · pour Pascal · moins de cas silencieux ; mauvaise nouvelle : sur données réelles, les essences à longue portée demanderont K = 20 à 60 cellules, coût non mesuré, et TreeMig ne couvre que 30 essences sur 195
 - cycle 12 · livraison : coût du noyau de dispersion mesuré (bench/results/M5_noyau.md) · pour Pascal · on sait qu'un noyau large (K = 20 à 60) ne change pas le verdict de C20 sur son PC ; mauvaise nouvelle : l'emprise deux fois plus grande que la SER passe juste au-dessus de 27,9 Go dès K = 20
+- cycle 13 · livraison : ombre des semis à la forme de TreeMig (seuil par essence comparé à la lumière de la cellule) et vue massif lisible (troncs bruns, bandeau, nord), avec les premières captures · pour Pascal · il voit la vue pour la première fois, et la mortalité des semis sous couvert dense a une forme publiée ; mauvaise nouvelle : seuil tiré d'une régression à ±1,1 classe, extinction et lumière unique provisoires, feuillage haché à juger sur son PC

@@ -1415,7 +1415,14 @@ pub fn simuler_et_ecrire(entrees: &Entrees, lancement: &Lancement, dossier: &Pat
     comptes.recrues = totaux.recrues.round() as u64;
     comptes.morts = totaux.morts.round() as u64;
 
-    sorties::ajouter_signalements_de_zone(&mut signalements, &comptes, lancement, reglages.t0, derniere, true);
+    sorties::ajouter_signalements_de_zone(
+        &mut signalements,
+        &comptes,
+        lancement,
+        reglages.t0,
+        derniere,
+        Some(&moteur.regeneration),
+    );
     sorties::ecrire_signalements(&dossier.join("flags.parquet"), &signalements)?;
     let duree_s = debut.elapsed().as_secs_f64();
     let plan = &moteur.regeneration.plan;

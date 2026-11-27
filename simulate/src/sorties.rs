@@ -66,7 +66,7 @@
 //! | [`SORTE_SEMIS_NON_SIMULES`] | la zone (`zone` de config.yml), année t0, mode `ifn_direct` seulement | vide |
 //! | [`SORTE_STOCK_INITIAL_EN_REGIME`] | la zone, année t0, mode `cohorts` seulement (Q2, mission 066) | vide |
 //! | [`SORTE_LUMIERE_ET_OMBRE_SEULES`] | la zone, année t0, mode `cohorts` seulement (Q3, mission 066) | vide |
-//! | [`SORTE_CLASSES_LUMIERE_PROVISOIRES`] | la zone, année t0, mode `cohorts` seulement (mission 084b) | vide |
+//! | [`SORTE_OMBRE_SEMIS_PROVISOIRE`] | la zone, année t0, mode `cohorts` seulement (missions 084b, 086) ; le message nomme les essences hors de la plage de N testée | vide |
 //! | [`SORTE_TOTAL_CELLULES_SANS_ARBRE`] | la zone, dernière année | nombre de couples (cellule, année) |
 //! | [`SORTE_TOTAL_RECRUES_CELLULE_VIDE`] | la zone, dernière année | nombre de recrues |
 //! | [`SORTE_TOTAL_SER_SANS_EFFET`] | la zone, dernière année | nombre de prédicteurs |
@@ -114,10 +114,10 @@ pub const SORTE_SEMIS_NON_SIMULES: &str = "semis_non_simules";
 pub const SORTE_STOCK_INITIAL_EN_REGIME: &str = "stock_initial_en_regime";
 /// Mode `cohorts` : la survie des semis ne dépend que de la lumière et de l'ombre (décision de Pascal Q3).
 pub const SORTE_LUMIERE_ET_OMBRE_SEULES: &str = "lumiere_et_ombre_seules";
-/// Mode `cohorts` : comparaison directe de la lumière au seuil (plus de classes), extinction et couvert projeté
-/// provisoires et sans source, klighs extrapolé hors de N 1,5 à 4,6 (décisions de Pascal du 27/11/2026,
-/// missions 084b et 084c).
-pub const SORTE_CLASSES_LUMIERE_PROVISOIRES: &str = "classes_lumiere_et_extinction_provisoires";
+/// Mode `cohorts` : ombre des semis provisoire : comparaison directe de la lumière au seuil (plus de classes),
+/// extinction et couvert projeté provisoires et sans source, klighs extrapolé hors de la plage de N testée
+/// (décisions de Pascal du 27/11/2026, missions 084b, 084c et 086 ; renommé en 086 : il n'y a plus de classes).
+pub const SORTE_OMBRE_SEMIS_PROVISOIRE: &str = "ombre_semis_provisoire";
 /// Total des couples (cellule, année) simulés sans arbre vivant (H_dom tenue, T5).
 pub const SORTE_TOTAL_CELLULES_SANS_ARBRE: &str = "total_cellules_sans_arbre";
 /// Total des recrues nées dans une cellule sans arbre (rel_d pris à 1).
@@ -571,7 +571,7 @@ pub fn simuler_et_ecrire(
         lancement,
         reglages.t0,
         derniere,
-        regeneration.is_some(),
+        regeneration.as_ref(),
     );
     ecrire_signalements(&dossier.join("flags.parquet"), &signalements)?;
 
@@ -735,6 +735,53 @@ fn injecter_nan(etat: &mut EtatArbres) {
     }
 }
 
+/// Les essences présentes (candidates du mode `cohorts`) dont la tolérance N sort de la plage testée de la
+/// correspondance Niinemets → klighs : (essence, N, borne basse, borne haute), dans l'ordre des candidates. Les
+/// bornes viennent des termes `klighs_tested_n_min` et `klighs_tested_n_max` de `params/regeneration`, jamais du code.
+pub fn essences_hors_plage(parametres: &[semis::ParametresSemis]) -> Vec<(String, f64, f64, f64)> {
+    parametres
+        .iter()
+        .filter(|p| p.loi_lumiere.hors_plage(p.tolerance_ombre))
+        .map(|p| (p.espece.clone(), p.tolerance_ombre, p.loi_lumiere.n_teste_min, p.loi_lumiere.n_teste_max))
+        .collect()
+}
+
+/// Un nombre à la française : virgule décimale.
+fn nombre_fr(valeur: f64) -> String {
+    format!("{valeur}").replace('.', ",")
+}
+
+/// Le message du signalement [`SORTE_OMBRE_SEMIS_PROVISOIRE`] : les réglages provisoires de l'ombre des semis, et
+/// les essences présentes dont la tolérance N est hors de la plage testée (leur klighs est une extrapolation). Une
+/// essence dans la plage n'est pas nommée.
+pub fn message_ombre_semis_provisoire(parametres: &[semis::ParametresSemis]) -> String {
+    let mut message = String::from(
+        "ombre des semis à la forme de TreeMig avec des réglages provisoires et sans source : il n'y a \
+         plus de classes de lumière (comparaison directe de la lumière de la cellule au seuil, stress \
+         entier si l est sous le seuil, nul sinon ; les classes de TreeMig reviendront avec une \
+         répartition sourcée de la lumière dans la cellule) ; extinction provisoire ; couvert projeté à \
+         la place de l'indice foliaire ; une seule lumière par cellule ; klighs dérivé de la tolérance de \
+         Niinemets (erreur ± 1,1 classe), non testé hors de la plage de N de params/regeneration",
+    );
+    let hors = essences_hors_plage(parametres);
+    if hors.is_empty() {
+        message.push_str(" ; aucune essence présente hors de cette plage");
+    } else {
+        let noms: Vec<String> = hors
+            .iter()
+            .map(|(espece, n, bas, haut)| {
+                format!("{espece} (N = {}, plage {} à {})", nombre_fr(*n), nombre_fr(*bas), nombre_fr(*haut))
+            })
+            .collect();
+        message.push_str(&format!(
+            " ; essences présentes hors de cette plage, leur klighs est une extrapolation : {}",
+            noms.join(", ")
+        ));
+    }
+    message.push_str(" (mode cohorts ; décisions de Pascal du 27/11/2026)");
+    message
+}
+
 /// Les signalements qui portent sur toute la zone (semis non simulés en `ifn_direct`, totaux non
 /// nuls), ajoutés à la fin ; aussi au niveau SER ([`crate::ser`]).
 pub fn ajouter_signalements_de_zone(
@@ -743,8 +790,9 @@ pub fn ajouter_signalements_de_zone(
     lancement: &Lancement,
     t0: i32,
     derniere: i32,
-    cohortes: bool,
+    regeneration: Option<&Regeneration>,
 ) {
+    let cohortes = regeneration.is_some();
     if !cohortes {
         signalements.push(Signalement {
             annee: t0,
@@ -778,19 +826,12 @@ pub fn ajouter_signalements_de_zone(
             valeur: None,
         });
     }
-    if cohortes {
+    if let Some(regeneration) = regeneration {
         signalements.push(Signalement {
             annee: t0,
             entite: lancement.zone.clone(),
-            sorte: SORTE_CLASSES_LUMIERE_PROVISOIRES.to_string(),
-            message: "ombre des semis à la forme de TreeMig avec des réglages provisoires et sans source : il n'y a \
-                      plus de classes de lumière (comparaison directe de la lumière de la cellule au seuil, stress \
-                      entier si l est sous le seuil, nul sinon ; les classes de TreeMig reviendront avec une \
-                      répartition sourcée de la lumière dans la cellule) ; extinction provisoire ; couvert projeté à \
-                      la place de l'indice foliaire ; une seule lumière par cellule ; klighs dérivé de la tolérance de \
-                      Niinemets (erreur ± 1,1 classe) et NON TESTÉ hors N de 1,5 à 4,6 (extrapolation) (mode cohorts ; \
-                      décisions de Pascal du 27/11/2026)"
-                .to_string(),
+            sorte: SORTE_OMBRE_SEMIS_PROVISOIRE.to_string(),
+            message: message_ombre_semis_provisoire(&regeneration.parametres),
             valeur: None,
         });
     }

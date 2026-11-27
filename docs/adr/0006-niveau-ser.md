@@ -121,9 +121,11 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
     groupe, puis dans `toutes_essences` : aucun dans le code, absent = code 2 ; `klighs_min` > `klighs_max`,
     seuil hors de 0 à 1 = code 2. `stress_mortality` (0,184, éq. 40) est un terme du contrat depuis la version 0.3
     (décision de Pascal du 26/11/2026). Mode `cohorts` : `flags.parquet` porte aussi le signalement
-    `classes_lumiere_et_extinction_provisoires` (nom gardé), qui dit : plus de classes, extinction provisoire,
+    `ombre_semis_provisoire` (renommé en mission 086 : il n'y a plus de classes), qui dit : plus de classes, extinction provisoire,
     couvert projeté à la place de l'indice foliaire, une seule lumière par cellule, comparaison directe, klighs
-    dérivé de Niinemets à ± 1,1 classe et non testé hors N de 1,5 à 4,6. Les résultats `cohorts` ont changé avec
+    dérivé de Niinemets à ± 1,1 classe et non testé hors de la plage de N testée (termes `klighs_tested_n_min` et
+    `klighs_tested_n_max`, contrat 0.6, sourcés sur regeneration.md §15.2) : le message nomme les essences présentes hors
+    de cette plage. Les résultats `cohorts` ont changé avec
     084b (`tests/m5/reference/cohorts_ombre_en_classes_084b.json`) puis avec 084c (nouvelle référence
     `tests/m5/reference/cohorts_comparaison_directe.json`) ; `ifn_direct` est inchangé
     (`tests/m3/reference/nominal.json`).

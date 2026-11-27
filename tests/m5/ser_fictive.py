@@ -103,12 +103,17 @@ REGENERATION_DEFAUT = {
     "light_threshold_high_intercept": (-0.4, "1"),
     "light_threshold_low_slope": (0.025, "1"),
     "light_threshold_low_klighs_origin": (1.0, "1"),
+    # Plage de N testée de la correspondance (mission 086, contrat 0.6) : regeneration.md §15.2, valeurs de Niinemets du jeu principal.
+    "klighs_tested_n_min": (1.5, "1"),
+    "klighs_tested_n_max": (4.6, "1"),
 }
 TERMES_REGENERATION = tuple(REGENERATION_DEFAUT)
 # Source propre à un terme (les autres portent SOURCE, synthétique).
 _SRC_KLIGHS = ("correspondance Niinemets -> klighs de la mission 083 (régression linéaire provisoire, "
                "docs/referentiels/regeneration.md §15.2-15.3 ; bornes de klighs : classes 1 à 9 de TreeMig, Docu tableau 1)")
 _SRC_LOI = "TreeMig, loi lumière-seuil p. 14, après l'éq. 29 (TreeMigDocu_251218_Model.pdf ; regeneration.md §15.4)"
+_SRC_PLAGE = ("docs/referentiels/regeneration.md §15.2 (mission 083) : valeurs de Niinemets du jeu principal de 1,46 à 4,60, "
+              "correspondance non testée hors de 1,5 à 4,6")
 SOURCE_TERME = {
     "stress_mortality": "TreeMig éq. 40 p. 16 (TreeMigDocu_251218_Model.pdf)",
     "klighs_intercept": _SRC_KLIGHS,
@@ -120,6 +125,8 @@ SOURCE_TERME = {
     "light_threshold_high_intercept": _SRC_LOI,
     "light_threshold_low_slope": _SRC_LOI,
     "light_threshold_low_klighs_origin": _SRC_LOI,
+    "klighs_tested_n_min": _SRC_PLAGE,
+    "klighs_tested_n_max": _SRC_PLAGE,
 }
 
 DYN_SCHEMA = pa.schema([

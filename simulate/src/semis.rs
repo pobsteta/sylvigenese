@@ -50,7 +50,9 @@
 //!   Niinemets et Valladares 2006, 0 à 5) en deux temps, sans aucune valeur dans le code :
 //!   1. klighs = borné entre `klighs_min` et `klighs_max` de `klighs_intercept` +
 //!      `klighs_per_shade_tolerance` × N (régression linéaire de la mission 083, provisoire,
-//!      erreur ± 1,1 classe, **non testée hors N de 1,5 à 4,6**, regeneration.md §15) ;
+//!      erreur ± 1,1 classe, **non testée hors de la plage `klighs_tested_n_min` à `klighs_tested_n_max`**,
+//!      regeneration.md §15.2 : les essences présentes hors de cette plage sont nommées dans le signalement
+//!      `ombre_semis_provisoire`, [`LoiLumiere::hors_plage`]) ;
 //!   2. loi de TreeMig (p. 14, après l'éq. 29) : seuil = `light_threshold_high_slope` × klighs +
 //!      `light_threshold_high_intercept` si klighs ≥ `light_threshold_klighs_break`, sinon
 //!      max(0, `light_threshold_low_slope` × (klighs − `light_threshold_low_klighs_origin`)) ;
@@ -122,7 +124,7 @@ pub const TOLERANCE_ARRONDI: f64 = 1e-12;
 pub const CLASSES_MAX: usize = 1000;
 
 /// Les termes du contrat `params/regeneration` lus par le moteur, avec leur unité.
-pub const TERMES: [(&str, &str); 20] = [
+pub const TERMES: [(&str, &str); 22] = [
     ("kernel_scale_m", "m"),
     ("kernel_shape", "1"),
     ("maturity_height_m", "m"),
@@ -143,6 +145,8 @@ pub const TERMES: [(&str, &str); 20] = [
     ("light_threshold_high_intercept", "1"),
     ("light_threshold_low_slope", "1"),
     ("light_threshold_low_klighs_origin", "1"),
+    ("klighs_tested_n_min", "1"),
+    ("klighs_tested_n_max", "1"),
 ];
 
 /// Les termes retirés du contrat, avec la raison. Un terme retiré fourni est refusé par son nom
@@ -193,12 +197,22 @@ pub struct LoiLumiere {
     pub pente_basse: f64,
     /// Origine de klighs de la branche basse (p. 14 : le 1 de « klighs − 1 »).
     pub origine_basse: f64,
+    /// Borne basse de la plage de N sur laquelle la correspondance a été testée (regeneration.md §15.2).
+    pub n_teste_min: f64,
+    /// Borne haute de la plage de N testée.
+    pub n_teste_max: f64,
 }
 
 impl LoiLumiere {
     /// klighs d'une tolérance de Niinemets N : la droite de la mission 083, bornée.
     pub fn klighs(&self, tolerance_niinemets: f64) -> f64 {
         (self.klighs_ordonnee + self.klighs_pente * tolerance_niinemets).clamp(self.klighs_min, self.klighs_max)
+    }
+
+    /// Vrai si la tolérance N sort de la plage testée de la correspondance : klighs en est alors une
+    /// extrapolation (les bornes elles-mêmes sont dans la plage).
+    pub fn hors_plage(&self, tolerance_niinemets: f64) -> bool {
+        tolerance_niinemets < self.n_teste_min || tolerance_niinemets > self.n_teste_max
     }
 
     /// La lumière-seuil (relative, 0 à 1) d'un klighs : la loi de TreeMig, p. 14.
@@ -353,13 +367,13 @@ fn borne(espece: &str, terme: &str, valeur: f64, condition: bool, attendu: &str)
 /// Les paramètres de semis d'une essence (tous les termes du contrat). Code 2 si un terme manque
 /// ou sort de son domaine (échelle, forme, croissance et hauteur de passage strictement positives ;
 /// maturité, fécondité, tolérance et extinction positives ; parts, survie et mortalité de stress entre 0 et 1 ;
-/// klighs_min ≤ klighs_max ; lumière-seuil entre 0 et 1).
+/// klighs_min ≤ klighs_max ; klighs_tested_n_min ≤ klighs_tested_n_max ; lumière-seuil entre 0 et 1).
 pub fn parametres_de(
     lignes: &[LigneRegeneration],
     espece: &str,
     referentiel: &Referentiel,
 ) -> Result<ParametresSemis, Erreur> {
-    let mut valeurs = [0.0_f64; 20];
+    let mut valeurs = [0.0_f64; 22];
     let mut provisoire = false;
     for (rang, (terme, unite)) in TERMES.iter().enumerate() {
         let (valeur, p) = chercher_terme(lignes, espece, referentiel, terme, unite)?;
@@ -389,6 +403,8 @@ pub fn parametres_de(
             ordonnee_haute: valeurs[17],
             pente_basse: valeurs[18],
             origine_basse: valeurs[19],
+            n_teste_min: valeurs[20],
+            n_teste_max: valeurs[21],
         },
         provisoire,
     };
@@ -427,6 +443,13 @@ pub fn parametres_de(
         p.loi_lumiere.klighs_min,
         p.loi_lumiere.klighs_min <= p.loi_lumiere.klighs_max,
         "≤ klighs_max",
+    )?;
+    borne(
+        espece,
+        "klighs_tested_n_min",
+        p.loi_lumiere.n_teste_min,
+        p.loi_lumiere.n_teste_min <= p.loi_lumiere.n_teste_max,
+        "≤ klighs_tested_n_max",
     )?;
     let seuil = p.seuil_lumiere();
     if !(0.0..=1.0).contains(&seuil) {
