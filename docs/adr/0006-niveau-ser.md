@@ -73,6 +73,11 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
    régularisée), et a, b résolvent P(2 / b, (d50 / a)^b) = 0,5 et P(2 / b, (d99 / a)^b) = 0,99 (décision de
    l'orchestrateur du 26/11/2026, mission 062). Cette dérivation est marquée `provisoire` avec la classe et
    les deux distances en source ; une essence sans classe lue n'a pas de noyau (code 2).
+   **K couvre d99** (décision de Pascal du 27/11/2026, mission 080) : `simulate` refuse (code 2, message
+   nommé avec l'essence, son d99 et le K demandé), aux deux niveaux, un `kernel_truncation_cells` tel que
+   K × 25 m < d99 pour une essence présente, d99 étant recalculé exactement de `kernel_scale_m` et
+   `kernel_shape` (rayon où P(2 / b, (r / a)^b) = 0,99) ; la renormalisation ne déplace ainsi au plus que 1 %
+   des graines. Aucun terme de plus au contrat.
    Convolution directe écartée : environ 4 jours à C20 pour 8 essences.
 8. **Règle |Q| (T3).** Mise à zéro symétrique de |Q| < `zero_threshold` × max|Q| par (essence, année),
    comptée dans `zeroed_values` ; une valeur négative au-delà du seuil arrête le moteur (code 3).

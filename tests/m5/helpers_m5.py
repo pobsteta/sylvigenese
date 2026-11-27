@@ -56,6 +56,12 @@ T0 = G.T0_DEFAUT
 K_CLASSES = G.CLASSES_DEFAUT
 LARGEUR_CLASSE = 5.0
 TRONCATURE = 3
+# Massif : K = 1 cellule (25 m) ; kernel_scale_m = 3,7 m (forme 1) donne d99 = 24,6 m, couvert (mission 080 : simulate
+# refuse un K qui ne couvre pas d99). À cette échelle, une cellule voisine ne reçoit plus que 1e-3 du poids de la
+# source (0,43 à 30 m) : la fécondité d'essai est multipliée par 300 pour que le flux de graines entre cellules voisines
+# reste de l'ordre d'avant (réglage d'essai, sans valeur écologique). Écrasables par `regeneration` de zone_massif.
+ECHELLE_NOYAU_MASSIF = 3.7
+FECONDITE_MASSIF = 300_000.0
 SEUIL_ZERO = 1e-9
 EPS32 = 2.0 ** -24
 AIRE_CELLULE_HA = H3.AIRE_CELLULE_HA
@@ -137,7 +143,9 @@ def zone_massif(name: str, sim: dict | None, mutate=None, regeneration: dict | N
     shutil.copy(FIXTURE / "params" / "allometry.parquet", zdir / "params" / "allometry.parquet")
     shutil.copy(FIXTURE / "zone.yml", zdir / "zone.yml")
     rows = regeneration_rows if regeneration_rows is not None else \
-        G.regeneration_rows(ESSENCES_MASSIF, regeneration, par_essence=False)
+        G.regeneration_rows(ESSENCES_MASSIF, {"kernel_scale_m": ECHELLE_NOYAU_MASSIF, "fecundity_seeds_per_m2_ba_yr": FECONDITE_MASSIF,
+                                **(regeneration or {})},
+                            par_essence=False)
     G.write_regeneration(zdir, rows)
     if mutate is not None:
         mutate(zdir)

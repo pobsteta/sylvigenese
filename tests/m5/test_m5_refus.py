@@ -49,6 +49,27 @@ def test_le_refus_d_un_terme_manquant_nomme_l_essence(refus_ser):
     assert essence in out, f"le message ne nomme pas l'essence {essence} : {H.queue(refus_ser['proc'])}"
 
 
+def test_ser_un_k_trop_court_nomme_l_essence_son_d99_et_le_k_demande(ser_k_court):
+    """Mission 080 : K ne couvre pas la distance à 99 % de dispersion (d99, calculé de kernel_scale_m et kernel_shape,
+    ici 11 m et forme 1 : 73,0 m ; K = 2 couvre 50 m). Code 2, message nommé, rien écrit, essence dite."""
+    _verifier_k_trop_court(ser_k_court, d99="73.0", k="2")
+
+
+def test_massif_un_k_trop_court_nomme_l_essence_son_d99_et_le_k_demande(massif_k_court):
+    """Idem au niveau massif (a = 30 m, forme 1 : d99 = 199,2 m ; K = 1 couvre 25 m)."""
+    _verifier_k_trop_court(massif_k_court, d99="199.2", k="1")
+
+
+def _verifier_k_trop_court(r, d99, k):
+    p = r["proc"]
+    out = _sans_chemins(r)
+    assert p.returncode == 2, H.queue(p)
+    assert f"d99 = {d99} m" in out, H.queue(p)
+    assert f"kernel_truncation_cells = {k}" in out, H.queue(p)
+    assert any(f"essence {e}" in out for e in H.ESSENCES_MASSIF), f"essence non nommée : {H.queue(p)}"
+    assert not (r["dir"] / "sim").exists()
+
+
 def test_ser_un_nan_injecte_arrete_avec_le_code_3(ser_nan):
     p = ser_nan["proc"]
     assert p.returncode == 3, H.queue(p)

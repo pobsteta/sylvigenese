@@ -17,6 +17,15 @@
 //! distances à 50 % et 99 % de la classe de Lososová et al. 2023 de l'essence, décision de
 //! l'orchestrateur du 26/11/2026).
 //!
+//! # Portée : K doit couvrir d99 (mission 080, décision de Pascal du 27/11/2026)
+//!
+//! La part des graines à moins de r du noyau non tronqué est P(2 / b, (r / a)^b) (gamma
+//! incomplète régularisée) : c'est la relation qui déduit a et b des d50 et d99 de Lososová. La
+//! distance à 99 % d99 se recalcule donc **exactement** de `kernel_scale_m` et `kernel_shape`
+//! ([`distance_a_99_pourcent`]), sans nouveau terme au contrat. [`verifier_portee`] refuse
+//! (code 2) un K tel que K × côté de cellule < d99, pour chaque essence présente : la
+//! renormalisation ne déplace ainsi au plus que 1 % des graines.
+//!
 //! # Axes
 //!
 //! Le champ est rangé comme la grille : `rang = ligne × largeur + colonne`, ligne 0 au **nord**,
@@ -166,6 +175,146 @@ pub fn noyau_exponentiel_puissance(
         demi_largeur,
         poids,
     })
+}
+
+// ------------------------------------------------------------------------------------------
+// Portée du noyau : la distance à 99 % de dispersion (mission 080, décision de Pascal du 27/11/2026)
+
+/// Part des graines que le noyau exponentielle-puissance k(r) ∝ exp(−(r / a)^b), en deux
+/// dimensions et **non tronqué**, fait tomber à moins de `rayon_m` de la source :
+/// P(2 / b, (r / a)^b), fonction gamma incomplète régularisée (contrat `params/regeneration`,
+/// ADR 0006 choix 7). Preuve : la masse à moins de r est ∫ 2π r exp(−(r/a)^b) dr ; avec
+/// u = (r/a)^b, r dr = (a² / b) u^(2/b − 1) du, soit la loi gamma de forme 2 / b. C'est la
+/// relation même qui a servi à déduire a et b des distances d50 et d99 de Lososová et al. 2023.
+pub fn part_dans_le_rayon(echelle_m: f64, forme: f64, rayon_m: f64) -> f64 {
+    if rayon_m <= 0.0 {
+        return 0.0;
+    }
+    gamma_incomplete_regularisee(2.0 / forme, (rayon_m / echelle_m).powf(forme))
+}
+
+/// La distance à 99 % de dispersion d99 (m) : le rayon où [`part_dans_le_rayon`] vaut 0,99.
+/// Calcul exact (dichotomie à la précision des f64), aucune valeur tirée d'ailleurs : elle ne
+/// dépend que de `kernel_scale_m` et `kernel_shape`.
+pub fn distance_a_99_pourcent(echelle_m: f64, forme: f64) -> f64 {
+    let mut bas = 0.0_f64;
+    let mut haut = echelle_m;
+    // Le rayon cherché n'est pas borné d'avance : on double jusqu'à passer 99 %.
+    let mut doublements = 0;
+    while part_dans_le_rayon(echelle_m, forme, haut) < 0.99 && doublements < 200 {
+        bas = haut;
+        haut *= 2.0;
+        doublements += 1;
+    }
+    for _ in 0..200 {
+        let milieu = 0.5 * (bas + haut);
+        if part_dans_le_rayon(echelle_m, forme, milieu) < 0.99 {
+            bas = milieu;
+        } else {
+            haut = milieu;
+        }
+    }
+    haut
+}
+
+/// Refuse (code 2) un K qui ne couvre pas la distance à 99 % de l'essence : la renormalisation
+/// du noyau tronqué ne déplace alors au plus que 1 % des graines. Le message nomme l'essence,
+/// son d99 et le K demandé. Passe aux deux niveaux (massif et SER), par `Regeneration::preparer`.
+pub fn verifier_portee(
+    espece: &str,
+    echelle_m: f64,
+    forme: f64,
+    pas_m: f64,
+    demi_largeur: usize,
+) -> Result<(), Erreur> {
+    let d99 = distance_a_99_pourcent(echelle_m, forme);
+    let portee_m = demi_largeur as f64 * pas_m;
+    if portee_m >= d99 {
+        return Ok(());
+    }
+    let k_minimal = (d99 / pas_m).ceil() as u64;
+    Err(Erreur::entree_refusee(format!(
+        "essence {espece} : simulate.regeneration.kernel_truncation_cells = {demi_largeur} \
+         ({portee_m} m) ne couvre pas la distance à 99 % de dispersion de l'essence, d99 = {d99:.1} m \
+         (kernel_scale_m = {echelle_m}, kernel_shape = {forme}) ; il faut au moins {k_minimal} cellules \
+         de {pas_m} m"
+    )))
+}
+
+/// ln Γ(x) pour x > 0, approximation de Lanczos (g = 7, 9 termes ; Numerical Recipes, §6.1),
+/// précise à environ 1e-15 en relatif.
+fn ln_gamma(x: f64) -> f64 {
+    const COEFFICIENTS: [f64; 9] = [
+        0.999_999_999_999_809_9,
+        676.520_368_121_885_1,
+        -1_259.139_216_722_402_8,
+        771.323_428_777_653_1,
+        -176.615_029_162_140_6,
+        12.507_343_278_686_905,
+        -0.138_571_095_265_720_12,
+        9.984_369_578_019_572e-6,
+        1.505_632_735_149_311_6e-7,
+    ];
+    if x < 0.5 {
+        // Formule des compléments : Γ(x) Γ(1 − x) = π / sin(π x).
+        let pi = std::f64::consts::PI;
+        return (pi / (pi * x).sin()).ln() - ln_gamma(1.0 - x);
+    }
+    let x = x - 1.0;
+    let mut somme = COEFFICIENTS[0];
+    for (i, c) in COEFFICIENTS.iter().enumerate().skip(1) {
+        somme += c / (x + i as f64);
+    }
+    let t = x + 7.5;
+    0.5 * (2.0 * std::f64::consts::PI).ln() + (x + 0.5) * t.ln() - t + somme.ln()
+}
+
+/// Fonction gamma incomplète inférieure régularisée P(s, x), s > 0, x ≥ 0 : série pour
+/// x < s + 1, fraction continue (Lentz) sinon (Numerical Recipes, §6.2).
+fn gamma_incomplete_regularisee(s: f64, x: f64) -> f64 {
+    if x <= 0.0 {
+        return 0.0;
+    }
+    let ln_devant = s * x.ln() - x - ln_gamma(s);
+    if x < s + 1.0 {
+        let mut terme = 1.0 / s;
+        let mut somme = terme;
+        let mut a = s;
+        for _ in 0..10_000 {
+            a += 1.0;
+            terme *= x / a;
+            somme += terme;
+            if terme.abs() < somme.abs() * 1e-16 {
+                break;
+            }
+        }
+        (somme * ln_devant.exp()).min(1.0)
+    } else {
+        let minuscule = 1e-300;
+        let mut b = x + 1.0 - s;
+        let mut c = 1.0 / minuscule;
+        let mut d = 1.0 / b;
+        let mut h = d;
+        for i in 1..10_000 {
+            let an = -(i as f64) * (i as f64 - s);
+            b += 2.0;
+            d = an * d + b;
+            if d.abs() < minuscule {
+                d = minuscule;
+            }
+            c = b + an / c;
+            if c.abs() < minuscule {
+                c = minuscule;
+            }
+            d = 1.0 / d;
+            let delta = d * c;
+            h *= delta;
+            if (delta - 1.0).abs() < 1e-16 {
+                break;
+            }
+        }
+        (1.0 - ln_devant.exp() * h).clamp(0.0, 1.0)
+    }
 }
 
 /// Le plus petit entier ≥ `n` dont les seuls facteurs premiers sont 2, 3, 5 et 7 (taille rapide
