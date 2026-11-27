@@ -2,8 +2,13 @@
 terme `stress_mortality` de params/regeneration (contrat version 0.3).
 
 - Identité : avec le terme écrit à 0,184 par le générateur, les résultats du mode `cohorts` sont **les mêmes octets**
-  qu'avant le changement (SHA-256 des fichiers Parquet de sim/ relevés le 26/11/2026 sur le moteur de la mission 065,
-  tests/m5/reference/cohorts_avant_stress_mortality.json), aux deux niveaux : SER (32 × 32, 5 ans) et massif (8 ans).
+  qu'avant le changement (SHA-256 des fichiers Parquet de sim/, tests/m5/reference/cohorts_avant_stress_mortality.json),
+  aux deux niveaux : SER (32 × 32, 5 ans) et massif (8 ans). Histoire de la référence : relevée à l'origine le
+  26/11/2026 sur le moteur de la mission 065, elle prouvait alors l'identité avant et après la mission 066 ; relevée de
+  nouveau le 27/11/2026 pour la mission 080 avec le moteur d'avant le contrôle « K couvre d99 », sur les fixtures
+  ajustées dont K couvre le d99 (l'ancienne, à 30 m, est désormais refusée par simulate). Aujourd'hui elle prouve
+  l'identité avant et après 080 (le contrôle ne change aucun octet quand K couvre d99) ; l'identité de 066 n'est plus
+  rejouable avec elle, la preuve en reste l'historique de la mission 066.
   flags.parquet n'y est pas : il porte désormais les deux lignes de mentions Q2 et Q3.
 - Le terme est lu : sous ombre forte, un autre nombre change les résultats (le test discrimine).
 - Absent : code 2, le message nomme le terme et l'essence ; aucune valeur d'emprunt.
