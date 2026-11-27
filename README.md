@@ -41,7 +41,10 @@ selon la méthode de l'Impératrice ([`CLAUDE.md`](CLAUDE.md), [`pilotage/`](pil
   recolonisent les trouées par cohortes (mode `cohorts`, technique, non validé écologiquement) ;
   la SER entière se simule en espérance. Extrapolé à C20 : le temps tient, la mémoire sous
   conditions ([`bench/results/M5.md`](bench/results/M5.md)).
-- Suivant : **M6a** (vue Godot). M3b et M5b attendent les données réelles.
+- **M6a** (arbres du générateur et vue massif Godot) : rempli sur le jeu fictif. Les arbres de
+  tarif-nemeton (modèles provisoires, « non calé » quand le calage ne les couvre pas) sont dessinés
+  dans iTowns et dans la vue Godot, testée sans carte graphique ; aspect et fluidité à juger en M6b.
+- Suivant : **M6b** sur le PC de Pascal. M3b et M5b attendent les données réelles.
 - En attente de Pascal (données réelles) : M1b, M2b.
 
 L'avancement détaillé est dans [`pilotage/kanban.md`](pilotage/kanban.md).
