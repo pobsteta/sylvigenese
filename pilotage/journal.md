@@ -440,3 +440,4 @@
 2026-11-27 · Pascal · M5b · ombre des semis : passer à l'échelle de TreeMig (tolérance klighs de TreePars et sa classe de lumière) ; Niinemets passe en contrôle ; licence de TreePars à établir d'abord (mission à part).
 2026-11-27 · Pascal · M5b · portée de la dispersion : K (kernel_truncation_cells) doit couvrir la distance à 99 % (d99) de Lososová de chaque essence présente ; simulate refuse (code 2, nommé) un K trop court ; la renormalisation ne déplace ainsi au plus que 1 % des graines.
 2026-11-27 · Claude (orchestrateur, par délégation) · cycle 11 · missions 079 (acquéreur : licence de TreePars et tolérance klighs) et 080 (dev Rust : K couvre le d99) confiées.
+2026-11-27 · Pascal · tarif-nemeton · « Fusionne et continue » : PR pobsteta/tarif-nemeton#7 (export des exemplaires, mission 071) fusionnée par l'orchestrateur à la demande de Pascal (commit 1907836) ; le contrôle réel de M6a repose désormais sur un script fusionné.
