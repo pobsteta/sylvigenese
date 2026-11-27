@@ -1,7 +1,7 @@
 # Régénération : ce que la littérature publie, essence par essence (mission 059, mission A du plan M5a)
 
 - **Propriétaire :** Pascal
-- **Date de consultation :** 2026-11-26 (quatre passes ; la troisième lit les documents téléchargés en local, la quatrième lit les deux documents déposés par Pascal : voir §13) ; 2026-11-27 (cinquième passe, mission 079 : licence de TreePars et tolérance à l'ombre `klighs`, voir §14 ; 6 lignes ajoutées au CSV : L01 à L03, T02-KL, T02-LUM, T02-ESP, soit 212 lignes de données)
+- **Date de consultation :** 2026-11-26 (quatre passes ; la troisième lit les documents téléchargés en local, la quatrième lit les deux documents déposés par Pascal : voir §13) ; 2026-11-27 (cinquième passe, mission 079 : licence de TreePars et tolérance à l'ombre `klighs`, voir §14 ; 6 lignes ajoutées au CSV : L01 à L03, T02-KL, T02-LUM, T02-ESP ; sixième passe, mission 083 : C01 et T02-L29, §15 ; **septième passe, mission 084a : classes de lumière, alpha, arrondi de klighs, mortalité de stress, voir §16 ; 4 lignes ajoutées : T02-CLS, T02-ALP, T02-RND, T02-STR**. **Total : 218 lignes de données** : 195 + 11 (passe 4) + 6 (passe 5) + 2 (passe 6) + 4 (passe 7). L'en-tête disait 212 ; il omettait C01 et T02-L29, comptées ici)
 - **Produit par :** agent `acquereur`, mission 059 (`pilotage/missions/059-referentiel-regeneration.md`)
 - **Mission redite :** relever, pour chaque essence de `contracts/species.csv` et pour sept grandeurs (dispersion, maturité, fécondité, tolérance à l'ombre, L d'Ellenberg, croissance et survie des semis sous couvert), ce que la littérature publie et où, pour que le contrat `params/regeneration` (mission 060) ne porte que des termes qui existent.
 - **Décision éclairée :** les termes et les sources de `params/regeneration.parquet` (plan `docs/plans/m5a.md` §3 ; contrat `contracts/tables/params/regeneration.schema.json`), dans le cadre des réponses de Pascal du 26/11/2026 (journal l. 323-325) :
@@ -604,3 +604,78 @@ Lue dans `TreeMigDocu_251218_Model.pdf` p. 14 (sha256 dans INDEX.md). La loi **n
 ### 15.6 Ligne de journal proposée
 
 `2026-11-27 · analyste · 083 · correspondance Niinemets → klighs (bench/m5b/correspondance_klighs.py, sha256 vérifiés) : 30 essences appariées par code, 27 dans le jeu principal (3 synonymes à valider en sensibilité) ; linéaire retenue, klighs = clamp(9,091 − 1,238 N, 1, 9), RMSE 1,01, 1,09 par exclusion d'une essence, résidu max 2,5 classes, codes les plus mal prédits 59, 15P, 17C, 25B, 62 ; isotone et logistique bornée n'améliorent pas hors échantillon ; non testée hors N de 1,5 à 4,6 ; loi p. 14 : seuil = 0,1 klighs − 0,4 (klighs ≥ 5), max(0, 0,025 (klighs − 1)) sinon ; manquent bornes des classes de lumière et alpha ; question n° 21 (constantes au dépôt).`
+
+## 16. Septième passe (27/11/2026, mission 084a) : classes de lumière, alpha, arrondi de klighs, mortalité de stress
+
+**Mission redite :** relever dans les 5 PDF de TreeMig déjà téléchargés quatre faits (bornes des 10 classes de lumière ; coefficient d'extinction alpha ; arrondi de klighs dans GetSpc ; comparaison seuil/classes en mortalité de stress). **Décision éclairée :** la forme du moteur des semis de M5b (reprise de la forme de TreeMig : lumière relative par classe, seuil tiré de klighs, mortalité de stress). Pages citées par leur rang dans le PDF (aucune page imprimée dans ces documents). Lignes CSV : `T02-CLS`, `T02-ALP`, `T02-RND`, `T02-STR`.
+
+### 16.1 Ce qui a été lu
+
+| Fichier | Pages lues cette passe |
+|---|---|
+| `TreeMigDocu_251218_Model.pdf` (24 p.) | 5 à 9, 14 à 24 (les pages 10 à 13 : lues aux passes 3 et 5) |
+| `TreeMigDocu_23_Code.pdf` (9 p.) | 1 à 9 (tout) |
+| `InfosSettingsControlFileAndGUI.pdf` | 1 à 16 (la fin du fichier n'a pas été demandée ; le tableau des réglages va jusqu'à la p. 10, puis ce sont des pages d'interface graphique et de tracés) |
+| `SpecParsMeanings.pdf` | p. 1 (unique) |
+| `TreeMigPackageRoxygenDoku.pdf` | 1 à 12, 29-30, 45-46 (non lu : 13 à 28, 31 à 44, 47-48 ; enveloppe R) |
+| `treemig_details.html:665` | la ligne sur `writeLightDistr` |
+
+### 16.2 Les quatre faits
+
+| N° | Question | Réponse | Page, équation | État |
+|---|---|---|---|---|
+| 1 | Bornes des 10 classes de lumière : égales ? lesquelles ? | **Absentes.** Le texte dit : « light intensity was discretized into 10 light classes ξ » (Docu p. 8, après l'éq. 7). L'éq. (8) somme ξ = 0 à 9 avec l_ξ et l_ξ+1 (donc 11 bornes, déduit). L'éq. (39) p. 16 utilise « the upper and lower bounds of the current light class, l_low and l_up ». Aucune valeur, aucune règle de largeur (égale ou non), aucun sens de ξ. | Docu p. 8 éq. (8)-(9) ; p. 15 éq. (36) ; p. 16 éq. (39) ; Code, Infos, SpecPars, Roxygen lus : rien | absent |
+| 2 | Coefficient d'extinction α : valeur, unité, grandeur | **Valeur absente. Unité non écrite.** Grandeur : **l'indice foliaire** (LAI), l_i = exp(−α · LAI_i), LAI_i = −ln(l_i)/α. LAI_i = somme de (surface foliaire par arbre × nombre d'arbres) des classes de hauteur plus hautes, ÷ 833 m² (éq. 4). LAI en m²/m², « double sided leaf area index » (Infos p. 10). Comme α multiplie un indice foliaire sous une exponentielle, il est sans dimension (déduction, non écrite). | Docu p. 8 : « α the extinction coefficient of leaves », éq. (6), (7), (9) ; p. 7 éq. (4) | forme lue ; valeur absente |
+| 3 | klighs arrondi ou utilisé tel quel dans la loi lumière-seuil (GetSpc) ? | **Le texte ne le dit pas.** Les équations impriment `shadesens = klighs` sans arrondi ni partie entière : 0,1·klighs − 0,4 si klighs ≥ 5 ; max(0 ; 0,025·(klighs − 1)) sinon. Elles sont continues (0,1 en 5). Le tableau 1 dit « Class [1,9] ». Le Code p. 2 renvoie à GetSpc sans le détailler. Un éventuel arrondi serait dans le code FORTRAN, non lu. | Docu p. 14 (loi sous l'éq. 29), p. 17 éq. (43), p. 19 tableau 1 ; Code p. 2 étape 4 | absent (arrondi) ; formules lues |
+| 4 | Comment la mortalité de stress compare le seuil aux classes | La lumière-seuil de l'essence est comparée aux **bornes** de chaque classe de lumière, non à une lumière moyenne. Brute : **0** si l_low > l_thresh ; **1** si l_up < l_thresh ; **(l_thresh − l_low)/(l_up − l_low)** si l_low < l_thresh ≤ l_up. Puis × **0,184** (éq. 40). Résultat moyenné sur les 10 classes, pondérées par F(l_ξ+1) − F(l_ξ). | Docu p. 16 éq. (39)-(40) ; p. 5 éq. (1) ; p. 8 éq. (8) ; p. 18 éq. (52) | lu |
+
+Écarts et réserves relevés dans le document (détail dans les lignes du CSV) :
+1. **Homonyme.** `alpha` du fichier de contrôle (Infos p. 6, exemple 200 m, « mean dispersal distance ») est le noyau de dispersion. Ce n'est pas l'extinction. Aucun réglage de contrôle n'est nommé extinction : la valeur est sans doute posée dans le code (hypothèse).
+2. **Éq. (30) p. 14 :** elle s'écrit (l_thresh − 1)/8, alors que l_thresh va de 0 à 0,5 ; l'éq. (43) p. 17 écrit (shadesens − 1)/8. Coquille probable, que la ligne `T02-L29` (§15.4) n'avait pas relevée. À vérifier dans Lischke et al. 2006 ou dans le code.
+3. **Éq. (39) :** « if if » imprimé ; le cas l_low = l_thresh n'est couvert par aucune ligne (inégalités strictes en lignes 1 et 3). La fraction donnerait 0 : la forme est continue.
+4. **Texte p. 15 contre éq. (39) :** le texte dit que la mortalité de stress agit « if vitality (42) is reduced below 10% by these factors ». L'éq. (39) ne compare que la lumière-seuil aux bornes. Le lien entre les deux n'est pas écrit. Le texte ajoute une mortalité liée à la croissance (« the more severe of both is chosen »), sans équation dans ces pages.
+5. **Agrégation.** `facvar` (Infos p. 2 point 22, p. 8 : `fcvarInit`, `fcvarDyn`) règle la largeur de la distribution de la lumière ; « normalement 1 » (répartition aléatoire). L'éq. (5) du Docu ne le montre pas.
+6. **Cohérence avec l'existant :** §14.4 (points 1, 4, 6) et `T02-L29` restent justes ; cette passe confirme que les pages lues ne portent ni bornes de classes ni α. Aucune constante de plus n'est recopiée : 0,184 l'était déjà (décision du 27/11/2026).
+
+### 16.3 Ce que cela change pour le moteur (à titre d'information, l'IA ne tranche pas)
+
+- **Sans les bornes ni α, la forme complète ne peut pas être reprise telle quelle** : la mortalité de stress par classe (éq. 39) exige l_low et l_up.
+- Pour M5b, une classe unique par cellule (cas actuel, §14.6) n'a besoin que d'une borne : la lumière de la cellule, comparée à l_thresh. Ce qui reste de l'éq. (39) est alors un 0 ou un 1, sans la fraction.
+- α reste le seul coefficient à poser pour passer d'un indice foliaire à une lumière relative. Tant qu'il est absent, il se pose par un fichier de paramètres `provisoire: true`, avec sa source dite absente. Pascal tranche.
+
+### 16.4 URL à télécharger, sans présumer de leur contenu
+
+Aucun fichier n'a été téléchargé à cette passe (pas de shell). Une recherche web a donné les adresses suivantes, **non ouvertes** :
+1. Lischke et al. 2006, *Ecological Modelling* 199 : 409-420 : citation confirmée par la liste de références du Docu (p. 22). **DOI non trouvé** ; à chercher sur ScienceDirect ou Crossref. Une notice existe sur `https://data.zhenzhi.com/details/1/906762281` (non ouverte).
+2. Version « 23 » de la documentation du modèle, peut-être plus ancienne ou plus détaillée : `https://treemig.wsl.ch/fileadmin/user_upload/WSL/Microsite/TreeMig/TreeMigDocu_23_Model.pdf`. Rien n'indique qu'elle porte α ni les bornes.
+3. Tutoriels WSL : `https://treemig.wsl.ch/fileadmin/user_upload/WSL/Microsite/TreeMig/TreeMig_Tutorial.pdf` et `https://treemig.wsl.ch/fileadmin/user_upload/WSL/Microsite/TreeMig/TreeMig_Tutorial_2025-08-25.pdf`.
+4. Tutoriel EnviDat du starter kit (déjà en §14.8, point 2) : `https://envidat.ch/dataset/516d259a-3b10-419c-a033-980bedf6ade1/resource/a1dec65a-30ba-4688-90ac-50df5db73d4c/download/treemig_tutorial_2025-05-02.pdf`.
+5. Page de description du modèle : `https://treemig.wsl.ch/en/core-model/`.
+6. Code FORTRAN de `GetSpc` et `Lfcalc` : sur demande aux auteurs (CC-BY-NC-SA 4.0, `treemig_framework.html:478`). C'est la seule source sûre de l'arrondi de klighs, de α et des bornes.
+
+### 16.5 Corrections faites au CSV et au md
+
+- **Ligne T03 (CSV l. 173) :** elle avait **15 colonnes au lieu de 14**. La cause : le champ `unite_ou_echelle` contenait une virgule non protégée (« … « to allow their growth under the canopy »), plus l'essence est tolérante … »), qui le coupait en deux. Je l'ai entouré de guillemets. Rien d'autre n'a changé dans la ligne.
+- **En-tête du md (l. 4) :** le décompte disait 212 lignes ; le fichier en comptait 214 avant cette passe (C01 et T02-L29 de la mission 083 n'étaient pas comptées). Il dit maintenant 218.
+- Je n'ai pas de shell : le nombre de colonnes des autres lignes n'a pas été recompté ; seules les quatre lignes ajoutées et T03 ont été comptées à la main (14 chacune).
+
+### 16.6 Trois points au sol (passe 7)
+
+1. **Lumière sous un couvert dense de hêtraie-sapinière (09, 61).** Mesurer au fisheye la lumière relative au niveau des semis. C'est la grandeur que l'éq. (6) tire de α × indice foliaire : l'écart entre la mesure et exp(−α × LAI) dira quel α est plausible. Sans α publié, c'est la seule vérification possible.
+2. **Cellule de 25 m en lisière de trouée.** La lumière y varie d'un mètre à l'autre (placette TreeMig de 833 m², cellule SER de 625 m²). Relever la part de la cellule sous un seuil de lumière donné : c'est ce que la fraction de l'éq. (39) calcule, et ce qu'une classe unique par cellule perd.
+3. **Seuil de survie d'un semis de pin sylvestre (52) sous chêne.** la loi p. 14 donne, pour un klighs élevé (intolérant), une lumière-seuil jusqu'à 0,5 de lumière relative (klighs = 9) ; Gaudio dit que le pin survit plus bas (§13). Relever la lumière minimale où les semis vivants persistent. C'est le cas où le seuil de la forme TreeMig et la mesure peuvent diverger.
+
+### 16.7 Question de contrôle
+
+*Quelle décision cette donnée va-t-elle éclairer ?* La forme du moteur des semis de M5b : ce qu'on peut reprendre de TreeMig tel quel (loi du seuil, comparaison par classe, 0,184) et ce qu'il faut poser à part, faute de source lue (bornes des classes, α, arrondi de klighs).
+
+### 16.8 Ligne de journal proposée
+
+`2026-11-27 · acquereur · 084a · TreeMig, 5 PDF relus (Docu 24 p., Code 9 p., Infos 16 p., SpecPars 1 p., Roxygen 17 p. sur 48) : bornes des 10 classes de lumière absentes (10 classes, ξ = 0 à 9, l_low et l_up à l'éq. 39 p. 16, éq. 8 p. 8 ; ni valeurs ni largeurs) ; α = coefficient d'extinction des feuilles sur l'indice foliaire (LAI, éq. 4 p. 7, éq. 6 p. 8), valeur absente, unité non écrite ; « alpha » du fichier de contrôle = noyau de dispersion, homonyme ; klighs sans arrondi dans les équations (p. 14, 17), arrondi éventuel dans GetSpc non lu ; éq. 30 p. 14 écrit (l_thresh − 1)/8 contre (shadesens − 1)/8 éq. 43, coquille probable ; mortalité de stress : seuil comparé aux bornes de chaque classe, 0 / 1 / fraction, × 0,184 (éq. 39-40 p. 16) ; CSV : T03 corrigée (15 → 14 colonnes), 4 lignes ajoutées (T02-CLS, T02-ALP, T02-RND, T02-STR), 218 lignes, en-tête du md corrigé (212 → 218) ; valeurs manquantes : code FORTRAN ou Lischke et al. 2006, URL au md §16.4.`
+
+### 16.9 Liste de contrôle
+
+**Aucune liste de contrôle n'était jointe à la consigne.** Trois points génériques de ma fiche.
+1. **Sources et emplacements : coché, avec réserves.** Chaque fait donne le fichier, la page et l'équation. Non coché : Roxygen p. 13-28, 31-44 et 47-48 non lues ; Infos au-delà de la p. 16 non lues ; sha256 non recalculés (pas de shell, ceux de `INDEX.md` sont repris) ; aucune URL de §16.4 ouverte.
+2. **Décomptes complets : coché, avec réserves.** 10 classes, 11 bornes (déduit) ; 218 lignes = 214 comptées + 4 ; 4 faits sur 4 traités. Non coché : colonnes des autres lignes du CSV non recomptées.
+3. **Termes exacts : coché.** « the extinction coefficient of leaves », « light intensity was discretized into 10 light classes », `shadesens`, `l_thresh`, `l_low`, `l_up`, « Class [1,9] », `writeLightDistr`, `facvar`, `estabEqHC0`, `contLightDepGerm`.
