@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 11 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 12 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -31,7 +31,7 @@ _Modèle de carte :_
 - M6b · semis dessinés par un générique : échelle uniforme (rayon = h), à mettre à (r, h, r) faute de cw des semis ; essence à semis sans modèle young non dite dans les notes de l'index · depuis le cycle 9
 - M6b · ajouter le scénario 2022 (stade sans exemplaire) à bench/m6/mesurer.py, pour que m6_selftest.csv ne garde pas de lignes écrites à la main · depuis le cycle 9
 - M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
-- Mineurs du cycle 11 : docstring de tests/m5/test_m5_stress_mortality.py (référence relevée pour 080) ; réimporter le tarif réel (facteurs du domaine) ; citation des coefficients de Lanczos (Godfrey) ; branche de réflexion de la gamma non testée · depuis le cycle 11
+- Réimporter le tarif réel (facteurs du domaine, mission 076) : chez Pascal ou quand le tarif réel est ici · depuis le cycle 11
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
@@ -45,6 +45,11 @@ _Modèle de carte :_
 
 
 ## Terminé
+
+- [081](missions/081-mineurs-cycle-11.md) et [082](missions/082-cout-du-noyau.md) · depuis le cycle 12
+  - Homme : `dev`, `analyste`, relus par `relecteur`
+  - Mission : mineurs du cycle 11 ; coût du noyau à K = 3, 20 et 60 (verdict de C20 inchangé, condition du rectangle resserrée)
+  - Moyens : PR pobsteta/sylvigenese#14
 
 - [076](missions/076-reprises-mineures-post.md) à [080](missions/080-noyau-couvre-d99.md) · depuis le cycle 11
   - Homme : `dev` ×2, `afficheur`, `acquereur`, relus par `relecteur`
@@ -154,3 +159,4 @@ l'inscrit avec ce qu'elle nous apprend._
 - cycle 9 · livraison : M5a, les semis s'installent et recolonisent les trouées par cohortes (mode cohorts, aux deux niveaux), et la SER entière se simule en espérance ; mesure et extrapolation à C20 · pour Pascal · on sait que la SER C20 tient en temps sur son PC (marge 3 à 7) et en mémoire sous quatre conditions ; mauvaise nouvelle : ces quatre conditions (essences, classes de semis, emprise, forêt seule) sont inconnues du dépôt, et le disque demande 178 à 466 Go
 - cycle 10 · livraison : M6a, les arbres du générateur de tarif-nemeton entrent dans les deux vues, et la vue massif Godot s'ouvre depuis la fiche web avec herbe et semis autour de la caméra · pour Pascal · on peut regarder le futur simulé de l'intérieur, arbre par arbre, chaque stade avec son modèle ; mauvaise nouvelle : les 19 vrais exemplaires sont tous « non calés » (dimensions du jeu fictif hors plage de calage), et ni l'aspect ni la fluidité ne sont prouvés sans le PC de Pascal
 - cycle 11 · livraison : reprises techniques avant M6b et M5b (simulate refuse un noyau trop court pour la dispersion d'une essence, post refuse les cohortes, la vue lit toutes ses constantes dans config.yml) · pour Pascal · moins de cas silencieux ; mauvaise nouvelle : sur données réelles, les essences à longue portée demanderont K = 20 à 60 cellules, coût non mesuré, et TreeMig ne couvre que 30 essences sur 195
+- cycle 12 · livraison : coût du noyau de dispersion mesuré (bench/results/M5_noyau.md) · pour Pascal · on sait qu'un noyau large (K = 20 à 60) ne change pas le verdict de C20 sur son PC ; mauvaise nouvelle : l'emprise deux fois plus grande que la SER passe juste au-dessus de 27,9 Go dès K = 20
