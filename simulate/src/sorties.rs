@@ -114,8 +114,9 @@ pub const SORTE_SEMIS_NON_SIMULES: &str = "semis_non_simules";
 pub const SORTE_STOCK_INITIAL_EN_REGIME: &str = "stock_initial_en_regime";
 /// Mode `cohorts` : la survie des semis ne dépend que de la lumière et de l'ombre (décision de Pascal Q3).
 pub const SORTE_LUMIERE_ET_OMBRE_SEULES: &str = "lumiere_et_ombre_seules";
-/// Mode `cohorts` : classes de lumière égales, extinction et couvert projeté provisoires et sans source
-/// (décisions de Pascal du 27/11/2026, mission 084b).
+/// Mode `cohorts` : comparaison directe de la lumière au seuil (plus de classes), extinction et couvert projeté
+/// provisoires et sans source, klighs extrapolé hors de N 1,5 à 4,6 (décisions de Pascal du 27/11/2026,
+/// missions 084b et 084c).
 pub const SORTE_CLASSES_LUMIERE_PROVISOIRES: &str = "classes_lumiere_et_extinction_provisoires";
 /// Total des couples (cellule, année) simulés sans arbre vivant (H_dom tenue, T5).
 pub const SORTE_TOTAL_CELLULES_SANS_ARBRE: &str = "total_cellules_sans_arbre";
@@ -782,11 +783,13 @@ pub fn ajouter_signalements_de_zone(
             annee: t0,
             entite: lancement.zone.clone(),
             sorte: SORTE_CLASSES_LUMIERE_PROVISOIRES.to_string(),
-            message: "ombre des semis à la forme de TreeMig avec des réglages provisoires et sans source : classes de \
-                      lumière de largeur égale sur [0, 1] (TreeMig n'imprime pas ses bornes), coefficient d'extinction \
-                      provisoire, couvert projeté à la place de l'indice foliaire, une seule lumière par cellule (la \
-                      fraction de l'éq. 39 ne joue que dans la classe qui la contient), klighs dérivé de la tolérance \
-                      de Niinemets (erreur ± 1,1 classe) (mode cohorts ; décisions de Pascal du 27/11/2026)"
+            message: "ombre des semis à la forme de TreeMig avec des réglages provisoires et sans source : il n'y a \
+                      plus de classes de lumière (comparaison directe de la lumière de la cellule au seuil, stress \
+                      entier si l est sous le seuil, nul sinon ; les classes de TreeMig reviendront avec une \
+                      répartition sourcée de la lumière dans la cellule) ; extinction provisoire ; couvert projeté à \
+                      la place de l'indice foliaire ; une seule lumière par cellule ; klighs dérivé de la tolérance de \
+                      Niinemets (erreur ± 1,1 classe) et NON TESTÉ hors N de 1,5 à 4,6 (extrapolation) (mode cohorts ; \
+                      décisions de Pascal du 27/11/2026)"
                 .to_string(),
             valeur: None,
         });

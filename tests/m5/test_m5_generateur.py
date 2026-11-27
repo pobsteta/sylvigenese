@@ -122,7 +122,7 @@ def test_toutes_les_valeurs_de_parametres_sont_synthetiques_et_provisoires(zone)
     assert all("synthétique" in s for s in c["source"])
 
 
-def test_regeneration_porte_les_vingt_et_un_termes_pour_chaque_essence(zone):
+def test_regeneration_porte_les_vingt_termes_pour_chaque_essence(zone):
     t = pq.read_table(zone["dir"] / "params" / "regeneration.parquet").to_pydict()
     schema = json.loads((H.ROOT / "contracts" / "tables" / "params" / "regeneration.schema.json").read_text())
     termes = set(next(f for f in schema["fields"] if f["name"] == "term")["constraints"]["enum"])

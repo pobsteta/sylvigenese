@@ -367,7 +367,6 @@ fn lignes_regeneration() -> Vec<LigneRegeneration> {
     // kernel_scale_m = 7 m : d99 = 46,5 m, couvert par K = 2 cellules de 25 m (mission 080).
     let valeurs = [
         7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184, 9.091, -1.238, 1.0, 9.0, 5.0, 0.1, -0.4, 0.025, 1.0,
-        10.0,
     ];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {

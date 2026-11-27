@@ -146,7 +146,7 @@ def glb(path, *, version=2, asset_version="2.0", species="09", stage="mature", c
         mutate=None, binary_nan=False, truncate=0, extras=None, h_ref=25.0):
     """Modèle d'arbre .glb conforme (mission 068) : trois niveaux de détail par MSFT_lod, sommets
     en y-up de y = 0 à y = h_ref, extras du générateur. `mutate(gltf)` abîme le JSON, `extras`
-    le remplace, `truncate` coupe le fichier de ce nombre d'octets, `binary_nan` écrit un sommet NaN."""
+    le remplace (deux primitives par niveau, matériaux `<fichier>_ecorce` puis `<fichier>_feuillage`), `truncate` coupe le fichier de ce nombre d'octets, `binary_nan` écrit un sommet NaN."""
     views, accessors, meshes, nodes = [], [], [], []
     blob = bytearray()
 
@@ -173,8 +173,9 @@ def glb(path, *, version=2, asset_version="2.0", species="09", stage="mature", c
                           "type": "VEC3", "min": low, "max": high})
         accessors.append({"bufferView": idx_view, "componentType": 5123, "count": len(vertices),
                           "type": "SCALAR"})
-        meshes.append({"primitives": [{"attributes": {"POSITION": 2 * level},
-                                       "indices": 2 * level + 1, "mode": 4}]})
+        # deux primitives par niveau (mission 084c) : écorce puis feuillage, qui partagent ici les mêmes accesseurs
+        meshes.append({"primitives": [{"attributes": {"POSITION": 2 * level}, "indices": 2 * level + 1,
+                                       "material": material, "mode": 4} for material in (0, 1)]})
         nodes.append({"name": f"LOD{level}", "mesh": level})
     nodes[0]["extensions"] = {"MSFT_lod": {"ids": [1, 2]}}
     nodes[0]["extras"] = {"MSFT_screencoverage": [0.3, 0.05, 0.005]}
@@ -183,6 +184,7 @@ def glb(path, *, version=2, asset_version="2.0", species="09", stage="mature", c
     essence = {"09": "Fagus_sylvatica", "02": "Quercus_spec", "61": "Abies_alba"}.get(species, "Fagus_sylvatica")
     gltf = {"asset": {"version": asset_version}, "scene": 0, "scenes": [{"nodes": [0, 1, 2]}],
             "nodes": nodes, "meshes": meshes, "accessors": accessors, "bufferViews": views,
+            "materials": [{"name": f"{Path(path).stem}_{role}"} for role in ("ecorce", "feuillage")],
             "buffers": [{"byteLength": len(blob)}],
             "extensionsUsed": ["MSFT_lod"],
             "extras": extras if extras is not None else {
@@ -509,11 +511,12 @@ TERMS = [("kernel_scale_m", "m"), ("kernel_shape", "1"), ("maturity_height_m", "
          ("seedling_height_growth_m_yr", "m/an"), ("shade_tolerance", "1"),
          ("light_extinction_coef", "1"), ("seedling_survival_full_light_yr", "1"),
          ("passage_height_m", "m"), ("stress_mortality", "1/an"),
-         # mission 084b : correspondance Niinemets -> klighs, loi lumiere-seuil, classes de lumiere (version 0.4)
+         # mission 084b : correspondance Niinemets -> klighs, loi lumiere-seuil (version 0.4) ;
+         # 084c : light_class_count retire (version 0.5), plus de classes de lumiere
          ("klighs_intercept", "1"), ("klighs_per_shade_tolerance", "1"), ("klighs_min", "1"), ("klighs_max", "1"),
          ("light_threshold_klighs_break", "1"), ("light_threshold_high_slope", "1"),
          ("light_threshold_high_intercept", "1"), ("light_threshold_low_slope", "1"),
-         ("light_threshold_low_klighs_origin", "1"), ("light_class_count", "1")]
+         ("light_threshold_low_klighs_origin", "1")]
 
 
 def regeneration_params():

@@ -26,6 +26,15 @@ ALLOWED_CONSTS = {
     "GENERIC_TOLERANCE_M": "tolérance de contrôle de cette convention",
     "M2_PER_HA": "unité : 10 000 m2 par hectare",
     "MASK": "masque 32 bits du hachage",
+    # proportions du dessin de la flèche du nord (compass.gd, mission 084c) : « illustration, non mesurée », nommées dans le
+    # script avec leur raison, sans sens physique ; la taille et les couleurs viennent du bloc viewer.hud de config.yml
+    "ARROW_RADIUS_SHARE": "dessin de la flèche du nord : rayon en part de la taille du contrôle (illustration, non mesurée)",
+    "ARROW_WING_SPAN": "dessin de la flèche du nord : écart des ailes en part du rayon (illustration, non mesurée)",
+    "ARROW_WING_DEPTH": "dessin de la flèche du nord : recul des ailes en part du rayon (illustration, non mesurée)",
+    "ARROW_NOTCH_DEPTH": "dessin de la flèche du nord : creux entre les ailes en part du rayon (illustration, non mesurée)",
+    "LABEL_FONT_SHARE": "dessin de la flèche du nord : taille du « N » en part du contrôle (illustration, non mesurée)",
+    "LABEL_DISTANCE": "dessin de la flèche du nord : distance du « N » en rayons (illustration, non mesurée)",
+    "LABEL_BASELINE_SHARE": "dessin de la flèche du nord : ligne de base du « N » en part de sa hauteur (illustration, non mesurée)",
 }
 # anciens noms de constantes d'affichage : ils ne doivent plus apparaître
 RETIRED_NAMES = ["VIEW_RADIUS_M", "EYE_M", "FOV_DEG", "SPEED_M_S", "FAST_FACTOR", "MOUSE_SENS", "CHUNK_M"]
@@ -41,6 +50,10 @@ LITERAL_PATTERNS = [
     (r"noise\.frequency\s*=\s*-?\d", "fréquence du vent en dur"),
     (r"clampf\([^)]*,\s*-?\d+\.\d+\s*,\s*-?\d", "limite d'inclinaison en dur"),
     (r"\bColor\(\s*-?\d", "couleur en dur"),
+    # mission 084c : la garde ne voyait pas les proportions du dessin (compass.gd : r * 0.32, 0.5, 0.7, 0.3, 1.35, / 4.0)
+    # (× 0,5 est admis : la moitié, comme / 2.0, est une convention de géométrie, par exemple le demi-côté d'un carré de 1 m)
+    (r"\*\s*-?(?!0\.5\b)\d*\.\d+", "proportion décimale en dur (une constante nommée, acceptée dans ALLOWED_CONSTS, ou une clé viewer)"),
+    (r"[\w\)\]]\s*/\s*[3-9]\.\d+", "diviseur décimal en dur (une constante nommée, acceptée dans ALLOWED_CONSTS, ou une clé viewer)"),
 ]
 # lignes admises malgré un motif : textures techniques (normale plate, déplacement neutre, mouvement nul) qui ne sont pas de l'apparence
 TECHNICAL_COLOR = re.compile(r"\.fill\(Color\(")
@@ -78,6 +91,20 @@ def test_no_display_literal_in_the_scripts(path):
             if re.search(rf"\b{name}\b", line):
                 found.append(f"{path.name}:{number} : ancienne constante {name}")
     assert not found, "constante d'affichage en dur (à mettre dans le bloc viewer de config.yml) :\n" + "\n".join(found)
+
+
+def test_the_guard_sees_the_proportions_of_the_compass(tmp_path):
+    """Mission 084c : l'ancien compass.gd (r * 0.32, 0.7, 0.3, 0.3, 1.35, / 4.0) passait inaperçu ; le garde le
+    voit maintenant, et le compass.gd actuel n'en garde aucun (constantes nommées, ALLOWED_CONSTS)."""
+    old = tmp_path / "ancien_compass.gd"
+    old.write_text("var base := [Vector2(0.0, -r), Vector2(r * 0.5, r * 0.7), Vector2(0.0, r * 0.3)]\n"
+                   "var r := _size_px * 0.32\nvar fs := int(_size_px * 0.3)\n"
+                   "var at := Vector2(0.0, -r * 1.35) - Vector2(w / 2.0, -label_size.y / 4.0)\n", encoding="utf-8")
+    seen = [why for _, line in code_lines(old) for pattern, why in LITERAL_PATTERNS if re.search(pattern, line)]
+    assert len(seen) == 5 and all("en dur" in why for why in seen), seen
+    new = ROOT / "viewer-massif" / "scripts" / "compass.gd"
+    names = set(re.findall(r"^const\s+([A-Z][A-Z0-9_]*)\s*:=", new.read_text(encoding="utf-8"), re.M))
+    assert names == {n for n in ALLOWED_CONSTS if n.startswith(("ARROW_", "LABEL_"))}, names
 
 
 def test_the_guard_catches_a_returning_literal(tmp_path):

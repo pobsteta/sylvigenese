@@ -93,6 +93,80 @@ def test_glb_without_lod_node_at_all_is_refused(tmp_path, capsys):
     refused(capsys, "tree_model", tree(tmp_path, mutate=no_lod), r"un seul nœud principal")
 
 
+# --- surfaces : deux primitives par niveau, matériaux _ecorce puis _feuillage (mission 084c)
+
+def test_glb_surfaces_conform_for_a_model_and_a_generic(tmp_path, capsys):
+    accepted(capsys, "tree_model", tree(tmp_path))
+    accepted(capsys, "tree_model", h.generic_glb(tmp_path / "generique_resineux.glb", "resineux"))
+
+
+def test_glb_materials_are_named_after_the_file(tmp_path):
+    """Les noms que écrit `assets` : `<fichier>_ecorce` puis `<fichier>_feuillage`, l'ordre des primitives du niveau."""
+    import json
+    import struct
+    path = tree(tmp_path)
+    data = path.read_bytes()
+    gltf = json.loads(data[20:20 + struct.unpack_from("<I", data, 12)[0]])
+    assert [m["name"] for m in gltf["materials"]] == ["09_mature_ecorce", "09_mature_feuillage"]
+    assert [[p["material"] for p in mesh["primitives"]] for mesh in gltf["meshes"]] == [[0, 1]] * 3
+
+
+def rename_material(index, name):
+    def change(gltf):
+        gltf["materials"][index]["name"] = name
+    return change
+
+
+def one_primitive_on_lod1(gltf):
+    gltf["meshes"][1]["primitives"] = gltf["meshes"][1]["primitives"][:1]
+
+
+def three_primitives_on_lod0(gltf):
+    gltf["meshes"][0]["primitives"].append(dict(gltf["meshes"][0]["primitives"][0]))
+
+
+def no_material_on_lod2(gltf):
+    del gltf["meshes"][2]["primitives"][1]["material"]
+
+
+def swapped_on_lod0(gltf):
+    first, second = gltf["meshes"][0]["primitives"]
+    first["material"], second["material"] = second["material"], first["material"]
+
+
+def material_out_of_range(gltf):
+    gltf["meshes"][0]["primitives"][1]["material"] = 9
+
+
+def no_materials_at_all(gltf):
+    del gltf["materials"]
+    for mesh in gltf["meshes"]:
+        for primitive in mesh["primitives"]:
+            del primitive["material"]
+
+
+@pytest.mark.parametrize("mutate,pattern", [
+    (rename_material(0, "arbre_bois"), r"_ecorce puis _feuillage.*'arbre_bois'"),
+    (rename_material(1, "09_mature_feuilles"), r"niveau LOD0.*'09_mature_feuilles'"),
+    (rename_material(0, "ecorce"), r"niveau LOD0.*'ecorce'"),
+    (one_primitive_on_lod1, r"niveau LOD1 : deux primitives attendues.*1 primitive"),
+    (three_primitives_on_lod0, r"niveau LOD0 : deux primitives attendues.*3 primitive"),
+    (no_material_on_lod2, r"niveau LOD2.*\(sans matériau\)"),
+    (swapped_on_lod0, r"niveau LOD0.*_ecorce puis _feuillage"),
+    (material_out_of_range, r"niveau LOD0.*\(sans matériau\)"),
+    (no_materials_at_all, r"niveau LOD0.*\(sans matériau\)"),
+], ids=["ecorce-mal-nomme", "feuillage-mal-nomme", "ecorce-sans-prefixe",
+        "une-seule-primitive", "trois-primitives", "sans-materiau", "ordre-inverse", "materiau-hors-liste",
+        "aucun-materiau"])
+def test_glb_surfaces_faults_are_refused(tmp_path, capsys, mutate, pattern):
+    refused(capsys, "tree_model", tree(tmp_path, mutate=mutate), pattern)
+
+
+def test_glb_generic_surfaces_are_checked_too(tmp_path, capsys):
+    refused(capsys, "tree_model", h.generic_glb(tmp_path / "generique_feuillu.glb", mutate=rename_material(1, "feuille")),
+            r"niveau LOD0.*_ecorce puis _feuillage")
+
+
 def test_glb_triangles_must_decrease(tmp_path, capsys):
     refused(capsys, "tree_model", tree(tmp_path, counts=(6, 12, 2)), r"strictement décroissants")
 

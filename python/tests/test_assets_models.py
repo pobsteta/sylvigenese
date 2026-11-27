@@ -377,3 +377,24 @@ def test_stage_models_est_conforme_au_contrat(zone_partial):
     import jsonschema
     schema = json.loads((ROOT / "contracts" / "json" / "massif_index.schema.json").read_text(encoding="utf-8"))
     jsonschema.validate(index_of(zone_partial), schema)
+
+
+def _glb_json(path):
+    import struct
+    data = path.read_bytes()
+    return json.loads(data[20:20 + struct.unpack_from("<I", data, 12)[0]])
+
+
+def test_chaque_niveau_de_chaque_glb_porte_ecorce_puis_feuillage_exemplaires_et_generiques(zone_models, zone_generic):
+    """Mission 084c, contrat assets.tree_model : deux primitives par niveau, matériaux `<fichier>_ecorce` puis
+    `<fichier>_feuillage`, y compris pour les génériques (qui s'appelaient « tronc » et « houppier » : la vue ne lisait pas
+    leur rôle)."""
+    fichiers = sorted((zone_models["dir"] / "assets" / "trees").glob("*.glb")) + \
+        sorted((zone_generic / "assets" / "trees").glob("*.glb"))
+    assert len(fichiers) >= 5 and any(f.name.startswith("generique_") for f in fichiers)
+    for fichier in fichiers:
+        doc = _glb_json(fichier)
+        assert [m["name"] for m in doc["materials"]] == [f"{fichier.stem}_ecorce", f"{fichier.stem}_feuillage"], fichier.name
+        for mesh in doc["meshes"]:
+            assert [doc["materials"][p["material"]]["name"].rsplit("_", 1)[1] for p in mesh["primitives"]] == \
+                ["ecorce", "feuillage"], fichier.name

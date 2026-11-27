@@ -111,8 +111,11 @@ def _conifer_crown(n: int = 8) -> tuple[np.ndarray, np.ndarray]:
 def _generic_level(group: str, trunk_sides: int, crown_sides: int, crown_levels: int) -> lod.Level:
     crown = _broadleaf_crown(crown_sides, crown_levels) if group == "feuillu" else _conifer_crown(crown_sides)
     primitives = []
-    for (positions, indices), color, name in ((_trunk(trunk_sides), TRUNK_COLOR, "tronc"),
-                                              (crown, COLORS[group], "houppier")):
+    # mêmes noms que les modèles des exemplaires (lod.BARK puis lod.FOLIAGE) : le contrat assets.tree_model exige deux
+    # primitives dont les matériaux se terminent par _ecorce puis _feuillage (mission 084c) ; avant, « tronc » et « houppier »
+    # rendaient le rôle illisible par la vue, qui colorait tout le générique comme du feuillage
+    for (positions, indices), color, name in ((_trunk(trunk_sides), TRUNK_COLOR, lod.BARK),
+                                              (crown, COLORS[group], lod.FOLIAGE)):
         normals = _vertex_normals(positions.astype("float64"), indices).astype("float32")
         primitives.append(lod.Primitive(name, positions.astype("float32"), normals, indices.astype("uint16"), color))
     return lod.Level(primitives)

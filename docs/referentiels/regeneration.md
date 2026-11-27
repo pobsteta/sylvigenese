@@ -639,11 +639,11 @@ Lue dans `TreeMigDocu_251218_Model.pdf` p. 14 (sha256 dans INDEX.md). La loi **n
 
 ### 16.3 Ce que cela change pour le moteur (à titre d'information, l'IA ne tranche pas)
 
-- **Sans les bornes ni α, la forme complète ne peut pas être reprise telle quelle** : la mortalité de stress par classe (éq. 39) exige l_low et l_up.
-- Pour M5b, une classe unique par cellule (cas actuel, §14.6) n'a besoin que d'une borne : la lumière de la cellule, comparée à l_thresh. Ce qui reste de l'éq. (39) est alors un 0 ou un 1, sans la fraction.
-- α reste le seul coefficient à poser pour passer d'un indice foliaire à une lumière relative. Tant qu'il est absent, il se pose par un fichier de paramètres `provisoire: true`, avec sa source dite absente. Pascal tranche.
+- **Sans les bornes ni α, la forme complète ne peut pas être reprise telle quelle** : la mortalité de stress par classe (éq. 39) exige l_low et l_up, et la loi de répartition de la lumière de la cellule sur les classes (éq. 8-9), que le dépôt n'a pas.
+- **Décision de Pascal du 27/11/2026 (mission 084c) : comparaison directe.** Avec une seule lumière par cellule, la lumière l de la cellule est comparée au seuil : part = 1 si l < seuil, 0 sinon, puis × 0,184 (éq. 40). Le cas l = seuil donne 0 (pas de stress) : l'éq. (39) écrit « l_up < l_thresh » en inégalité stricte, et pour une lumière unique l_low = l_up = l ; la fraction (l_thresh − l_low)/(l_up − l_low) serait 0/0. La répartition sur dix classes de largeur égale de la mission 084b est **abandonnée** : ses bornes n'étaient pas sourcées, et ranger une lumière unique dans une classe inventée aurait fait dépendre le résultat de cette invention. Il n'y a plus de répartition ; **les classes de TreeMig reviendront avec une répartition sourcée de la lumière dans la cellule** (bornes ξ, loi de répartition, α). Le terme `light_class_count` est retiré du contrat (0.5).
+- α reste le seul coefficient à poser pour passer d'un indice foliaire à une lumière relative. Tant qu'il est absent, il se pose par un fichier de paramètres `provisoire: true`, avec sa source dite absente (le coefficient d'extinction du couvert projeté, provisoire). Pascal tranche.
 
-**Suite (mission 084b, 27/11/2026) :** la forme de TreeMig (loi lumière-seuil, correspondance du §15, comparaison par classe de l'éq. 39, × 0,184) est reprise dans `simulate/src/semis.rs` avec des classes de lumière de largeur égale et une seule lumière par cellule (décisions de Pascal du 27/11/2026) ; voir l'ADR 0006, choix 13. Les dix constantes sont des termes de `params/regeneration` (contrat 0.4).
+**Suite (missions 084b et 084c, 27/11/2026) :** la forme de TreeMig (loi lumière-seuil, correspondance du §15, comparaison de l'éq. 39 réduite à la comparaison directe, × 0,184) est reprise dans `simulate/src/semis.rs` (décisions de Pascal du 27/11/2026) ; voir l'ADR 0006, choix 13. Les neuf constantes sont des termes de `params/regeneration` (contrat 0.5). Extrapolation : klighs dérivé de Niinemets n'a pas été testé hors N de 1,5 à 4,6.
 
 ### 16.4 URL à télécharger, sans présumer de leur contenu
 

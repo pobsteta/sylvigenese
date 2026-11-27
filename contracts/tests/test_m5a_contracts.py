@@ -128,7 +128,7 @@ def test_regeneration_params_conform(tmp_path, capsys):
     assert code == 0, out
 
 
-def test_regeneration_params_have_a_closed_list_of_twenty_one_terms():
+def test_regeneration_params_have_a_closed_list_of_twenty_terms():
     schema = catalog.load_schema("tables/params/regeneration.schema.json")
     term = next(f for f in schema["fields"] if f["name"] == "term")
     assert [t for t, _ in h.TERMS] == term["constraints"]["enum"]
@@ -140,7 +140,7 @@ def test_regeneration_maturity_is_a_height_and_the_diameter_term_is_gone(tmp_pat
     term = next(f for f in schema["fields"] if f["name"] == "term")
     assert "maturity_height_m" in term["constraints"]["enum"]
     assert "maturity_d130_cm" not in term["constraints"]["enum"]
-    assert schema["x-schema-version"] == "0.4"
+    assert schema["x-schema-version"] == "0.5"
     data = h.regeneration_params()
     data["term"][data["term"].index("maturity_height_m")] = "maturity_d130_cm"
     code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
@@ -152,7 +152,7 @@ def test_regeneration_stress_mortality_is_a_term_of_the_contract(tmp_path, capsy
     schéma ; sans lui le contrat reste conforme (c'est simulate qui arrête, code 2, en mode cohorts)."""
     schema = catalog.load_schema("tables/params/regeneration.schema.json")
     term = next(f for f in schema["fields"] if f["name"] == "term")
-    assert "stress_mortality" in term["constraints"]["enum"] and schema["x-schema-version"] == "0.4"
+    assert "stress_mortality" in term["constraints"]["enum"] and schema["x-schema-version"] == "0.5"
     for mot in ("stress_mortality", "éq. 40", "1/an", "code 2"):
         assert mot in schema["description"], mot
     assert "0,184" not in schema["description"] and "0.184" not in schema["description"]
@@ -163,18 +163,39 @@ def test_regeneration_stress_mortality_is_a_term_of_the_contract(tmp_path, capsy
 
 
 def test_regeneration_light_terms_are_documented_without_values(tmp_path, capsys):
-    """Mission 084b : les dix termes de l'ombre des semis (klighs, loi lumière-seuil, classes de lumière) sont au contrat
-    (version 0.4) ; le schéma cite la loi et les équations, sans aucune des valeurs (elles viennent des fichiers)."""
+    """Mission 084b : les neuf termes de l'ombre des semis (klighs, loi lumière-seuil) sont au contrat (versions 0.4 puis
+    0.5) ; le schéma cite la loi et les équations, sans aucune des valeurs (elles viennent des fichiers)."""
     schema = catalog.load_schema("tables/params/regeneration.schema.json")
     term = next(f for f in schema["fields"] if f["name"] == "term")
     nouveaux = [t for t, _ in h.TERMS][11:]
-    assert len(nouveaux) == 10 and all(t in term["constraints"]["enum"] for t in nouveaux)
+    assert len(nouveaux) == 9 and all(t in term["constraints"]["enum"] for t in nouveaux)
     for mot in nouveaux + ["éq. 39", "p. 14", "TreeMigDocu_251218_Model.pdf", "Niinemets", "code 2"]:
         assert mot in schema["description"], mot
     for valeur in ("9,091", "9.091", "1,238", "1.238", "0,025", "0.025"):
         assert valeur not in schema["description"], valeur
     code, out = check(capsys, "regeneration", regeneration_file(tmp_path, h.regeneration_params()))
     assert code == 0, out
+
+
+def test_regeneration_light_class_count_is_retired_in_0_5(tmp_path, capsys):
+    """Mission 084c (décision de Pascal du 27/11/2026) : la mortalité de stress compare directement la lumière au seuil ;
+    light_class_count (0.4) n'est plus un terme du contrat : plus exigé (le jeu conforme n'en porte pas), refusé s'il est
+    fourni (par le validateur : hors de la liste fermée ; par simulate : « terme retiré », tests/m5), et le schéma dit le
+    retrait, la comparaison directe et le cas de l'égalité."""
+    schema = catalog.load_schema("tables/params/regeneration.schema.json")
+    term = next(f for f in schema["fields"] if f["name"] == "term")
+    assert "light_class_count" not in term["constraints"]["enum"]
+    assert "light_class_count" not in [t for t, _ in h.TERMS]
+    desc = schema["description"]
+    for mot in ("light_class_count", "RETIRÉ", "terme retiré", "COMPARAISON DIRECTE", "l < seuil", "l = seuil",
+                "NON TESTÉE hors N de 1,5 à 4,6"):
+        assert mot in desc, mot
+    data = h.regeneration_params()
+    code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
+    assert code == 0, out
+    data["term"][0] = "light_class_count"
+    code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
+    assert code == 3 and re.search(r"term", out), out
 
 
 def test_regeneration_kernel_is_documented_from_the_two_lososova_distances():

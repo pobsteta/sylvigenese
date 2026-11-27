@@ -93,7 +93,7 @@ REGENERATION_DEFAUT = {
     "seedling_survival_full_light_yr": (0.9, "1"),
     "passage_height_m": (1.3, "m"),
     "stress_mortality": (0.184, "1/an"),    # source : TreeMig éq. 40 p. 16 (TreeMigDocu_251218_Model.pdf), provisoire vrai, comme dans le contrat
-    # Ombre des semis à la forme de TreeMig (mission 084b, contrat 0.4) : valeurs publiées ou ajustées, avec leur source.
+    # Ombre des semis à la forme de TreeMig (mission 084b, contrat 0.4 ; 084c, 0.5 : light_class_count retiré, plus de classes) : valeurs publiées ou ajustées, avec leur source.
     "klighs_intercept": (9.091, "1"),                 # correspondance Niinemets -> klighs, mission 083 (régression linéaire)
     "klighs_per_shade_tolerance": (-1.238, "1"),      # idem (pente par unité de Niinemets : sens inverse)
     "klighs_min": (1.0, "1"),                         # klighs : classes 1 à 9 de TreeMig (Docu tableau 1)
@@ -103,7 +103,6 @@ REGENERATION_DEFAUT = {
     "light_threshold_high_intercept": (-0.4, "1"),
     "light_threshold_low_slope": (0.025, "1"),
     "light_threshold_low_klighs_origin": (1.0, "1"),
-    "light_class_count": (10.0, "1"),                 # décision de Pascal du 27/11/2026 : 10 classes égales, sans source
 }
 TERMES_REGENERATION = tuple(REGENERATION_DEFAUT)
 # Source propre à un terme (les autres portent SOURCE, synthétique).
@@ -121,8 +120,6 @@ SOURCE_TERME = {
     "light_threshold_high_intercept": _SRC_LOI,
     "light_threshold_low_slope": _SRC_LOI,
     "light_threshold_low_klighs_origin": _SRC_LOI,
-    "light_class_count": "décision de Pascal du 27/11/2026 : 10 classes de largeur égale sur [0, 1], provisoire et sans source "
-                         "(TreeMig n'imprime pas ses bornes)",
 }
 
 DYN_SCHEMA = pa.schema([

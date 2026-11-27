@@ -40,37 +40,35 @@
 //! du stock ne grandit plus dans ce modèle, son passage est réglé par la règle de Q1.
 //!
 //! # Survie (Q3 ; forme de TreeMig, éq. 37, 39 et 40 et loi lumière-seuil de la p. 14 ; mission 084b,
-//! décisions de Pascal du 27/11/2026)
+//! reprise 084c, décisions de Pascal du 27/11/2026)
 //!
 //! - la **lumière relative** de la cellule est l = exp(−k × c), k = `light_extinction_coef`
 //!   (provisoire) et c le **couvert projeté** : la surface des houppiers projetés de la cellule divisée
 //!   par sa surface (sans unité). Le couvert projeté tient la place de l'indice foliaire de TreeMig
 //!   (décision de Pascal du 27/11/2026, provisoire, dite au rapport) ;
-//! - la lumière est rangée dans `light_class_count` **classes de largeur égale sur [0, 1]** (10 :
-//!   décision de Pascal du 27/11/2026, provisoire et **sans source** : TreeMig n'imprime pas ses bornes) ;
 //! - le **seuil de lumière** de l'essence se tire de sa tolérance à l'ombre N (`shade_tolerance`,
 //!   Niinemets et Valladares 2006, 0 à 5) en deux temps, sans aucune valeur dans le code :
 //!   1. klighs = borné entre `klighs_min` et `klighs_max` de `klighs_intercept` +
 //!      `klighs_per_shade_tolerance` × N (régression linéaire de la mission 083, provisoire,
-//!      erreur ± 1,1 classe, regeneration.md §15) ;
+//!      erreur ± 1,1 classe, **non testée hors N de 1,5 à 4,6**, regeneration.md §15) ;
 //!   2. loi de TreeMig (p. 14, après l'éq. 29) : seuil = `light_threshold_high_slope` × klighs +
 //!      `light_threshold_high_intercept` si klighs ≥ `light_threshold_klighs_break`, sinon
 //!      max(0, `light_threshold_low_slope` × (klighs − `light_threshold_low_klighs_origin`)) ;
-//! - la **part sous le seuil** d'une classe [l_low, l_up] (éq. 39, p. 16) : 0 si l_low > seuil, 1 si
-//!   l_up < seuil, (seuil − l_low) / (l_up − l_low) sinon ; la mortalité de stress de la classe est
-//!   `stress_mortality` × part (éq. 40) ; la mortalité de la cellule est la moyenne des classes
-//!   pondérée par la part de la lumière de la cellule dans chaque classe ;
-//! - **une seule lumière par cellule** : TreeMig répartit la lumière d'une cellule sur les classes par
-//!   une loi (une normale de l'indice foliaire) que le dépôt n'a pas. Avec la seule valeur l, la part
-//!   de la lumière est 1 pour la classe qui contient l (une valeur sur une borne va à la classe du
-//!   dessus ; l = 1, à la dernière) et 0 ailleurs : la moyenne pondérée se réduit à la part sous le
-//!   seuil de cette classe. La fraction de l'éq. 39 ne joue donc que dans la classe qui contient l,
-//!   et seulement si le seuil y tombe. C'est la forme publiée appliquée à notre lumière unique, non
-//!   une répartition inventée ;
+//! - **comparaison directe** (décision de Pascal du 27/11/2026) : la part de la cellule sous le seuil
+//!   vaut 1 si l < seuil, 0 sinon. **Cas l = seuil : part 0, pas de stress.** C'est la condition de
+//!   TreeMig (éq. 39 : la classe est tout entière sous le seuil si l_up < seuil, strict) appliquée à une
+//!   lumière unique (l_low = l_up = l) ; l'égalité n'est pas « sous » le seuil, et la fraction
+//!   (seuil − l_low) / (l_up − l_low) de l'éq. 39 y serait 0 / 0, donc sans sens ;
+//! - **pas de classes de lumière** : TreeMig range la lumière dans 10 classes dont il répartit la lumière
+//!   d'une cellule par une loi (une normale de l'indice foliaire) que le dépôt n'a pas, et dont il
+//!   n'imprime pas les bornes. Tant qu'il n'y a qu'une lumière par cellule, aucune répartition n'est
+//!   inventée : les classes de TreeMig reviendront avec une répartition sourcée de la lumière dans la
+//!   cellule. `light_class_count` (version 0.4) est donc retiré du contrat (0.5) et refusé s'il est
+//!   fourni ([`terme_retire`]) ;
 //! - survie annuelle s = max(0, `seedling_survival_full_light_yr` − mortalité de stress) : les
 //!   mortalités s'additionnent et sont bornées à 1 (éq. 37). Gibier, sous-bois et fructification ne sont pas
 //!   simulés (Q3) : `run.json` le dit. Tous les termes ci-dessus sont ceux du contrat
-//!   `params/regeneration` (version 0.4) ; absents, code 2.
+//!   `params/regeneration` (version 0.5) ; absents, code 2.
 //!
 //! # Passage à la futaie (Q1, option a)
 //!
@@ -123,11 +121,8 @@ pub const TOLERANCE_ARRONDI: f64 = 1e-12;
 /// mal saisie (unités) et c'est refusé (code 2).
 pub const CLASSES_MAX: usize = 1000;
 
-/// Plus grand nombre de classes de lumière admis (garde contre une faute de saisie, sans sens écologique).
-pub const CLASSES_LUMIERE_MAX: usize = 1000;
-
 /// Les termes du contrat `params/regeneration` lus par le moteur, avec leur unité.
-pub const TERMES: [(&str, &str); 21] = [
+pub const TERMES: [(&str, &str); 20] = [
     ("kernel_scale_m", "m"),
     ("kernel_shape", "1"),
     ("maturity_height_m", "m"),
@@ -148,8 +143,21 @@ pub const TERMES: [(&str, &str); 21] = [
     ("light_threshold_high_intercept", "1"),
     ("light_threshold_low_slope", "1"),
     ("light_threshold_low_klighs_origin", "1"),
-    ("light_class_count", "1"),
 ];
+
+/// Les termes retirés du contrat, avec la raison. Un terme retiré fourni est refusé par son nom
+/// (code 2), jamais lu en silence ni ignoré en silence ([`terme_retire`]).
+pub const TERMES_RETIRES: [(&str, &str); 1] = [(
+    "light_class_count",
+    "retiré en version 0.5 de params/regeneration (mission 084c, décision de Pascal du 27/11/2026) : la mortalité de \
+     stress compare directement la lumière de la cellule au seuil, il n'y a plus de classes de lumière ; \
+     supprimer la ligne",
+)];
+
+/// La raison du retrait d'un terme, si `terme` est un terme retiré du contrat.
+pub fn terme_retire(terme: &str) -> Option<&'static str> {
+    TERMES_RETIRES.iter().find(|(nom, _)| *nom == terme).map(|(_, raison)| *raison)
+}
 
 /// Une ligne de `params/regeneration.parquet` (contrat `dynamics.regeneration`).
 #[derive(Debug, Clone, PartialEq)]
@@ -164,7 +172,7 @@ pub struct LigneRegeneration {
 }
 
 /// Les constantes de la loi lumière-seuil de TreeMig et de la correspondance Niinemets → klighs,
-/// toutes lues du contrat `params/regeneration` (version 0.4) : aucune n'est dans le code.
+/// toutes lues du contrat `params/regeneration` (version 0.5) : aucune n'est dans le code.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoiLumiere {
     /// Ordonnée de la correspondance klighs = intercept + pente × N (mission 083).
@@ -185,8 +193,6 @@ pub struct LoiLumiere {
     pub pente_basse: f64,
     /// Origine de klighs de la branche basse (p. 14 : le 1 de « klighs − 1 »).
     pub origine_basse: f64,
-    /// Nombre de classes de lumière de largeur égale sur [0, 1] (décision de Pascal du 27/11/2026).
-    pub nombre_classes: usize,
 }
 
 impl LoiLumiere {
@@ -232,7 +238,7 @@ pub struct ParametresSemis {
     pub hauteur_passage_m: f64,
     /// Mortalité annuelle de stress d'un semis sous son seuil de lumière, 0 à 1 (TreeMig, éq. 40).
     pub mortalite_stress: f64,
-    /// La correspondance Niinemets → klighs, la loi lumière-seuil et les classes de lumière.
+    /// La correspondance Niinemets → klighs, et la loi lumière-seuil.
     pub loi_lumiere: LoiLumiere,
     /// Vrai si au moins un terme lu est provisoire.
     pub provisoire: bool,
@@ -335,17 +341,6 @@ pub fn chercher_terme(
     )))
 }
 
-/// Le nombre de classes de lumière : un entier ≥ 1 (code 2 sinon, rien n'est arrondi en silence).
-fn nombre_de_classes_de_lumiere(espece: &str, valeur: f64) -> Result<usize, Erreur> {
-    if valeur >= 1.0 && valeur.fract() == 0.0 && valeur <= CLASSES_LUMIERE_MAX as f64 {
-        return Ok(valeur as usize);
-    }
-    Err(Erreur::entree_refusee(format!(
-        "params/regeneration : essence {espece}, terme « light_class_count » = {valeur} ; attendu : un entier \
-         entre 1 et {CLASSES_LUMIERE_MAX}"
-    )))
-}
-
 fn borne(espece: &str, terme: &str, valeur: f64, condition: bool, attendu: &str) -> Result<(), Erreur> {
     if condition {
         return Ok(());
@@ -358,13 +353,13 @@ fn borne(espece: &str, terme: &str, valeur: f64, condition: bool, attendu: &str)
 /// Les paramètres de semis d'une essence (tous les termes du contrat). Code 2 si un terme manque
 /// ou sort de son domaine (échelle, forme, croissance et hauteur de passage strictement positives ;
 /// maturité, fécondité, tolérance et extinction positives ; parts, survie et mortalité de stress entre 0 et 1 ;
-/// klighs_min ≤ klighs_max ; nombre de classes de lumière entier ; lumière-seuil entre 0 et 1).
+/// klighs_min ≤ klighs_max ; lumière-seuil entre 0 et 1).
 pub fn parametres_de(
     lignes: &[LigneRegeneration],
     espece: &str,
     referentiel: &Referentiel,
 ) -> Result<ParametresSemis, Erreur> {
-    let mut valeurs = [0.0_f64; 21];
+    let mut valeurs = [0.0_f64; 20];
     let mut provisoire = false;
     for (rang, (terme, unite)) in TERMES.iter().enumerate() {
         let (valeur, p) = chercher_terme(lignes, espece, referentiel, terme, unite)?;
@@ -394,7 +389,6 @@ pub fn parametres_de(
             ordonnee_haute: valeurs[17],
             pente_basse: valeurs[18],
             origine_basse: valeurs[19],
-            nombre_classes: nombre_de_classes_de_lumiere(espece, valeurs[20])?,
         },
         provisoire,
     };
@@ -461,46 +455,19 @@ pub fn lumiere_relative(coef_extinction: f64, couvert_projete: f64) -> f64 {
     (-coef_extinction * couvert_projete).exp()
 }
 
-/// Le rang (0 … n − 1) de la classe de lumière qui contient `lumiere`, n classes de largeur égale sur
-/// [0, 1] : une valeur sur une borne va à la classe du dessus, 1 à la dernière.
-pub fn classe_de_lumiere(lumiere: f64, nombre_classes: usize) -> usize {
-    let rang = (lumiere * nombre_classes as f64).floor();
-    if rang <= 0.0 {
-        0
-    } else if rang >= (nombre_classes - 1) as f64 {
-        nombre_classes - 1
-    } else {
-        rang as usize
-    }
-}
-
-/// La part d'une classe de lumière [l_low, l_up] sous le seuil (TreeMig, éq. 39, p. 16) : 0 si la classe
-/// est entièrement au-dessus du seuil (l_low > seuil), 1 si elle est entièrement au-dessous
-/// (l_up < seuil), sinon la fraction (seuil − l_low) / (l_up − l_low).
-pub fn part_sous_le_seuil(l_bas: f64, l_haut: f64, seuil: f64) -> f64 {
-    if l_bas > seuil {
-        0.0
-    } else if l_haut < seuil {
+/// La part de mortalité de stress d'une cellule de lumière relative `lumiere` (0 à 1) : comparaison
+/// directe au seuil de l'essence, 1 si `lumiere` < seuil, 0 sinon (décision de Pascal du 27/11/2026).
+/// L'égalité (l = seuil) donne 0 : la condition de TreeMig (éq. 39, l_up < seuil) est stricte.
+pub fn part_de_stress(parametres: &ParametresSemis, lumiere: f64) -> f64 {
+    if lumiere < parametres.seuil_lumiere() {
         1.0
     } else {
-        (seuil - l_bas) / (l_haut - l_bas)
+        0.0
     }
-}
-
-/// La part de mortalité de stress d'une cellule de lumière relative `lumiere` (0 à 1) : la moyenne des
-/// classes pondérée par la part de la lumière dans chaque classe, qui avec une seule lumière par
-/// cellule vaut 1 pour la classe qui la contient et 0 ailleurs (voir la documentation du module) ; elle
-/// se réduit à la part sous le seuil de cette classe.
-pub fn part_de_stress(parametres: &ParametresSemis, lumiere: f64) -> f64 {
-    let n = parametres.loi_lumiere.nombre_classes;
-    let rang = classe_de_lumiere(lumiere, n);
-    let l_bas = rang as f64 / n as f64;
-    let l_haut = (rang + 1) as f64 / n as f64;
-    part_sous_le_seuil(l_bas, l_haut, parametres.seuil_lumiere())
 }
 
 /// La survie annuelle d'un semis (forme de TreeMig, éq. 37, 39, 40) : s_pleine − `stress_mortality` ×
-/// part de la cellule sous le seuil de lumière de l'essence, bornée à 0.
+/// part de la cellule sous le seuil de lumière de l'essence (1 ou 0), bornée à 0.
 pub fn survie(parametres: &ParametresSemis, lumiere: f64) -> f64 {
     let stress = parametres.mortalite_stress * part_de_stress(parametres, lumiere);
     (parametres.survie_pleine_lumiere - stress).max(0.0)

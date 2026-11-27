@@ -199,8 +199,9 @@ func _wood_material() -> StandardMaterial3D:
 
 
 ## Pose une couleur par surface sur les maillages d'un modèle (mission 085) : le bois (primitive « ecorce » du .glb) prend la
-## couleur du bois, les cartes de feuillage (primitive « feuillage ») celle du feuillage. Une primitive sans matériau nommé
-## (modèle écrit à la main) garde la couleur du feuillage, comme avant. Les maillages sont ceux du modèle, partagés par tous
+## couleur du bois, les cartes de feuillage (primitive « feuillage ») celle du feuillage. Le chargeur a déjà refusé tout modèle
+## dont un niveau n'a pas exactement [écorce, feuillage] (contrat des .glb d'arbres, mission 084c) : il n'y a pas de troisième
+## rôle ici, ni de couleur par défaut pour une primitive inconnue. Les maillages sont ceux du modèle, partagés par tous
 ## les arbres qui l'emploient : l'opération ne se fait qu'une fois par modèle. Le matériau vient du maillage lui-même, car un
 ## MultiMeshInstance3D n'a pas de surface_override_material.
 func paint_model(res: Dictionary) -> void:
@@ -212,6 +213,7 @@ func paint_model(res: Dictionary) -> void:
 		var mesh: Mesh = lv["mesh"]
 		var roles: Array = lv["surface_roles"]
 		for s in range(roles.size()):
+			assert(str(roles[s]) == "wood" or str(roles[s]) == "foliage")   # garanti par le chargeur (_check_roles)
 			mesh.surface_set_material(s, wood if str(roles[s]) == "wood" else foliage)
 	res["painted"] = true
 

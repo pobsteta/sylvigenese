@@ -63,6 +63,8 @@ func glb_triangles(g: Dictionary) -> Array:
 	var ids: Array = [lead] + g["nodes"][lead]["extensions"]["MSFT_lod"]["ids"]
 	var out := []
 	for n in ids:
-		var prim: Dictionary = g["meshes"][g["nodes"][int(n)]["mesh"]]["primitives"][0]
-		out.append(int(g["accessors"][int(prim["indices"])]["count"]) / 3)
+		var total := 0   # toutes les primitives du niveau (écorce et feuillage), comme le validateur des .glb
+		for prim in g["meshes"][g["nodes"][int(n)]["mesh"]]["primitives"]:
+			total += int(g["accessors"][int(prim["indices"])]["count"]) / 3
+		out.append(total)
 	return out
