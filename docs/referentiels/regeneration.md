@@ -1,7 +1,7 @@
 # Régénération : ce que la littérature publie, essence par essence (mission 059, mission A du plan M5a)
 
 - **Propriétaire :** Pascal
-- **Date de consultation :** 2026-11-26 (quatre passes ; la troisième lit les documents téléchargés en local, la quatrième lit les deux documents déposés par Pascal : voir §13)
+- **Date de consultation :** 2026-11-26 (quatre passes ; la troisième lit les documents téléchargés en local, la quatrième lit les deux documents déposés par Pascal : voir §13) ; 2026-11-27 (cinquième passe, mission 079 : licence de TreePars et tolérance à l'ombre `klighs`, voir §14 ; 6 lignes ajoutées au CSV : L01 à L03, T02-KL, T02-LUM, T02-ESP, soit 212 lignes de données)
 - **Produit par :** agent `acquereur`, mission 059 (`pilotage/missions/059-referentiel-regeneration.md`)
 - **Mission redite :** relever, pour chaque essence de `contracts/species.csv` et pour sept grandeurs (dispersion, maturité, fécondité, tolérance à l'ombre, L d'Ellenberg, croissance et survie des semis sous couvert), ce que la littérature publie et où, pour que le contrat `params/regeneration` (mission 060) ne porte que des termes qui existent.
 - **Décision éclairée :** les termes et les sources de `params/regeneration.parquet` (plan `docs/plans/m5a.md` §3 ; contrat `contracts/tables/params/regeneration.schema.json`), dans le cadre des réponses de Pascal du 26/11/2026 (journal l. 323-325) :
@@ -433,3 +433,124 @@ Couverture : TreeMig (TreePars2.txt) couvre 30 essences d'Europe centrale. Front
 1. **Sources et emplacements : coché, avec réserves.** Chaque ligne ajoutée donne le fichier local, la page imprimée (thèse) ou la page du PDF (Data Sheet), et le sha256 abrégé. Non coché : sha256 et tailles repris de la consigne (aucun shell, rien recalculé) ; plus de la moitié de la thèse non lue (§13.1).
 2. **Décomptes complets : coché.** 21 pages sur 21 du Data Sheet ; 10 essences et 3 groupes d'arbustes au tableau S2 ; 11 lignes ajoutées au CSV (206 en tout) ; 30 essences dans `TreePars2.txt`. Non coché : la liste des essences de la thèse (une seule) ne vaut pas décompte.
 3. **Termes exacts : coché.** `HalfSat`, `Sex Mat`, `Effect. Seed Disp.`, `Max Dist.`, `Veg. Repr. Prob`, « dimension critique », « Autorisation HAL », `minmat`, `maxseed`, `alfa1`, `dispFac`, `klighs` repris tels quels.
+
+## 14. Cinquième passe (27/11/2026, mission 079) : licence de TreePars et tolérance à l'ombre `klighs`
+
+**Décision éclairée :** comment passer l'ombre des semis de `simulate` (extinction × couvert, comparée à la tolérance de Niinemets 0-5) à l'échelle de TreeMig (décision de Pascal du 27/11/2026), et à quelles conditions on peut reprendre les valeurs. Aucun fichier nouveau n'est lu : `envidat_starter-kit_package_show.json`, `TreePars2.txt`, `SpecParsMeanings.pdf` et `TreeMigDocu_251218_Model.pdf` étaient déjà dans `INDEX.md`. Pages du PDF citées par leur rang dans le PDF (comme les passes précédentes). Lignes ajoutées au CSV : `L01`, `L02`, `L03`, `T02-KL`, `T02-LUM`, `T02-ESP`.
+
+### 14.1 Les trois licences
+
+| Objet | Mot pour mot | Emplacement | Portée |
+|---|---|---|---|
+| **Code FORTRAN de TreeMig** | « This FORTRAN code is available on request, under licence CC-BY-NC-SA 4.0 » | `treemig_framework.html:478` (CSV `L03`) | le code seul ; NC : rien n'en est repris |
+| **Jeu de données EnviDat « Starter Kit for the TreeMig framework v1 … »** (DOI 10.16904/envidat.533, version 1.0, publié en 2024) | `"license_id": "cc-by-sa"` ; `"license_title": "Creative Commons Attribution Share-Alike (CC-BY-SA)"` ; `"license_url": "https://creativecommons.org/licenses/by-sa/4.0/"` ; `"isopen": true` | `envidat_starter-kit_package_show.json`, champs `result.license_id`, `result.license_title`, `result.license_url`, `result.isopen` (CSV `L01`) | le **jeu** entier. Aucune des 7 ressources n'a de champ de licence. Le zip `tmenvandinputdata.zip` (1 612 103 870 octets) « contains … species parameters (in folder P) » d'après la description de la ressource. La version 4.0 se déduit de l'URL ; le titre ne la dit pas. |
+| **Fichier `TreePars2.txt`** (celui qu'on a lu) | **aucune licence dite** : ni ligne de commentaire dans le fichier (31 lignes), ni `LICENSE` dans le dépôt GitLab, ni dans son `DESCRIPTION` (champ laissé au texte du gabarit R) | `TreePars2.txt` ; `treemig_gitlab_DESCRIPTION` ; `INDEX.md` seconde passe (CSV `L02`) | rien ne dit que ce fichier du GitLab est un fichier du zip EnviDat : **identité non établie** |
+
+Reste étranger à tout cela : « All data are available under the Creative Commons license CC BY 4.0 » (`treemig_details.html:883`) vise les scénarios CH2018 (déjà corrigé en §1).
+
+### 14.2 Ce que la licence permet (à lire avec les réserves)
+
+- **Lire hors dépôt par une clé `external.*`** : aucun obstacle de licence, puisque rien n'est redistribué. Il faut seulement que le fichier soit fourni pour rejouer (règle des 30 minutes) : un fichier de 4 311 octets, ou le dossier P du zip.
+- **Recopier des valeurs dans un dépôt GPL-3 public** :
+  - la licence qui s'applique est CC-BY-SA, **à condition** que le fichier recopié soit bien un fichier du jeu EnviDat. Pour `TreePars2.txt` du GitLab, ce n'est **pas établi** (L02). Pas de recopie tant que le dossier P du zip n'a pas été lu et comparé (URL en §14.6).
+  - Une fois établie : CC-BY-SA 4.0 exige la mention des auteurs (Lischke, Schmatz, Psomas, Böhm, Scherrer, WSL), du titre, de la licence avec son lien, du DOI, et l'indication des modifications ; les adaptations restent sous CC-BY-SA (partage dans les mêmes conditions). Les valeurs recopiées resteraient donc **sous leur propre licence** dans le dépôt, avec une mention en tête du fichier : elles ne passent pas en GPL-3 par le seul fait d'être dans le dépôt.
+  - **Compatibilité avec la GPL-3 : non vérifiée ici.** Je crois que Creative Commons tient la CC BY-SA 4.0 pour compatible avec la GPLv3 dans un seul sens (une adaptation de matériel BY-SA 4.0 peut être publiée sous GPLv3), mais je n'ai pas pu lire la page (creativecommons.org n'est pas joignable de cette session). À lire avant de trancher.
+  - Un jeu de valeurs numériques peut ne pas relever du droit d'auteur : je ne le tranche pas.
+
+### 14.3 `klighs` : signification et unité
+
+- **Définition :** « Sapling light parameter: shadetolerant [1] to shade-intolerant [9] » (`SpecParsMeanings.pdf` p. 1, qui l'écrit `lighs`). La colonne « Unit » est vide : **classe ordinale sans unité**, de 1 (tolérante) à 9 (intolérante). Les valeurs du fichier sont des entiers de cet intervalle.
+- **`kligha`** : même échelle pour les arbres adultes (« Adult light parameter … »).
+- **Tableau 1 (Docu p. 19) :** « Shade tolerance young | - | Class [1,9], for establishment » (`klighs`) ; « Shade tolerance adults | - | Class [1,9], for growth and survival » (`kligha`).
+- **Usage réel :** la p. 15 (sous l'éq. 35) dit que les semis de la classe de hauteur 0 vivent comme les arbres, la seule différence étant le paramètre de lumière ; la p. 17 (sous l'éq. 43) pose `shadesens = klighs` pour la classe 0 et `kligha` pour les classes 1 et plus. Donc `klighs` sert à l'installation, mais aussi à la croissance et à la mortalité des semis, ce que le tableau 1 ne dit pas.
+- **Sens inverse de Niinemets** (0 à 5, 5 = tolérante). Les deux ordres concordent (passe 4, `D06-TP2`).
+- **À ne pas confondre :** `sType/N`, échelle 1-5, « shading capability low [1] to high [5] » (SpecParsMeanings) ou « Foliage type » (tableau 1) : autre grandeur (écart n° 7 du §4).
+- **Où sont les valeurs :** colonne `klighs` de `TreePars2.txt`, lignes 2 à 31. **Non recopiées** (L02).
+
+### 14.4 Classes de lumière et ombre d'une cellule dans TreeMig
+
+Source : `TreeMigDocu_251218_Model.pdf`, §1.2.3.2.1 (p. 6 à 8), éq. (3) à (9) ; CSV `T02-LUM`.
+
+1. **Grandeur :** la lumière relative *l* entre 0 et 1 (1 = pleine lumière), par classe de hauteur *i* (0 à 15 ; la classe 0 est celle des semis) et par **classe de lumière** ξ = 0 à 9 : **10 classes** (éq. 8, p. 8 ; éq. 36, p. 15). Les bornes des 10 classes ne sont pas dans les pages lues.
+2. **Indice foliaire au-dessus de la classe *i* :** somme, sur toutes les essences, des feuilles des arbres des classes plus hautes, divisée par la taille de la placette ζ = **833 m²** (éq. 4, p. 7).
+3. **Distribution :** les arbres sont répartis au hasard dans la placette ; Poisson approchée par une loi normale ; l'indice foliaire est une variable normale (éq. 5). Le document imprime l'éq. (5) avec une racine sur la moyenne de l'indice : cela ressemble à une coquille, à vérifier dans Lischke et al. 2006 (non lu).
+4. **Extinction :** Beer-Lambert, *l* = exp(−α × indice foliaire), α étant le coefficient d'extinction des feuilles (éq. 6, p. 8). **La valeur de α n'est pas dans les pages lues.**
+5. **Lumière-seuil de l'essence :** tirée de `klighs` (éq. 29, p. 14) par une loi à deux branches, selon que `klighs` atteint 5 ou non ; plus `klighs` est haut, plus la lumière exigée est haute.
+6. **Mortalité de stress :** par classe de lumière, 0 si la borne basse de la classe dépasse le seuil, 1 si la borne haute est sous le seuil, une fraction entre les deux (éq. 39, p. 16) ; multipliée par une constante du modèle (éq. 40, déjà reprise comme terme `stress_mortality`). Résultat moyenné sur les 10 classes pondérées par leur fréquence (éq. 8, 52).
+7. **Croissance et vitalité :** fonction continue de la lumière, interpolée entre deux formes extrêmes selon `klighs` (éq. 30 et 43), puis racine cubique avec les facteurs degrés-jours, sécheresse et azote (éq. 42, p. 16).
+
+Les constantes des équations ne sont pas recopiées : la licence de la documentation n'est pas dite.
+
+### 14.5 Correspondance avec `contracts/species.csv`
+
+Détail ligne par ligne dans le CSV `T02-ESP` (lignes 2 à 31 de `TreePars2.txt`). **30 essences, 30 codes**.
+
+| Cas | Nombre | Codes |
+|---|---|---|
+| même nom latin (orthographes anciennes *Fagus silvatica*, *Pinus silvestris* comprises) | 22 | 61, 62, 59, 52, 67, 21C, 15P, 15S, 13G, 12V, 11, 10, 31, 09, 17C, 24, 05, 02, 25B, 23AB, 20P, 20G |
+| code d'une sous-espèce pour un nom d'espèce | 5 | 63, 13B, 33N, 03, 23SO |
+| synonyme à valider | 3 | 60 (*Pinus montana* pour *P. mugo*), 37 (*Alnus viridis* pour *A. alnobetula*), 18M (*Ulmus scabra* pour *U. glabra*) |
+| **absent** de TreePars2.txt | **165 des 195 codes** | dont 58 (*P. uncinata*, pas de ligne propre), 06, 07, 08S, 51, 53CA, 53CO, 53S, 54, 55, 57A, 65, 66, 69, 69JC, 69JO, 14, 12P, 19, 36, 29AF, 68CE |
+
+Contre Niinemets : 140 taxons lus (§2) ; TreeMig en couvre 30. Le sud méditerranéen n'a aucun `klighs`.
+
+### 14.6 Ce que cela demande au moteur (`simulate/src/semis.rs`)
+
+**Aujourd'hui :** `ombre = light_extinction_coef × indice de couvert` (indice = surface des houppiers projetés ÷ surface de la cellule) ; stress si `ombre > shade_tolerance` (Niinemets, 0-5, haut = tolérante) ; une seule classe de lumière par cellule (éq. 39 réduite à 0 ou 1).
+
+**Lecture :** si l'indice de couvert tient le rôle d'un indice foliaire, « ombre > seuil » revient à « exp(−ombre) < exp(−seuil) » : le moteur compare déjà une lumière à un seuil, mais le seuil est exp(−classe de Niinemets), pas la loi de `klighs`. C'est une lecture de ma part, pas un texte.
+
+**Grandeurs nécessaires pour l'échelle TreeMig :**
+1. `klighs` par essence (1-9, sens inverse), et la loi lumière-seuil de l'éq. (29) ; le seuil est une lumière relative, pas une classe de tolérance.
+2. Une lumière relative *l* au niveau des semis : exp(−α × indice foliaire des arbres plus hauts).
+3. Pour cela, un indice foliaire, donc une surface foliaire par arbre (allométries de l'éq. 10-12, coefficients posés dans `GetSpc`, non lus), et α.
+4. Une règle pour la distribution de *l* dans la cellule : 10 classes avec la loi de l'éq. 3-9, ou une classe unique (cas actuel). Les cellules de la grille SER font 25 m (625 m²), la placette de TreeMig 833 m².
+5. Le sens inverse change les bornes du validateur (`shade_tolerance` ≥ 0 dans `semis.rs`) et le contrat `params/regeneration` (échelle et source du terme). Je n'y touche pas.
+
+**Ce qui manque :**
+- `klighs` pour 165 codes sur 195 (30 couverts) ; les 140 de Niinemets n'ont pas d'équivalent sans règle de passage (question ci-dessous) ;
+- α, les bornes des classes de lumière, les coefficients d'allométrie foliaire (pages non lues, ou dans le code non obtenu) ;
+- la surface foliaire des arbres dans les sorties de nemeton (je n'ai pas lu les contrats : à demander à l'orchestrateur) ;
+- la confirmation du fichier (L02) avant toute recopie.
+
+### 14.7 Questions de sens pour Pascal (non tranchées ; l'orchestrateur les pose une par une, à la suite des n° 1 à 17)
+
+18. **Échelle de l'ombre : `klighs` de TreeMig (30 essences) ou Niinemets (140 taxons), éventuellement passé à l'échelle 1-9 par une règle écrite et provisoire ?**
+    - Proposition : garder Niinemets comme source du contrat, `klighs` en contrôle sur 30 essences (même ordre, passe 4). Une règle de passage serait une dérivation, à écrire seulement si Pascal la veut.
+    - Ce que change la réponse : couverture (30 contre 140), sens de l'échelle, et la loi du seuil du moteur.
+19. **Recopier les `klighs` dans le dépôt sous CC-BY-SA, ou les lire hors dépôt (clé `external.*`) ?**
+    - Proposition : hors dépôt tant que le dossier P du zip n'est pas lu et comparé à `TreePars2.txt`, et tant que la compatibilité CC-BY-SA 4.0 / GPL-3 n'est pas lue. Même réponse que les questions n° 2 et 12.
+    - Ce que change la réponse : un fichier de plus à fournir pour rejouer, ou une mention de licence distincte dans le dépôt.
+20. **L'ombre sous couvert : indice foliaire (comme TreeMig, avec α et une surface foliaire par arbre) ou couvert projeté des houppiers (comme aujourd'hui) ?**
+    - Ce que change la réponse : de nouvelles grandeurs à fournir par nemeton, ou un seuil qui reste une convention du modèle.
+
+### 14.8 URL à télécharger (réseau autorisé, mais ce `WebFetch` ne les voit pas)
+
+Ce `WebFetch` n'a pas résolu `envidat.ch`, `gitlabext.wsl.ch` ni `creativecommons.org` ; je n'ai pas de shell. À télécharger :
+1. Dossier P du zip du starter kit (pour comparer à `TreePars2.txt` et lire d'éventuels fichiers de licence ou de lisez-moi) : `https://envidat.ch/dataset/516d259a-3b10-419c-a033-980bedf6ade1/resource/5eef16d1-80af-442b-9da2-f64b4fa94671/download/tmenvandinputdata.zip` (1,6 Go ; l'URL du JSON porte `www.envidat.ch`, refusé en passe 2) ; si le serveur accepte les requêtes `Range`, ne lire que le dossier P.
+2. Tutoriel du starter kit : `https://envidat.ch/dataset/516d259a-3b10-419c-a033-980bedf6ade1/resource/a1dec65a-30ba-4688-90ac-50df5db73d4c/download/treemig_tutorial_2025-05-02.pdf` (2,1 Mo) ; et `…/resource/3db8ca57-2838-4b26-82a9-9770b75b7096/download/readme_descriptioninputdata.pdf` (263 Ko).
+3. Notice EnviDat « Code of TreeMig Package version 1 » (CC-BY-SA d'après `INDEX.md`, non relue) : `https://envidat.ch/api/action/package_search?q=treemig`.
+4. Texte de la CC BY-SA 4.0 et page de compatibilité avec la GPL-3 : `https://creativecommons.org/licenses/by-sa/4.0/` ; `https://creativecommons.org/share-your-work/licensing-considerations/compatible-licenses/` (hôte à autoriser).
+5. Arbre du GitLab, autres fichiers TreePars : `https://gitlabext.wsl.ch/boehmd/treemig/-/tree/main/inst/extdata`.
+6. Lischke et al. 2006, *Ecological Modelling* 199 : 409-420 (déjà cité en `D06`), pour l'éq. (5) et les constantes de lumière, source citable à la place de la documentation.
+
+### 14.9 Trois points au sol
+
+1. **Un semis de hêtre (09) et de sapin (61) sous couvert dense de hêtraie-sapinière.** `klighs` les classe tous deux du même côté, tolérants (milieu bas de l'échelle) ; relever s'ils survivent sous un couvert très fermé, et à quelle lumière relative (mesure au fisheye).
+2. **Un semis de pin sylvestre (52) sous chêne, en limite de tolérance** (comme chez Gaudio) : `klighs` le classe intolérant, mais la thèse dit qu'il survit sous faible lumière : voir quelle hauteur de semis tient.
+3. **Pin à crochets (58) : pas de ligne propre dans TreeMig** (seulement *Pinus montana*, 60). Comparer, en montagne, la survie sous couvert de 58 et de 52 : c'est le cas où le synonyme et la source décident.
+
+### 14.10 Question de contrôle
+
+*Quelle décision cette donnée va-t-elle éclairer ?* Le passage de l'ombre des semis à l'échelle de TreeMig et le droit de reprendre ses valeurs (questions n° 18 à 20).
+
+### 14.11 Ligne de journal proposée
+
+`2026-11-27 · acquereur · 079 · licence : code TreeMig CC-BY-NC-SA 4.0 (rien repris) ; jeu EnviDat du starter kit CC-BY-SA (license_id cc-by-sa, URL 4.0, niveau dataset, aucune ressource ne porte de licence) ; TreePars2.txt du GitLab : aucune licence dite, appartenance au zip EnviDat non établie, valeurs non recopiées ; compatibilité BY-SA/GPL-3 non lue (creativecommons.org injoignable) ; klighs : classe 1 (tolérante) à 9 (intolérante), sans unité, sens inverse de Niinemets ; lumière relative en 10 classes (Beer-Lambert sur un indice foliaire, placette de 833 m²) ; 30 essences = 30 codes (22 noms identiques, 5 infraspécifiques, 3 synonymes), 165 codes absents ; regeneration.{md,csv} (212 lignes), questions n° 18 à 20.`
+
+### 14.12 Liste de contrôle
+
+**Aucune liste de contrôle n'était jointe à la consigne de cette passe.** Trois points génériques de ma fiche.
+1. **Sources et emplacements : coché, avec réserves.** Licences citées avec fichier et champ ou ligne ; pages du PDF données par rang dans le PDF. Non coché : `WebFetch` n'a atteint aucun hôte, donc rien de nouveau n'a été téléchargé ; CC BY-SA 4.0 / GPL-3 non lu ; version 4.0 déduite de l'URL ; je n'ai pas relu `TreeMigDocu_23_Code.pdf` ni `InfosSettingsControlFileAndGUI.pdf` au-delà des pages de la passe 3 (α peut y être).
+2. **Décomptes complets : coché.** 30 lignes de `TreePars2.txt` = 22 + 5 + 3 ; 195 − 30 = 165 absents ; CSV : 212 lignes de données.
+3. **Termes exacts : coché.** `klighs`, `kligha`, `lighs`, `ligha`, `sType/N`, « Sapling light parameter: shadetolerant [1] to shade-intolerant [9] », `license_id`, `license_title`, `license_url`.
