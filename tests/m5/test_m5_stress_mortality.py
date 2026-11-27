@@ -129,7 +129,7 @@ def test_mentions_q2_et_q3_en_mode_cohorts(ser_nominale, massif_cohorts):
     for res in (ser_nominale, massif_cohorts):
         kinds = H.flags_kinds(res["dir"])
         assert "stock_initial_en_regime" in kinds and "lumiere_et_ombre_seules" in kinds
-        assert "classes_lumiere_et_extinction_provisoires" in kinds, "réglages provisoires de l'ombre non dits"
+        assert "ombre_semis_provisoire" in kinds, "réglages provisoires de l'ombre non dits"
         assert "semis_non_simules" not in kinds
 
 
@@ -137,4 +137,4 @@ def test_pas_de_mention_q2_q3_en_ifn_direct(massif_ifn_direct):
     kinds = H.flags_kinds(massif_ifn_direct["dir"])
     assert "semis_non_simules" in kinds
     assert "stock_initial_en_regime" not in kinds and "lumiere_et_ombre_seules" not in kinds
-    assert "classes_lumiere_et_extinction_provisoires" not in kinds
+    assert "ombre_semis_provisoire" not in kinds

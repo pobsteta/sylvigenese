@@ -88,6 +88,56 @@ func test_une_primitive_sans_materiau_est_refusee() -> void:
 	assert_string_contains(str(res["error"]), "(sans matériau)")
 
 
+## Mission 086 : un indice de matériau ou de maillage négatif ou hors liste, ou un élément de `materials` qui n'est pas un
+## objet, est refusé par une erreur nommée (jamais lu depuis la fin de la liste, jamais un plantage).
+func _g_essai(material, materials: Array = [{"name": "a_ecorce"}, {"name": "a_feuillage"}]) -> Dictionary:
+	return {"materials": materials, "meshes": [{"primitives": [{"material": 0}, {"material": material}]}]}
+
+
+func test_un_indice_de_materiau_negatif_ou_hors_liste_est_refuse() -> void:
+	var L = need(LOADER)
+	# Témoin : l'indice 1 valide donne bien écorce puis feuillage.
+	var bon := _g_essai(1)
+	assert_eq(L._surface_roles(bon, 0), ["wood", "foliage"])
+	assert_eq(L._check_roles("t.glb", 0, bon, 0, L._surface_roles(bon, 0)), "")
+	for mauvais in [-1, -2, 2, 7, 1.5, "1", null]:
+		var g := _g_essai(mauvais)
+		var roles: Array = L._surface_roles(g, 0)
+		assert_eq(roles, ["wood", "unknown"], "indice %s : jamais le matériau de la fin de la liste" % str(mauvais))
+		var erreur: String = L._check_roles("t.glb", 0, g, 0, roles)
+		assert_ne(erreur, "", "indice %s refusé" % str(mauvais))
+		assert_string_contains(erreur, "_ecorce puis _feuillage")
+		assert_string_contains(erreur, "invalide")
+
+
+func test_un_element_de_materials_qui_n_est_pas_un_objet_est_refuse_sans_planter() -> void:
+	var L = need(LOADER)
+	for element in [3, "x", null, [1]]:
+		var g := _g_essai(1, [{"name": "a_ecorce"}, element])
+		var roles: Array = L._surface_roles(g, 0)
+		assert_eq(roles, ["wood", "unknown"])
+		var erreur: String = L._check_roles("t.glb", 0, g, 0, roles)
+		assert_string_contains(erreur, "t.glb")
+		assert_string_contains(erreur, "invalide")
+	# `materials` absent ou qui n'est pas une liste : primitives sans matériau valide, refus.
+	var sans := {"meshes": [{"primitives": [{"material": 0}, {"material": 1}]}]}
+	assert_eq(L._surface_roles(sans, 0), ["unknown", "unknown"])
+	assert_ne(L._check_roles("t.glb", 0, sans, 0, L._surface_roles(sans, 0)), "")
+	var pas_liste := {"materials": {"a": 1}, "meshes": [{"primitives": [{"material": 0}]}]}
+	assert_eq(L._surface_roles(pas_liste, 0), ["unknown"])
+
+
+func test_un_indice_de_maillage_negatif_ou_hors_liste_est_refuse() -> void:
+	var L = need(LOADER)
+	var g := _g_essai(1)
+	for mauvais in [-1, 1, 5]:
+		assert_eq(L._surface_roles(g, mauvais), [], "maillage %d : aucune primitive lue, pas le dernier maillage" % mauvais)
+		var erreur: String = L._check_roles("t.glb", 2, g, mauvais, ["wood", "foliage"])
+		assert_ne(erreur, "", "maillage %d refusé même si les rôles passés sont corrects" % mauvais)
+		assert_string_contains(erreur, "le niveau 2")
+		assert_string_contains(erreur, "maillage %d" % mauvais)
+
+
 func test_l_ordre_ecorce_puis_feuillage_est_exige() -> void:
 	# le feuillage en première primitive et l'écorce en seconde : refusé, le contrat fixe l'ordre
 	var L = need(LOADER)

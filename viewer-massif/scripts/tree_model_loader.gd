@@ -43,16 +43,63 @@ static func _distance(height_m: float, coverage: float, fov_deg: float) -> float
 	return height_m / (2.0 * tan(deg_to_rad(fov_deg) / 2.0) * coverage)
 
 
+## Indice de maillage valide dans `meshes` ? Un indice NÉGATIF est refusé (GDScript indexerait depuis la fin : un autre maillage).
+static func _mesh_index_valid(g: Dictionary, mesh_index: int) -> bool:
+	return g.has("meshes") and g["meshes"] is Array and mesh_index >= 0 and mesh_index < (g["meshes"] as Array).size() \
+		and g["meshes"][mesh_index] is Dictionary
+
+
+## Primitives d'un maillage : liste vide si l'indice est négatif, hors de la liste ou ne désigne pas un objet (jamais un autre maillage).
+static func _primitives(g: Dictionary, mesh_index: int) -> Array:
+	if not _mesh_index_valid(g, mesh_index):
+		return []
+	var prims = g["meshes"][mesh_index].get("primitives", [])
+	return prims if prims is Array else []
+
+
+## Nom du matériau d'une primitive, "" si elle n'en a pas de valide : pas de clé `material`, indice non entier, NÉGATIF
+## (GDScript indexerait depuis la fin : un indice négatif n'est jamais un matériau) ou hors de la liste, liste absente,
+## élément qui n'est pas un objet. Rien n'est deviné : "" donne le rôle « unknown », que `_check_roles` refuse.
+static func _material_name(g: Dictionary, prim) -> String:
+	var index := _material_index(g, prim)
+	if index < 0:
+		return ""
+	return str((g["materials"][index] as Dictionary).get("name", ""))
+
+
+## Indice valide du matériau de la primitive dans `materials`, -1 sinon (voir `_material_name`).
+static func _material_index(g: Dictionary, prim) -> int:
+	if not (prim is Dictionary) or not prim.has("material") or not g.has("materials") or not (g["materials"] is Array):
+		return -1
+	var raw = prim["material"]
+	if not (raw is int or raw is float):
+		return -1
+	var index := int(raw)
+	if float(raw) != float(index) or index < 0 or index >= (g["materials"] as Array).size():
+		return -1
+	if not (g["materials"][index] is Dictionary):
+		return -1
+	return index
+
+
+## Libellé du matériau d'une primitive pour le message d'erreur : « nom » ou la cause précise du refus.
+static func _material_label(g: Dictionary, prim) -> String:
+	if not (prim is Dictionary) or not prim.has("material"):
+		return "(sans matériau)"
+	var index := _material_index(g, prim)
+	if index < 0:
+		return "(matériau %s invalide : indice hors de la liste, négatif ou élément qui n'est pas un objet)" % str(prim["material"])
+	return "« %s »" % str((g["materials"][index] as Dictionary).get("name", ""))
+
+
 ## Rôle de chaque primitive d'un maillage, d'après le nom de son matériau dans le .glb. Contrat assets.tree_model (mission
 ## 084c ; assets écrit `<fichier>_<primitive>`, lod.py BARK puis FOLIAGE) : chaque niveau porte DEUX primitives, la première au
 ## matériau dont le nom se termine par « _ecorce » (« wood »), la seconde par « _feuillage » (« foliage »). Une primitive dont le
 ## matériau est absent ou autrement nommé est « unknown » : `_check_roles` la refuse, la vue ne devine aucune couleur.
 static func _surface_roles(g: Dictionary, mesh_index: int) -> Array:
 	var roles := []
-	for prim in g["meshes"][mesh_index]["primitives"]:
-		var name := ""
-		if prim.has("material") and g.has("materials") and int(prim["material"]) < g["materials"].size():
-			name = str(g["materials"][int(prim["material"])].get("name", ""))
+	for prim in _primitives(g, mesh_index):
+		var name := _material_name(g, prim)
 		if name.ends_with("_ecorce"):
 			roles.append("wood")
 		elif name.ends_with("_feuillage"):
@@ -65,21 +112,21 @@ static func _surface_roles(g: Dictionary, mesh_index: int) -> Array:
 ## Erreur nommée si les rôles d'un niveau ne sont pas [wood, foliage] (deux primitives, écorce puis feuillage) ; "" sinon.
 ## Aucun modèle n'échappe à la règle : ni ceux du générateur, ni les génériques, ni les fixtures (qui la suivent aussi).
 static func _check_roles(path: String, level: int, g: Dictionary, mesh_index: int, roles: Array) -> String:
+	if not _mesh_index_valid(g, mesh_index):
+		return "%s : le niveau %d désigne le maillage %d, absent de la liste des maillages du .glb (indice négatif ou hors de la liste) : le rôle (bois ou feuillage) n'est pas deviné" % [path, level, mesh_index]
 	if roles == ["wood", "foliage"]:
 		return ""
 	var names := []
-	for prim in g["meshes"][mesh_index]["primitives"]:
-		var name := "(sans matériau)"
-		if prim.has("material") and g.has("materials") and int(prim["material"]) < g["materials"].size():
-			name = "« %s »" % str(g["materials"][int(prim["material"])].get("name", ""))
-		names.append(name)
+	for prim in _primitives(g, mesh_index):
+		var label := _material_label(g, prim)
+		names.append(label)
 	return "%s : le niveau %d porte %d primitive(s), de matériaux %s ; le contrat des .glb d'arbres exige deux primitives dont les matériaux se terminent par _ecorce puis _feuillage : le rôle (bois ou feuillage) n'est pas deviné" % [path, level, roles.size(), ", ".join(names)]
 
 
 ## Triangles d'un niveau : la somme de toutes ses primitives (écorce et feuillage), comme le validateur des .glb.
 static func _triangles(g: Dictionary, mesh_index: int) -> int:
 	var n := 0
-	for prim in g["meshes"][mesh_index]["primitives"]:
+	for prim in _primitives(g, mesh_index):
 		n += int(g["accessors"][int(prim["indices"])]["count"]) / 3
 	return n
 
@@ -127,7 +174,7 @@ static func load_glb(path: String, fov_deg: float) -> Dictionary:
 	var meshes := state.get_meshes()
 	var levels := []
 	for k in range(3):
-		if mesh_of[k] >= meshes.size():
+		if mesh_of[k] < 0 or mesh_of[k] >= meshes.size():
 			return _fail("%s : maillage %d absent après lecture" % [path, mesh_of[k]])
 		var imported: ImporterMesh = meshes[mesh_of[k]].mesh
 		var mesh := imported.get_mesh()

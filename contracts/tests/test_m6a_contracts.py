@@ -162,6 +162,44 @@ def test_glb_surfaces_faults_are_refused(tmp_path, capsys, mutate, pattern):
     refused(capsys, "tree_model", tree(tmp_path, mutate=mutate), pattern)
 
 
+def material_is_not_an_object(value):
+    def change(gltf):
+        gltf["materials"][1] = value
+    return change
+
+
+@pytest.mark.parametrize("value", [3, "09_mature_feuillage", None, ["09_mature_feuillage"]],
+                         ids=["entier", "chaine", "null", "liste"])
+def test_glb_a_material_that_is_not_an_object_is_refused_by_name_without_crashing(tmp_path, capsys, value):
+    """Mission 086 : `materials[i]` qui n'est pas un objet donnait un plantage (AttributeError) ; c'est un refus nommé."""
+    refused(capsys, "tree_model", tree(tmp_path, mutate=material_is_not_an_object(value)),
+            r"niveau LOD0 : materials\[1\] n'est pas un objet")
+
+
+def test_check_surfaces_does_not_crash_on_malformed_materials_and_primitives():
+    """Appel direct, sans passer par le schéma : aucun type inattendu ne fait planter la vérification."""
+    from validator import gltf as g
+
+    class Findings:
+        def __init__(self):
+            self.errors = []
+
+        def error(self, message):
+            self.errors.append(message)
+
+    levels = [{"mesh": 0}, {"mesh": 1}, {"mesh": 2}]
+    meshes = [{"primitives": [{"material": 0}, {"material": 1}]},
+              {"primitives": [3, {"material": 0}]},     # une primitive qui n'est pas un objet
+              ["pas", "un", "objet"]]                    # un maillage qui n'est pas un objet
+    gltf = {"materials": [{"name": "a_ecorce"}, 7], "meshes": meshes}
+    findings = Findings()
+    g.check_surfaces(gltf, levels, findings)
+    texte = "\n".join(findings.errors)
+    assert "niveau LOD0 : materials[1] n'est pas un objet (int)" in texte, texte
+    assert "niveau LOD1 : deux primitives attendues" in texte, texte
+    assert "niveau LOD2 : deux primitives attendues" in texte, texte
+
+
 def test_glb_generic_surfaces_are_checked_too(tmp_path, capsys):
     refused(capsys, "tree_model", h.generic_glb(tmp_path / "generique_feuillu.glb", mutate=rename_material(1, "feuille")),
             r"niveau LOD0.*_ecorce puis _feuillage")

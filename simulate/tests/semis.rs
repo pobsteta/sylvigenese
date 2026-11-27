@@ -68,6 +68,8 @@ fn loi_d_essai() -> LoiLumiere {
         ordonnee_haute: -0.4,
         pente_basse: 0.025,
         origine_basse: 1.0,
+        n_teste_min: 1.5,
+        n_teste_max: 4.6,
     }
 }
 
@@ -83,12 +85,12 @@ fn ligne_regen(species: Option<&str>, groupe: Option<&str>, term: &str, value: f
     }
 }
 
-/// Les vingt termes du contrat, en `toutes_essences`, valeurs d'essai. kernel_scale_m = 7 m (forme 1) :
+/// Les vingt-deux termes du contrat, en `toutes_essences`, valeurs d'essai. kernel_scale_m = 7 m (forme 1) :
 /// d99 = 46,5 m, couvert par K = 2 cellules de 25 m (mission 080 : K doit couvrir d99 ; avec 30 m,
 /// d99 = 199 m exigerait K = 8). Le test à K = 1 met 3 m (d99 = 19,9 m).
 fn lignes_d_essai() -> Vec<LigneRegeneration> {
     let valeurs = [
-        7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184, 9.091, -1.238, 1.0, 9.0, 5.0, 0.1, -0.4, 0.025, 1.0,
+        7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184, 9.091, -1.238, 1.0, 9.0, 5.0, 0.1, -0.4, 0.025, 1.0, 1.5, 4.6,
     ];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {
@@ -508,8 +510,8 @@ fn les_termes_de_la_loi_lumiere_sont_lus_et_leur_absence_ou_un_mauvais_domaine_e
     let p = semis::parametres_de(&lignes_d_essai(), "03", &referentiel).unwrap();
     assert_eq!(p.loi_lumiere, loi_d_essai(), "lus du contrat, tels quels");
     assert!((p.seuil_lumiere() - (0.1 * (9.091 - 1.238 * 3.0) - 0.4)).abs() < 1e-12);
-    // Chacun des neuf termes nouveaux, absent : code 2 qui nomme le terme et l'essence.
-    for (terme, _) in semis::TERMES.iter().skip(11) {
+    // Chacun des onze termes nouveaux, absent : code 2 qui nomme le terme et l'essence.
+    for (terme, _) in semis::TERMES.iter().skip(11) {  // les neuf termes de 084b et les deux de 086
         let sans: Vec<LigneRegeneration> = lignes_d_essai().into_iter().filter(|l| l.term != *terme).collect();
         let erreur = semis::parametres_de(&sans, "03", &referentiel).unwrap_err();
         assert_eq!(erreur.code, CodeSortie::EntreeRefusee, "{terme}");
@@ -932,7 +934,7 @@ fn la_zone_massif_refuse_un_k_trop_court_avant_toute_ecriture() {
 fn le_terme_retire_light_class_count_est_nomme_et_n_est_plus_au_contrat() {
     // Mission 084c : plus de classes de lumière. Le terme n'est plus lu (absent du contrat, plus exigé) ...
     assert!(semis::TERMES.iter().all(|(terme, _)| *terme != "light_class_count"));
-    assert_eq!(semis::TERMES.len(), 20);
+    assert_eq!(semis::TERMES.len(), 22);
     // ... et, s'il est fourni, la lecture le refuse par un nom précis (terme_retire, utilisé par entrees).
     let raison = semis::terme_retire("light_class_count").expect("terme retiré");
     assert!(raison.contains("0.5") && raison.contains("compare directement"), "{raison}");
@@ -940,8 +942,92 @@ fn le_terme_retire_light_class_count_est_nomme_et_n_est_plus_au_contrat() {
     for (terme, _) in semis::TERMES.iter() {
         assert!(semis::terme_retire(terme).is_none(), "{terme}");
     }
-    // Le jeu complet des vingt termes, sans light_class_count, se lit.
+    // Le jeu complet des vingt-deux termes, sans light_class_count, se lit.
     let referentiel = referentiel();
     let p = semis::parametres_de(&lignes_d_essai(), "03", &referentiel).unwrap();
     assert_eq!(p.loi_lumiere, loi_d_essai());
+}
+
+// ------------------------------------------------------------------------------------------
+// Signalement ombre_semis_provisoire (mission 086) : renommé, et les essences hors de la plage de N testée nommées
+
+fn parametres_a_tolerance(espece: &str, tolerance: f64) -> ParametresSemis {
+    ParametresSemis { espece: espece.to_string(), tolerance_ombre: tolerance, ..parametres_d_essai() }
+}
+
+#[test]
+fn une_essence_hors_de_la_plage_de_n_testee_est_nommee_une_essence_dans_la_plage_ne_l_est_pas() {
+    let parametres = vec![
+        parametres_a_tolerance("03", 3.0),  // dans la plage 1,5 à 4,6
+        parametres_a_tolerance("09", 0.8),  // sous la plage
+        parametres_a_tolerance("52", 4.9),  // au-dessus
+        parametres_a_tolerance("62", 1.5),  // borne basse : dans la plage
+        parametres_a_tolerance("31", 4.6),  // borne haute : dans la plage
+    ];
+    let hors = sorties::essences_hors_plage(&parametres);
+    let noms: Vec<&str> = hors.iter().map(|(espece, _, _, _)| espece.as_str()).collect();
+    assert_eq!(noms, vec!["09", "52"]);
+    let message = sorties::message_ombre_semis_provisoire(&parametres);
+    assert!(message.contains("09 (N = 0,8, plage 1,5 à 4,6)"), "{message}");
+    assert!(message.contains("52 (N = 4,9, plage 1,5 à 4,6)"), "{message}");
+    for dedans in ["03 (", "62 (", "31 ("] {
+        assert!(!message.contains(dedans), "{dedans} ne doit pas être nommée : {message}");
+    }
+    assert!(message.contains("extrapolation"), "{message}");
+    // Aucune essence hors plage : le message le dit, sans nommer personne.
+    let message = sorties::message_ombre_semis_provisoire(&parametres[..1]);
+    assert!(message.contains("aucune essence présente hors de cette plage"), "{message}");
+    assert!(!message.contains("(N ="), "{message}");
+}
+
+#[test]
+fn la_plage_de_n_testee_est_lue_du_contrat_et_non_du_code() {
+    let referentiel = referentiel();
+    // Plage resserrée à 3,5 à 4,0 : l'essence à N = 3 sort de la plage, sans toucher au code.
+    let mut lignes = lignes_d_essai();
+    for l in lignes.iter_mut() {
+        match l.term.as_str() {
+            "klighs_tested_n_min" => l.value = 3.5,
+            "klighs_tested_n_max" => l.value = 4.0,
+            _ => {}
+        }
+    }
+    let p = semis::parametres_de(&lignes, "03", &referentiel).unwrap();
+    assert!(p.loi_lumiere.hors_plage(p.tolerance_ombre));
+    let message = sorties::message_ombre_semis_provisoire(&[p]);
+    assert!(message.contains("03 (N = 3, plage 3,5 à 4)"), "{message}");
+    // Jeu d'essai ordinaire : N = 3 est dans la plage 1,5 à 4,6.
+    let p = semis::parametres_de(&lignes_d_essai(), "03", &referentiel).unwrap();
+    assert!(!p.loi_lumiere.hors_plage(p.tolerance_ombre));
+    // Bornes inversées : code 2, qui nomme le terme.
+    let mut lignes = lignes_d_essai();
+    for l in lignes.iter_mut() {
+        if l.term == "klighs_tested_n_min" {
+            l.value = 5.0;
+        }
+    }
+    let erreur = semis::parametres_de(&lignes, "03", &referentiel).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    assert!(erreur.message.contains("klighs_tested_n_min"), "{}", erreur.message);
+}
+
+#[test]
+fn le_signalement_ombre_semis_provisoire_est_ecrit_et_nomme_l_essence_hors_plage() {
+    // Une essence candidate (03) à N = 0,5, hors de 1,5 à 4,6 ; les autres à N = 3.
+    let mut entrees = zone_cohortes(1);
+    entrees.regeneration.push(ligne_regen(Some("03"), None, "shade_tolerance", 0.5, "1"));
+    let dossier = dossier_neuf("cohortes-ombre-semis-provisoire");
+    sorties::simuler_et_ecrire(&entrees, &lancement(1), &dossier).unwrap();
+    let flags = lire_parquet(&dossier.join("flags.parquet"));
+    let sortes = chaines(&flags, "kind");
+    let messages = chaines(&flags, "message");
+    assert!(!sortes.iter().any(|k| k == "classes_lumiere_et_extinction_provisoires"), "ancien nom écrit");
+    let rangs: Vec<usize> = (0..sortes.len()).filter(|r| sortes[*r] == "ombre_semis_provisoire").collect();
+    assert_eq!(rangs.len(), 1, "un seul signalement : {sortes:?}");
+    let message = &messages[rangs[0]];
+    assert!(message.contains("03 (N = 0,5, plage 1,5 à 4,6)"), "{message}");
+    for autre in ["09 (N", "05 (N", "52 (N"] {
+        assert!(!message.contains(autre), "{autre} : {message}");
+    }
+    std::fs::remove_dir_all(&dossier).unwrap();
 }

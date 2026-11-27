@@ -140,7 +140,7 @@ def test_regeneration_maturity_is_a_height_and_the_diameter_term_is_gone(tmp_pat
     term = next(f for f in schema["fields"] if f["name"] == "term")
     assert "maturity_height_m" in term["constraints"]["enum"]
     assert "maturity_d130_cm" not in term["constraints"]["enum"]
-    assert schema["x-schema-version"] == "0.5"
+    assert schema["x-schema-version"] == "0.6"
     data = h.regeneration_params()
     data["term"][data["term"].index("maturity_height_m")] = "maturity_d130_cm"
     code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
@@ -152,7 +152,7 @@ def test_regeneration_stress_mortality_is_a_term_of_the_contract(tmp_path, capsy
     schéma ; sans lui le contrat reste conforme (c'est simulate qui arrête, code 2, en mode cohorts)."""
     schema = catalog.load_schema("tables/params/regeneration.schema.json")
     term = next(f for f in schema["fields"] if f["name"] == "term")
-    assert "stress_mortality" in term["constraints"]["enum"] and schema["x-schema-version"] == "0.5"
+    assert "stress_mortality" in term["constraints"]["enum"] and schema["x-schema-version"] == "0.6"
     for mot in ("stress_mortality", "éq. 40", "1/an", "code 2"):
         assert mot in schema["description"], mot
     assert "0,184" not in schema["description"] and "0.184" not in schema["description"]
@@ -167,7 +167,7 @@ def test_regeneration_light_terms_are_documented_without_values(tmp_path, capsys
     0.5) ; le schéma cite la loi et les équations, sans aucune des valeurs (elles viennent des fichiers)."""
     schema = catalog.load_schema("tables/params/regeneration.schema.json")
     term = next(f for f in schema["fields"] if f["name"] == "term")
-    nouveaux = [t for t, _ in h.TERMS][11:]
+    nouveaux = [t for t, _ in h.TERMS][11:20]
     assert len(nouveaux) == 9 and all(t in term["constraints"]["enum"] for t in nouveaux)
     for mot in nouveaux + ["éq. 39", "p. 14", "TreeMigDocu_251218_Model.pdf", "Niinemets", "code 2"]:
         assert mot in schema["description"], mot
@@ -188,7 +188,7 @@ def test_regeneration_light_class_count_is_retired_in_0_5(tmp_path, capsys):
     assert "light_class_count" not in [t for t, _ in h.TERMS]
     desc = schema["description"]
     for mot in ("light_class_count", "RETIRÉ", "terme retiré", "COMPARAISON DIRECTE", "l < seuil", "l = seuil",
-                "NON TESTÉE hors N de 1,5 à 4,6"):
+                "NON TESTÉE hors de la plage de N testée"):
         assert mot in desc, mot
     data = h.regeneration_params()
     code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
@@ -570,3 +570,21 @@ def test_new_outputs_are_not_required_in_a_zone_of_m3a():
     specs = catalog.load()
     for name in ("dynamics.regeneration", "prepare.cohorts_init", "simulate.cohorts"):
         assert specs[name]["required"] is False
+
+
+def test_regeneration_tested_n_range_terms_are_in_0_6_without_values(tmp_path, capsys):
+    """Mission 086 : les bornes de la plage de N testée (regeneration.md §15.2) sont deux termes du contrat, version 0.6,
+    sourcés sur ce paragraphe, absents = code 2 côté simulate ; le schéma ne porte pas leurs valeurs."""
+    schema = catalog.load_schema("tables/params/regeneration.schema.json")
+    term = next(f for f in schema["fields"] if f["name"] == "term")
+    assert schema["x-schema-version"] == "0.6"
+    for nom in ("klighs_tested_n_min", "klighs_tested_n_max"):
+        assert nom in term["constraints"]["enum"] and nom in [t for t, _ in h.TERMS]
+        assert nom in schema["description"], nom
+    assert len(term["constraints"]["enum"]) == 22 == len(h.TERMS)
+    desc = schema["description"]
+    for mot in ("§15.2", "ombre_semis_provisoire", "code 2", "provisoire = vrai"):
+        assert mot in desc, mot
+    assert "1,46" in desc  # la source est dite ; les bornes elles-mêmes viennent des fichiers de paramètres
+    code, out = check(capsys, "regeneration", regeneration_file(tmp_path, h.regeneration_params()))
+    assert code == 0, out

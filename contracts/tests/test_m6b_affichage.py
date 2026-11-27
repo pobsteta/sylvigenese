@@ -36,6 +36,10 @@ ALLOWED_CONSTS = {
     "LABEL_DISTANCE": "dessin de la flèche du nord : distance du « N » en rayons (illustration, non mesurée)",
     "LABEL_BASELINE_SHARE": "dessin de la flèche du nord : ligne de base du « N » en part de sa hauteur (illustration, non mesurée)",
 }
+# diviseurs décimaux admis (mission 086) : une convention de calcul, pas une apparence
+ALLOWED_DIVISORS = {
+    "4294967296.0": "2^32 : ramène un hachage de 32 bits dans [0, 1[ (hashing.gd), une convention de calcul",
+}
 # anciens noms de constantes d'affichage : ils ne doivent plus apparaître
 RETIRED_NAMES = ["VIEW_RADIUS_M", "EYE_M", "FOV_DEG", "SPEED_M_S", "FAST_FACTOR", "MOUSE_SENS", "CHUNK_M"]
 # motifs d'un littéral d'affichage : (motif, ce qu'il attrape)
@@ -53,7 +57,8 @@ LITERAL_PATTERNS = [
     # mission 084c : la garde ne voyait pas les proportions du dessin (compass.gd : r * 0.32, 0.5, 0.7, 0.3, 1.35, / 4.0)
     # (× 0,5 est admis : la moitié, comme / 2.0, est une convention de géométrie, par exemple le demi-côté d'un carré de 1 m)
     (r"\*\s*-?(?!0\.5\b)\d*\.\d+", "proportion décimale en dur (une constante nommée, acceptée dans ALLOWED_CONSTS, ou une clé viewer)"),
-    (r"[\w\)\]]\s*/\s*[3-9]\.\d+", "diviseur décimal en dur (une constante nommée, acceptée dans ALLOWED_CONSTS, ou une clé viewer)"),
+    # mission 086 : tout diviseur décimal autre que 2 (/ 10.0, / 2.5, / 0.75, /= 3.5 ; / 2.0 ou / 2.00 : la moitié, admise)
+    (r"[\w\)\]]\s*/=?\s*(?!2\.0+\b)\d*\.\d+", "diviseur décimal en dur (une constante nommée, acceptée dans ALLOWED_CONSTS, ou une clé viewer)"),
 ]
 # lignes admises malgré un motif : textures techniques (normale plate, déplacement neutre, mouvement nul) qui ne sont pas de l'apparence
 TECHNICAL_COLOR = re.compile(r"\.fill\(Color\(")
@@ -73,6 +78,11 @@ def test_the_scripts_are_found():
     assert {p.name for p in SCRIPTS} >= {"massif_view.gd", "camera_fly.gd", "main.gd", "viewer_config.gd"}
 
 
+def divisors_of(line: str) -> set:
+    """Les diviseurs décimaux d'une ligne, tels qu'écrits (hors / 2.0, la moitié)."""
+    return {m.group(1) for m in re.finditer(r"[\w\)\]]\s*/=?\s*((?!2\.0+\b)\d*\.\d+)", line)}
+
+
 @pytest.mark.parametrize("path", SCRIPTS, ids=lambda p: p.name)
 def test_no_display_literal_in_the_scripts(path):
     found = []
@@ -85,6 +95,8 @@ def test_no_display_literal_in_the_scripts(path):
                 if name in ALLOWED_CONSTS:
                     continue
             if why == "couleur en dur" and TECHNICAL_COLOR.search(line):
+                continue
+            if why.startswith("diviseur décimal") and divisors_of(line) <= set(ALLOWED_DIVISORS):
                 continue
             found.append(f"{path.name}:{number} : {why} : {line.strip()}")
         for name in RETIRED_NAMES:
@@ -105,6 +117,35 @@ def test_the_guard_sees_the_proportions_of_the_compass(tmp_path):
     new = ROOT / "viewer-massif" / "scripts" / "compass.gd"
     names = set(re.findall(r"^const\s+([A-Z][A-Z0-9_]*)\s*:=", new.read_text(encoding="utf-8"), re.M))
     assert names == {n for n in ALLOWED_CONSTS if n.startswith(("ARROW_", "LABEL_"))}, names
+
+
+def test_the_guard_catches_every_decimal_divisor_except_two(tmp_path):
+    """Mission 086 : l'ancien motif ne voyait que / 3.0 à / 9.x ; / 10.0, / 2.5, / 0.75 passaient. Preuve : un script d'essai
+    qui les porte est attrapé ligne à ligne ; la moitié (/ 2.0, / 2.00), un diviseur entier et une division de noms ne le
+    sont pas (l'ancien motif, rejoué ici, laissait passer les quatre premières)."""
+    divisor = next(p for p, why in LITERAL_PATTERNS if why.startswith("diviseur décimal"))
+    old_pattern = r"[\w\)\]]\s*/\s*[3-9]\.\d+"
+    caught = ["var a := x / 10.0", "var b := (y + z) / 2.5", "var c := w / 0.75", "d /= 3.5", "var e := v[0] / 12.0",
+              "var f := t / .5", "var g := t / 2.05", "var h := t / 20.0"]
+    admitted = ["var a := x / 2.0", "var b := (y + z) / 2.00", "var c := w / 4", "var d := a / b", "var e := a / (b * 2.0)",
+                "var f := Vector2(w / 2.0, -h / 2.0)"]
+    script = tmp_path / "diviseurs.gd"
+    script.write_text("\n".join(caught + admitted) + "\n", encoding="utf-8")
+    lines = dict(code_lines(script))
+    for number, text in enumerate(caught + admitted, 1):
+        assert lines[number].strip() == text
+        assert bool(re.search(divisor, text)) == (text in caught), text
+    # le garde est discriminant : l'ancien motif n'attrapait pas / 10.0, / 2.5, / 0.75, / .5, / 2.05 ni / 20.0
+    manques = [t for t in caught if not re.search(old_pattern, t)]
+    assert "var a := x / 10.0" in manques and "var b := (y + z) / 2.5" in manques and "var c := w / 0.75" in manques
+    assert len(manques) >= 6, manques
+    # l'exception du hachage est étroite : 2^32 seulement, pas un autre diviseur
+    assert divisors_of("return float(h & MASK) / 4294967296.0") <= set(ALLOWED_DIVISORS)
+    assert not divisors_of("var a := x / 10.0") <= set(ALLOWED_DIVISORS)
+    assert not divisors_of("var a := x / 4294967296.5") <= set(ALLOWED_DIVISORS)
+    # et le garde de fichier (test_no_display_literal_in_the_scripts) rapporte ces lignes : ce script d'essai le provoque
+    hits = [number for number, line in code_lines(script) if re.search(divisor, line)]
+    assert hits == list(range(1, len(caught) + 1)), hits
 
 
 def test_the_guard_catches_a_returning_literal(tmp_path):

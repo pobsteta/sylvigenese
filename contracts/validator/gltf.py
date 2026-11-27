@@ -340,12 +340,22 @@ def check_surfaces(gltf, levels, findings):
         mesh = node.get("mesh")
         if not isinstance(mesh, int) or not 0 <= mesh < len(meshes):
             continue
-        prims = meshes[mesh].get("primitives") or []
+        prims = meshes[mesh].get("primitives") if isinstance(meshes[mesh], dict) else None
+        prims = prims if isinstance(prims, list) else []
         names = []
+        bad_materials = []
         for prim in prims:
-            idx = prim.get("material")
+            idx = prim.get("material") if isinstance(prim, dict) else None
             ok = isinstance(idx, int) and not isinstance(idx, bool) and 0 <= idx < len(materials)
+            if ok and not isinstance(materials[idx], dict):
+                # un élément de `materials` qui n'est pas un objet : refus nommé, pas de plantage (mission 086)
+                bad_materials.append(idx)
+                ok = False
             names.append(str(materials[idx].get("name", "")) if ok else None)
+        for idx in dict.fromkeys(bad_materials):
+            findings.error(f"niveau {name} : materials[{idx}] n'est pas un objet "
+                           f"({type(materials[idx]).__name__}) ; un matériau est un objet glTF avec son nom "
+                           f"(terminé par _ecorce ou _feuillage)")
         wanted = [suffix for suffix, _ in SURFACES]
         if len(prims) != 2 or any(n is None or not n.endswith(w) for n, w in zip(names, wanted)):
             seen = ", ".join("(sans matériau)" if n is None else repr(n) for n in names) or "aucune primitive"

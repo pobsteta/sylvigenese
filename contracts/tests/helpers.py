@@ -516,7 +516,9 @@ TERMS = [("kernel_scale_m", "m"), ("kernel_shape", "1"), ("maturity_height_m", "
          ("klighs_intercept", "1"), ("klighs_per_shade_tolerance", "1"), ("klighs_min", "1"), ("klighs_max", "1"),
          ("light_threshold_klighs_break", "1"), ("light_threshold_high_slope", "1"),
          ("light_threshold_high_intercept", "1"), ("light_threshold_low_slope", "1"),
-         ("light_threshold_low_klighs_origin", "1")]
+         ("light_threshold_low_klighs_origin", "1"),
+         # 086 : plage de N testee de la correspondance (version 0.6)
+         ("klighs_tested_n_min", "1"), ("klighs_tested_n_max", "1")]
 
 
 def regeneration_params():
