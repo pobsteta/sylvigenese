@@ -9,10 +9,13 @@
                         seulement, son stade young est dessiné par generique_feuillu.glb (mission 075, repli par stade)
 
 Les .glb sont écrits ici, à la main (struct), INDÉPENDAMMENT de assets : des arbres géométriques (un tronc, une cime
-penchée vers l'est et le NORD du générateur, donc vers +x et -z de glTF y-up), trois niveaux de détail par MSFT_lod.
+penchée vers l'est et le NORD du générateur, donc vers +x et -z de glTF y-up), trois niveaux de détail par MSFT_lod, et deux primitives par niveau (matériaux `<fichier>_ecorce` puis `<fichier>_feuillage`,
+contrat assets.tree_model, mission 084c).
 Aucune valeur n'est écologique ; tout est marqué synthétique et provisoire. Un modèle GÉNÉRIQUE mesure 1 m de haut
 et 1 m de rayon de houppier, comme ceux de `assets` (models.generic_model) : la vue les met à l'échelle (r, h, r). Le sol est un plan incliné
 (z = 340 + 0,04 x + 0,10 y, relatif à l'origine du bloc) : l'interpolation bilinéaire y est exacte.
+
+Écrit aussi `arbre_ecorce_feuillage.glb` (mission 085) : un arbre à deux primitives (écorce, feuillage), pour les tests de couleur.
 
 Usage : python3 make_zone_m6.py
 """
@@ -71,37 +74,47 @@ def mesh_tree(sides, with_crown=True):
 GENERIC_SCALE = np.array([0.5, 1.0 / H_REF, 0.5], dtype="<f4")     # cime de 2 m de rayon et 12 m de haut -> 1 m et 1 m
 
 
-def write_glb(path, species, stage, generic=None):
-    """`generic` : None (modèle d'un exemplaire) ou le groupe (`feuillu`, `resineux`) d'un modèle générique de 1 m x 1 m."""
-    levels = [mesh_tree(6), mesh_tree(4), mesh_tree(3)]
-    if generic:
-        levels = [((pos * GENERIC_SCALE).astype("<f4"), idx) for pos, idx in levels]
+def two_surfaces(sides):
+    """Les deux surfaces d'un niveau, comme celles de `assets` (lod.py BARK puis FOLIAGE) : le tronc seul (écorce), puis la
+    cime seule (feuillage : la cime sans les deux anneaux du tronc)."""
+    bark = mesh_tree(sides, False)
+    pos, idx = mesh_tree(sides, True)
+    keep = np.arange(len(pos)) >= sides * 2
+    remap = np.cumsum(keep) - 1
+    tri = idx.reshape(-1, 3)
+    tri = tri[keep[tri].all(axis=1)]
+    return [bark, (pos[keep], remap[tri].reshape(-1).astype("<u4"))]
+
+
+def write_model(path, stem, levels, extras, generator):
+    """Écrit un .glb de trois niveaux (`levels` : trois listes de deux surfaces) selon le contrat assets.tree_model : deux
+    primitives par niveau, la première au matériau `<stem>_ecorce`, la seconde au matériau `<stem>_feuillage` (mission 084c ;
+    models.py de assets écrit `<fichier>_<primitive>`). Jamais une primitive sans matériau nommé."""
     buf = bytearray()
     views, accs, meshes = [], [], []
-    for pos, idx in levels:
-        for arr, target, comp, typ in ((pos, 34962, 5126, "VEC3"), (idx, 34963, 5125, "SCALAR")):
-            off = len(buf)
-            buf.extend(arr.tobytes())
-            while len(buf) % 4:
-                buf.append(0)
-            views.append({"buffer": 0, "byteOffset": off, "byteLength": arr.nbytes, "target": target})
-            acc = {"bufferView": len(views) - 1, "componentType": comp, "count": int(arr.size // (3 if typ == "VEC3" else 1)),
-                   "type": typ}
-            if typ == "VEC3":
-                acc["min"], acc["max"] = pos.min(axis=0).tolist(), pos.max(axis=0).tolist()
-            accs.append(acc)
-        meshes.append({"primitives": [{"attributes": {"POSITION": len(accs) - 2}, "indices": len(accs) - 1, "mode": 4}]})
-    extras = ({"generique": True, "groupe": generic, "provisoire": True, "synthetique": True} if generic else
-              {"species": species, "stage": stage, "source_commit": "0000000",
-               "essence_generateur": "Fagus_sylvatica", "D_cm": 30.0, "H_m": H_REF, "hbh_m": 6.0, "Rh_m": 3.0,
-               "b_cible": 1.0, "graine": 1, "H_ref_m": H_REF, "rayon_houppier_ref_m": 2.0,
-               "provisoire": True, "synthetique": True,
-               "feuillage": {"type": "cartes_couleur_unie", "couleur": "#4f7a32"}})
+    for surfaces in levels:
+        prims = []
+        for material, (pos, idx) in enumerate(surfaces):
+            for arr, target, comp, typ in ((pos, 34962, 5126, "VEC3"), (idx, 34963, 5125, "SCALAR")):
+                off = len(buf)
+                buf.extend(arr.tobytes())
+                while len(buf) % 4:
+                    buf.append(0)
+                views.append({"buffer": 0, "byteOffset": off, "byteLength": arr.nbytes, "target": target})
+                acc = {"bufferView": len(views) - 1, "componentType": comp, "count": int(arr.size // (3 if typ == "VEC3" else 1)),
+                       "type": typ}
+                if typ == "VEC3":
+                    acc["min"], acc["max"] = pos.min(axis=0).tolist(), pos.max(axis=0).tolist()
+                accs.append(acc)
+            prims.append({"attributes": {"POSITION": len(accs) - 2}, "indices": len(accs) - 1, "material": material, "mode": 4})
+        meshes.append({"primitives": prims})
     gltf = {
-        "asset": {"version": "2.0", "generator": "make_zone_m6.py (fixture synthetique, mission 069)"},
+        "asset": {"version": "2.0", "generator": generator},
         "extensionsUsed": ["MSFT_lod"], "scene": 0, "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0, "extensions": {"MSFT_lod": {"ids": [1, 2]}}, "extras": {"MSFT_screencoverage": [0.30, 0.05, 0.005]}},
                   {"mesh": 1}, {"mesh": 2}],
+        "materials": [{"name": f"{stem}_{role}", "doubleSided": True, "pbrMetallicRoughness": {"baseColorFactor": [0.5, 0.5, 0.5, 1.0]}}
+                      for role in ("ecorce", "feuillage")],
         "meshes": meshes, "accessors": accs, "bufferViews": views, "buffers": [{"byteLength": len(buf)}],
         "extras": extras,
     }
@@ -112,6 +125,29 @@ def write_glb(path, species, stage, generic=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(struct.pack("<III", 0x46546C67, 2, total) + struct.pack("<II", len(js), 0x4E4F534A) + js
                      + struct.pack("<II", len(body), 0x004E4942) + body)
+
+
+def write_glb(path, species, stage, generic=None):
+    """`generic` : None (modèle d'un exemplaire) ou le groupe (`feuillu`, `resineux`) d'un modèle générique de 1 m x 1 m."""
+    levels = [two_surfaces(6), two_surfaces(4), two_surfaces(3)]
+    if generic:
+        levels = [[((pos * GENERIC_SCALE).astype("<f4"), idx) for pos, idx in surfaces] for surfaces in levels]
+    extras = ({"generique": True, "groupe": generic, "provisoire": True, "synthetique": True} if generic else
+              {"species": species, "stage": stage, "source_commit": "0000000",
+               "essence_generateur": "Fagus_sylvatica", "D_cm": 30.0, "H_m": H_REF, "hbh_m": 6.0, "Rh_m": 3.0,
+               "b_cible": 1.0, "graine": 1, "H_ref_m": H_REF, "rayon_houppier_ref_m": 2.0,
+               "provisoire": True, "synthetique": True,
+               "feuillage": {"type": "cartes_couleur_unie", "couleur": "#4f7a32"}})
+    write_model(path, path.stem, levels, extras, "make_zone_m6.py (fixture synthetique, mission 069 ; deux surfaces, mission 084c)")
+
+
+def write_two_surface_glb(path):
+    """Un arbre à DEUX primitives par niveau, comme ceux de `assets` : « arbre_ecorce » (le tronc) puis « arbre_feuillage »
+    (la cime), deux matériaux nommés (mission 085 : le bois et le feuillage prennent des couleurs distinctes)."""
+    extras = {"species": "09", "stage": "mature", "provisoire": True, "synthetique": True,
+              "feuillage": {"type": "cartes_couleur_unie", "couleur": "#4f7a32"}}
+    write_model(path, "arbre", [two_surfaces(6), two_surfaces(4), two_surfaces(3)], extras,
+                "make_zone_m6.py (fixture synthetique, mission 085)")
 
 
 def write_zone(name, herb, shrub, missing_stage=False):
@@ -169,4 +205,5 @@ if __name__ == "__main__":
     write_zone("zone_m6", 0.3, 0.15)
     write_zone("zone_m6_sans_herbe", 0.0, 0.0)
     write_zone("zone_m6_stade_manquant", 0.3, 0.15, missing_stage=True)
+    write_two_surface_glb(HERE / "arbre_ecorce_feuillage.glb")
     print("ok")

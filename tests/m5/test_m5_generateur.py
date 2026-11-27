@@ -111,15 +111,18 @@ def test_toutes_les_valeurs_de_parametres_sont_synthetiques_et_provisoires(zone)
         termes = t.get("term", [None] * len(t["source"]))
         for term, val, s in zip(termes, t["value"], t["source"]):
             if p.name == "regeneration.parquet" and term == "stress_mortality":
-                # seul terme repris d'une source citée (TreeMig), toujours provisoire
+                # terme repris d'une source citée (TreeMig), toujours provisoire
                 assert "TreeMig éq. 40" in s and val == 0.184, f"{p.name} : stress_mortality hors TreeMig éq. 40"
+            elif p.name == "regeneration.parquet" and term in G.SOURCE_TERME:
+                # termes de l'ombre des semis (mission 084b) : source citée (ou décision de Pascal), valeur du générateur
+                assert s == G.SOURCE_TERME[term] and val == G.REGENERATION_DEFAUT[term][0], f"{p.name} : {term}"
             else:
                 assert "synthétique" in s, f"{p.name} : source non dite synthétique"
     c = pq.read_table(zone["dir"] / "cohorts_init.parquet").to_pydict()
     assert all("synthétique" in s for s in c["source"])
 
 
-def test_regeneration_porte_les_dix_termes_pour_chaque_essence(zone):
+def test_regeneration_porte_les_vingt_termes_pour_chaque_essence(zone):
     t = pq.read_table(zone["dir"] / "params" / "regeneration.parquet").to_pydict()
     schema = json.loads((H.ROOT / "contracts" / "tables" / "params" / "regeneration.schema.json").read_text())
     termes = set(next(f for f in schema["fields"] if f["name"] == "term")["constraints"]["enum"])

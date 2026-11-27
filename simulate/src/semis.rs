@@ -39,20 +39,36 @@
 //! pas de la lumière en M5a : seule la survie en dépend (Q3, « lumière et ombre seules ») ; un semis
 //! du stock ne grandit plus dans ce modèle, son passage est réglé par la règle de Q1.
 //!
-//! # Survie (Q3 ; forme de TreeMig, éq. 37, 39 et 40, décision de l'orchestrateur du 26/11/2026)
+//! # Survie (Q3 ; forme de TreeMig, éq. 37, 39 et 40 et loi lumière-seuil de la p. 14 ; mission 084b,
+//! reprise 084c, décisions de Pascal du 27/11/2026)
 //!
-//! - l'**ombre** sur la cellule : o = `light_extinction_coef` × indice de couvert, l'indice étant
-//!   la surface des houppiers projetés de la cellule divisée par sa surface (sans unité) ;
-//! - le **seuil** est la tolérance à l'ombre de l'essence, `shade_tolerance`, sur l'échelle de
-//!   Niinemets et Valladares 2006 (0 à 5), sans règle de conversion vers l'échelle de TreeMig :
-//!   c'est le coefficient d'extinction, paramètre provisoire, qui porte l'ombre sur cette échelle ;
-//! - mortalité de stress μ̃ = 1 si o > seuil, 0 sinon (TreeMig éq. 39, une seule classe de
-//!   lumière par cellule), comptée pour `stress_mortality` × μ̃ (éq. 40) : `stress_mortality` est un
-//!   terme du contrat `params/regeneration` (TreeMig éq. 40, p. 16 ; aucune valeur dans le code,
-//!   mission 066) ;
-//! - survie annuelle s = max(0, `seedling_survival_full_light_yr` − `stress_mortality` × μ̃) : les
+//! - la **lumière relative** de la cellule est l = exp(−k × c), k = `light_extinction_coef`
+//!   (provisoire) et c le **couvert projeté** : la surface des houppiers projetés de la cellule divisée
+//!   par sa surface (sans unité). Le couvert projeté tient la place de l'indice foliaire de TreeMig
+//!   (décision de Pascal du 27/11/2026, provisoire, dite au rapport) ;
+//! - le **seuil de lumière** de l'essence se tire de sa tolérance à l'ombre N (`shade_tolerance`,
+//!   Niinemets et Valladares 2006, 0 à 5) en deux temps, sans aucune valeur dans le code :
+//!   1. klighs = borné entre `klighs_min` et `klighs_max` de `klighs_intercept` +
+//!      `klighs_per_shade_tolerance` × N (régression linéaire de la mission 083, provisoire,
+//!      erreur ± 1,1 classe, **non testée hors N de 1,5 à 4,6**, regeneration.md §15) ;
+//!   2. loi de TreeMig (p. 14, après l'éq. 29) : seuil = `light_threshold_high_slope` × klighs +
+//!      `light_threshold_high_intercept` si klighs ≥ `light_threshold_klighs_break`, sinon
+//!      max(0, `light_threshold_low_slope` × (klighs − `light_threshold_low_klighs_origin`)) ;
+//! - **comparaison directe** (décision de Pascal du 27/11/2026) : la part de la cellule sous le seuil
+//!   vaut 1 si l < seuil, 0 sinon. **Cas l = seuil : part 0, pas de stress.** C'est la condition de
+//!   TreeMig (éq. 39 : la classe est tout entière sous le seuil si l_up < seuil, strict) appliquée à une
+//!   lumière unique (l_low = l_up = l) ; l'égalité n'est pas « sous » le seuil, et la fraction
+//!   (seuil − l_low) / (l_up − l_low) de l'éq. 39 y serait 0 / 0, donc sans sens ;
+//! - **pas de classes de lumière** : TreeMig range la lumière dans 10 classes dont il répartit la lumière
+//!   d'une cellule par une loi (une normale de l'indice foliaire) que le dépôt n'a pas, et dont il
+//!   n'imprime pas les bornes. Tant qu'il n'y a qu'une lumière par cellule, aucune répartition n'est
+//!   inventée : les classes de TreeMig reviendront avec une répartition sourcée de la lumière dans la
+//!   cellule. `light_class_count` (version 0.4) est donc retiré du contrat (0.5) et refusé s'il est
+//!   fourni ([`terme_retire`]) ;
+//! - survie annuelle s = max(0, `seedling_survival_full_light_yr` − mortalité de stress) : les
 //!   mortalités s'additionnent et sont bornées à 1 (éq. 37). Gibier, sous-bois et fructification ne sont pas
-//!   simulés (Q3) : `run.json` le dit.
+//!   simulés (Q3) : `run.json` le dit. Tous les termes ci-dessus sont ceux du contrat
+//!   `params/regeneration` (version 0.5) ; absents, code 2.
 //!
 //! # Passage à la futaie (Q1, option a)
 //!
@@ -106,7 +122,7 @@ pub const TOLERANCE_ARRONDI: f64 = 1e-12;
 pub const CLASSES_MAX: usize = 1000;
 
 /// Les termes du contrat `params/regeneration` lus par le moteur, avec leur unité.
-pub const TERMES: [(&str, &str); 11] = [
+pub const TERMES: [(&str, &str); 20] = [
     ("kernel_scale_m", "m"),
     ("kernel_shape", "1"),
     ("maturity_height_m", "m"),
@@ -118,7 +134,30 @@ pub const TERMES: [(&str, &str); 11] = [
     ("seedling_survival_full_light_yr", "1"),
     ("passage_height_m", "m"),
     ("stress_mortality", "1/an"),
+    ("klighs_intercept", "1"),
+    ("klighs_per_shade_tolerance", "1"),
+    ("klighs_min", "1"),
+    ("klighs_max", "1"),
+    ("light_threshold_klighs_break", "1"),
+    ("light_threshold_high_slope", "1"),
+    ("light_threshold_high_intercept", "1"),
+    ("light_threshold_low_slope", "1"),
+    ("light_threshold_low_klighs_origin", "1"),
 ];
+
+/// Les termes retirés du contrat, avec la raison. Un terme retiré fourni est refusé par son nom
+/// (code 2), jamais lu en silence ni ignoré en silence ([`terme_retire`]).
+pub const TERMES_RETIRES: [(&str, &str); 1] = [(
+    "light_class_count",
+    "retiré en version 0.5 de params/regeneration (mission 084c, décision de Pascal du 27/11/2026) : la mortalité de \
+     stress compare directement la lumière de la cellule au seuil, il n'y a plus de classes de lumière ; \
+     supprimer la ligne",
+)];
+
+/// La raison du retrait d'un terme, si `terme` est un terme retiré du contrat.
+pub fn terme_retire(terme: &str) -> Option<&'static str> {
+    TERMES_RETIRES.iter().find(|(nom, _)| *nom == terme).map(|(_, raison)| *raison)
+}
 
 /// Une ligne de `params/regeneration.parquet` (contrat `dynamics.regeneration`).
 #[derive(Debug, Clone, PartialEq)]
@@ -130,6 +169,46 @@ pub struct LigneRegeneration {
     pub unit: String,
     pub provisoire: bool,
     pub source: String,
+}
+
+/// Les constantes de la loi lumière-seuil de TreeMig et de la correspondance Niinemets → klighs,
+/// toutes lues du contrat `params/regeneration` (version 0.5) : aucune n'est dans le code.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoiLumiere {
+    /// Ordonnée de la correspondance klighs = intercept + pente × N (mission 083).
+    pub klighs_ordonnee: f64,
+    /// Pente de la correspondance, par unité de tolérance de Niinemets (négative : sens inverse).
+    pub klighs_pente: f64,
+    /// Borne basse de klighs (TreeMig : classe 1).
+    pub klighs_min: f64,
+    /// Borne haute de klighs (TreeMig : classe 9).
+    pub klighs_max: f64,
+    /// klighs à partir duquel la branche « haute » de la loi s'applique (p. 14 : 5).
+    pub klighs_rupture: f64,
+    /// Pente de la branche haute (p. 14 : 0,1).
+    pub pente_haute: f64,
+    /// Ordonnée de la branche haute (p. 14 : −0,4).
+    pub ordonnee_haute: f64,
+    /// Pente de la branche basse (p. 14 : 0,025).
+    pub pente_basse: f64,
+    /// Origine de klighs de la branche basse (p. 14 : le 1 de « klighs − 1 »).
+    pub origine_basse: f64,
+}
+
+impl LoiLumiere {
+    /// klighs d'une tolérance de Niinemets N : la droite de la mission 083, bornée.
+    pub fn klighs(&self, tolerance_niinemets: f64) -> f64 {
+        (self.klighs_ordonnee + self.klighs_pente * tolerance_niinemets).clamp(self.klighs_min, self.klighs_max)
+    }
+
+    /// La lumière-seuil (relative, 0 à 1) d'un klighs : la loi de TreeMig, p. 14.
+    pub fn seuil_de_klighs(&self, klighs: f64) -> f64 {
+        if klighs >= self.klighs_rupture {
+            self.pente_haute * klighs + self.ordonnee_haute
+        } else {
+            (self.pente_basse * (klighs - self.origine_basse)).max(0.0)
+        }
+    }
 }
 
 /// Les paramètres de semis d'une essence, tous présents.
@@ -148,9 +227,10 @@ pub struct ParametresSemis {
     pub part_installation: f64,
     /// Croissance en hauteur d'un semis, m/an.
     pub croissance_m_an: f64,
-    /// Tolérance à l'ombre (Niinemets et Valladares 2006, 0 à 5).
+    /// Tolérance à l'ombre N (Niinemets et Valladares 2006, 0 à 5) : elle donne le seuil de lumière
+    /// par [`LoiLumiere`].
     pub tolerance_ombre: f64,
-    /// Coefficient d'extinction de la lumière sous couvert, sans unité.
+    /// Coefficient d'extinction k de la lumière sous couvert projeté, sans unité (provisoire).
     pub coef_extinction: f64,
     /// Survie annuelle à pleine lumière, 0 à 1.
     pub survie_pleine_lumiere: f64,
@@ -158,6 +238,8 @@ pub struct ParametresSemis {
     pub hauteur_passage_m: f64,
     /// Mortalité annuelle de stress d'un semis sous son seuil de lumière, 0 à 1 (TreeMig, éq. 40).
     pub mortalite_stress: f64,
+    /// La correspondance Niinemets → klighs, et la loi lumière-seuil.
+    pub loi_lumiere: LoiLumiere,
     /// Vrai si au moins un terme lu est provisoire.
     pub provisoire: bool,
 }
@@ -171,6 +253,11 @@ impl ParametresSemis {
     /// Temps de passage T_p = H_p / g, en années (Q2).
     pub fn temps_de_passage(&self) -> f64 {
         self.hauteur_passage_m / self.croissance_m_an
+    }
+
+    /// La lumière-seuil de l'essence (relative, 0 à 1) : Niinemets → klighs → loi de TreeMig.
+    pub fn seuil_lumiere(&self) -> f64 {
+        self.loi_lumiere.seuil_de_klighs(self.loi_lumiere.klighs(self.tolerance_ombre))
     }
 
     /// Hauteur des semis de la classe k (k = 0 … A − 1), m.
@@ -265,13 +352,14 @@ fn borne(espece: &str, terme: &str, valeur: f64, condition: bool, attendu: &str)
 
 /// Les paramètres de semis d'une essence (tous les termes du contrat). Code 2 si un terme manque
 /// ou sort de son domaine (échelle, forme, croissance et hauteur de passage strictement positives ;
-/// maturité, fécondité, tolérance et extinction positives ; parts, survie et mortalité de stress entre 0 et 1).
+/// maturité, fécondité, tolérance et extinction positives ; parts, survie et mortalité de stress entre 0 et 1 ;
+/// klighs_min ≤ klighs_max ; lumière-seuil entre 0 et 1).
 pub fn parametres_de(
     lignes: &[LigneRegeneration],
     espece: &str,
     referentiel: &Referentiel,
 ) -> Result<ParametresSemis, Erreur> {
-    let mut valeurs = [0.0_f64; 11];
+    let mut valeurs = [0.0_f64; 20];
     let mut provisoire = false;
     for (rang, (terme, unite)) in TERMES.iter().enumerate() {
         let (valeur, p) = chercher_terme(lignes, espece, referentiel, terme, unite)?;
@@ -291,6 +379,17 @@ pub fn parametres_de(
         survie_pleine_lumiere: valeurs[8],
         hauteur_passage_m: valeurs[9],
         mortalite_stress: valeurs[10],
+        loi_lumiere: LoiLumiere {
+            klighs_ordonnee: valeurs[11],
+            klighs_pente: valeurs[12],
+            klighs_min: valeurs[13],
+            klighs_max: valeurs[14],
+            klighs_rupture: valeurs[15],
+            pente_haute: valeurs[16],
+            ordonnee_haute: valeurs[17],
+            pente_basse: valeurs[18],
+            origine_basse: valeurs[19],
+        },
         provisoire,
     };
     borne(espece, "kernel_scale_m", p.echelle_noyau_m, p.echelle_noyau_m > 0.0, "> 0")?;
@@ -322,6 +421,21 @@ pub fn parametres_de(
         (0.0..=1.0).contains(&p.mortalite_stress),
         "entre 0 et 1",
     )?;
+    borne(
+        espece,
+        "klighs_min",
+        p.loi_lumiere.klighs_min,
+        p.loi_lumiere.klighs_min <= p.loi_lumiere.klighs_max,
+        "≤ klighs_max",
+    )?;
+    let seuil = p.seuil_lumiere();
+    if !(0.0..=1.0).contains(&seuil) {
+        return Err(Erreur::entree_refusee(format!(
+            "params/regeneration : essence {espece} : la lumière-seuil tirée de shade_tolerance = {} par la \
+             correspondance klighs et la loi lumière-seuil vaut {seuil} ; attendu : entre 0 et 1 (lumière relative)",
+            p.tolerance_ombre
+        )));
+    }
     if p.temps_de_passage() >= CLASSES_MAX as f64 {
         return Err(Erreur::entree_refusee(format!(
             "params/regeneration : essence {espece} : passage_height_m / seedling_height_growth_m_yr = {} ans, \
@@ -335,16 +449,28 @@ pub fn parametres_de(
 // ------------------------------------------------------------------------------------------
 // Survie
 
-/// L'ombre sur une cellule : coefficient d'extinction × indice de couvert (sans unité).
-pub fn ombre(coef_extinction: f64, indice_couvert: f64) -> f64 {
-    coef_extinction * indice_couvert
+/// La lumière relative d'une cellule : l = exp(−k × c), k le coefficient d'extinction et c le couvert
+/// projeté (surface des houppiers projetés / surface de la cellule). Entre 0 et 1 pour k ≥ 0 et c ≥ 0.
+pub fn lumiere_relative(coef_extinction: f64, couvert_projete: f64) -> f64 {
+    (-coef_extinction * couvert_projete).exp()
 }
 
-/// La survie annuelle d'un semis (forme de TreeMig, éq. 37, 39, 40) : s_pleine − `stress_mortality`
-/// si l'ombre dépasse la tolérance, s_pleine sinon ; bornée à 0.
-pub fn survie(parametres: &ParametresSemis, ombre_cellule: f64) -> f64 {
-    let stress = if ombre_cellule > parametres.tolerance_ombre { 1.0 } else { 0.0 };
-    (parametres.survie_pleine_lumiere - parametres.mortalite_stress * stress).max(0.0)
+/// La part de mortalité de stress d'une cellule de lumière relative `lumiere` (0 à 1) : comparaison
+/// directe au seuil de l'essence, 1 si `lumiere` < seuil, 0 sinon (décision de Pascal du 27/11/2026).
+/// L'égalité (l = seuil) donne 0 : la condition de TreeMig (éq. 39, l_up < seuil) est stricte.
+pub fn part_de_stress(parametres: &ParametresSemis, lumiere: f64) -> f64 {
+    if lumiere < parametres.seuil_lumiere() {
+        1.0
+    } else {
+        0.0
+    }
+}
+
+/// La survie annuelle d'un semis (forme de TreeMig, éq. 37, 39, 40) : s_pleine − `stress_mortality` ×
+/// part de la cellule sous le seuil de lumière de l'essence (1 ou 0), bornée à 0.
+pub fn survie(parametres: &ParametresSemis, lumiere: f64) -> f64 {
+    let stress = parametres.mortalite_stress * part_de_stress(parametres, lumiere);
+    (parametres.survie_pleine_lumiere - stress).max(0.0)
 }
 
 // ------------------------------------------------------------------------------------------

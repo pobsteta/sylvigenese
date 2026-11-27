@@ -10,6 +10,9 @@ Règles, dans l'ordre où le message les dit :
   nœuds `ids` plus grossiers (LOD1 puis LOD2), chacun avec un maillage, triangles strictement
   décroissants, `extras.MSFT_screencoverage` de trois nombres décroissants ; `MSFT_lod` est dans
   `extensionsUsed` ;
+- surfaces (mission 084c) : chaque niveau porte exactement deux primitives, la première au matériau dont
+  le nom se termine par `_ecorce`, la seconde par `_feuillage` (assets écrit `<fichier>_ecorce` puis
+  `<fichier>_feuillage`) ; la vue y lit le rôle de chaque surface et refuse tout autre nom ;
 - repère y-up (T6) : la base du LOD0 est en y = 0 et son sommet en y = `H_ref_m`, à 1 % près ;
 - `extras` : schéma `json/tree_model_extras.schema.json` (`source_commit` obligatoire pour un modèle
   du générateur) ;
@@ -322,7 +325,33 @@ def check_levels(gltf, positions, findings):
     if not ok:
         findings.error("extras.MSFT_screencoverage du nœud principal : trois nombres de ]0 ; 1] "
                        "strictement décroissants attendus (un par niveau)")
+    check_surfaces(gltf, levels, findings)
     check_up_axis(gltf, top, positions, findings)
+
+
+SURFACES = (("_ecorce", "écorce"), ("_feuillage", "feuillage"))
+
+
+def check_surfaces(gltf, levels, findings):
+    """Chaque niveau : deux primitives, matériaux terminés par `_ecorce` puis `_feuillage` (mission 084c)."""
+    materials = gltf.get("materials") if isinstance(gltf.get("materials"), list) else []
+    meshes = gltf.get("meshes") if isinstance(gltf.get("meshes"), list) else []
+    for name, node in zip(("LOD0", "LOD1", "LOD2"), levels):
+        mesh = node.get("mesh")
+        if not isinstance(mesh, int) or not 0 <= mesh < len(meshes):
+            continue
+        prims = meshes[mesh].get("primitives") or []
+        names = []
+        for prim in prims:
+            idx = prim.get("material")
+            ok = isinstance(idx, int) and not isinstance(idx, bool) and 0 <= idx < len(materials)
+            names.append(str(materials[idx].get("name", "")) if ok else None)
+        wanted = [suffix for suffix, _ in SURFACES]
+        if len(prims) != 2 or any(n is None or not n.endswith(w) for n, w in zip(names, wanted)):
+            seen = ", ".join("(sans matériau)" if n is None else repr(n) for n in names) or "aucune primitive"
+            findings.error(f"niveau {name} : deux primitives attendues, de matériaux terminés par "
+                           f"_ecorce puis _feuillage (la vue lit le rôle de chaque surface dans ce nom) ; "
+                           f"{len(prims)} primitive(s), matériaux : {seen}")
 
 
 def check_up_axis(gltf, top, positions, findings):

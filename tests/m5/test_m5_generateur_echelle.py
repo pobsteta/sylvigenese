@@ -207,6 +207,8 @@ def test_s8_les_essences_ajoutees_sont_des_copies_provisoires_sans_valeur_ecolog
     for term, val, s in zip(reg["term"], reg["value"], reg["source"]):
         if term == "stress_mortality":
             assert "TreeMig éq. 40" in s and val == 0.184, "stress_mortality hors TreeMig éq. 40"
+        elif term in G.SOURCE_TERME:
+            assert s == G.SOURCE_TERME[term] and val == G.REGENERATION_DEFAUT[term][0], f"terme {term} hors source"
         else:
             assert "aucune valeur écologique" in s, f"terme {term} : source sans « aucune valeur écologique »"
     par = {}

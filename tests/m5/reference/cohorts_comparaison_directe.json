@@ -1,0 +1,33 @@
+{
+ "_provenance": "Relevé du 27/11/2026 (mission 084c) : SHA-256 des Parquet de sim/ (sauf flags) rendus par le moteur de la mission 084c (ombre des semis à la forme de TreeMig, comparaison directe de la lumière exp(−k × couvert projeté) au seuil par klighs : part = 1 si l < seuil, 0 sinon, × stress_mortality ; plus de classes de lumière), sur les fixtures de tests/m5 (SER : 32 × 32, 5 ans, une année sur 2 ; massif : 8 ans, K = 1). Il remplace le relevé de la mission 084b (cohorts_ombre_en_classes_084b.json) ; l'état d'avant 084b est cohorts_avant_ombre_treemig.json. SER : identique aux deux anciens (aucune cellule de la SER fictive n'a assez de couvert pour tomber sous le seuil de lumière) ; massif : 16 fichiers sur 18 changent par rapport à 084b et par rapport à l'état d'avant 084b (les deux inchangés : trees 2022 et 2023, avant toute recrue).",
+ "ser_nominale": {
+  "cells/year=2022/part-00000.parquet": "4daba04afd50fd263b8d4a383ff678211f906f0fabf21c905cd8583486c8ef36",
+  "cells/year=2024/part-00000.parquet": "7b2587b78f86585f5204c5c061bc8013f36a5d5ba2ca8ec5f7a88a7c99a70596",
+  "cells/year=2026/part-00000.parquet": "e9c25db240122411deef41b3aeaf1e518bd02e85a765f7a75fbbe2e55985dbec",
+  "cells/year=2027/part-00000.parquet": "39cd9bbe4a018c6ac8f284a9d9ab21a89baa574d840ac9983aac601778a2b126",
+  "cohorts/year=2022/part-00000.parquet": "0ac7fb8b3fb1c68e73424f9a6a0f48a3a1f60b08cf9111aa4ae60ff9bfe94355",
+  "cohorts/year=2024/part-00000.parquet": "738ddf90b948e84d4628c74389e216dd41cd4ea87674d286b9efdb7e9b0d8cd5",
+  "cohorts/year=2026/part-00000.parquet": "19dd41d7845fff3e9c7fa7bb4bbf1279eca2d6db7e9ede6320ca97304996dbba",
+  "cohorts/year=2027/part-00000.parquet": "c1b4257a01e4eb64ae912702b050eb2cb4f794704411b59f70ab46dc3be6ad21"
+ },
+ "massif_cohorts": {
+  "cells/year=2022/part-00000.parquet": "2640b66aa58712a1208a4e9e77aa6811520a5651117a48e758aab471a39d8b90",
+  "cells/year=2023/part-00000.parquet": "1bf1e34eab1dc90cbae605ad103e791631ac715782f51c381fbbe10aff12a8dd",
+  "cells/year=2024/part-00000.parquet": "6310682b38f17968dffd329b1b5f1b83bd289169e988bbd80ed38ae5409cda3b",
+  "cells/year=2025/part-00000.parquet": "d770ff1b2b03e80a354a8eb8dea22c25dfcc723ea01825b105e61b75ea65be66",
+  "cells/year=2026/part-00000.parquet": "561638b9b6a1d5b73293ee556d575e2d35b757c65043032db26657e94cff10e4",
+  "cells/year=2027/part-00000.parquet": "0fab9cc1910f8d4d9b53bf0b7ca8bfe5b755a410b190b8335f8beab2941f034d",
+  "cells/year=2028/part-00000.parquet": "655972f61a153ec7603139b82a64bbae7b30dbbc54716fcb2cf58912be4a83e0",
+  "cells/year=2029/part-00000.parquet": "1cd3b93bb63398aa4a1f658799af38e5028c6e884c56f3ed416183114aad1c51",
+  "cells/year=2030/part-00000.parquet": "3450337677fb4406d7e104b7ff8ea0a051aef6cc383fc6fee4614f79d0a3499f",
+  "trees/year=2022/part-00000.parquet": "030f655076c398442d3f0e8532740e76fd547568464fc5b13a1417b987d11e62",
+  "trees/year=2023/part-00000.parquet": "0105a92335dc250eee7ed4c9504cca1b9749c808dbed7c1e77d3c63f51a59ff4",
+  "trees/year=2024/part-00000.parquet": "05c731f9762753d36764dc29325af91797e5bf74b84304961154690c04a10b91",
+  "trees/year=2025/part-00000.parquet": "2c9b0ed018b685656ad73178d7c04f053ff66ebae33a747ed955fc57ed3b4258",
+  "trees/year=2026/part-00000.parquet": "b9035ebdc3f8b415934293e3f90b6721378a86d42ff282af55958ca9c1a2cb5f",
+  "trees/year=2027/part-00000.parquet": "f17f75ddd03cd1aa9644b6ad7b22018fd0ff695102869e1ac044f5d2910e844d",
+  "trees/year=2028/part-00000.parquet": "83bfbc6336e5bb181fe14818b3a274c3f4b227c0166f918853125ea01579231d",
+  "trees/year=2029/part-00000.parquet": "a3412a080aed43ab9d8d6e2a0da968bb57b4072b7d7f26811591d2fe7ab97405",
+  "trees/year=2030/part-00000.parquet": "f9a03a14eec564155c7c428a88f9ff6f8f23248b726908d31aecc5389fc713c3"
+ }
+}

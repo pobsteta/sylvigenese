@@ -1,5 +1,5 @@
 ## Constantes d'affichage de la vue : bloc `viewer:` de config.yml (mission 068 ; décisions Q2 et Q4 du 26/11/2026 ; mission 077 :
-## étendue, caméra, sol, soleil, textes à l'écran).
+## étendue, caméra, sol, soleil, textes à l'écran ; mission 085 : couleur du bois, flèche du nord, modèles nommés au bandeau).
 ## PROVISOIRE, « illustration, non mesurée » : seule l'apparence est là ; le nombre de brins suit le couvert du bloc et le
 ## nombre de semis suit sim/cells. Aucune valeur de repli : si config.yml est introuvable ou incomplet, la vue s'arrête
 ## et dit où elle a cherché. Lecteur minimal du sous-ensemble de YAML employé par ce bloc (cartes imbriquées par
@@ -10,9 +10,9 @@ const REQUIRED := [
 	"provisoire", "mention", "view.radius_m",
 	"camera.eye_height_m", "camera.fov_deg", "camera.far_m", "camera.speed_m_s", "camera.fast_factor", "camera.mouse_sensitivity", "camera.pitch_limit_rad",
 	"ground.color", "sun.elevation_deg", "sun.azimuth_deg",
-	"hud.title_font_size", "hud.title_color", "hud.state_font_size", "hud.title_outline_px", "hud.state_outline_px", "hud.outline_color", "hud.state_height_px", "hud.margin_px", "hud.top_margin_px",
+	"hud.title_font_size", "hud.title_color", "hud.state_font_size", "hud.title_outline_px", "hud.state_outline_px", "hud.outline_color", "hud.state_height_px", "hud.margin_px", "hud.top_margin_px", "hud.north_size_px", "hud.north_color", "hud.listed_models",
 	"grass.radius_m", "grass.recenter_distance_m", "grass.max_instances", "grass.blade_height_m", "grass.blades_per_m2_at_full_cover", "grass.color", "grass.wind_noise_frequency",
-	"seedlings.max_instances", "foliage.card_size_m", "foliage.color_by_group", "lod.fade_margin_m", "lod.chunk_m"]
+	"seedlings.max_instances", "wood.color", "foliage.card_size_m", "foliage.color_by_group", "lod.fade_margin_m", "lod.chunk_m"]
 
 
 static func candidates(zone_dir: String) -> Array:

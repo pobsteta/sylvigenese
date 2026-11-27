@@ -953,7 +953,7 @@ pub fn initialiser_t0(moteur: &Moteur, tiges: Vec<f32>, t0: i32) -> Result<(Etat
                         t0,
                         &mut bloc.comptes.sorties_domaine,
                     )?;
-                    let survie = semis::survie(p, semis::ombre(p.coef_extinction, couvert_t0_ref[rang]));
+                    let survie = semis::survie(p, semis::lumiere_relative(p.coef_extinction, couvert_t0_ref[rang]));
                     semis::en_regime_avec_survie(p, flux, survie, classes_cellule);
                 }
                 Ok(bloc)
@@ -1124,7 +1124,7 @@ pub fn pas_annuel(moteur: &Moteur, etat: &mut EtatSer, annee: i32) -> Result<Res
                         None => 0.0,
                     };
                     let nouveaux = p.part_installation * arrivee / aire_ha;
-                    let survie = semis::survie(p, semis::ombre(p.coef_extinction, couvert_ref[rang]));
+                    let survie = semis::survie(p, semis::lumiere_relative(p.coef_extinction, couvert_ref[rang]));
                     semis::avancer(classes_cellule, survie, nouveaux);
                     if h_fin_ref[rang] == 0.0 {
                         let (r, _) = semis::passage_esperance(classes_cellule, None);

@@ -277,6 +277,7 @@
         "hud",
         "grass",
         "seedlings",
+        "wood",
         "foliage",
         "lod"
       ],
@@ -405,7 +406,10 @@
             "outline_color",
             "state_height_px",
             "margin_px",
-            "top_margin_px"
+            "top_margin_px",
+            "north_size_px",
+            "north_color",
+            "listed_models"
           ],
           "additionalProperties": false,
           "properties": {
@@ -442,6 +446,20 @@
               "minimum": 0
             },
             "top_margin_px": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "north_size_px": {
+              "description": "côté de la flèche du nord à l'écran",
+              "type": "integer",
+              "minimum": 1
+            },
+            "north_color": {
+              "type": "string",
+              "pattern": "^#[0-9a-f]{6}$"
+            },
+            "listed_models": {
+              "description": "nombre de modèles non calés nommés dans le bandeau ; les autres sont comptés",
               "type": "integer",
               "minimum": 0
             }
@@ -507,6 +525,20 @@
               "description": "plafond d'instances de semis dessinées ; quand il tronque, la vue le dit",
               "type": "integer",
               "minimum": 1
+            }
+          }
+        },
+        "wood": {
+          "description": "couleur du bois (tronc et branches) à l'écran (illustration, non mesurée)",
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9a-f]{6}$"
             }
           }
         },

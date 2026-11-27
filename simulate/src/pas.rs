@@ -1455,7 +1455,7 @@ pub fn etat_semis_initial(
                     return Ok(sorties);
                 }
                 let flux = flux_ifn_ha(cellules, &resumes[cellule], modele, *essence, cellule, annee_t0, &mut sorties)?;
-                let survie = semis::survie(p, semis::ombre(p.coef_extinction, couvert[cellule]));
+                let survie = semis::survie(p, semis::lumiere_relative(p.coef_extinction, couvert[cellule]));
                 // Au massif, l'arrondi aléatoire peut demander ⌈λ⌉ arbres (λ = F × aire) : le régime
                 // est celui de ce flux en arbres entiers, sinon le stock initial bornerait le tirage
                 // dès la première année là où λ n'est pas entier (la part en plus attend au stock).
@@ -1708,7 +1708,7 @@ pub fn pas_annuel_cohortes(
                     return Ok(passage);
                 }
                 let nouveaux = p.part_installation * arrivees[cellule] / aire_ha;
-                let s = semis::survie(p, semis::ombre(p.coef_extinction, couvert[cellule]));
+                let s = semis::survie(p, semis::lumiere_relative(p.coef_extinction, couvert[cellule]));
                 semis::avancer(classes, s, nouveaux);
                 if trouees[cellule] {
                     let (recrues, _) = semis::passage_massif(classes, aire_ha, None);

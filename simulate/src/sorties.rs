@@ -66,6 +66,7 @@
 //! | [`SORTE_SEMIS_NON_SIMULES`] | la zone (`zone` de config.yml), année t0, mode `ifn_direct` seulement | vide |
 //! | [`SORTE_STOCK_INITIAL_EN_REGIME`] | la zone, année t0, mode `cohorts` seulement (Q2, mission 066) | vide |
 //! | [`SORTE_LUMIERE_ET_OMBRE_SEULES`] | la zone, année t0, mode `cohorts` seulement (Q3, mission 066) | vide |
+//! | [`SORTE_CLASSES_LUMIERE_PROVISOIRES`] | la zone, année t0, mode `cohorts` seulement (mission 084b) | vide |
 //! | [`SORTE_TOTAL_CELLULES_SANS_ARBRE`] | la zone, dernière année | nombre de couples (cellule, année) |
 //! | [`SORTE_TOTAL_RECRUES_CELLULE_VIDE`] | la zone, dernière année | nombre de recrues |
 //! | [`SORTE_TOTAL_SER_SANS_EFFET`] | la zone, dernière année | nombre de prédicteurs |
@@ -113,6 +114,10 @@ pub const SORTE_SEMIS_NON_SIMULES: &str = "semis_non_simules";
 pub const SORTE_STOCK_INITIAL_EN_REGIME: &str = "stock_initial_en_regime";
 /// Mode `cohorts` : la survie des semis ne dépend que de la lumière et de l'ombre (décision de Pascal Q3).
 pub const SORTE_LUMIERE_ET_OMBRE_SEULES: &str = "lumiere_et_ombre_seules";
+/// Mode `cohorts` : comparaison directe de la lumière au seuil (plus de classes), extinction et couvert projeté
+/// provisoires et sans source, klighs extrapolé hors de N 1,5 à 4,6 (décisions de Pascal du 27/11/2026,
+/// missions 084b et 084c).
+pub const SORTE_CLASSES_LUMIERE_PROVISOIRES: &str = "classes_lumiere_et_extinction_provisoires";
 /// Total des couples (cellule, année) simulés sans arbre vivant (H_dom tenue, T5).
 pub const SORTE_TOTAL_CELLULES_SANS_ARBRE: &str = "total_cellules_sans_arbre";
 /// Total des recrues nées dans une cellule sans arbre (rel_d pris à 1).
@@ -769,6 +774,22 @@ pub fn ajouter_signalements_de_zone(
             message: "survie des semis fondée sur la lumière et l'ombre seules (tolérance à l'ombre, extinction \
                       sous couvert, mortalité de stress de TreeMig) : gibier, sous-bois et fructification ne sont \
                       pas simulés (mode cohorts ; décision de Pascal Q3 du 26/11/2026)"
+                .to_string(),
+            valeur: None,
+        });
+    }
+    if cohortes {
+        signalements.push(Signalement {
+            annee: t0,
+            entite: lancement.zone.clone(),
+            sorte: SORTE_CLASSES_LUMIERE_PROVISOIRES.to_string(),
+            message: "ombre des semis à la forme de TreeMig avec des réglages provisoires et sans source : il n'y a \
+                      plus de classes de lumière (comparaison directe de la lumière de la cellule au seuil, stress \
+                      entier si l est sous le seuil, nul sinon ; les classes de TreeMig reviendront avec une \
+                      répartition sourcée de la lumière dans la cellule) ; extinction provisoire ; couvert projeté à \
+                      la place de l'indice foliaire ; une seule lumière par cellule ; klighs dérivé de la tolérance de \
+                      Niinemets (erreur ± 1,1 classe) et NON TESTÉ hors N de 1,5 à 4,6 (extrapolation) (mode cohorts ; \
+                      décisions de Pascal du 27/11/2026)"
                 .to_string(),
             valeur: None,
         });

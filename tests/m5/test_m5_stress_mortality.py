@@ -1,15 +1,15 @@
 """Mission 066 : la mortalité de stress des semis (0,184, TreeMig éq. 40 p. 16) n'est plus une constante du code mais le
 terme `stress_mortality` de params/regeneration (contrat version 0.3).
 
-- Identité : avec le terme écrit à 0,184 par le générateur, les résultats du mode `cohorts` sont **les mêmes octets**
-  qu'avant le changement (SHA-256 des fichiers Parquet de sim/, tests/m5/reference/cohorts_avant_stress_mortality.json),
-  aux deux niveaux : SER (32 × 32, 5 ans) et massif (8 ans). Histoire de la référence : relevée à l'origine le
-  26/11/2026 sur le moteur de la mission 065, elle prouvait alors l'identité avant et après la mission 066 ; relevée de
-  nouveau le 27/11/2026 pour la mission 080 avec le moteur d'avant le contrôle « K couvre d99 », sur les fixtures
-  ajustées dont K couvre le d99 (l'ancienne, à 30 m, est désormais refusée par simulate). Aujourd'hui elle prouve
-  l'identité avant et après 080 (le contrôle ne change aucun octet quand K couvre d99) ; l'identité de 066 n'est plus
-  rejouable avec elle, la preuve en reste l'historique de la mission 066.
-  flags.parquet n'y est pas : il porte désormais les deux lignes de mentions Q2 et Q3.
+- Référence : les résultats du mode `cohorts` sont **les mêmes octets** que ceux relevés (SHA-256 des fichiers Parquet de
+  sim/, tests/m5/reference/cohorts_comparaison_directe.json), aux deux niveaux : SER (32 × 32, 5 ans) et massif (8 ans).
+  Histoire de la référence : relevée le 26/11/2026 sur le moteur de la mission 065 (identité avant et après 066), puis le
+  27/11/2026 pour 080 (identité avant et après le contrôle « K couvre d99 ») : cohorts_avant_ombre_treemig.json. Mission
+  084b (27/11/2026) : l'ombre passe à la forme de TreeMig en 10 classes égales : cohorts_ombre_en_classes_084b.json. Mission
+  084c (27/11/2026, décision de Pascal) : comparaison directe de la lumière au seuil, plus de classes :
+  cohorts_comparaison_directe.json, la référence d'aujourd'hui. Les deux anciennes sont gardées pour chiffrer ce qui change
+  (`AVANT_084B`, `EN_CLASSES_084B`).
+  flags.parquet n'y est pas : il porte les mentions Q2 et Q3 et, depuis 084b, celle de l'ombre provisoire.
 - Le terme est lu : sous ombre forte, un autre nombre change les résultats (le test discrimine).
 - Absent : code 2, le message nomme le terme et l'essence ; aucune valeur d'emprunt.
 - Mentions Q2 (stock initial en régime) et Q3 (lumière et ombre seules) écrites en mode cohorts, et non en ifn_direct.
@@ -22,8 +22,12 @@ import pytest
 import helpers_m5 as H
 import ser_fictive as G
 
-REFERENCE = json.loads((H.ROOT / "tests" / "m5" / "reference" / "cohorts_avant_stress_mortality.json")
+REFERENCE = json.loads((H.ROOT / "tests" / "m5" / "reference" / "cohorts_comparaison_directe.json")
                        .read_text(encoding="utf-8"))
+EN_CLASSES_084B = json.loads((H.ROOT / "tests" / "m5" / "reference" / "cohorts_ombre_en_classes_084b.json")
+                             .read_text(encoding="utf-8"))
+AVANT_084B = json.loads((H.ROOT / "tests" / "m5" / "reference" / "cohorts_avant_ombre_treemig.json")
+                        .read_text(encoding="utf-8"))
 
 
 def empreinte_parquet(zdir):
@@ -40,18 +44,38 @@ def test_le_generateur_ecrit_le_terme_a_la_valeur_de_treemig():
     assert lignes and all(r["value"] == 0.184 and r["unit"] == "1/an" and r["provisoire"] for r in lignes)
 
 
-def test_ser_cohorts_resultats_identiques_a_ceux_d_avant(ser_nominale):
+def test_ser_cohorts_resultats_identiques_a_la_reference(ser_nominale):
     assert ser_nominale["proc"].returncode == 0, H.queue(ser_nominale["proc"])
     maintenant = empreinte_parquet(ser_nominale["dir"])
     assert set(maintenant) == set(REFERENCE["ser_nominale"])
     assert maintenant == REFERENCE["ser_nominale"]
 
 
-def test_massif_cohorts_resultats_identiques_a_ceux_d_avant(massif_cohorts):
+def test_massif_cohorts_resultats_identiques_a_la_reference(massif_cohorts):
     assert massif_cohorts["proc"].returncode == 0, H.queue(massif_cohorts["proc"])
     maintenant = empreinte_parquet(massif_cohorts["dir"])
     assert set(maintenant) == set(REFERENCE["massif_cohorts"])
     assert maintenant == REFERENCE["massif_cohorts"]
+
+
+def _fichiers_changes(nouveau, ancien):
+    return [f for f in ancien if nouveau[f] != ancien[f]]
+
+
+def test_ce_que_084b_et_084c_changent_dans_la_reference():
+    """Le changement est dit et prouvé. La SER fictive n'a aucune cellule sous le seuil de lumière : ses octets ne changent
+    ni avec 084b ni avec 084c. Le massif change : 15 fichiers sur 18 avec 084b (par rapport à l'état d'avant), 16 sur 18 avec
+    084c (par rapport à 084b comme par rapport à l'état d'avant : des cellules à fort couvert projeté passent sous le seuil,
+    et avec la comparaison directe le stress y est entier, jamais une fraction) ; ne restent inchangés que trees 2022 et
+    2023, avant toute recrue."""
+    assert REFERENCE["ser_nominale"] == EN_CLASSES_084B["ser_nominale"] == AVANT_084B["ser_nominale"]
+    assert len(_fichiers_changes(EN_CLASSES_084B["massif_cohorts"], AVANT_084B["massif_cohorts"])) == 15
+    contre_084b = _fichiers_changes(REFERENCE["massif_cohorts"], EN_CLASSES_084B["massif_cohorts"])
+    contre_avant = _fichiers_changes(REFERENCE["massif_cohorts"], AVANT_084B["massif_cohorts"])
+    assert len(REFERENCE["massif_cohorts"]) == 18
+    assert len(contre_084b) == 16 and len(contre_avant) == 16, (contre_084b, contre_avant)
+    inchanges = sorted(set(REFERENCE["massif_cohorts"]) - set(contre_084b))
+    assert inchanges == ["trees/year=2022/part-00000.parquet", "trees/year=2023/part-00000.parquet"], inchanges
 
 
 def _passage_ombrage(valeur):
@@ -105,6 +129,7 @@ def test_mentions_q2_et_q3_en_mode_cohorts(ser_nominale, massif_cohorts):
     for res in (ser_nominale, massif_cohorts):
         kinds = H.flags_kinds(res["dir"])
         assert "stock_initial_en_regime" in kinds and "lumiere_et_ombre_seules" in kinds
+        assert "classes_lumiere_et_extinction_provisoires" in kinds, "réglages provisoires de l'ombre non dits"
         assert "semis_non_simules" not in kinds
 
 
@@ -112,3 +137,4 @@ def test_pas_de_mention_q2_q3_en_ifn_direct(massif_ifn_direct):
     kinds = H.flags_kinds(massif_ifn_direct["dir"])
     assert "semis_non_simules" in kinds
     assert "stock_initial_en_regime" not in kinds and "lumiere_et_ombre_seules" not in kinds
+    assert "classes_lumiere_et_extinction_provisoires" not in kinds

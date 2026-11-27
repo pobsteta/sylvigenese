@@ -43,9 +43,45 @@ static func _distance(height_m: float, coverage: float, fov_deg: float) -> float
 	return height_m / (2.0 * tan(deg_to_rad(fov_deg) / 2.0) * coverage)
 
 
+## Rôle de chaque primitive d'un maillage, d'après le nom de son matériau dans le .glb. Contrat assets.tree_model (mission
+## 084c ; assets écrit `<fichier>_<primitive>`, lod.py BARK puis FOLIAGE) : chaque niveau porte DEUX primitives, la première au
+## matériau dont le nom se termine par « _ecorce » (« wood »), la seconde par « _feuillage » (« foliage »). Une primitive dont le
+## matériau est absent ou autrement nommé est « unknown » : `_check_roles` la refuse, la vue ne devine aucune couleur.
+static func _surface_roles(g: Dictionary, mesh_index: int) -> Array:
+	var roles := []
+	for prim in g["meshes"][mesh_index]["primitives"]:
+		var name := ""
+		if prim.has("material") and g.has("materials") and int(prim["material"]) < g["materials"].size():
+			name = str(g["materials"][int(prim["material"])].get("name", ""))
+		if name.ends_with("_ecorce"):
+			roles.append("wood")
+		elif name.ends_with("_feuillage"):
+			roles.append("foliage")
+		else:
+			roles.append("unknown")
+	return roles
+
+
+## Erreur nommée si les rôles d'un niveau ne sont pas [wood, foliage] (deux primitives, écorce puis feuillage) ; "" sinon.
+## Aucun modèle n'échappe à la règle : ni ceux du générateur, ni les génériques, ni les fixtures (qui la suivent aussi).
+static func _check_roles(path: String, level: int, g: Dictionary, mesh_index: int, roles: Array) -> String:
+	if roles == ["wood", "foliage"]:
+		return ""
+	var names := []
+	for prim in g["meshes"][mesh_index]["primitives"]:
+		var name := "(sans matériau)"
+		if prim.has("material") and g.has("materials") and int(prim["material"]) < g["materials"].size():
+			name = "« %s »" % str(g["materials"][int(prim["material"])].get("name", ""))
+		names.append(name)
+	return "%s : le niveau %d porte %d primitive(s), de matériaux %s ; le contrat des .glb d'arbres exige deux primitives dont les matériaux se terminent par _ecorce puis _feuillage : le rôle (bois ou feuillage) n'est pas deviné" % [path, level, roles.size(), ", ".join(names)]
+
+
+## Triangles d'un niveau : la somme de toutes ses primitives (écorce et feuillage), comme le validateur des .glb.
 static func _triangles(g: Dictionary, mesh_index: int) -> int:
-	var prim: Dictionary = g["meshes"][mesh_index]["primitives"][0]
-	return int(g["accessors"][int(prim["indices"])]["count"]) / 3
+	var n := 0
+	for prim in g["meshes"][mesh_index]["primitives"]:
+		n += int(g["accessors"][int(prim["indices"])]["count"]) / 3
+	return n
 
 
 static func load_glb(path: String, fov_deg: float) -> Dictionary:
@@ -94,7 +130,14 @@ static func load_glb(path: String, fov_deg: float) -> Dictionary:
 		if mesh_of[k] >= meshes.size():
 			return _fail("%s : maillage %d absent après lecture" % [path, mesh_of[k]])
 		var imported: ImporterMesh = meshes[mesh_of[k]].mesh
-		levels.append({"mesh": imported.get_mesh(), "triangles": _triangles(g, mesh_of[k]), "visibility_range_begin": 0.0, "visibility_range_end": 0.0})
+		var mesh := imported.get_mesh()
+		var roles := _surface_roles(g, mesh_of[k])
+		var role_error := _check_roles(path, k, g, mesh_of[k], roles)
+		if role_error != "":
+			return _fail(role_error)
+		if roles.size() != mesh.get_surface_count():
+			return _fail("%s : le niveau %d a %d primitive(s) dans le .glb et %d surface(s) après lecture : rôles bois/feuillage incertains" % [path, k, roles.size(), mesh.get_surface_count()])
+		levels.append({"mesh": mesh, "surface_roles": roles, "triangles": _triangles(g, mesh_of[k]), "visibility_range_begin": 0.0, "visibility_range_end": 0.0})
 	var height := (levels[0]["mesh"] as Mesh).get_aabb().end.y
 	if height <= 0.0:
 		return _fail(path + " : le niveau 0 n'a pas de hauteur (sommet en y <= 0)")

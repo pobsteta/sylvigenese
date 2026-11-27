@@ -56,7 +56,7 @@ use crate::etat::{ArbreNouveau, EtatArbres};
 use crate::geotiff::{self, Raster};
 use crate::grille::Grille;
 use crate::parametres::{lire_parquet, LigneParametre, Parametres, Referentiel};
-use crate::semis::{LigneRegeneration, TERMES};
+use crate::semis::{terme_retire, LigneRegeneration, TERMES};
 use crate::ser::{EntreesSer, IndexForet};
 
 /// Les colonnes de `trees_init` (contrat `prepare/trees_init`), dans l'ordre du contrat.
@@ -395,7 +395,8 @@ pub const COLONNES_REGENERATION: [&str; 7] = [
 /// Lit `params/regeneration.parquet` (contrat `dynamics.regeneration`, mission 060).
 ///
 /// Code 2 : fichier absent ou illisible, colonne absente ou en trop, type inattendu, valeur
-/// obligatoire vide, terme hors de la liste fermée du contrat, ni essence ni groupe, groupe
+/// obligatoire vide, terme retiré du contrat (nommé « terme retiré »), terme hors de la liste fermée
+/// du contrat, ni essence ni groupe, groupe
 /// inconnu, valeur non finie.
 pub fn lire_regeneration(chemin: &Path) -> Result<Vec<LigneRegeneration>, Erreur> {
     let nom = chemin.display().to_string();
@@ -417,6 +418,11 @@ pub fn lire_regeneration(chemin: &Path) -> Result<Vec<LigneRegeneration>, Erreur
         let source = colonne_texte(&lot, "source", &nom)?;
         for i in 0..lot.num_rows() {
             let terme = term[i].clone().filter(|t| !t.is_empty()).ok_or_else(|| vide("term", &nom, i))?;
+            if let Some(raison) = terme_retire(&terme) {
+                return Err(Erreur::entree_refusee(format!(
+                    "{nom} : terme retiré « {terme} » : {raison}"
+                )));
+            }
             if !TERMES.iter().any(|(t, _)| *t == terme) {
                 return Err(Erreur::entree_refusee(format!(
                     "{nom} : terme « {terme} » hors de la liste fermée du contrat dynamics.regeneration"

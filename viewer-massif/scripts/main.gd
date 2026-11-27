@@ -10,6 +10,7 @@ const Config := preload("res://scripts/viewer_config.gd")
 const Reader := preload("res://scripts/zone_reader.gd")
 const View := preload("res://scripts/massif_view.gd")
 const Banner := preload("res://scripts/banner.gd")
+const Compass := preload("res://scripts/compass.gd")
 
 
 func _die(code: int, msg: String) -> void:
@@ -68,31 +69,59 @@ func _build_environment(view: Node3D, cfg: Dictionary) -> void:
 	view.add_child(sun)
 
 
+## Étiquette de texte qui revient à la ligne : aucune ligne ne dépasse la largeur donnée par ses ancres (jamais coupée à droite).
+static func wrap_label(label: Label) -> void:
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.clip_text = false
+
+
 func _build_hud(view: Node3D, a: Dictionary, block_id: String, cfg: Dictionary) -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	var h: Dictionary = cfg["hud"]
+	var margin := float(h["margin_px"])
+	var north := float(h["north_size_px"])
 	var top := Label.new()
 	top.text = view.banner_text(block_id)
-	var h: Dictionary = cfg["hud"]
-	top.position = Vector2(float(h["margin_px"]), float(h["top_margin_px"]))
+	wrap_label(top)
+	top.anchor_right = 1.0
+	top.offset_left = margin
+	top.offset_right = -(north + 2.0 * margin)   # la flèche du nord occupe le coin haut droit
+	top.offset_top = float(h["top_margin_px"])
 	top.add_theme_font_size_override("font_size", int(h["title_font_size"]))
 	top.add_theme_color_override("font_color", Color(str(h["title_color"])))
 	top.add_theme_color_override("font_outline_color", Color(str(h["outline_color"])))
 	top.add_theme_constant_override("outline_size", int(h["title_outline_px"]))
 	layer.add_child(top)
+	var compass := Control.new()
+	compass.set_script(Compass)
+	compass.anchor_left = 1.0
+	compass.anchor_right = 1.0
+	compass.offset_left = -(north + margin)
+	compass.offset_right = -margin
+	compass.offset_top = float(h["top_margin_px"])
+	compass.offset_bottom = float(h["top_margin_px"]) + north
+	compass.name = "nord"
+	compass.call("configure", h, view.camera)
+	layer.add_child(compass)
 	var bottom := Label.new()
 	bottom.name = "etat"
+	wrap_label(bottom)
 	bottom.add_theme_font_size_override("font_size", int(h["state_font_size"]))
 	bottom.add_theme_color_override("font_outline_color", Color(str(h["outline_color"])))
 	bottom.add_theme_constant_override("outline_size", int(h["state_outline_px"]))
 	bottom.anchor_top = 1.0
 	bottom.anchor_bottom = 1.0
-	bottom.offset_left = float(h["margin_px"])
+	bottom.anchor_right = 1.0
+	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN   # trop de lignes : le bandeau monte, il ne sort pas de l'écran
+	bottom.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	bottom.offset_left = margin
+	bottom.offset_right = -margin
 	bottom.offset_top = -float(h["state_height_px"])
 	var mention := str(cfg["mention"])
 	var lines := [mention.substr(0, 1).to_upper() + mention.substr(1)]
 	if view.stats["non_cale_trees"] > 0:
-		lines.append(non_cale_text(view.non_cale_models))
+		lines.append(non_cale_text(view.non_cale_models, int(h["listed_models"])))
 	if view.stats["cw_zero_trees"] > 0:
 		lines.append("%d arbre(s) de largeur de houppier nulle (cw = 0) non dessiné(s)" % int(view.stats["cw_zero_trees"]))
 	lines.append_array(view.notes)
@@ -105,12 +134,22 @@ func _build_hud(view: Node3D, a: Dictionary, block_id: String, cfg: Dictionary) 
 	layer.add_child(bottom)
 
 
-## « Non calé » d'après les extras `calage` des .glb chargés : modèles nommés, arbres comptés, groupe jamais supposé.
-static func non_cale_text(models: Dictionary) -> String:
-	var parts := []
+## « Non calé » d'après les extras `calage` des .glb chargés : arbres et modèles comptés, groupe jamais supposé. Les `listed`
+## modèles qui portent le plus d'arbres sont nommés (à égalité, par nom) ; les autres sont dits « … et K autres ».
+static func non_cale_text(models: Dictionary, listed: int) -> String:
+	var names := models.keys()
+	names.sort_custom(func(x, y): return int(models[x]) > int(models[y]) or (int(models[x]) == int(models[y]) and str(x) < str(y)))
 	var total := 0
 	for m in models:
-		parts.append("%s (%d)" % [m, models[m]])
 		total += int(models[m])
-	parts.sort()
-	return "%d arbre(s) dépendent de modèles non calés : %s" % [total, ", ".join(parts)]
+	var text := "%d arbre(s) dépendent de %d modèle(s) non calé(s)" % [total, names.size()]
+	var parts := []
+	for i in range(mini(listed, names.size())):
+		parts.append("%s (%d)" % [names[i], int(models[names[i]])])
+	if parts.is_empty():
+		return text
+	text += " : " + ", ".join(parts)
+	var rest := names.size() - parts.size()
+	if rest > 0:
+		text += " … et %d autre%s" % [rest, "s" if rest > 1 else ""]
+	return text

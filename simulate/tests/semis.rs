@@ -16,7 +16,7 @@ use simulate::config::{ModeRecrutement, ReglagesRegeneration};
 use simulate::dispersion::{self, PlanDispersion};
 use simulate::erreurs::CodeSortie;
 use simulate::grille::Grille;
-use simulate::semis::{self, LigneRegeneration, ParametresSemis};
+use simulate::semis::{self, LigneRegeneration, LoiLumiere, ParametresSemis};
 use simulate::sorties;
 
 use non_regression::{chaines, dossier_neuf, entiers, lancement, lire_parquet, nombres, partition, referentiel, zone_d_essai, T0};
@@ -50,7 +50,24 @@ fn parametres_d_essai() -> ParametresSemis {
         survie_pleine_lumiere: 0.9,
         hauteur_passage_m: 1.3,
         mortalite_stress: 0.184,
+        loi_lumiere: loi_d_essai(),
         provisoire: true,
+    }
+}
+
+/// Les constantes de la correspondance Niinemets → klighs (mission 083) et de la loi lumière-seuil
+/// (TreeMigDocu p. 14), telles que l'oracle des tests les écrit ; le moteur les lit du contrat.
+fn loi_d_essai() -> LoiLumiere {
+    LoiLumiere {
+        klighs_ordonnee: 9.091,
+        klighs_pente: -1.238,
+        klighs_min: 1.0,
+        klighs_max: 9.0,
+        klighs_rupture: 5.0,
+        pente_haute: 0.1,
+        ordonnee_haute: -0.4,
+        pente_basse: 0.025,
+        origine_basse: 1.0,
     }
 }
 
@@ -66,11 +83,13 @@ fn ligne_regen(species: Option<&str>, groupe: Option<&str>, term: &str, value: f
     }
 }
 
-/// Les onze termes du contrat, en `toutes_essences`, valeurs d'essai. kernel_scale_m = 7 m (forme 1) :
+/// Les vingt termes du contrat, en `toutes_essences`, valeurs d'essai. kernel_scale_m = 7 m (forme 1) :
 /// d99 = 46,5 m, couvert par K = 2 cellules de 25 m (mission 080 : K doit couvrir d99 ; avec 30 m,
 /// d99 = 199 m exigerait K = 8). Le test à K = 1 met 3 m (d99 = 19,9 m).
 fn lignes_d_essai() -> Vec<LigneRegeneration> {
-    let valeurs = [7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
+    let valeurs = [
+        7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184, 9.091, -1.238, 1.0, 9.0, 5.0, 0.1, -0.4, 0.025, 1.0,
+    ];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {
         lignes.push(ligne_regen(None, Some("toutes_essences"), terme, valeurs[rang], unite));
@@ -396,15 +415,138 @@ fn le_passage_massif_borne_par_le_stock_et_vide_le_stock_en_trouee() {
 }
 
 #[test]
-fn la_survie_suit_la_forme_de_treemig() {
+fn la_lumiere_relative_est_exp_moins_k_fois_le_couvert() {
+    assert_eq!(semis::lumiere_relative(0.5, 0.0), 1.0, "sans couvert, pleine lumière");
+    assert!((semis::lumiere_relative(0.5, 4.0) - (-2.0_f64).exp()).abs() < 1e-15);
+    assert_eq!(semis::lumiere_relative(0.0, 7.0), 1.0, "sans extinction, pleine lumière");
+}
+
+#[test]
+fn la_correspondance_klighs_est_la_droite_bornee_de_la_mission_083() {
+    let loi = loi_d_essai();
+    assert!((loi.klighs(3.0) - (9.091 - 1.238 * 3.0)).abs() < 1e-12);
+    assert!((loi.klighs(2.0) - 6.615).abs() < 1e-12);
+    assert_eq!(loi.klighs(0.0), 9.0, "bornée à 9 : 9,091 au-dessus");
+    assert_eq!(loi.klighs(10.0), 1.0, "bornée à 1");
+    // Monotone : plus tolérant (N grand), klighs plus petit.
+    assert!(loi.klighs(4.0) < loi.klighs(2.0));
+}
+
+#[test]
+fn la_loi_lumiere_seuil_a_ses_formes_fermees_et_est_continue_en_klighs_5() {
+    let loi = loi_d_essai();
+    // Branche basse : max(0, 0,025 × (klighs − 1)).
+    assert_eq!(loi.seuil_de_klighs(1.0), 0.0);
+    assert!((loi.seuil_de_klighs(3.0) - 0.05).abs() < 1e-15);
+    assert_eq!(loi.seuil_de_klighs(0.5), 0.0, "jamais négative");
+    // Branche haute : 0,1 × klighs − 0,4.
+    assert!((loi.seuil_de_klighs(7.0) - 0.3).abs() < 1e-15);
+    assert!((loi.seuil_de_klighs(9.0) - 0.5).abs() < 1e-15);
+    // Continuité en klighs = 5 : 0,1 des deux côtés.
+    let au_seuil = loi.seuil_de_klighs(5.0);
+    let juste_dessous = loi.seuil_de_klighs(5.0 - 1e-9);
+    assert!((au_seuil - 0.1).abs() < 1e-15);
+    assert!((juste_dessous - 0.1).abs() < 1e-9, "saut en klighs = 5 : {juste_dessous} contre {au_seuil}");
+}
+
+#[test]
+fn la_survie_compare_directement_la_lumiere_au_seuil() {
     let p = parametres_d_essai();
-    assert_eq!(semis::survie(&p, 0.0), 0.9);
-    assert_eq!(semis::survie(&p, 3.0), 0.9, "au seuil, pas de stress");
-    assert!((semis::survie(&p, 3.01) - (0.9 - 0.184)).abs() < 1e-15);
+    // N = 3 : klighs = 5,377, seuil = 0,1 × 5,377 − 0,4 = 0,1377.
+    let seuil = 0.1 * (9.091 - 1.238 * 3.0) - 0.4;
+    assert!((p.seuil_lumiere() - seuil).abs() < 1e-12);
+    // Seuil non franchi : lumière au-dessus du seuil, aucun stress, quelle que soit la place dans une « classe ».
+    assert_eq!(semis::part_de_stress(&p, 1.0), 0.0, "pleine lumière");
+    assert_eq!(semis::part_de_stress(&p, 0.55), 0.0);
+    assert_eq!(semis::part_de_stress(&p, seuil + 1e-9), 0.0, "juste au-dessus");
+    assert_eq!(semis::survie(&p, 0.55), 0.9);
+    // Seuil franchi : lumière sous le seuil, stress entier, même juste sous le seuil (pas de fraction).
+    assert_eq!(semis::part_de_stress(&p, 0.05), 1.0);
+    assert_eq!(semis::part_de_stress(&p, 0.0), 1.0, "noir complet");
+    assert_eq!(semis::part_de_stress(&p, seuil - 1e-9), 1.0, "juste au-dessous");
+    assert!((semis::survie(&p, 0.05) - (0.9 - 0.184)).abs() < 1e-15);
+    assert!((semis::survie(&p, 0.12) - (0.9 - 0.184)).abs() < 1e-15, "dans l'ancienne classe coupée : stress entier");
+    // Égalité l = seuil : pas de stress (TreeMig : l_up < seuil, strict).
+    assert_eq!(semis::part_de_stress(&p, p.seuil_lumiere()), 0.0, "l = seuil : pas de stress");
+    assert_eq!(semis::survie(&p, p.seuil_lumiere()), 0.9);
+    // Bornée à 0.
     let mut faible = parametres_d_essai();
     faible.survie_pleine_lumiere = 0.1;
-    assert_eq!(semis::survie(&faible, 10.0), 0.0, "bornée à 0");
-    assert_eq!(semis::ombre(0.5, 4.0), 2.0);
+    assert_eq!(semis::survie(&faible, 0.05), 0.0, "bornée à 0");
+}
+
+#[test]
+fn l_egalite_au_seuil_est_exacte_pour_un_seuil_representable() {
+    // Réglage d'essai exact en binaire : klighs = 6 − 3 = 3 (N = 3), seuil = 0,25 × (3 − 1) = 0,5.
+    let mut p = parametres_d_essai();
+    p.loi_lumiere.klighs_ordonnee = 6.0;
+    p.loi_lumiere.klighs_pente = -1.0;
+    p.loi_lumiere.pente_basse = 0.25;
+    assert_eq!(p.seuil_lumiere(), 0.5);
+    assert_eq!(semis::part_de_stress(&p, 0.5), 0.0, "égalité : pas de stress");
+    assert_eq!(semis::part_de_stress(&p, 0.4999999999999999), 1.0, "juste sous : stress entier");
+    assert_eq!(semis::part_de_stress(&p, 0.5000000000000001), 0.0, "juste au-dessus : aucun");
+}
+
+#[test]
+fn le_seuil_de_chaque_tolerance_se_lit_de_la_loi_et_pas_d_une_valeur_ecrite() {
+    // Plus tolérante à l'ombre (N grand), une essence a un seuil plus bas : survie meilleure à lumière égale.
+    let mut tolerante = parametres_d_essai();
+    tolerante.tolerance_ombre = 4.5;
+    let mut intolerante = parametres_d_essai();
+    intolerante.tolerance_ombre = 1.5;
+    assert!(tolerante.seuil_lumiere() < intolerante.seuil_lumiere());
+    assert!(semis::survie(&tolerante, 0.2) >= semis::survie(&intolerante, 0.2));
+    // N = 1,5 : klighs = 7,234, seuil 0,3234 ; N = 4,5 : klighs = 3,52, seuil 0,063.
+    assert!((intolerante.seuil_lumiere() - (0.1 * (9.091 - 1.238 * 1.5) - 0.4)).abs() < 1e-12);
+    assert!((tolerante.seuil_lumiere() - 0.025 * (9.091 - 1.238 * 4.5 - 1.0)).abs() < 1e-12);
+}
+
+#[test]
+fn les_termes_de_la_loi_lumiere_sont_lus_et_leur_absence_ou_un_mauvais_domaine_est_refuse() {
+    let referentiel = referentiel();
+    let p = semis::parametres_de(&lignes_d_essai(), "03", &referentiel).unwrap();
+    assert_eq!(p.loi_lumiere, loi_d_essai(), "lus du contrat, tels quels");
+    assert!((p.seuil_lumiere() - (0.1 * (9.091 - 1.238 * 3.0) - 0.4)).abs() < 1e-12);
+    // Chacun des neuf termes nouveaux, absent : code 2 qui nomme le terme et l'essence.
+    for (terme, _) in semis::TERMES.iter().skip(11) {
+        let sans: Vec<LigneRegeneration> = lignes_d_essai().into_iter().filter(|l| l.term != *terme).collect();
+        let erreur = semis::parametres_de(&sans, "03", &referentiel).unwrap_err();
+        assert_eq!(erreur.code, CodeSortie::EntreeRefusee, "{terme}");
+        assert!(erreur.message.contains(terme) && erreur.message.contains("03"), "{}", erreur.message);
+    }
+    // Un terme lu change le résultat (le test discrimine : pas de constante dans le code).
+    let mut lignes = lignes_d_essai();
+    for l in lignes.iter_mut() {
+        if l.term == "light_threshold_high_slope" {
+            l.value = 0.2;
+        }
+    }
+    let autre = semis::parametres_de(&lignes, "03", &referentiel).unwrap();
+    assert!((autre.seuil_lumiere() - (0.2 * (9.091 - 1.238 * 3.0) - 0.4)).abs() < 1e-12);
+    // klighs_min > klighs_max : code 2.
+    let mut lignes = lignes_d_essai();
+    for l in lignes.iter_mut() {
+        if l.term == "klighs_min" {
+            l.value = 10.0;
+        }
+    }
+    let erreur = semis::parametres_de(&lignes, "03", &referentiel).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    assert!(erreur.message.contains("klighs_min"), "{}", erreur.message);
+    // Seuil hors de 0 à 1 (pente haute démesurée) : code 2.
+    let mut lignes = lignes_d_essai();
+    for l in lignes.iter_mut() {
+        if l.term == "light_threshold_high_slope" {
+            l.value = 5.0;
+        }
+        if l.term == "shade_tolerance" {
+            l.value = 1.0;
+        }
+    }
+    let erreur = semis::parametres_de(&lignes, "03", &referentiel).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    assert!(erreur.message.contains("lumière-seuil"), "{}", erreur.message);
 }
 
 #[test]
@@ -419,7 +561,7 @@ fn la_mortalite_de_stress_est_lue_du_contrat_et_son_absence_est_refusee() {
     }
     let p = semis::parametres_de(&lignes, "03", &referentiel).unwrap();
     assert_eq!(p.mortalite_stress, 0.3);
-    assert!((semis::survie(&p, 10.0) - (0.9 - 0.3)).abs() < 1e-15);
+    assert!((semis::survie(&p, 0.05) - (0.9 - 0.3)).abs() < 1e-15);
     // Absente : code 2 qui nomme le terme et l'essence, aucune valeur d'emprunt.
     let sans: Vec<LigneRegeneration> = lignes_d_essai().into_iter().filter(|l| l.term != "stress_mortality").collect();
     let erreur = semis::parametres_de(&sans, "03", &referentiel).unwrap_err();
@@ -784,4 +926,22 @@ fn la_zone_massif_refuse_un_k_trop_court_avant_toute_ecriture() {
     assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
     assert!(erreur.message.contains("d99") && erreur.message.contains("kernel_truncation_cells = 2"), "{}", erreur.message);
     assert!(!dossier.exists());
+}
+
+#[test]
+fn le_terme_retire_light_class_count_est_nomme_et_n_est_plus_au_contrat() {
+    // Mission 084c : plus de classes de lumière. Le terme n'est plus lu (absent du contrat, plus exigé) ...
+    assert!(semis::TERMES.iter().all(|(terme, _)| *terme != "light_class_count"));
+    assert_eq!(semis::TERMES.len(), 20);
+    // ... et, s'il est fourni, la lecture le refuse par un nom précis (terme_retire, utilisé par entrees).
+    let raison = semis::terme_retire("light_class_count").expect("terme retiré");
+    assert!(raison.contains("0.5") && raison.contains("compare directement"), "{raison}");
+    // Un terme du contrat n'est pas un terme retiré.
+    for (terme, _) in semis::TERMES.iter() {
+        assert!(semis::terme_retire(terme).is_none(), "{terme}");
+    }
+    // Le jeu complet des vingt termes, sans light_class_count, se lit.
+    let referentiel = referentiel();
+    let p = semis::parametres_de(&lignes_d_essai(), "03", &referentiel).unwrap();
+    assert_eq!(p.loi_lumiere, loi_d_essai());
 }
