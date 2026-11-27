@@ -43,6 +43,24 @@ static func _distance(height_m: float, coverage: float, fov_deg: float) -> float
 	return height_m / (2.0 * tan(deg_to_rad(fov_deg) / 2.0) * coverage)
 
 
+## Rôle de chaque primitive d'un maillage, d'après le nom de son matériau dans le .glb (assets écrit une primitive « ecorce »
+## puis une primitive « feuillage » par niveau : lod.py BARK, FOLIAGE) : « wood », « foliage », ou « unknown » (primitive sans
+## matériau nommé, comme les modèles écrits à la main des tests).
+static func _surface_roles(g: Dictionary, mesh_index: int) -> Array:
+	var roles := []
+	for prim in g["meshes"][mesh_index]["primitives"]:
+		var name := ""
+		if prim.has("material") and g.has("materials") and int(prim["material"]) < g["materials"].size():
+			name = str(g["materials"][int(prim["material"])].get("name", ""))
+		if name.ends_with("_ecorce"):
+			roles.append("wood")
+		elif name.ends_with("_feuillage"):
+			roles.append("foliage")
+		else:
+			roles.append("unknown")
+	return roles
+
+
 static func _triangles(g: Dictionary, mesh_index: int) -> int:
 	var prim: Dictionary = g["meshes"][mesh_index]["primitives"][0]
 	return int(g["accessors"][int(prim["indices"])]["count"]) / 3
@@ -94,7 +112,11 @@ static func load_glb(path: String, fov_deg: float) -> Dictionary:
 		if mesh_of[k] >= meshes.size():
 			return _fail("%s : maillage %d absent après lecture" % [path, mesh_of[k]])
 		var imported: ImporterMesh = meshes[mesh_of[k]].mesh
-		levels.append({"mesh": imported.get_mesh(), "triangles": _triangles(g, mesh_of[k]), "visibility_range_begin": 0.0, "visibility_range_end": 0.0})
+		var mesh := imported.get_mesh()
+		var roles := _surface_roles(g, mesh_of[k])
+		if roles.size() != mesh.get_surface_count():
+			return _fail("%s : le niveau %d a %d primitive(s) dans le .glb et %d surface(s) après lecture : rôles bois/feuillage incertains" % [path, k, roles.size(), mesh.get_surface_count()])
+		levels.append({"mesh": mesh, "surface_roles": roles, "triangles": _triangles(g, mesh_of[k]), "visibility_range_begin": 0.0, "visibility_range_end": 0.0})
 	var height := (levels[0]["mesh"] as Mesh).get_aabb().end.y
 	if height <= 0.0:
 		return _fail(path + " : le niveau 0 n'a pas de hauteur (sommet en y <= 0)")

@@ -188,6 +188,34 @@ func _material_for(res: Dictionary) -> Variant:
 	return _materials[color]
 
 
+## Couleur unie du bois (tronc et branches) : constante d'affichage viewer.wood.color (« illustration, non mesurée »).
+func _wood_material() -> StandardMaterial3D:
+	if not _materials.has("#bois"):
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(str(cfg["wood"]["color"]))
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_materials["#bois"] = m
+	return _materials["#bois"]
+
+
+## Pose une couleur par surface sur les maillages d'un modèle (mission 085) : le bois (primitive « ecorce » du .glb) prend la
+## couleur du bois, les cartes de feuillage (primitive « feuillage ») celle du feuillage. Une primitive sans matériau nommé
+## (modèle écrit à la main) garde la couleur du feuillage, comme avant. Les maillages sont ceux du modèle, partagés par tous
+## les arbres qui l'emploient : l'opération ne se fait qu'une fois par modèle. Le matériau vient du maillage lui-même, car un
+## MultiMeshInstance3D n'a pas de surface_override_material.
+func paint_model(res: Dictionary) -> void:
+	if bool(res.get("painted", false)):
+		return
+	var foliage = _material_for(res)
+	var wood := _wood_material()
+	for lv in res["levels"]:
+		var mesh: Mesh = lv["mesh"]
+		var roles: Array = lv["surface_roles"]
+		for s in range(roles.size()):
+			mesh.surface_set_material(s, wood if str(roles[s]) == "wood" else foliage)
+	res["painted"] = true
+
+
 func _build_block(zone_dir: String, id: String) -> Dictionary:
 	var b: Dictionary = blocks[id]
 	var data: Dictionary = b["data"]
@@ -248,6 +276,7 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 		for tr in items:
 			center += tr.origin
 		center /= float(items.size())
+		paint_model(res)
 		for k in range(3):
 			var lv: Dictionary = res["levels"][k]
 			var mm := MultiMesh.new()
@@ -259,7 +288,6 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 			var mi := MultiMeshInstance3D.new()
 			mi.multimesh = mm
 			mi.position = center
-			mi.material_override = _material_for(res)
 			mi.visibility_range_begin = float(lv["visibility_range_begin"])
 			mi.visibility_range_end = float(lv["visibility_range_end"])
 			mi.visibility_range_begin_margin = fade if mi.visibility_range_begin > 0.0 else 0.0
@@ -505,6 +533,7 @@ func _apply_grass(r: Dictionary) -> void:
 	var fade := float(cfg["lod"]["fade_margin_m"])
 	for sp in r["seedlings"]:
 		var res: Dictionary = seedling_models[sp]["res"]
+		paint_model(res)
 		for ck in r["seedlings"][sp]:
 			var grp: Dictionary = r["seedlings"][sp][ck]
 			var items: Array = grp["items"]
@@ -525,7 +554,6 @@ func _apply_grass(r: Dictionary) -> void:
 				var mi := MultiMeshInstance3D.new()
 				mi.multimesh = smm
 				mi.position = Vector3(c.x, 0.0, -c.y) + centroid
-				mi.material_override = _material_for(res)
 				mi.visibility_range_begin = float(lv["visibility_range_begin"]) * mean_scale
 				mi.visibility_range_end = float(lv["visibility_range_end"]) * mean_scale
 				mi.visibility_range_begin_margin = fade if mi.visibility_range_begin > 0.0 else 0.0

@@ -87,6 +87,9 @@ viewer:
     state_height_px: 160
     margin_px: 12
     top_margin_px: 8
+    north_size_px: 64        # côté de la flèche du nord, en haut à droite
+    north_color: "#ffffff"
+    listed_models: 3         # modèles non calés nommés dans le bandeau ; les autres sont comptés (« … et K autres »)
   grass:
     radius_m: 40
     recenter_distance_m: 10
@@ -97,6 +100,8 @@ viewer:
     wind_noise_frequency: 0.05   # illustration, non mesurée
   seedlings:
     max_instances: 20000   # plafond de dessin des semis (illustration, non mesurée) ; les effectifs restent ceux de sim/cells
+  wood:                     # illustration, non mesurée
+    color: "#5b4a38"        # tronc et branches : une couleur de bois, distincte du feuillage
   foliage:
     card_size_m: 0.6
     color_by_group: {feuillu: "#4f7a32", resineux: "#2f5a3a"}

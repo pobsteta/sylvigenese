@@ -14,6 +14,8 @@ Aucune valeur n'est écologique ; tout est marqué synthétique et provisoire. U
 et 1 m de rayon de houppier, comme ceux de `assets` (models.generic_model) : la vue les met à l'échelle (r, h, r). Le sol est un plan incliné
 (z = 340 + 0,04 x + 0,10 y, relatif à l'origine du bloc) : l'interpolation bilinéaire y est exacte.
 
+Écrit aussi `arbre_ecorce_feuillage.glb` (mission 085) : un arbre à deux primitives (écorce, feuillage), pour les tests de couleur.
+
 Usage : python3 make_zone_m6.py
 """
 import json
@@ -114,6 +116,53 @@ def write_glb(path, species, stage, generic=None):
                      + struct.pack("<II", len(body), 0x004E4942) + body)
 
 
+def write_two_surface_glb(path):
+    """Un arbre à DEUX primitives par niveau, comme ceux de `assets` : « arbre_ecorce » (le tronc) puis « arbre_feuillage »
+    (la cime), deux matériaux nommés (mission 085 : le bois et le feuillage prennent des couleurs distinctes)."""
+    buf = bytearray()
+    views, accs, meshes = [], [], []
+    for sides in (6, 4, 3):
+        prims = []
+        for with_crown, material in ((False, 0), (True, 1)):
+            pos, idx = mesh_tree(sides, with_crown)
+            if with_crown:   # la cime seule : on retire le tronc (les 2 premiers anneaux) en gardant la cime
+                keep = np.arange(len(pos)) >= sides * 2
+                remap = np.cumsum(keep) - 1
+                tri = idx.reshape(-1, 3)
+                tri = tri[keep[tri].all(axis=1)]
+                pos, idx = pos[keep], remap[tri].reshape(-1).astype("<u4")
+            for arr, target, comp, typ in ((pos, 34962, 5126, "VEC3"), (idx, 34963, 5125, "SCALAR")):
+                off = len(buf)
+                buf.extend(arr.tobytes())
+                while len(buf) % 4:
+                    buf.append(0)
+                views.append({"buffer": 0, "byteOffset": off, "byteLength": arr.nbytes, "target": target})
+                acc = {"bufferView": len(views) - 1, "componentType": comp, "count": int(arr.size // (3 if typ == "VEC3" else 1)),
+                       "type": typ}
+                if typ == "VEC3":
+                    acc["min"], acc["max"] = pos.min(axis=0).tolist(), pos.max(axis=0).tolist()
+                accs.append(acc)
+            prims.append({"attributes": {"POSITION": len(accs) - 2}, "indices": len(accs) - 1, "material": material, "mode": 4})
+        meshes.append({"primitives": prims})
+    gltf = {
+        "asset": {"version": "2.0", "generator": "make_zone_m6.py (fixture synthetique, mission 085)"},
+        "extensionsUsed": ["MSFT_lod"], "scene": 0, "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0, "extensions": {"MSFT_lod": {"ids": [1, 2]}}, "extras": {"MSFT_screencoverage": [0.30, 0.05, 0.005]}},
+                  {"mesh": 1}, {"mesh": 2}],
+        "materials": [{"name": "arbre_ecorce", "doubleSided": True, "pbrMetallicRoughness": {"baseColorFactor": [0.5, 0.5, 0.5, 1.0]}},
+                      {"name": "arbre_feuillage", "doubleSided": True, "pbrMetallicRoughness": {"baseColorFactor": [0.5, 0.5, 0.5, 1.0]}}],
+        "meshes": meshes, "accessors": accs, "bufferViews": views, "buffers": [{"byteLength": len(buf)}],
+        "extras": {"species": "09", "stage": "mature", "provisoire": True, "synthetique": True,
+                   "feuillage": {"type": "cartes_couleur_unie", "couleur": "#4f7a32"}},
+    }
+    js = json.dumps(gltf, separators=(",", ":")).encode()
+    js += b" " * (-len(js) % 4)
+    body = bytes(buf) + b"\0" * (-len(buf) % 4)
+    total = 12 + 8 + len(js) + 8 + len(body)
+    path.write_bytes(struct.pack("<III", 0x46546C67, 2, total) + struct.pack("<II", len(js), 0x4E4F534A) + js
+                     + struct.pack("<II", len(body), 0x004E4942) + body)
+
+
 def write_zone(name, herb, shrub, missing_stage=False):
     zone = HERE / name
     files = [("09", "mature", None), ("09", "old", None), ("62", "mature", "resineux")]
@@ -169,4 +218,5 @@ if __name__ == "__main__":
     write_zone("zone_m6", 0.3, 0.15)
     write_zone("zone_m6_sans_herbe", 0.0, 0.0)
     write_zone("zone_m6_stade_manquant", 0.3, 0.15, missing_stage=True)
+    write_two_surface_glb(HERE / "arbre_ecorce_feuillage.glb")
     print("ok")

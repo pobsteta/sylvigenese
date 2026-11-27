@@ -8,7 +8,7 @@ func test_le_non_cale_est_nomme_et_compte_sans_supposer_le_groupe() -> void:
 	var M = need("res://scripts/main.gd")
 	if M == null:
 		return
-	var t: String = M.non_cale_text({"09_mature": 3, "62_old": 2})
+	var t: String = M.non_cale_text({"09_mature": 3, "62_old": 2}, 3)
 	assert_string_contains(t, "5 arbre")
 	assert_string_contains(t, "09_mature (3)")
 	assert_string_contains(t, "62_old (2)")
