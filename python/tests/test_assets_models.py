@@ -322,3 +322,58 @@ def test_note_de_l_index_dit_les_modeles_du_generateur_et_le_nombre_de_generique
     notes = json.loads((zone_generic / "tiles" / "index.json").read_text(encoding="utf-8"))["notes"]
     said = [n for n in notes if n.startswith("aucun exemplaire")]
     assert len(said) == 1 and "14080 arbre(s) dessiné(s) en générique" in said[0]
+
+
+# ------------------------------------------------------------------ un stade sans exemplaire (mission 075)
+@pytest.fixture(scope="module")
+def zone_partial(tmp_path_factory, zone_chain):
+    """Hêtre (09) avec des exemplaires aux stades mature et old SEULEMENT : ses stades young et pole n'ont pas d'exemplaire
+    (cas réel : Picea abies, stade mature, 1 arbre en 2022). Chêne et sapin : les quatre stades."""
+    exemplars = F.write_set(tmp_path_factory.mktemp("exemplaires_partiels"), essences=("Quercus_spec", "Abies_alba"))
+    for stage in ("mature", "old"):
+        F.write(exemplars, "Fagus_sylvatica", stage, seed=11)
+    directory = tmp_path_factory.mktemp("zp") / "zone_fictive"
+    shutil.copytree(zone_chain, directory, ignore=ASSET_OUTPUTS)
+    assets.produce_initial_state(config_with(exemplars), directory)
+    return directory
+
+
+def test_l_index_dit_le_fichier_de_chaque_essence_et_stade_generique_compris(zone_partial):
+    index = index_of(zone_partial)
+    by_pair = {(m["species"], m["stage"]): m for m in index["stage_models"]}
+    pairs = {(t["species"], t["stage"]) for b in blocks_of(zone_partial).values() for t in b["trees"]}
+    assert set(by_pair) == pairs and len(by_pair) == len(index["stage_models"])          # un couple une fois, aucun en trop
+    beech = {stage: m for (sp, stage), m in by_pair.items() if sp == "09"}
+    assert {"young", "pole"} & set(beech), "le jeu fictif doit avoir des hêtres jeunes pour exercer le repli"
+    for stage, m in beech.items():
+        if stage in ("mature", "old"):
+            assert (m["kind"], m["file"]) == ("own", f"09_{stage}.glb")
+        else:
+            assert (m["kind"], m["file"]) == ("generic", "generique_feuillu.glb"), stage       # jamais 09_<stade> absent
+    assert all(m["file"] == "generique_resineux.glb" for (sp, _), m in by_pair.items() if sp in ("62", "64"))
+    # `models` dit l'essence (own dès qu'un stade a un exemplaire) : le fichier est celui de stage_models
+    assert {m["species"]: m["kind"] for m in index["models"]}["09"] == "own"
+
+
+def test_chaque_fichier_dit_existe_et_les_comptes_de_generiques_sont_justes(zone_partial):
+    index = index_of(zone_partial)
+    trees_dir = zone_partial / "assets" / "trees"
+    for m in index["stage_models"]:
+        assert (trees_dir / m["file"]).is_file(), m
+        if m["kind"] == "alias":
+            assert m["file"] == f"{m['alias_of']}_{m['stage']}.glb"
+    kind_of = {(m["species"], m["stage"]): m["kind"] for m in index["stage_models"]}
+    counts = Counter(kind_of[(t["species"], t["stage"])] for b in blocks_of(zone_partial).values() for t in b["trees"])
+    year = index["years"][0]
+    assert year["trees_by_kind"] == {k: counts.get(k, 0) for k in ("own", "alias", "generic")}
+    beech_generic = sum(1 for b in blocks_of(zone_partial).values() for t in b["trees"]
+                        if t["species"] == "09" and t["stage"] in ("young", "pole"))
+    assert beech_generic > 0 and year["trees_by_kind"]["generic"] == beech_generic + 1763 + 2326       # hêtres jeunes + 62 et 64
+    assert any(n.startswith("essence 09 : stade(s) sans exemplaire, modèle générique") for n in index["notes"])
+    assert "generique_feuillu.glb" in {p.name for p in trees_dir.iterdir()}
+
+
+def test_stage_models_est_conforme_au_contrat(zone_partial):
+    import jsonschema
+    schema = json.loads((ROOT / "contracts" / "json" / "massif_index.schema.json").read_text(encoding="utf-8"))
+    jsonschema.validate(index_of(zone_partial), schema)

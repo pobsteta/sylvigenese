@@ -1,6 +1,6 @@
 """La fiche web donne la commande COMPLÈTE à copier (décision Q7 de Pascal, 26/11/2026) : zone, x, y, année.
 
-    viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A>
+    tools/viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A>
 
 Mêmes sondes que tests/m4/test_m4_vue.py (Playwright, navigateur coupé du réseau) sur la zone m6_a construite avec les
 exemplaires de la fixture. `--zone` dit OÙ sont les données : le dossier existe et porte massif/index.json (sinon la
@@ -32,13 +32,13 @@ def fiche(zone_a, oracle):
     return res
 
 
-COMMANDE = re.compile(r"viewer-massif\s+--\s+--zone\s+(\S+)\s+--x\s+(\d+(?:[.,]\d+)?)\s+--y\s+(\d+(?:[.,]\d+)?)\s+--year\s+(\d{4})")
+COMMANDE = re.compile(r"tools/viewer-massif\s+--\s+--zone\s+(\S+)\s+--x\s+(\d+(?:[.,]\d+)?)\s+--y\s+(\d+(?:[.,]\d+)?)\s+--year\s+(\d{4})")
 
 
 def test_la_fiche_donne_zone_x_y_annee_dans_cet_ordre(fiche):
     txt = fiche["sheets"][str(fiche["cell"])]["text"]
     m = COMMANDE.search(txt)
-    assert m, f"commande « viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A> » absente de la fiche :\n{txt}"
+    assert m, f"commande « tools/viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A> » absente de la fiche :\n{txt}"
     x, y = H.cell_centre(fiche["cell"])
     assert abs(float(m.group(2).replace(",", ".")) - x) <= 1.0 and abs(float(m.group(3).replace(",", ".")) - y) <= 1.0
     assert int(m.group(4)) == 2022

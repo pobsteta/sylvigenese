@@ -116,7 +116,7 @@ test("la fiche de l'année montre toute l'évolution, rangée par année, l'ann�
   assert.deepEqual(r.flags, ["H_dom au-dessus du plafond"]);
   assert.equal(f.table[0]!.aboveCeiling, false);
   assert.equal(f.headline, "2032 : G 40,2 m²/ha · H_dom 29,3 m (plafond 28,0 m), au-dessus du plafond");
-  assert.equal(f.command, "viewer-massif -- --x 700012.5 --y 6500487.5 --year 2032");
+  assert.equal(f.command, "tools/viewer-massif -- --x 700012.5 --y 6500487.5 --year 2032");
   assert.equal(f.provisional, true);
 });
 

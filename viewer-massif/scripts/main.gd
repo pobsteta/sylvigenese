@@ -45,7 +45,7 @@ func _ready() -> void:
 	if a["selftest"]:
 		var s: Dictionary = view.stats
 		print("SELFTEST " + JSON.stringify({
-			"blocks": s["blocks"], "trees": s["trees"], "generic_trees": s["generic_trees"], "non_cale_trees": s["non_cale_trees"],
+			"blocks": s["blocks"], "trees": s["trees"], "generic_trees": s["generic_trees"], "cw_zero_trees": s["cw_zero_trees"], "non_cale_trees": s["non_cale_trees"],
 			"grass_instances": s["grass_instances"], "seedlings": s["seedlings"], "truncated": s["truncated"], "seedlings_truncated": s["seedlings_truncated"],
 		}))
 		get_tree().quit(0)
@@ -92,6 +92,8 @@ func _build_hud(view: Node3D, a: Dictionary, block_id: String, cfg: Dictionary) 
 	var lines := [mention.substr(0, 1).to_upper() + mention.substr(1)]
 	if view.stats["non_cale_trees"] > 0:
 		lines.append(non_cale_text(view.non_cale_models))
+	if view.stats["cw_zero_trees"] > 0:
+		lines.append("%d arbre(s) de largeur de houppier nulle (cw = 0) non dessiné(s)" % int(view.stats["cw_zero_trees"]))
 	lines.append_array(view.notes)
 	if view.seedling_message != "":
 		lines.append(view.seedling_message)

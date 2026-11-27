@@ -30,7 +30,8 @@
 #            modèles .glb, et la commande de la fiche web dans le navigateur (Node, Playwright et Chromium requis, comme
 #            pour m4 ; R pour la zone simulée) ; simulate compilé d'abord en release. Les tests de la vue Godot (import,
 #            GUT, export, --selftest) ne sont PAS ici : ils demandent Godot et tournent dans le job « m6 » de la CI,
-#            en étapes à part (.github/workflows/ci.yml).
+#            en étapes à part (.github/workflows/ci.yml), comme le glTF-Validator de Khronos sur les .glb
+#            (mission 075 : tools/ci/valider_gltf.mjs et tools/ci/zone_gltf_m6.py).
 #   validate le validateur sur le jeu fictif
 # Chaque section écrit sa durée (sortie standard et, en CI, résumé du job).
 set -euo pipefail

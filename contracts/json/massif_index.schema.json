@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sylvigenese:massif_index",
   "title": "massif/index.json : index de la vue massif (assets, M6a, mission 068, ADR 0007 projet)",
-  "description": "Ce que lit viewer-massif pour trouver le bloc d'un point (x, y) et dire, sans deviner, quelles années existent : une année absente ou un point hors de toute emprise est refusé avec la liste des années ou l'emprise, jamais l'année voisine (plan T7). Les blocs sont les tuiles de 500 m de tiles/ (même identifiant t_<x>_<y>, coin sud-ouest en EPSG:2154) ; leurs fichiers sont massif/<année>/<bloc>.json (contrat assets.massif_block). `models` dit, pour chaque code espar qui apparaît dans les blocs, le modèle .glb utilisé : `own` (fichier propre <espar>_<stade>.glb), `alias` (même essence qu'un autre code : le même fichier, pas de doublon ; `alias_of` dit lequel) ou `generic` (essence sans modèle du générateur : generique_<groupe>.glb, signalé et compté, jamais un emprunt à une autre essence, Q3). `trees_by_kind` compte, par année, les arbres dessinés par chaque sorte de modèle (la somme est `trees` : relève de assets et des tests). Hors schéma : somme des arbres des blocs d'une année = instances de la même année de tiles/index.json ; un fichier par bloc listé ; le nom `<model>` est celui d'un fichier de assets/trees/.",
-  "x-schema-version": "0.1",
+  "description": "Ce que lit viewer-massif pour trouver le bloc d'un point (x, y) et dire, sans deviner, quelles années existent : une année absente ou un point hors de toute emprise est refusé avec la liste des années ou l'emprise, jamais l'année voisine (plan T7). Les blocs sont les tuiles de 500 m de tiles/ (même identifiant t_<x>_<y>, coin sud-ouest en EPSG:2154) ; leurs fichiers sont massif/<année>/<bloc>.json (contrat assets.massif_block). `models` dit, pour chaque code espar qui apparaît dans les blocs, le modèle .glb utilisé : `own` (fichier propre <espar>_<stade>.glb), `alias` (même essence qu'un autre code : le même fichier, pas de doublon ; `alias_of` dit lequel) ou `generic` (essence sans modèle du générateur : generique_<groupe>.glb, signalé et compté, jamais un emprunt à une autre essence, Q3). `stage_models` (version 0.2) dit, pour chaque couple (essence, stade) dessiné, le fichier de modèle de assets/trees/ — générique compris : une essence peut avoir un exemplaire pour un stade et pas pour un autre (le stade sans exemplaire est dessiné par le générique du groupe, signalé et compté) ; la vue lit ce fichier, elle ne le reconstruit pas. Les semis sont dessinés au stade `young` : leur couple y figure si le fichier existe. `models` ne dit que l'essence : sa sorte (`kind`) vaut `own` dès qu'un stade a un exemplaire, ne pas s'en servir pour compter les génériques. `trees_by_kind` compte, par année, les arbres dessinés par chaque sorte de modèle (la somme est `trees` : relève de assets et des tests). Hors schéma : somme des arbres des blocs d'une année = instances de la même année de tiles/index.json ; un fichier par bloc listé ; le nom `<model>` est celui d'un fichier de assets/trees/.",
+  "x-schema-version": "0.2",
   "type": "object",
   "required": [
     "schema_version",
@@ -16,6 +16,7 @@
     "provisoire",
     "notes",
     "models",
+    "stage_models",
     "years"
   ],
   "additionalProperties": false,
@@ -122,7 +123,9 @@
             },
             "then": {
               "properties": {
-                "alias_of": {"not": {}},
+                "alias_of": {
+                  "not": {}
+                },
                 "model": {
                   "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
                 }
@@ -164,9 +167,127 @@
             },
             "then": {
               "properties": {
-                "alias_of": {"not": {}},
+                "alias_of": {
+                  "not": {}
+                },
                 "model": {
                   "pattern": "^generique_(feuillu|resineux)$"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "stage_models": {
+      "description": "fichier de modèle par (essence, stade) dessiné, générique compris ; un couple une fois ; la vue refuse un arbre dont le couple n'y est pas",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "description": "modèle d'un couple (essence, stade) présent dans les blocs (ou des semis, stade young)",
+        "type": "object",
+        "required": [
+          "species",
+          "stage",
+          "file",
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "species": {
+            "type": "string",
+            "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+          },
+          "stage": {
+            "description": "stade de l'arbre (biomes/stades/stage_breaks.yml)",
+            "enum": [
+              "young",
+              "pole",
+              "mature",
+              "old"
+            ]
+          },
+          "file": {
+            "description": "nom du fichier de assets/trees/ : <espar>_<stade>.glb (own, alias) ou generique_<groupe>.glb (generic)",
+            "type": "string",
+            "pattern": "^(([0-9]{2}[A-Z0-9]{0,3}_(young|pole|mature|old))|generique_(feuillu|resineux))\\.glb$"
+          },
+          "kind": {
+            "enum": [
+              "own",
+              "alias",
+              "generic"
+            ]
+          },
+          "alias_of": {
+            "description": "code espar qui porte le fichier ; seulement pour kind = alias",
+            "type": "string",
+            "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "own"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "alias_of": {
+                  "not": {}
+                },
+                "file": {
+                  "pattern": "^[0-9]{2}[A-Z0-9]{0,3}_(young|pole|mature|old)\\.glb$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "alias"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "alias_of"
+              ],
+              "properties": {
+                "file": {
+                  "pattern": "^[0-9]{2}[A-Z0-9]{0,3}_(young|pole|mature|old)\\.glb$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "generic"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "alias_of": {
+                  "not": {}
+                },
+                "file": {
+                  "pattern": "^generique_(feuillu|resineux)\\.glb$"
                 }
               }
             }
@@ -294,7 +415,9 @@
   },
   "else": {
     "properties": {
-      "recruitment": {"not": {}}
+      "recruitment": {
+        "not": {}
+      }
     }
   }
 }

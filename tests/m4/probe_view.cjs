@@ -9,7 +9,7 @@
 //   window.sylvigenese.openCell(id)   ouvre la fiche de la cellule `id` (cell_id de la fiche JSON), comme le ferait un clic
 //   élément [data-testid="cell-sheet"] visible, avec data-cell-id, dont le texte contient : type de station,
 //   type de végétation, codes d'essence de la composition, « provisoire », volume et carbone (dits non calculés),
-//   et la commande « viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A> »
+//   et la commande « tools/viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A> »
 //
 // Usage : node probe_view.cjs <url> <id,id,...> [capture.png]
 // Le navigateur est coupé du réseau : toute requête hors 127.0.0.1 / localhost est abandonnée (la vue doit

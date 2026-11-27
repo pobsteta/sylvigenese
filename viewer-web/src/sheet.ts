@@ -75,18 +75,20 @@ export function cellIdFromLambert(x: number, y: number, g: Grid): number | null 
 
 // Centre de la cellule : valeur de la fiche (x, y), pas un recalcul.
 export function massifViewerCommand(x: number, y: number, year: number): string {
-  return `viewer-massif -- --x ${formatNumber(x)} --y ${formatNumber(y)} --year ${year}`;
+  return `tools/viewer-massif -- --x ${formatNumber(x)} --y ${formatNumber(y)} --year ${year}`;
 }
 
 // Commande COMPLÈTE à copier (décision Q7 de Pascal, 26/11/2026 ; plan m6a T7) : la vue massif a besoin de savoir OÙ sont
-// les données, pas seulement la place. Forme : `viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A>` ; la vue
+// les données, pas seulement la place. Forme : `tools/viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A>` ; la vue
 // (viewer_args.gd) accepte ce même jeu d'arguments. Le dossier est celui de la zone sous data/ (relatif à la racine du dépôt).
+// `tools/viewer-massif` est le chemin du script depuis la RACINE du dépôt : la commande se colle telle quelle depuis là
+// (décision de l'orchestrateur par délégation, mission 075 ; sans `tools/` dans le PATH, `viewer-massif` seul ne se lance pas).
 // Une zone vide est une erreur : jamais une commande sans zone ni une zone devinée.
 export function withZone(command: string, zoneDir: string): string {
   if (zoneDir.trim() === "" || /\s/.test(zoneDir)) {
     throw new SheetError(`dossier de zone invalide pour la commande de la vue massif : « ${zoneDir} »`);
   }
-  const prefix = "viewer-massif -- ";
+  const prefix = "tools/viewer-massif -- ";
   if (!command.startsWith(prefix) || command.includes("--zone")) {
     throw new SheetError(`commande de la vue massif inattendue : « ${command} »`);
   }

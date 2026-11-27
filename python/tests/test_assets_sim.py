@@ -443,6 +443,19 @@ def test_massif_cohorts_les_semis_sont_ceux_de_sim_cells(cohort_zone):
     assert len(found) > 20
 
 
+def test_massif_cohorts_chaque_essence_a_semis_a_son_modele_young_dans_l_index(cohort_zone):
+    """Les semis sont dessinés au stade young : le fichier est dit par stage_models, sans exemplaire ni arbre young
+    c'est le générique du groupe (jamais un fichier absent de assets/trees)."""
+    zone = cohort_zone["dir"]
+    index = json.loads((zone / "massif" / "index.json").read_text(encoding="utf-8"))
+    by_pair = {(m["species"], m["stage"]): m for m in index["stage_models"]}
+    species = {r["species"] for rows in cohort_zone["seedlings"].values() for r in rows}
+    assert species
+    for code in species:
+        entry = by_pair.get((code, "young"))
+        assert entry is not None and (zone / "assets" / "trees" / entry["file"]).is_file(), (code, entry)
+
+
 def test_massif_cohorts_semis_sans_hauteur_est_un_refus(tmp_path, zone_chain):
     directory = tmp_path / "z"
     shutil.copytree(zone_chain, directory, ignore=shutil.ignore_patterns("tiles", "web", "assets", "sim", "massif"))

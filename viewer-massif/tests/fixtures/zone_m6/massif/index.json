@@ -10,7 +10,7 @@
  "notes": [
   "trajectoire technique, non validée écologiquement",
   "jeu fictif : valeurs synthétiques",
-  "1 arbre dessiné par un modèle générique (aucun exemplaire de l'essence 62)"
+  "1 arbre(s) dessiné(s) par un modèle générique"
  ],
  "models": [
   {
@@ -21,6 +21,32 @@
   {
    "species": "62",
    "model": "generique_resineux",
+   "kind": "generic"
+  }
+ ],
+ "stage_models": [
+  {
+   "species": "09",
+   "stage": "mature",
+   "file": "09_mature.glb",
+   "kind": "own"
+  },
+  {
+   "species": "09",
+   "stage": "old",
+   "file": "09_old.glb",
+   "kind": "own"
+  },
+  {
+   "species": "09",
+   "stage": "young",
+   "file": "09_young.glb",
+   "kind": "own"
+  },
+  {
+   "species": "62",
+   "stage": "mature",
+   "file": "generique_resineux.glb",
    "kind": "generic"
   }
  ],

@@ -36,9 +36,9 @@ var blocks := {}            # block_id -> {data, off: Vector3 (bloc, repère du 
 var block_at := {}          # Vector2i (origine / taille) -> block_id
 var block_size := 500.0
 var model_cache := {}       # chemin .glb -> résultat du chargeur
-var species_model := {}     # code espar -> {model, kind}
+var stage_model := {}        # « essence|stade » -> {species, stage, file, kind} de massif/index.json (stage_models)
 var seedling_models := {}   # code espar -> {path, res} ou {missing: raison}
-var stats := {"blocks": 0, "trees": 0, "generic_trees": 0, "non_cale_trees": 0, "grass_instances": 0, "seedlings": 0, "truncated": false, "seedlings_truncated": false}
+var stats := {"blocks": 0, "trees": 0, "generic_trees": 0, "non_cale_trees": 0, "grass_instances": 0, "seedlings": 0, "cw_zero_trees": 0, "truncated": false, "seedlings_truncated": false}
 var non_cale_models := {}   # nom du .glb -> nombre d'arbres qui en dépendent (extras.calage = « non calé »)
 var notes: Array = []        # lignes de signalement pour l'écran
 var grass_message := ""
@@ -62,8 +62,7 @@ func setup(zone_dir: String, idx: Dictionary, config: Dictionary, x: float, y: f
 	index = idx
 	cfg = config
 	block_size = float(idx["block_size_m"])
-	for m in idx["models"]:
-		species_model[str(m["species"])] = m
+	stage_model = Reader.stage_models(idx)
 	var here := Reader.resolve(idx, x, y, yr)
 	if not here["ok"]:
 		return {"ok": false, "error": here["error"]}
@@ -126,12 +125,45 @@ func height_world(x: float, y: float) -> float:
 
 # --- arbres ------------------------------------------------------------------------------------------------------
 
+## Fichier de modèle d'un (essence, stade), tel que `massif/index.json` le dit (stage_models) : générique compris, jamais
+## reconstruit ici. Couple absent de l'index : erreur nommée.
 func _model_file(zone_dir: String, species: String, stage: String) -> Dictionary:
-	if not species_model.has(species):
-		return {"ok": false, "error": "l'essence %s n'a pas de modèle dans massif/index.json : la vue ne devine pas" % species}
-	var m: Dictionary = species_model[species]
-	var name := str(m["model"]) if str(m["kind"]) == "generic" else "%s_%s" % [str(m["model"]), stage]
-	return {"ok": true, "error": "", "path": zone_dir.path_join("assets").path_join("trees").path_join(name + ".glb")}
+	var key := Reader.stage_key(species, stage)
+	if not stage_model.has(key):
+		return {"ok": false, "error": "le couple essence %s, stade %s n'a pas de modèle dans massif/index.json (stage_models) : la vue ne devine pas" % [species, stage]}
+	var m: Dictionary = stage_model[key]
+	return {"ok": true, "error": "", "kind": str(m["kind"]), "path": zone_dir.path_join("assets").path_join("trees").path_join(str(m["file"]))}
+
+
+## Hauteur (m) et rayon (m) d'un modèle générique : un générique mesure 1 m de haut et 1 m de rayon (`models.generic_model`
+## de assets), l'échelle d'une instance est (r, h, r) avec r = cw / 2, comme dans iTowns.
+const GENERIC_SIZE_M := 1.0
+## Écart toléré (m) entre la hauteur mesurée du niveau 0 d'un générique et 1 m.
+const GENERIC_TOLERANCE_M := 0.01
+
+
+## Échelle d'une instance : {ok, error, sxz, sy}. Générique (`extras.generique`) : (r, h, r) d'un modèle de 1 m x 1 m, hauteur
+## mesurée vérifiée. Modèle du générateur : (cw / 2 / rayon_houppier_ref_m, h / hauteur mesurée, idem) ; une clé de dimension
+## absente (H_ref_m, rayon_houppier_ref_m) ou une dimension d'arbre non positive est refusée, jamais remplacée par la hauteur.
+static func instance_scale(extras: Dictionary, model_height_m: float, tree_h: float, tree_cw: float, label: String) -> Dictionary:
+	var fail := {"ok": false, "sxz": 0.0, "sy": 0.0}
+	if not tree_h > 0.0 or not tree_cw > 0.0:
+		fail["error"] = "%s : h = %s et cw = %s : deux dimensions strictement positives sont exigées, la vue ne devine pas" % [label, str(tree_h), str(tree_cw)]
+		return fail
+	if bool(extras.get("generique", false)):
+		if absf(model_height_m - GENERIC_SIZE_M) > GENERIC_TOLERANCE_M:
+			fail["error"] = "%s : un modèle générique mesure %.0f m de haut (convention de assets), celui-ci %.3f m" % [label, GENERIC_SIZE_M, model_height_m]
+			return fail
+		return {"ok": true, "error": "", "sxz": tree_cw / 2.0 / GENERIC_SIZE_M, "sy": tree_h / GENERIC_SIZE_M}
+	for k in ["H_ref_m", "rayon_houppier_ref_m"]:
+		if not extras.has(k):
+			fail["error"] = "%s : modèle du générateur sans la dimension « %s » dans ses extras : la vue ne devine pas son échelle" % [label, k]
+			return fail
+	var rayon := float(extras["rayon_houppier_ref_m"])
+	if not rayon > 0.0:
+		fail["error"] = "%s : rayon_houppier_ref_m = %s : une dimension strictement positive est exigée" % [label, str(extras["rayon_houppier_ref_m"])]
+		return fail
+	return {"ok": true, "error": "", "sxz": tree_cw / 2.0 / rayon, "sy": tree_h / model_height_m}
 
 
 func _load_model(path: String) -> Dictionary:
@@ -175,6 +207,10 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 	root.add_child(ground)
 	var groups := {}   # "case|chemin" -> {path, chunk, items: [Transform3D relative au bloc]}
 	for t in data["trees"]:
+		if float(t["cw"]) <= 0.0:
+			# le contrat admet cw = 0 : pas de houppier à dessiner, l'arbre est compté et dit à l'écran (jamais une largeur déduite de h)
+			stats["cw_zero_trees"] += 1
+			continue
 		var mf := _model_file(zone_dir, str(t["species"]), str(t["stage"]))
 		if not mf["ok"]:
 			return {"ok": false, "error": "%s : arbre %s : %s" % [id, str(t["tree_id"]), mf["error"]]}
@@ -184,12 +220,11 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 		if _material_for(res) == null:
 			return {"ok": false, "error": "%s : ni feuillage.couleur ni groupe connu dans les extras : la vue ne devine pas la couleur" % mf["path"]}
 		var extras: Dictionary = res["extras"]
-		var height := float(res["height_m"])
-		var sy := float(t["h"]) / height
-		var sxz := sy
-		var rayon := float(extras.get("rayon_houppier_ref_m", 0.0))
-		if rayon > 0.0 and float(t["cw"]) > 0.0:
-			sxz = float(t["cw"]) / (2.0 * rayon)
+		var sc := instance_scale(extras, float(res["height_m"]), float(t["h"]), float(t["cw"]), "%s : arbre %s (%s)" % [id, str(t["tree_id"]), str(mf["path"]).get_file()])
+		if not sc["ok"]:
+			return {"ok": false, "error": sc["error"]}
+		var sy := float(sc["sy"])
+		var sxz := float(sc["sxz"])
 		var yaw := Hashing.unit(Hashing.mix(Hashing.of_string(zone + "|" + str(t["tree_id"])), 7)) * TAU
 		var basis := Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(sxz, sy, sxz))
 		var key := Vector2i(floori(float(t["x"]) / CHUNK_M), floori(float(t["y"]) / CHUNK_M))
@@ -198,7 +233,7 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 			groups[gk] = {"path": mf["path"], "items": []}
 		groups[gk]["items"].append(Transform3D(basis, Frame.block_to_godot(float(t["x"]), float(t["y"]), float(t["z"]))))
 		stats["trees"] += 1
-		if str(species_model[str(t["species"])]["kind"]) == "generic":
+		if str(mf["kind"]) == "generic":
 			stats["generic_trees"] += 1
 		if str(extras.get("calage", "")) == "non calé":
 			stats["non_cale_trees"] += 1

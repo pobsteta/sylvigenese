@@ -5,6 +5,10 @@ de la strate herbacée et semis autour de la caméra) ; plan `docs/plans/m6a.md`
 T6 (repères), T8 (herbe et semis), T11 (stade d'un arbre) ; ADR 0007 choix 7 ; décisions de Pascal Q3, Q4, Q8.
 Mission 070. Contrats `assets.massif_block` (version 2) et `assets.massif_index`.
 
+Le fichier de modèle de chaque (essence, stade) est dit par `massif/index.json` (`stage_models`, contrat
+`assets.massif_index` 0.2), générique compris : la vue le lit, elle ne le reconstruit pas (un stade sans exemplaire
+d'une essence qui en a d'autres est dessiné par le générique, jamais par un emprunt).
+
 Ce que contient un bloc (une tuile de 500 m de `tiles/`, même identifiant `t_<x>_<y>`) :
 - `origin` : coin sud-ouest du bloc (EPSG:2154) et altitude NGF-IGN69 entière sous le point le plus bas du terrain
   du bloc ; `trees[]` : position RELATIVE à l'origine (x est, y nord, z haut ; ce n'est ni le repère de glTF ni
@@ -114,6 +118,8 @@ class MassifWriter:
         self._seedlings: dict[int, dict] = {}
         self.species_stems: dict[str, set[str]] = {}
         self.fallbacks: dict[str, set[str]] = {}
+        self.stage_models: dict[tuple[str, str], tuple[str, str]] = {}   # (essence, stade) -> (nom du modèle, genre)
+        self.seedling_species: set[str] = set()
         self.without_hcb = 0
 
     # ------------------------------------------------------------------ grilles
@@ -216,6 +222,13 @@ class MassifWriter:
         names = np.array([tiles.tile_name(int(a), int(b)) for a, b in zip(x_west, y_south)], dtype=object)
         z_ngf = altitude.read_ngf_altitude(self.zone / "dtm.tif", trees["x"], trees["y"])
         self._seedlings[year] = sim_state.read_seedlings(self.zone, year) if self.cohorts else {}
+        for rows in self._seedlings[year].values():
+            self.seedling_species |= {r["species"] for r in rows}
+        for code, stage, stem, kind in {(c, g, s, k) for c, g, s, k in
+                                        zip(trees["species"].tolist(), stages.tolist(), stems.tolist(), kinds.tolist())}:
+            if self.stage_models.setdefault((code, stage), (stem, kind)) != (stem, kind):
+                raise ModuleError(f"essence {code}, stade {stage} : deux modèles différents ({self.stage_models[(code, stage)][0]} "
+                                  f"et {stem}) ; le modèle d'un (essence, stade) est unique")
         for code, stem in {(c, s) for c, s in zip(trees["species"].tolist(), stems.tolist())}:
             self.species_stems.setdefault(code, set()).add(stem)
         for code, stage in {(c, g) for c, g, k in zip(trees["species"].tolist(), stages.tolist(), kinds.tolist())
@@ -259,6 +272,27 @@ class MassifWriter:
         return mentions
 
     # ------------------------------------------------------------------ index
+    def _stage_models_index(self) -> list[dict]:
+        """Le fichier de modèle de chaque (essence, stade) dessiné : celui de `ModelRegistry.resolve`, générique
+        compris (une essence peut avoir un exemplaire pour un stade et pas pour un autre). Les semis sont dessinés au
+        stade `young` : leur entrée est écrite si le fichier existe (un exemplaire, ou un générique que des arbres
+        emploient) ; sinon la vue dit « pas de modèle » pour ces semis, rien n'est deviné."""
+        found = dict(self.stage_models)
+        used_generic = {stem for stem, kind in found.values() if kind == "generic"}
+        for code in sorted(self.seedling_species):
+            if (code, "young") in found:
+                continue
+            stem, kind = self.registry.resolve(code, "young")
+            if kind != "generic" or stem in used_generic:
+                found[(code, "young")] = (stem, kind)
+        out = []
+        for (code, stage), (stem, kind) in sorted(found.items()):
+            entry = {"species": code, "stage": stage, "file": f"{stem}.glb", "kind": kind}
+            if kind == "alias":
+                entry["alias_of"] = stem.rpartition("_")[0]
+            out.append(entry)
+        return out
+
     def finish(self, tile_names: list[str]) -> dict:
         """Écrit les blocs vides manquants (même liste de tuiles chaque année que `tiles/index.json`), puis
         `massif/index.json` ; rend un résumé."""
@@ -286,6 +320,7 @@ class MassifWriter:
             else:
                 entry = {"species": code, "model": f"generique_{species[code].group}", "kind": "generic"}
             models.append(entry)
+        stage_models = self._stage_models_index()
         if self.without_hcb:
             notes.append(MENTION_HCB.format(n=self.without_hcb) + " (arbre-années)")
         generic = sum(y["trees_by_kind"]["generic"] for y in self.years)
@@ -296,7 +331,7 @@ class MassifWriter:
             notes.append(f"essence {code} : stade(s) sans exemplaire, modèle générique : {', '.join(sorted(self.fallbacks[code]))}")
         index = {"schema_version": 1, "zone": self.zone_name, "fictive": self.fictive, "crs": "EPSG:2154",
                  "vertical_datum": "NGF-IGN69", "source": self.source, "block_size_m": tiles.TILE_M, "provisoire": True,
-                 "notes": notes, "models": models, "years": self.years}
+                 "notes": notes, "models": models, "stage_models": stage_models, "years": self.years}
         if self.recruitment:
             index["recruitment"] = self.recruitment
         write_json(self.out / "massif" / "index.json", index)

@@ -1,11 +1,9 @@
 # Plan de M6a : les arbres du générateur dans les deux vues, et la vue massif sous Godot (26/11/2026)
 
 > Plan rendu par un `dev` (temps « prendre »), **à valider** par l'orchestrateur. **Amendé le 26/11/2026**
-> après les réponses de Pascal (Q1 à Q5, tranchées), la critique du contradicteur (B1 à B3, R1 à R4, M1 à M5)
-> et l'examen de `godot-forest-demo`. Il reste **trois questions pour Pascal, à poser une par une dans cet
-> ordre : Q6** (dimensions de référence des exemplaires), **Q7** (lien web vers le massif), **Q8** (stade
-> d'un arbre). Les choix T1 à T14 sont ceux que le `dev` propose de trancher lui-même, avec leur raison.
-> Pascal peut défaire chacun d'eux.
+> après les réponses de Pascal (Q1 à Q8, **toutes tranchées le 26/11/2026**, journal), la critique du
+> contradicteur (B1 à B3, R1 à R4, M1 à M5) et l'examen de `godot-forest-demo`. Les choix T1 à T14 sont ceux
+> que le `dev` propose de trancher lui-même, avec leur raison. Pascal peut défaire chacun d'eux.
 > Sources lues : CLAUDE.md ; BRIEF §3, §4, §9 à §13 ; spec §2, §9, §11 ; ADR 0003 et 0006 ;
 > `viewer-massif/project.godot` ; `python/sylvigenese/assets.py` et `assets_lib/` ; `contracts/`
 > (`catalog.yml`, `massif_block.schema.json`, `gltf_generic.schema.json`, `validator/gltf.py`,
@@ -116,8 +114,8 @@ d'essence reconnaissable, et que tout ce qui se vérifie sans GPU le soit déjà
 **Mission C, ce qu'elle couvre** (le détail est au §6).
 
 **Ordre des vagues :**
-1. Q1 à Q5 sont **tranchées** (journal du 26/11/2026). Reste à poser, une par une : **Q6** (change B, D, E),
-   **Q7** (change G et M6b), **Q8** (change B, D et l'ADR 0007).
+1. Q1 à Q8 sont **tranchées** (journal du 26/11/2026) : **Q6** (change B, D, E), **Q7** (change G et M6b),
+   **Q8** (change B, D et l'ADR 0007).
 2. Vague 1 : A (courte).
 3. Vague 2 : B. L'orchestrateur tranche l'ADR 0007 par délégation, sauf T-licence (voir Q1).
 4. Vague 3 : C et D ; **E** (dépôt `tarif-nemeton`) part à part, **après validation de Pascal** ; D ne
@@ -380,8 +378,8 @@ maillage, le `.glb`, le repère et les deux vues, **pas** que les vrais exemplai
 
 ## 7. Questions pour Pascal
 
-**Tranchées par Pascal le 26/11/2026 (journal) :** Q1 à Q5. Restent **Q6, Q7 et Q8, à poser une par une, dans
-cet ordre.**
+**Tranchées par Pascal le 26/11/2026 (journal) :** Q1 à Q8 (Q6 à Q8 après l'amendement du plan ; la réponse
+est rappelée en tête de chaque question).
 
 **Q1. Entrée du générateur — tranchée par Pascal le 26/11/2026 : par fichiers.** Un script d'export des
 segments est ajouté à `tarif-nemeton` par une PR que Pascal fusionne (mission E) ; `assets` lit ce fichier et
@@ -405,7 +403,10 @@ sorties** (couvert, comptes de semis) ; **apparence en constantes d'affichage** 
 CI jusqu'à l'autotest ; M6b sur son PC avec le même exécutable. *Risque ajouté (R1) :* Vulkan, voir T14.
 
 **Q6. D'où viennent les dimensions de référence des exemplaires (D, H, hbh, Rh, b_cible, par essence et par
-stade) ?** *(à poser en premier)*
+stade) ? — tranchée par Pascal le 26/11/2026 : option (a), repli sur (b).** D et H en quantiles de `sim/trees` par
+essence et par stade ; hauteur et rayon du houppier et densité des rameaux depuis la calibration de `tarif-nemeton`
+(`synth_calage.py`) ; repli sur un fichier de paramètres sourcé, `provisoire: true`, pour une essence trop peu
+présente ; chaque arbre mis à l'échelle de sa hauteur simulée. *(Texte de la question gardé ci-dessous.)*
 - *Contexte.* Pour produire un arbre par (essence, stade), il faut dire sa taille. Ce **ne sont pas des
   réglages d'affichage** (Q4 ne les couvre pas) : ce sont des valeurs dendrométriques ; si elles sont
   fausses, les 44 modèles le sont, et leurs `extras` diraient « 28 m » d'un arbre qui n'a pas cette taille.
@@ -426,7 +427,9 @@ stade) ?** *(à poser en premier)*
   l'instance (T11) déforme davantage les modèles.
 - *Si (c) :* un chiffre de forêt sans source, contre « ne rien inventer d'écologique » : déconseillé.
 
-**Q7. Comment le lien de la fiche web ouvre-t-il la vue massif ?** *(en second)*
+**Q7. Comment le lien de la fiche web ouvre-t-il la vue massif ? — tranchée par Pascal le 26/11/2026 : option (a) en
+M6a.** La fiche affiche la commande complète à copier (zone, x, y, année), testée en CI ; un vrai lien `sylvigenese://`
+reste possible en M6b, installé avec lui sur son PC. *(Texte de la question gardé ci-dessous.)*
 - *Contexte.* La fiche porte une commande (`viewer-massif -- --x … --y … --year …`) qui ne dit pas où est la
   zone ; un lien `https` ne lance pas un programme.
 - *Options :* **(a)** commande complète à copier (`--zone`, `--x`, `--y`, `--year`) ; **(b)** gestionnaire
@@ -437,8 +440,9 @@ stade) ?** *(à poser en premier)*
 - *Si (a) seul :* un copier-coller par visite, rien à installer.
 - *Si (b) :* un clic, mais une installation chez vous, un fichier à maintenir, un lien qui ne marche que là.
 
-**Q8. Le stade d'un arbre se calcule-t-il comme celui d'un peuplement ?** *(en troisième ; ou choix T11
-inscrit à l'ADR 0007 comme extension, que vous défaites quand vous voulez)*
+**Q8. Le stade d'un arbre se calcule-t-il comme celui d'un peuplement ? — tranchée par Pascal le 26/11/2026 :
+option (a).** Stade de chaque arbre = h / h_pot de l'arbre avec les seuils des biomes (le sous-étage se voit) ;
+extension du BRIEF §6 écrite dans l'ADR 0007. *(Texte de la question gardé ci-dessous.)*
 - *Contexte.* BRIEF §6 : le stade (`young`, `pole`, `mature`, `old`) est celui du **peuplement**, par
   H0 / h_pot de la cellule (seuils provisoires 0,25 / 0,60 / 0,90). Le plan l'applique à **chaque arbre**
   (h / h_pot) pour choisir son modèle : extension, non lecture du BRIEF. Un arbre de 10 m dans un peuplement

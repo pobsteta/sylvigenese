@@ -3,7 +3,7 @@
 ## valeur par défaut, jamais l'année voisine. Résultats : {ok, error, ...}.
 extends RefCounted
 
-const INDEX_KEYS := ["schema_version", "zone", "block_size_m", "provisoire", "notes", "models", "years"]
+const INDEX_KEYS := ["schema_version", "zone", "block_size_m", "provisoire", "notes", "models", "stage_models", "years"]
 const BLOCK_KEYS := ["schema_version", "block_id", "year", "vertical_datum", "origin", "trees", "ground", "cells", "seedlings_simulated", "mentions", "provisoire"]
 const TREE_KEYS := ["tree_id", "species", "stage", "x", "y", "z", "h", "d130", "hcb", "cw"]
 
@@ -37,6 +37,12 @@ static func read_index(zone_dir: String) -> Dictionary:
 			return _err("%s : clé manquante « %s »" % [path, k])
 	if int(d["schema_version"]) != 1:
 		return _err("%s : schema_version %s inconnu (la vue lit la version 1)" % [path, str(d["schema_version"])])
+	if typeof(d["stage_models"]) != TYPE_ARRAY or d["stage_models"].is_empty():
+		return _err("%s : « stage_models » doit être une liste non vide (le fichier de modèle de chaque essence et stade ; index écrit par une version antérieure d'`assets` : le relancer)" % path)
+	for m in d["stage_models"]:
+		for k in ["species", "stage", "file", "kind"]:
+			if not m.has(k):
+				return _err("%s : une entrée de stage_models n'a pas la clé « %s »" % [path, k])
 	if typeof(d["years"]) != TYPE_ARRAY:
 		return _err(path + " : « years » doit être une liste")
 	for y in d["years"]:
@@ -48,6 +54,18 @@ static func read_index(zone_dir: String) -> Dictionary:
 				if not b.has(k):
 					return _err("%s : un bloc n'a pas la clé « %s »" % [path, k])
 	return r
+
+
+## Modèles de l'index par couple : « essence|stade » -> {species, stage, file, kind}. La vue ne reconstruit aucun nom de fichier.
+static func stage_models(index: Dictionary) -> Dictionary:
+	var out := {}
+	for m in index.get("stage_models", []):
+		out[stage_key(str(m["species"]), str(m["stage"]))] = m
+	return out
+
+
+static func stage_key(species: String, stage: String) -> String:
+	return "%s|%s" % [species, stage]
 
 
 static func read_block(path: String) -> Dictionary:

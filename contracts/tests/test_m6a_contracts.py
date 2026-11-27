@@ -371,11 +371,32 @@ def massif_index():
             "models": [{"species": "09", "model": "09", "kind": "own"},
                        {"species": "03", "model": "02", "kind": "alias", "alias_of": "02"},
                        {"species": "10", "model": "generique_feuillu", "kind": "generic"}],
+            # 09 : exemplaires mature et old seulement, son stade young est dessiné par le générique (mission 075)
+            "stage_models": [{"species": "03", "stage": "mature", "file": "02_mature.glb", "kind": "alias",
+                              "alias_of": "02"},
+                             {"species": "09", "stage": "mature", "file": "09_mature.glb", "kind": "own"},
+                             {"species": "09", "stage": "old", "file": "09_old.glb", "kind": "own"},
+                             {"species": "09", "stage": "young", "file": "generique_feuillu.glb", "kind": "generic"},
+                             {"species": "10", "stage": "mature", "file": "generique_feuillu.glb", "kind": "generic"}],
             "years": [year(2022, 90, 6, 4), year(2032, 80, 5, 3)]}
 
 
 def test_massif_index_conform(tmp_path, capsys):
     accepted(capsys, "massif_index", h.write_json(tmp_path / "index.json", massif_index()))
+
+
+def test_massif_index_says_the_model_file_of_a_stage_without_exemplar(tmp_path, capsys):
+    """Une essence avec exemplaires pour deux stades et un générique pour un troisième (cas réel : Picea abies, mature)."""
+    index = massif_index()
+    by_stage = {(m["species"], m["stage"]): m for m in index["stage_models"]}
+    assert by_stage[("09", "mature")]["kind"] == "own" and by_stage[("09", "young")]["kind"] == "generic"
+    assert by_stage[("09", "young")]["file"] == "generique_feuillu.glb"
+    accepted(capsys, "massif_index", h.write_json(tmp_path / "index.json", index))
+
+
+def test_massif_index_schema_version_is_the_minor_0_2():
+    schema = json.loads((CONTRACTS / "json" / "massif_index.schema.json").read_text(encoding="utf-8"))
+    assert schema["x-schema-version"] == "0.2" and "stage_models" in schema["required"]
 
 
 def test_massif_index_trees_init_mode_conform(tmp_path, capsys):
@@ -392,6 +413,18 @@ def test_massif_index_trees_init_mode_conform(tmp_path, capsys):
     ("generic_borrowed", lambda i: i["models"][2].update(model="09"), r"model"),
     ("generic_unknown_group", lambda i: i["models"][2].update(model="generique_arbuste"), r"model"),
     ("unknown_kind", lambda i: i["models"][0].update(kind="emprunt"), r"kind"),
+    ("no_stage_models", lambda i: i.pop("stage_models"), r"stage_models"),
+    ("empty_stage_models", lambda i: i.update(stage_models=[]), r"stage_models"),
+    ("stage_model_without_file", lambda i: i["stage_models"][1].pop("file"), r"file"),
+    ("stage_model_unknown_stage", lambda i: i["stage_models"][1].update(stage="adulte"), r"stage"),
+    ("stage_model_generic_borrows_a_species", lambda i: i["stage_models"][3].update(file="09_mature.glb"), r"file"),
+    ("stage_model_generic_with_alias_of", lambda i: i["stage_models"][3].update(alias_of="02"), r"alias_of"),
+    ("stage_model_own_with_generic_file", lambda i: i["stage_models"][1].update(file="generique_feuillu.glb"), r"file"),
+    ("stage_model_own_without_stage_in_file", lambda i: i["stage_models"][1].update(file="09.glb"), r"file"),
+    ("stage_model_alias_without_target", lambda i: i["stage_models"][0].pop("alias_of"), r"alias_of"),
+    ("stage_model_unknown_group", lambda i: i["stage_models"][3].update(file="generique_arbuste.glb"), r"file"),
+    ("stage_model_unknown_kind", lambda i: i["stage_models"][1].update(kind="emprunt"), r"kind"),
+    ("stage_model_unknown_key", lambda i: i["stage_models"][1].update(model="09"), r"clé inconnue"),
     ("sim_without_mode", lambda i: i.pop("recruitment"), r"recruitment"),
     ("bad_mode", lambda i: i.update(recruitment="aleatoire"), r"recruitment"),
     ("no_counts_by_kind", lambda i: i["years"][0].pop("trees_by_kind"), r"trees_by_kind"),

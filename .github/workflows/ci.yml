@@ -817,7 +817,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: viewer-web/package-lock.json
+          cache-dependency-path: |
+            viewer-web/package-lock.json
+            tools/ci/package-lock.json
 
       - name: Dépendances Node
         run: npm ci
@@ -873,6 +875,25 @@ jobs:
       - name: Navigateur des tests de la vue (Chromium)
         run: npx playwright install --with-deps chromium
         working-directory: viewer-web
+
+      # glTF-Validator de Khronos (mission 075 ; plan m6a T4 et §6) : paquet npm « gltf-validator » figé à 2.0.0-dev.3.10
+      # par tools/ci/package.json et package-lock.json (npm ci), licence Apache-2.0 (champ « license » du paquet
+      # téléchargé, relevé dans le résumé). Les .glb du jeu fictif (modèles génériques) et ceux de la fixture de
+      # tests/m6 (exemplaires) sont construits comme le font les tests (tools/ci/zone_gltf_m6.py), puis validés :
+      # une erreur (severity 0) fait échouer ; les avertissements sont comptés dans le résumé, jamais filtrés.
+      - name: glTF-Validator (installation, version figée)
+        run: npm ci --ignore-scripts
+        working-directory: tools/ci
+
+      - name: glTF-Validator (tests du script)
+        run: node --test tools/ci/valider_gltf.test.mjs
+
+      - name: glTF-Validator sur les .glb du jeu fictif et de la fixture
+        run: |
+          set -euo pipefail
+          python3 tools/ci/zone_gltf_m6.py
+          node tools/ci/valider_gltf.mjs data/m6_gltf_base data/m6_gltf_a
+          python3 tools/ci/zone_gltf_m6.py --nettoyer
 
       - name: Tests (run_tests.sh m6)
         run: |

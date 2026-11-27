@@ -25,6 +25,8 @@ Autres exigences relues par les tests : `project.godot` déclare `[shader_global
 
 ## Fixtures
 
-`tests/fixtures/make_zone_m6.py` écrit `zone_m6/` (un bloc de 500 m, 4 arbres aux extrémités nord, sud, est, ouest, 3 `.glb` synthétiques écrits à la main) et `zone_m6_sans_herbe/`. Valeurs synthétiques, aucune écologique. Les fichiers versionnés sont ceux du script ; ils sont conformes aux contrats `assets.massif_index`, `assets.massif_block` et `assets.tree_model`.
+`tests/fixtures/make_zone_m6.py` écrit `zone_m6/` (un bloc de 500 m, 4 arbres aux extrémités nord, sud, est, ouest, 3 `.glb` d'arbres synthétiques écrits à la main, plus `09_young.glb` (modèle des semis)) et `zone_m6_sans_herbe/`. Valeurs synthétiques, aucune écologique. Les fichiers versionnés sont ceux du script ; ils sont conformes aux contrats `assets.massif_index`, `assets.massif_block` et `assets.tree_model`.
 
 Si `SYLVIGENESE_M6_TREES_DIR` pointe vers `data/<zone>/assets/trees/`, les `.glb` produits par `assets` passent par les mêmes contrôles de chargement.
+
+`zone_m6_stade_manquant/` (mission 075) : la même zone avec un hêtre jeune (`09`, stade `young`) dont l'essence n'a des exemplaires qu'aux stades `mature` et `old` ; l'index dit `generique_feuillu.glb` pour ce couple (`stage_models`). `test_repli_generique_et_echelle.gd` s'en sert, et construit dans `user://` les zones fautives (couple absent de l'index, `stage_models` absent, `cw` nul).

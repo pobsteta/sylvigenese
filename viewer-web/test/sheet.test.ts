@@ -44,8 +44,8 @@ test("hors de la grille, aucune cellule", () => {
 });
 
 test("la commande à copier suit la spec §1.5", () => {
-  assert.equal(massifViewerCommand(700012.5, 6500487.5, 2021), "viewer-massif -- --x 700012.5 --y 6500487.5 --year 2021");
-  assert.equal(massifViewerCommand(700000, 6500000, 2030), "viewer-massif -- --x 700000 --y 6500000 --year 2030");
+  assert.equal(massifViewerCommand(700012.5, 6500487.5, 2021), "tools/viewer-massif -- --x 700012.5 --y 6500487.5 --year 2021");
+  assert.equal(massifViewerCommand(700000, 6500000, 2030), "tools/viewer-massif -- --x 700000 --y 6500000 --year 2030");
 });
 
 test("la fiche dit « non calculé » pour volume et carbone, sans jamais mettre 0", () => {
@@ -65,7 +65,7 @@ test("la fiche donne station, type, H0, densité, composition, mention provisoir
   assert.match(byLabel["Densité"] as string, /112 arbres\/ha/);
   assert.deepEqual(f.composition, ["09 : 75 %", "61 : 25 %"]);
   assert.equal(f.provisional, true);
-  assert.equal(f.command, "viewer-massif -- --x 700012.5 --y 6500487.5 --year 2021");
+  assert.equal(f.command, "tools/viewer-massif -- --x 700012.5 --y 6500487.5 --year 2021");
 });
 
 test("un volume renseigné est affiché avec son unité", () => {

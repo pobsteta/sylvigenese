@@ -64,7 +64,7 @@ Ce qu'on doit voir :
 - un bandeau « Résultat provisoire » ; au centre, les arbres (14 080 sur le jeu fictif, compteur en pied de page) posés sur
   la carte colorée des types de végétation, avec sa légende ; un curseur règle l'opacité de la carte ;
 - un clic sur une cellule ouvre sa fiche : station, type de végétation, composition, H0, densité ; volume et carbone
-  « non calculés » ; la commande complète `viewer-massif -- --zone data/<zone> --x <X> --y <Y> --year <A>` à copier (décision Q7 : la vue massif a besoin de savoir où sont les données ; à lancer depuis la racine du dépôt avec `tools/viewer-massif`, qui ouvre la vue Godot avec ces arguments ; moteur : variable `GODOT` ou `godot` du PATH) ;
+  « non calculés » ; la commande complète `tools/viewer-massif -- --zone data/<zone> --x <X> --y <Y> --year <A>` à copier (décision Q7 : la vue massif a besoin de savoir où sont les données ; **à coller telle quelle, depuis la racine du dépôt** : `tools/viewer-massif` ouvre la vue Godot avec ces arguments, sans avoir `tools/` dans le PATH ; moteur : variable `GODOT` ou `godot` du PATH) ;
 - le curseur des années est désactivé (une seule année).
 
 Avec ou sans réseau : tout est servi en local, la page s'affiche sans réseau. Terrain : MNT local sur son emprise.
