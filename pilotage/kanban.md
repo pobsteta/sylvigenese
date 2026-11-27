@@ -23,7 +23,7 @@ _Modèle de carte :_
 - M5b · référence technique `cohorts` et bascule de `config.yml` (Q4), `params/regeneration` du jeu fictif · depuis le cycle 8
 - M5b · refus de post pour un massif simulé en `cohorts` (tant que le tarif n'est pas validé sur ces trajectoires) · depuis le cycle 8
 - M5b · clé `external.*` pour Niinemets (non recopié) ; mise à jour de BRIEF §7.3 · depuis le cycle 8
-- M5b · questions de sens à préparer pour Pascal : coefficient d'extinction pris comme conversion vers l'échelle de Niinemets ; troncature du noyau à K cellules · depuis le cycle 8
+- M5b · ombre des semis à l'échelle de TreeMig (décision de Pascal du 27/11/2026) : établir la licence de TreePars (EnviDat), puis reprendre tolérance klighs et classe de lumière, Niinemets en contrôle · depuis le cycle 11
 - M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
 - M5b · mentions Q2 et Q3 : aujourd'hui en signalements de t0 (sim/flags.parquet) ; à porter au rapport de simulation quand il existera · depuis le cycle 8
 - M5b · suites des questions n° 12 à 17 (journal du 26/11/2026) : limite de Gaudio dite au rapport de params/regeneration (n° 13) ; obtenir S1 de Lososová pour la dispersion (n° 17) ; contrôle de la dimension critique de Gaudio pour 52 (n° 14) ; clé external.* pour le Data Sheet et la thèse (n° 12) · depuis le cycle 9
