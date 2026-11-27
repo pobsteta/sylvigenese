@@ -32,6 +32,7 @@ _Modèle de carte :_
 - M6b · ajouter le scénario 2022 (stade sans exemplaire) à bench/m6/mesurer.py, pour que m6_selftest.csv ne garde pas de lignes écrites à la main · depuis le cycle 9
 - M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
 - Réimporter le tarif réel (facteurs du domaine, mission 076) : chez Pascal ou quand le tarif réel est ici · depuis le cycle 11
+- M6b · défauts vus sur les captures du 27/11/2026 (rendu logiciel) : troncs colorés comme le feuillage (material_override sur tout le maillage, déjà relevé par la relecture de M6a) ; cartes de feuillage en blocs hachés noirs et verts (rendu logiciel ou vrai défaut, à trancher sur le PC de Pascal) ; arbres en perches peu branchues ; ligne « non calés » du bandeau coupée à droite ; aucune indication du nord ; caméra figée vers le nord sans clavier ; résolution 1280×720 · depuis le cycle 13
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
