@@ -1,0 +1,13 @@
+# Micro-mesure de la FFT de dispersion (mission 082) : appelle dispersion::PlanDispersion de simulate
+# sans le modifier. Réglage d'essai, sans valeur écologique. Compilé par bench/m5/mesurer_noyau.py
+# avec CARGO_TARGET_DIR hors dépôt.
+[package]
+name = "noyau_fft"
+version = "0.0.1"
+edition = "2021"
+license = "GPL-3.0-only"
+
+[workspace]
+
+[dependencies]
+simulate = { path = "../../../simulate" }

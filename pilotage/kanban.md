@@ -30,7 +30,7 @@ _Modèle de carte :_
 - M6b · constantes d'affichage de la vue massif (rayon des blocs voisins, hauteur des yeux, champ de vision, couleur du sol, vitesse de la caméra) à déplacer des scripts vers le bloc viewer de config.yml ; densité d'herbe, fondu entre niveaux et retour en Lambert-93 (0,5 m) à juger sur le PC de Pascal · depuis le cycle 9
 - M6b · semis dessinés par un générique : échelle uniforme (rayon = h), à mettre à (r, h, r) faute de cw des semis ; essence à semis sans modèle young non dite dans les notes de l'index · depuis le cycle 9
 - M6b · ajouter le scénario 2022 (stade sans exemplaire) à bench/m6/mesurer.py, pour que m6_selftest.csv ne garde pas de lignes écrites à la main · depuis le cycle 9
-- M5b · coût du noyau sur données réelles : K de 20 à 60 cellules pour les classes 5 et 6 de Lososová (zone tampon jusqu'à 1,5 km), mémoire et durée à mesurer · depuis le cycle 11
+- M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
 - Mineurs du cycle 11 : docstring de tests/m5/test_m5_stress_mortality.py (référence relevée pour 080) ; réimporter le tarif réel (facteurs du domaine) ; citation des coefficients de Lanczos (Godfrey) ; branche de réflexion de la gamma non testée · depuis le cycle 11
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
