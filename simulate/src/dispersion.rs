@@ -241,8 +241,15 @@ pub fn verifier_portee(
     )))
 }
 
-/// ln Γ(x) pour x > 0, approximation de Lanczos (g = 7, 9 termes ; Numerical Recipes, §6.1),
-/// précise à environ 1e-15 en relatif.
+/// ln Γ(x) pour x > 0, approximation de Lanczos (g = 7, 9 termes), précise à environ 1e-15
+/// en relatif.
+///
+/// Source des coefficients : l'ensemble g = 7, n = 9 de Paul Godfrey (« A note on the
+/// computation of the convergent Lanczos complex Gamma approximation », 2001), tel que repris
+/// dans l'article « Lanczos approximation » de Wikipédia. Ce ne sont pas ceux de Numerical
+/// Recipes (§6.1, g = 5 et 6 termes). Incertitude : je n'ai pas pu relire la note de Godfrey
+/// elle-même ; les valeurs sont vérifiées par les tests (Γ(1/2), Γ(5), Γ(1/4), identité des
+/// compléments), pas par leur source.
 fn ln_gamma(x: f64) -> f64 {
     const COEFFICIENTS: [f64; 9] = [
         0.999_999_999_999_809_9,
@@ -622,4 +629,37 @@ pub fn mettre_a_zero(champ: &mut [f64], seuil_relatif: f64, quoi: &str) -> Resul
         }
     }
     Ok(mises_a_zero)
+}
+
+#[cfg(test)]
+mod tests_gamma {
+    use super::ln_gamma;
+    use std::f64::consts::PI;
+
+    fn proche(a: f64, b: f64, tol: f64) {
+        assert!((a - b).abs() <= tol * b.abs().max(1.0), "{a} diffère de {b} de plus de {tol}");
+    }
+
+    #[test]
+    fn branche_directe_x_au_moins_un_demi() {
+        // Γ(5) = 24 ; Γ(1/2) = √π (x = 0,5 : branche directe).
+        proche(ln_gamma(5.0), 24.0_f64.ln(), 1e-12);
+        proche(ln_gamma(0.5), PI.sqrt().ln(), 1e-12);
+    }
+
+    #[test]
+    fn branche_de_reflexion_x_sous_un_demi() {
+        // Γ(1/4) = 3,625 609 908 221 908 3… (valeur fermée, Γ(1/4)² = (2π)^{3/2} / AGM(√2, 1)).
+        proche(ln_gamma(0.25), 3.625_609_908_221_908_f64.ln(), 1e-12);
+        // Γ(1/10) = 9,513 507 698 668 732 (valeur tabulée).
+        proche(ln_gamma(0.1), 9.513_507_698_668_732_f64.ln(), 1e-12);
+    }
+
+    #[test]
+    fn identite_des_complements() {
+        // ln Γ(x) + ln Γ(1 − x) = ln(π / sin πx), x de part et d'autre de 1/2 (appelle les deux branches).
+        for x in [0.05, 0.1, 0.25, 0.4, 0.6, 0.75, 0.9] {
+            proche(ln_gamma(x) + ln_gamma(1.0 - x), (PI / (PI * x).sin()).ln(), 1e-12);
+        }
+    }
 }
