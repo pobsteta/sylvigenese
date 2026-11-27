@@ -79,8 +79,10 @@ DYNAMIQUE_DEFAUT = {
 ECART_RESINEUX = 0.3                              # intercept du recrutement des résineux = celui des feuillus + 0,3
 
 # Termes de params/regeneration (liste fermée du contrat), unités du contrat ; valeurs synthétiques d'essai.
+# kernel_scale_m = 11 m (forme 1) : d99 = 73,0 m, couvert par K = 3 cellules de 25 m (TRONCATURE de helpers_m5) ;
+# simulate refuse un K qui ne couvre pas d99 (mission 080, décision de Pascal du 27/11/2026).
 REGENERATION_DEFAUT = {
-    "kernel_scale_m": (30.0, "m"),
+    "kernel_scale_m": (11.0, "m"),
     "kernel_shape": (1.0, "1"),
     "maturity_height_m": (10.0, "m"),
     "fecundity_seeds_per_m2_ba_yr": (1000.0, "graines/m2/an"),

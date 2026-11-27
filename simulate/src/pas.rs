@@ -1317,6 +1317,13 @@ impl Regeneration {
         for rang in &modeles.candidates {
             let espece = &modeles.essences[*rang].espece;
             let p = semis::parametres_de(lignes, espece, referentiel)?;
+            dispersion::verifier_portee(
+                espece,
+                p.echelle_noyau_m,
+                p.forme_noyau,
+                geometrie.pas,
+                reglages.demi_largeur_noyau,
+            )?;
             let noyau = dispersion::noyau_exponentiel_puissance(
                 p.echelle_noyau_m,
                 p.forme_noyau,

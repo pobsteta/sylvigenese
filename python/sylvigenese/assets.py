@@ -60,6 +60,10 @@ INDEX_NOTES_SIM = [
     "carte des types de végétation : état initial",
     "semis non simulés ; volume et carbone non calculés (post, après M4a)",
 ]
+VOLUME_IFN_DIRECT = "volume et carbone non calculés (post, après M4a)"
+# Massif en cohortes (mission 078) : post refuse ce mode, le volume et le carbone ne viendront pas d'un run de post
+VOLUME_COHORTS = ("volume et carbone non calculés (post refuse un massif en cohortes : tarif non validé sur ces "
+                  "trajectoires, décision à reprendre en M5b)")
 SEMIS_IFN_DIRECT = "semis non simulés"   # début de la dernière note, vrai en ifn_direct seulement (mission 066)
 # Dernière note de l'index quand post a tourné (sim/summary.parquet présent, fiches v3, mission 054) : elle remplace
 # « volume et carbone non calculés », qui serait faux. Le nom du tarif est celui des fiches (cell_sheets.TARIF_NAME,
@@ -95,6 +99,8 @@ def index_notes_sim(docs: dict[str, dict], run: dict | None = None, models_text:
         notes = notes[:-1] + [INDEX_NOTE_POST.format(tarif=" ; ".join(tarifs))]
     if run and run.get("recruitment") == "cohorts":
         notes[-1] = notes[-1].replace(SEMIS_IFN_DIRECT, cell_sheets.seedling_note(run), 1)
+        if not tarifs:      # fiches v2 : la mention « après M4a » serait fausse, post refuse ce mode
+            notes[-1] = notes[-1].replace(VOLUME_IFN_DIRECT, VOLUME_COHORTS, 1)
     return notes
 
 

@@ -460,6 +460,16 @@ def test_tarif_v5_noms_du_csv_rendus_dans_ceux_du_contrat_et_renvoi_lu(v5_setup)
     assert not any(k[2] in ("masse_molaire_CO2", "rho_ecart_type") for k in t)
 
 
+def test_tarif_v5_ecrit_les_facteurs_de_la_regle_des_feuillus(v5_setup):
+    # mission 076 : post lit ces trois facteurs (groupe feuillu, modèle domaine) au lieu de les écrire en dur
+    import_tarif.main(["--config", str(v5_setup["config"])])
+    t = tarif_terms(v5_setup["tarif_output"])
+    assert t[("feuillu", "domaine", "facteur_D_min")] == (0.9, "sans_unite")
+    assert t[("feuillu", "domaine", "facteur_D_max")] == (1.1, "sans_unite")
+    assert t[("feuillu", "domaine", "marge_H")] == (2.0, "m")
+    assert not any(k[0] == "resineux" and k[1] == "domaine" and k[2].startswith(("facteur", "marge")) for k in t)
+
+
 def test_tarif_v5_domaine_de_la_table_de_tarif_nemeton(v5_setup, capsys):
     import_tarif.main(["--config", str(v5_setup["config"])])
     t = tarif_terms(v5_setup["tarif_output"])

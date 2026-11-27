@@ -273,6 +273,28 @@ def refus_massif(request):
 
 
 @pytest.fixture(scope="session")
+def ser_k_court():
+    """Mission 080 : a = 11 m, forme 1 (d99 = 73,0 m) ; K = 2 cellules (50 m) ne le couvre pas."""
+    nom = "m5_ser_k_court"
+    sim = H.sim_ser(1)
+    sim["regeneration"]["kernel_truncation_cells"] = 2
+    zdir, cfg = H.zone_ser(nom, 12, sim)
+    res = {"dir": zdir, "config": cfg, "name": nom, "proc": H.run_simulate(nom, cfg)}
+    yield res
+    H.remove_zone(nom)
+
+
+@pytest.fixture(scope="session")
+def massif_k_court():
+    """Mission 080 : a = 30 m, forme 1 (d99 = 199,2 m) ; K = 1 cellule (25 m) ne le couvre pas."""
+    nom = "m5_massif_k_court"
+    zdir, cfg = H.zone_massif(nom, H.sim_massif(1), regeneration={"kernel_scale_m": 30.0})
+    res = {"dir": zdir, "config": cfg, "name": nom, "proc": H.run_simulate(nom, cfg)}
+    yield res
+    H.remove_zone(nom)
+
+
+@pytest.fixture(scope="session")
 def ser_nan():
     H.remove_zone("m5_ser_nan")
     zdir, cfg = H.zone_ser("m5_ser_nan", 12, H.sim_ser(1))

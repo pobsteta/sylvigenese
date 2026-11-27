@@ -9,6 +9,7 @@ Coordonnées : EPSG:2154, x vers l'est puis y vers le nord, en mètres.
 import hashlib
 import json
 import math
+import re
 import shutil
 from pathlib import Path
 
@@ -375,11 +376,21 @@ def test_mini_zone_petit_sapin_nemeton_compte_et_le_run_passe(mini):
     assert "Limite du profil de tige NEMETON v5" in report and "61 : 2" in report
 
 
+def hardwood_rule_rows(rows, f_min=0.85, f_max=1.15, margin=3.0):
+    """Les trois facteurs de la règle des feuillus, tels qu'import_tarif les écrit (groupe feuillu, modèle domaine)."""
+    base = next(r for r in rows if r["modele"] == "domaine")
+    template = {**base, "essence": None, "groupe": "feuillu", "modele": "domaine"}
+    return rows + [{**template, "terme": "facteur_D_min", "valeur": f_min, "unite": "sans_unite"},
+                   {**template, "terme": "facteur_D_max", "valeur": f_max, "unite": "sans_unite"},
+                   {**template, "terme": "marge_H", "valeur": margin, "unite": "m"}]
+
+
 def test_rapport_ecrit_le_domaine_lu_dans_le_tarif(mini):
     # mission 056 : règle des feuillus (décision de Pascal du 26/11/2026), règle H/D des résineux, bornes par essence,
     # toutes lues dans params/tarif.parquet : on change une borne du tarif, le rapport change avec elle
     rows = pq.read_table(FIXTURE_TARIF).to_pylist()
     rows = [{**r, "valeur": 17.25} if (r["essence"] == "09" and r["terme"] == "dbh_min") else r for r in rows]
+    rows = hardwood_rule_rows(rows, 0.9, 1.1, 2.0)
     pq.write_table(pa.Table.from_pylist(rows, schema=pq.read_schema(FIXTURE_TARIF)), mini["zone"] / "params" / "tarif.parquet")
     assert post.main(["--config", str(mini["config"])]) == 0
     report = (mini["zone"] / "rapport_post.html").read_text(encoding="utf-8")
@@ -390,6 +401,36 @@ def test_rapport_ecrit_le_domaine_lu_dans_le_tarif(mini):
     assert "« synthetique_jeu_fictif »" in report
     assert "tarif NEMETON v5" not in report, "le jeu fictif n'a pas le tarif NEMETON v5 (résineux synthétiques)"
     assert "forme synthétique du jeu fictif" in report
+
+
+def test_facteurs_de_la_regle_des_feuillus_lus_dans_le_tarif_et_non_ecrits_en_dur(mini):
+    # mission 076 : d'autres facteurs dans params/tarif.parquet, un autre texte au rapport ; les valeurs d'avant
+    # (0,9, 1,1 et 2 m) n'y sont plus
+    rows = hardwood_rule_rows(pq.read_table(FIXTURE_TARIF).to_pylist(), 0.85, 1.15, 3.0)
+    pq.write_table(pa.Table.from_pylist(rows, schema=pq.read_schema(FIXTURE_TARIF)), mini["zone"] / "params" / "tarif.parquet")
+    assert post.main(["--config", str(mini["config"])]) == 0
+    report = (mini["zone"] / "rapport_post.html").read_text(encoding="utf-8")
+    assert "multipliées par 0,85 (minimum) et 1,15 (maximum) en diamètre" in report
+    assert "élargies de 3 m en hauteur (moins 3 m au minimum, plus 3 m au maximum)" in report
+    assert "0,9 (minimum)" not in report and "1,1 (maximum)" not in report and "de 2 m en hauteur" not in report
+    assert "lus dans params/tarif.parquet (modèle domaine, groupe feuillu)" in report
+
+
+def test_tarif_sans_facteurs_le_rapport_le_dit_et_ne_les_devine_pas(mini):
+    # le tarif du jeu fictif n'écrit pas les facteurs : le rapport ne cite aucune valeur de facteur
+    assert post.main(["--config", str(mini["config"])]) == 0
+    report = (mini["zone"] / "rapport_post.html").read_text(encoding="utf-8")
+    assert "ce tarif n'écrit pas les facteurs de la règle" in report
+    assert "multipliées par" not in report and "en hauteur" not in report
+
+
+@pytest.mark.parametrize("change,message", [
+    (lambda rows: [r for r in hardwood_rule_rows(rows) if r["terme"] != "marge_H"], "règle des feuillus incomplète"),
+    (lambda rows: [{**r, "unite": "cm"} if r["terme"] == "marge_H" else r for r in hardwood_rule_rows(rows)], "unité douteuse"),
+])
+def test_facteurs_incomplets_ou_d_une_autre_unite_refuses(tmp_path, change, message):
+    with pytest.raises(ModuleError, match=message):
+        fixture_tarif(tmp_path, change)
 
 
 def test_x_et_y_inverses_sont_refuses_et_rien_n_est_publie(mini, capsys):
@@ -410,6 +451,47 @@ def test_arbres_fautifs_refuses(mini, capsys, trees, message):
     assert post.main(["--config", str(mini["config"])]) == 2
     assert message in capsys.readouterr().err
     assert not (mini["zone"] / "sim" / "summary.parquet").exists()
+
+
+def set_recruitment(mini, mode, **extra):
+    p = mini["zone"] / "sim" / "run.json"
+    p.write_text(json.dumps({**json.loads(p.read_text()), "recruitment": mode, **extra}), encoding="utf-8")
+
+
+def test_massif_en_cohortes_refuse_code_2_message_nomme_et_rien_publie(mini, capsys):
+    # mission 078 : tarif non validé sur les trajectoires en cohortes, décision à reprendre en M5b
+    set_recruitment(mini, "cohorts", not_simulated=["sous_bois"])
+    assert post.main(["--config", str(mini["config"])]) == 2
+    err = capsys.readouterr().err
+    assert "recruitment: cohorts" in err and "post refuse ce massif" in err
+    assert "n'est pas validé sur les trajectoires simulées en cohortes" in err and "M5b" in err
+    for name in ("summary.parquet", "summary_zone.parquet", "post.json"):
+        assert not (mini["zone"] / "sim" / name).exists()
+    assert not (mini["zone"] / "rapport_post.html").exists()
+    assert not (mini["zone"] / "sim" / post.STAGING).exists()
+
+
+def test_recruitment_inconnu_refuse(mini, capsys):
+    set_recruitment(mini, "autre")
+    assert post.main(["--config", str(mini["config"])]) == 2
+    assert "ne devine pas le mode" in capsys.readouterr().err
+
+
+def comparable(zone: Path) -> dict:
+    """Sorties de post sans ce qui dépend de run.json lui-même (son empreinte) ni de la durée."""
+    j = json.loads((zone / "sim" / "post.json").read_text(encoding="utf-8"))
+    del j["duration_s"], j["inputs_sha256"]["sim_run"]
+    report = re.sub(r"Durée de post : [0-9.]+ s\.", "", (zone / "rapport_post.html").read_text(encoding="utf-8"))
+    return {**outputs(zone), "post.json": j, "rapport": report}
+
+
+def test_ifn_direct_donne_les_memes_sorties_qu_un_run_json_sans_recruitment(mini):
+    # mission 078 : le refus ne touche pas ifn_direct (ni un run.json de M3a sans la clé)
+    assert post.main(["--config", str(mini["config"])]) == 0
+    sans_cle = comparable(mini["zone"])
+    set_recruitment(mini, "ifn_direct", not_simulated=["semis", "sous_bois"])
+    assert post.main(["--config", str(mini["config"])]) == 0
+    assert comparable(mini["zone"]) == sans_cle
 
 
 def test_run_json_d_un_autre_reglage_refuse(mini, capsys):

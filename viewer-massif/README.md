@@ -16,7 +16,9 @@ avec la cause en français : 2 arguments, 3 `config.yml`, 4 zone, année ou poin
 
 `config.yml` (bloc `viewer`, constantes d'affichage provisoires « illustration, non mesurée ») est cherché dans la zone, à
 deux niveaux au-dessus de la zone (`data/<zone>/../../`), dans le dossier courant, à côté de `viewer-massif/`, à côté de
-l'exécutable. Sans lui la vue s'arrête : aucune valeur de repli.
+l'exécutable. Sans lui la vue s'arrête : aucune valeur de repli. Toutes les constantes d'affichage y sont (rayon des blocs
+voisins, caméra, sol, soleil, textes, herbe, case de 25 m) ; aucune n'est écrite dans les scripts, et
+`contracts/tests/test_m6b_affichage.py` échoue si un littéral de ce genre revient (mission 077).
 
 ## Ce qu'on voit
 
@@ -25,6 +27,8 @@ l'exécutable. Sans lui la vue s'arrête : aucune valeur de repli.
   dans `MSFT_lod` et `extras.MSFT_screencoverage` du `.glb` (Godot ne lit pas `MSFT_lod`).
 - Herbe et semis autour de la caméra, recentrés au-delà de `viewer.grass.recenter_distance_m`, calculés dans un fil ; densité
   tirée du couvert de la cellule et des semis du bloc ; plafond d'instances dit à l'écran quand il tronque.
+- Semis dessinés par un modèle générique : le bloc ne donne aucune largeur de houppier pour un semis ; l'échelle est celle de
+  la hauteur et l'écran le dit (« semis génériques : largeur non connue, échelle de la hauteur »).
 - Bandeau : provisoire, semis non simulés, modèles génériques, stade de l'arbre, sol à 25 m.
 
 ## Tests

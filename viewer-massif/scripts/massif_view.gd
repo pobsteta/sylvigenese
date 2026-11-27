@@ -18,14 +18,12 @@ const Banner := preload("res://scripts/banner.gd")
 const GRASS_SHADER := preload("res://shaders/grass.gdshader")
 const GRASS_TEXTURE := preload("res://textures/grassbushcc008.png")
 
-## Rayon (m) des blocs chargés autour du point demandé : réglage d'affichage, sans lien avec l'écologie.
-const VIEW_RADIUS_M := 1000.0
-## Côté (m) d'une case de MultiMesh d'arbres.
-const CHUNK_M := 25.0
-## Hauteur des yeux (m) de la caméra posée au point demandé.
-const EYE_M := 1.7
+## Les réglages d'affichage (rayon des blocs voisins, côté d'une case de MultiMesh, hauteur des yeux, champ de vision, couleur du
+## sol, etc.) viennent du bloc `viewer` de config.yml (`cfg`), sans valeur par défaut ici : voir viewer_config.gd.
 ## Surface d'un hectare (m2), pour l'aire de cellule en ha.
 const M2_PER_HA := 10000.0
+## Ligne de l'écran quand des semis sont dessinés par un modèle générique.
+const SEEDLING_GENERIC_NOTE := "semis génériques : largeur non connue, échelle de la hauteur"
 
 var zone := ""
 var year := 0
@@ -38,7 +36,7 @@ var block_size := 500.0
 var model_cache := {}       # chemin .glb -> résultat du chargeur
 var stage_model := {}        # « essence|stade » -> {species, stage, file, kind} de massif/index.json (stage_models)
 var seedling_models := {}   # code espar -> {path, res} ou {missing: raison}
-var stats := {"blocks": 0, "trees": 0, "generic_trees": 0, "non_cale_trees": 0, "grass_instances": 0, "seedlings": 0, "cw_zero_trees": 0, "truncated": false, "seedlings_truncated": false}
+var stats := {"blocks": 0, "trees": 0, "generic_trees": 0, "non_cale_trees": 0, "grass_instances": 0, "seedlings": 0, "seedling_generic_species": 0, "cw_zero_trees": 0, "truncated": false, "seedlings_truncated": false}
 var non_cale_models := {}   # nom du .glb -> nombre d'arbres qui en dépendent (extras.calage = « non calé »)
 var notes: Array = []        # lignes de signalement pour l'écran
 var grass_message := ""
@@ -66,7 +64,7 @@ func setup(zone_dir: String, idx: Dictionary, config: Dictionary, x: float, y: f
 	var here := Reader.resolve(idx, x, y, yr)
 	if not here["ok"]:
 		return {"ok": false, "error": here["error"]}
-	var ids := Reader.blocks_around(idx, yr, x, y, VIEW_RADIUS_M)
+	var ids := Reader.blocks_around(idx, yr, x, y, float(cfg["view"]["radius_m"]))
 	if not ids.has(here["block_id"]):
 		ids.append(here["block_id"])
 	# le bloc du point est lu en premier : son origine sert de référence au monde
@@ -101,9 +99,10 @@ func setup(zone_dir: String, idx: Dictionary, config: Dictionary, x: float, y: f
 		return {"ok": false, "error": "sol introuvable au point demandé"}
 	camera = Camera3D.new()
 	camera.set_script(load("res://scripts/camera_fly.gd"))
-	camera.fov = Loader.FOV_DEG
-	camera.far = 4000.0
-	camera.position = Frame.block_to_godot(cam_xy.x, cam_xy.y, ground + EYE_M)
+	camera.call("configure", cfg["camera"])
+	camera.fov = float(cfg["camera"]["fov_deg"])
+	camera.far = float(cfg["camera"]["far_m"])
+	camera.position = Frame.block_to_godot(cam_xy.x, cam_xy.y, ground + float(cfg["camera"]["eye_height_m"]))
 	camera.current = true
 	add_child(camera)
 	request_grass(cam_xy)
@@ -168,7 +167,7 @@ static func instance_scale(extras: Dictionary, model_height_m: float, tree_h: fl
 
 func _load_model(path: String) -> Dictionary:
 	if not model_cache.has(path):
-		model_cache[path] = Loader.load_glb(path)
+		model_cache[path] = Loader.load_glb(path, float(cfg["camera"]["fov_deg"]))
 	return model_cache[path]
 
 
@@ -200,7 +199,7 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 	var ground := MeshInstance3D.new()
 	ground.mesh = Terrain.build_mesh(data)
 	var gm := StandardMaterial3D.new()
-	gm.albedo_color = Color(0.36, 0.33, 0.24)
+	gm.albedo_color = Color(str(cfg["ground"]["color"]))
 	gm.cull_mode = BaseMaterial3D.CULL_DISABLED
 	ground.material_override = gm
 	ground.name = "sol"
@@ -227,7 +226,8 @@ func _build_block(zone_dir: String, id: String) -> Dictionary:
 		var sxz := float(sc["sxz"])
 		var yaw := Hashing.unit(Hashing.mix(Hashing.of_string(zone + "|" + str(t["tree_id"])), 7)) * TAU
 		var basis := Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(sxz, sy, sxz))
-		var key := Vector2i(floori(float(t["x"]) / CHUNK_M), floori(float(t["y"]) / CHUNK_M))
+		var chunk_m := float(cfg["lod"]["chunk_m"])
+		var key := Vector2i(floori(float(t["x"]) / chunk_m), floori(float(t["y"]) / chunk_m))
 		var gk := "%d,%d|%s" % [key.x, key.y, mf["path"]]
 		if not groups.has(gk):
 			groups[gk] = {"path": mf["path"], "items": []}
@@ -288,7 +288,7 @@ func _set_global_shader_textures() -> void:
 	RenderingServer.global_shader_parameter_set("sgt_motion_texture", ImageTexture.create_from_image(black))
 	var noise := FastNoiseLite.new()
 	noise.seed = 1
-	noise.frequency = 0.05
+	noise.frequency = float(cfg["grass"]["wind_noise_frequency"])
 	var img := noise.get_image(64, 64)
 	RenderingServer.global_shader_parameter_set("sgt_wind_pattern", ImageTexture.create_from_image(img))
 
@@ -346,7 +346,13 @@ func _load_seedling_models(zone_dir: String) -> Dictionary:
 				var res := _load_model(mf["path"])
 				if not res["ok"]:
 					return {"ok": false, "error": res["error"]}
-				seedling_models[sp] = {"path": mf["path"], "res": res}
+				seedling_models[sp] = {"path": mf["path"], "res": res, "kind": str(mf["kind"])}
+				if str(mf["kind"]) == "generic":
+					stats["seedling_generic_species"] += 1
+	if int(stats["seedling_generic_species"]) > 0:
+		# le contrat massif_block ne donne aucune largeur de houppier pour un semis (species, seedlings_ha, h_mean_m seulement) :
+		# l'échelle est celle de la hauteur sur les trois axes, jamais une largeur inventée ; dit à l'écran
+		notes.append(SEEDLING_GENERIC_NOTE)
 	return {"ok": true, "error": ""}
 
 
@@ -407,6 +413,7 @@ func _compute(id: int, center: Vector2) -> Dictionary:
 	var seedling_cap := int(cfg["seedlings"]["max_instances"])
 	var seedling_total := 0
 	var seedling_truncated := false
+	var chunk_m := float(cfg["lod"]["chunk_m"])
 	var cell_area_ha := cell_size * cell_size / M2_PER_HA
 	seedling_cells.sort_custom(func(a, b): return a["d"] < b["d"])
 	for sc in seedling_cells:
@@ -429,7 +436,7 @@ func _compute(id: int, center: Vector2) -> Dictionary:
 				seedlings[sp] = {}
 			for p in SeedLib.positions(zone, int(c["cell_id"]), sc["cx"], sc["cy"], cell_size, sp, n):
 				var h2 := height_world(p.x, p.y)
-				var ck := "%d,%d" % [floori((p.x + float(ref_origin["x"])) / CHUNK_M), floori((p.y + float(ref_origin["y"])) / CHUNK_M)]
+				var ck := "%d,%d" % [floori((p.x + float(ref_origin["x"])) / chunk_m), floori((p.y + float(ref_origin["y"])) / chunk_m)]
 				if not seedlings[sp].has(ck):
 					seedlings[sp][ck] = {"items": [], "scale_sum": 0.0}
 				seedlings[sp][ck]["items"].append(Transform3D(Basis.from_scale(Vector3(sc_h, sc_h, sc_h)), Vector3(p.x - center.x, 0.0 if is_nan(h2) else h2, -(p.y - center.y))))

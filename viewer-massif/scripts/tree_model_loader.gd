@@ -9,8 +9,8 @@
 ## fin (0 = sans fin ; la distance du dernier seuil est rendue à part, `cutoff_distance`, non appliquée).
 extends RefCounted
 
-## Champ de vision vertical (degrés) de la caméra de la vue : sert à convertir les seuils d'écran en distances.
-const FOV_DEG := 75.0
+## Le champ de vision vertical (degrés) de la caméra vient de config.yml (`viewer.camera.fov_deg`) : il convertit les seuils
+## d'écran en distances ; il est passé à `load_glb`, sans valeur par défaut.
 
 
 static func _fail(msg: String) -> Dictionary:
@@ -39,8 +39,8 @@ static func _read_json_chunk(path: String) -> Dictionary:
 	return {"ok": true, "json": json.data}
 
 
-static func _distance(height_m: float, coverage: float) -> float:
-	return height_m / (2.0 * tan(deg_to_rad(FOV_DEG) / 2.0) * coverage)
+static func _distance(height_m: float, coverage: float, fov_deg: float) -> float:
+	return height_m / (2.0 * tan(deg_to_rad(fov_deg) / 2.0) * coverage)
 
 
 static func _triangles(g: Dictionary, mesh_index: int) -> int:
@@ -48,7 +48,9 @@ static func _triangles(g: Dictionary, mesh_index: int) -> int:
 	return int(g["accessors"][int(prim["indices"])]["count"]) / 3
 
 
-static func load_glb(path: String) -> Dictionary:
+static func load_glb(path: String, fov_deg: float) -> Dictionary:
+	if not fov_deg > 0.0 or not fov_deg < 180.0:
+		return _fail("champ de vision %s : un angle strictement entre 0 et 180 degrés est exigé (viewer.camera.fov_deg)" % str(fov_deg))
 	var head := _read_json_chunk(path)
 	if not head["ok"]:
 		return _fail(head["error"])
@@ -96,13 +98,13 @@ static func load_glb(path: String) -> Dictionary:
 	var height := (levels[0]["mesh"] as Mesh).get_aabb().end.y
 	if height <= 0.0:
 		return _fail(path + " : le niveau 0 n'a pas de hauteur (sommet en y <= 0)")
-	var d0 := _distance(height, float(coverage[0]))
-	var d1 := _distance(height, float(coverage[1]))
+	var d0 := _distance(height, float(coverage[0]), fov_deg)
+	var d1 := _distance(height, float(coverage[1]), fov_deg)
 	levels[0]["visibility_range_end"] = d0
 	levels[1]["visibility_range_begin"] = d0
 	levels[1]["visibility_range_end"] = d1
 	levels[2]["visibility_range_begin"] = d1
 	return {
 		"ok": true, "error": "", "extras": g.get("extras", {}), "levels": levels, "height_m": height,
-		"cutoff_distance": _distance(height, float(coverage[2])),
+		"cutoff_distance": _distance(height, float(coverage[2]), fov_deg),
 	}

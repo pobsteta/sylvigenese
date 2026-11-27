@@ -173,11 +173,14 @@ def read_trees(handle, plots, live_codes, report):
 
 
 def exclude_incomplete(plots, report):
-    """Écarte les placettes dont un arbre vivant n'a pas de C13 ou de W, et les compte.
+    """Écarte, et compte, toute placette dont AU MOINS UN arbre vivant n'a pas de C13 ou pas de W.
 
-    Export du 07/10/2026, campagnes 2021-2025, VISITE = 1, CSA 1 ou 3, PEUPNR = 0 : 232 placettes
-    ont tous leurs arbres vivants sans W (surtout en lisière) ; en VISITE = 2, aucun arbre n'a de W. Les garder en ferait des
-    placettes à G = 0 ; leur donner un W par défaut serait deviner.
+    Le critère est « un arbre vivant incomplet » (drapeau `incomplete` posé par read_trees), pas « tous les
+    arbres incomplets ». Un arbre vivant sans C13 ou W ne peut pas entrer dans G ni dans les tiges/ha : garder la
+    placette sans lui la sous-estimerait (G = 0 si elle n'a que de tels arbres), et lui donner un W par défaut
+    serait deviner. Constat sur l'export du 07/10/2026 (campagnes 2021-2025, VISITE = 1, CSA 1 ou 3,
+    PEUPNR = 0) : 232 placettes écartées, dont tous les arbres vivants (1 356) ont un C13 mais pas de W, surtout
+    en lisière (docs/referentiels/ifn-g-tiges.md §3.3 et §6) ; en VISITE = 2, aucun arbre n'a de W.
     """
     incomplete = [key for key, plot in plots.items() if plot.get("incomplete")]
     for key in incomplete:

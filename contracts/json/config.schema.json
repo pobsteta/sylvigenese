@@ -265,11 +265,16 @@
       }
     },
     "viewer": {
-      "description": "constantes d'affichage de viewer-massif (plan m6a T8, T13 ; décisions de Pascal Q2 et Q4 du 26/11/2026, mission 068) : herbe, feuillage, bascule des niveaux de détail. Provisoires, « illustration, non mesurée », signalées dans la vue, jamais lues par le moteur. Le nombre de brins et de semis vient des sorties (couvert, semis), pas d'ici. Le schéma ne fixe aucune valeur.",
+      "description": "constantes d'affichage de viewer-massif (plan m6a T8, T13 ; décisions de Pascal Q2 et Q4 du 26/11/2026, mission 068) : herbe, sol, soleil, caméra, textes, feuillage, niveaux de détail. Provisoires, « illustration, non mesurée », signalées dans la vue, jamais lues par le moteur. Le nombre de brins et de semis vient des sorties (couvert, semis), pas d'ici. Le schéma ne fixe aucune valeur.",
       "type": "object",
       "required": [
         "provisoire",
         "mention",
+        "view",
+        "camera",
+        "ground",
+        "sun",
+        "hud",
         "grass",
         "seedlings",
         "foliage",
@@ -285,6 +290,163 @@
           "type": "string",
           "pattern": "illustration, non mesurée"
         },
+        "view": {
+          "description": "étendue chargée par la vue",
+          "type": "object",
+          "required": [
+            "radius_m"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "radius_m": {
+              "description": "rayon des blocs voisins chargés autour du point demandé (provisoire, illustration, non mesurée ; aucune valeur par défaut dans les scripts : clé absente = la vue s'arrête, code 3)",
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "camera": {
+          "description": "caméra libre (provisoire, illustration, non mesurée ; aucune valeur par défaut dans les scripts : clé absente = la vue s'arrête, code 3)",
+          "type": "object",
+          "required": [
+            "eye_height_m",
+            "fov_deg",
+            "far_m",
+            "speed_m_s",
+            "fast_factor",
+            "mouse_sensitivity",
+            "pitch_limit_rad"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "eye_height_m": {
+              "description": "hauteur des yeux de la caméra posée au point demandé",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fov_deg": {
+              "description": "champ de vision vertical ; convertit aussi MSFT_screencoverage en distances de niveau de détail",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 180
+            },
+            "far_m": {
+              "description": "plan de coupe lointain",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "speed_m_s": {
+              "description": "vitesse de déplacement de la caméra libre",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fast_factor": {
+              "description": "multiplicateur de vitesse avec Maj",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "mouse_sensitivity": {
+              "description": "radians par pixel de souris",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "pitch_limit_rad": {
+              "description": "limite de l'inclinaison de la tête, en radians",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1.5707963
+            }
+          }
+        },
+        "ground": {
+          "description": "apparence du sol (provisoire, illustration, non mesurée ; aucune valeur par défaut dans les scripts : clé absente = la vue s'arrête, code 3)",
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9a-f]{6}$",
+              "description": "couleur unie du sol"
+            }
+          }
+        },
+        "sun": {
+          "description": "lumière directionnelle (provisoire, illustration, non mesurée ; aucune valeur par défaut dans les scripts : clé absente = la vue s'arrête, code 3)",
+          "type": "object",
+          "required": [
+            "elevation_deg",
+            "azimuth_deg"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "elevation_deg": {
+              "description": "hauteur du soleil au-dessus de l'horizon",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 90
+            },
+            "azimuth_deg": {
+              "type": "number"
+            }
+          }
+        },
+        "hud": {
+          "description": "textes à l'écran (provisoire, illustration, non mesurée ; aucune valeur par défaut dans les scripts : clé absente = la vue s'arrête, code 3)",
+          "type": "object",
+          "required": [
+            "title_font_size",
+            "title_color",
+            "state_font_size",
+            "title_outline_px",
+            "state_outline_px",
+            "outline_color",
+            "state_height_px",
+            "margin_px",
+            "top_margin_px"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "title_font_size": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "title_color": {
+              "type": "string",
+              "pattern": "^#[0-9a-f]{6}$"
+            },
+            "state_font_size": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "title_outline_px": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "state_outline_px": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "outline_color": {
+              "type": "string",
+              "pattern": "^#[0-9a-f]{6}$"
+            },
+            "state_height_px": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "margin_px": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "top_margin_px": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
         "grass": {
           "type": "object",
           "required": [
@@ -293,7 +455,8 @@
             "max_instances",
             "blade_height_m",
             "blades_per_m2_at_full_cover",
-            "color"
+            "color",
+            "wind_noise_frequency"
           ],
           "additionalProperties": false,
           "properties": {
@@ -324,6 +487,11 @@
             "color": {
               "type": "string",
               "pattern": "^#[0-9a-f]{6}$"
+            },
+            "wind_noise_frequency": {
+              "description": "fréquence du bruit du motif de vent (illustration, non mesurée)",
+              "type": "number",
+              "exclusiveMinimum": 0
             }
           }
         },
@@ -390,7 +558,8 @@
         "lod": {
           "type": "object",
           "required": [
-            "fade_margin_m"
+            "fade_margin_m",
+            "chunk_m"
           ],
           "additionalProperties": false,
           "properties": {
@@ -398,6 +567,11 @@
               "description": "marge de fondu entre deux niveaux de détail (visibility_range_*_margin)",
               "type": "number",
               "minimum": 0
+            },
+            "chunk_m": {
+              "description": "côté d'une case de MultiMesh d'arbres : le niveau de détail se décide par case",
+              "type": "number",
+              "exclusiveMinimum": 0
             }
           }
         }

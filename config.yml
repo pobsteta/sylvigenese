@@ -55,12 +55,38 @@ assets:
     triangle_budgets: {lod0: 20000, lod1: 2000, lod2: 200}   # plan T3 ; à mesurer (mission H)
     screencoverage: [0.30, 0.05, 0.005]                       # MSFT_screencoverage écrit dans chaque .glb
 
-# Constantes d'affichage de viewer-massif (M6a, mission 068 ; décisions de Pascal Q2 et Q4 du 26/11/2026).
+# Constantes d'affichage de viewer-massif (M6a, mission 068 ; décisions de Pascal Q2 et Q4 du 26/11/2026 ; mission 077).
 # PROVISOIRE : illustration, non mesurée ; signalées dans la vue ; aucune n'est lue par le moteur. Le nombre de
 # brins d'herbe suit herb_cover de la cellule et le nombre de semis suit sim/cells : seule l'apparence est ici.
+# Aucune de ces clés n'a de valeur par défaut dans les scripts de la vue : une clé absente arrête la vue (code 3).
 viewer:
   provisoire: true
-  mention: "apparence de l'herbe, du feuillage et des niveaux de détail : illustration, non mesurée"
+  mention: "apparence de l'herbe, du sol, du feuillage, de la caméra et des niveaux de détail : illustration, non mesurée"
+  view:                     # illustration, non mesurée
+    radius_m: 1000          # rayon des blocs voisins chargés autour du point demandé
+  camera:                   # illustration, non mesurée
+    eye_height_m: 1.7
+    fov_deg: 75             # champ vertical ; sert aussi à convertir MSFT_screencoverage en distances
+    far_m: 4000
+    speed_m_s: 6
+    fast_factor: 5
+    mouse_sensitivity: 0.003
+    pitch_limit_rad: 1.5
+  ground:                   # illustration, non mesurée
+    color: "#5c543d"
+  sun:                      # illustration, non mesurée
+    elevation_deg: 50
+    azimuth_deg: 30
+  hud:                      # illustration, non mesurée
+    title_font_size: 22
+    title_color: "#ffd933"
+    state_font_size: 14
+    title_outline_px: 6
+    state_outline_px: 4
+    outline_color: "#000000"
+    state_height_px: 160
+    margin_px: 12
+    top_margin_px: 8
   grass:
     radius_m: 40
     recenter_distance_m: 10
@@ -68,6 +94,7 @@ viewer:
     blade_height_m: 0.35
     blades_per_m2_at_full_cover: 100
     color: "#5b7f3a"
+    wind_noise_frequency: 0.05   # illustration, non mesurée
   seedlings:
     max_instances: 20000   # plafond de dessin des semis (illustration, non mesurée) ; les effectifs restent ceux de sim/cells
   foliage:
@@ -75,3 +102,4 @@ viewer:
     color_by_group: {feuillu: "#4f7a32", resineux: "#2f5a3a"}
   lod:
     fade_margin_m: 5
+    chunk_m: 25             # côté d'une case de MultiMesh d'arbres (illustration, non mesurée)

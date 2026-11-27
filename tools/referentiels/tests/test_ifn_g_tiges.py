@@ -219,3 +219,48 @@ def test_self_test_command_line():
                           capture_output=True, text=True, check=False)
     assert done.returncode == 0, done.stderr
     assert "G = 3.472 m²/ha, N = 127.71 tiges/ha" in done.stdout
+
+
+def corrupt_script_rows(path):
+    """Remplace la valeur de toutes les lignes du script par 999 (le rejeu doit les réécrire)."""
+    with open(path, encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        if row["source"] == ifn.SOURCE_TAG:
+            row["valeur"] = "999"
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=ifn.FIELDS, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def test_replay_rewrites_the_csv_byte_for_byte(export, tmp_path, monkeypatch):
+    """Mission 076 : le rejeu du script sur la même entrée rend le même CSV, octet pour octet, même quand ses
+    lignes ont été altérées ; les lignes des autres sources ne bougent pas (rejeu réel : voir ifn-g-tiges.md §6)."""
+    monkeypatch.setattr(ifn, "N_MIN", 1)
+    path = tmp_path / "ref.csv"
+    other = {f: "" for f in ifn.FIELDS}
+    other.update(perimetre="local", code="x", source="tarif-nemeton (Pascal)", valeur="68.4",
+                 url_ou_page="tarif-nemeton : resultats/etage_b/ifn_placettes.csv (colonne G_ha ; ligne 56)")
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=ifn.FIELDS, lineterminator="\n")
+        writer.writeheader()
+        writer.writerow(other)
+    run_default(export, path)
+    first = path.read_bytes()
+    assert b"999" not in first and b"tarif-nemeton (Pascal)" in first
+    corrupt_script_rows(path)
+    assert path.read_bytes() != first
+    run_default(export, path)
+    assert path.read_bytes() == first
+    run_default(export, path)
+    assert path.read_bytes() == first
+
+
+def test_committed_csv_has_no_local_path():
+    """Mission 076 : aucun chemin local (ni absolu) dans le référentiel versionné."""
+    committed = HERE.parents[2] / "docs" / "referentiels" / "ifn-g-tiges.csv"
+    with open(committed, encoding="utf-8", newline="") as handle:
+        for number, row in enumerate(csv.DictReader(handle), start=2):
+            for field, value in row.items():
+                assert "/home/" not in value and not value.startswith("/"), (number, field, value)

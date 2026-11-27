@@ -34,7 +34,7 @@ func test_un_glb_se_charge_a_l_execution_avec_trois_niveaux() -> void:
 	if L == null:
 		return
 	for chemin in _chemins():
-		var r: Dictionary = L.load_glb(chemin)
+		var r: Dictionary = L.load_glb(chemin, FOV_DEG_ESSAI)
 		assert_true(r.get("ok", false), "%s : %s" % [chemin, r.get("error", "")])
 		if not r.get("ok", false):
 			continue
@@ -54,7 +54,7 @@ func test_lod0_va_de_zero_a_H_ref_en_y_et_la_cime_va_vers_moins_z() -> void:
 	if L == null:
 		return
 	for chemin in _chemins():
-		var r: Dictionary = L.load_glb(chemin)
+		var r: Dictionary = L.load_glb(chemin, FOV_DEG_ESSAI)
 		if not r.get("ok", false):
 			fail_test("%s : %s" % [chemin, r.get("error", "")])
 			continue
@@ -64,7 +64,7 @@ func test_lod0_va_de_zero_a_H_ref_en_y_et_la_cime_va_vers_moins_z() -> void:
 		if h_ref > 0.0:
 			assert_almost_eq(box.end.y, h_ref, 0.01 * h_ref, chemin + " : sommet de LOD0 = H_ref_m à 1 %")
 	# l'arbre d'essai penche vers l'est (+x) et le nord du générateur (-z de glTF) : le chargeur ne retourne rien
-	var r2: Dictionary = L.load_glb(zone_path() + "/assets/trees/09_mature.glb")
+	var r2: Dictionary = L.load_glb(zone_path() + "/assets/trees/09_mature.glb", FOV_DEG_ESSAI)
 	if r2.get("ok", false):
 		var b2: AABB = (r2["levels"][0]["mesh"] as Mesh).get_aabb()
 		assert_lt(b2.position.z, -2.0, "la cime est au nord : -z")
@@ -76,13 +76,13 @@ func test_les_extras_du_glb_sont_rendus_tels_quels() -> void:
 	var L = need(S)
 	if L == null:
 		return
-	var r: Dictionary = L.load_glb(zone_path() + "/assets/trees/09_mature.glb")
+	var r: Dictionary = L.load_glb(zone_path() + "/assets/trees/09_mature.glb", FOV_DEG_ESSAI)
 	assert_true(r.get("ok", false), str(r.get("error", "")))
 	assert_eq(r["extras"]["species"], "09")
 	assert_eq(r["extras"]["stage"], "mature")
 	assert_true(r["extras"]["synthetique"])
 	assert_true(r["extras"]["provisoire"])
-	var g: Dictionary = L.load_glb(zone_path() + "/assets/trees/generique_resineux.glb")
+	var g: Dictionary = L.load_glb(zone_path() + "/assets/trees/generique_resineux.glb", FOV_DEG_ESSAI)
 	assert_true(g.get("ok", false), str(g.get("error", "")))
 	assert_true(g["extras"]["generique"], "le générique est signalé")
 
@@ -92,7 +92,7 @@ func test_les_visibility_range_sont_poses_d_apres_msft_lod() -> void:
 	if L == null:
 		return
 	for chemin in _chemins():
-		var r: Dictionary = L.load_glb(chemin)
+		var r: Dictionary = L.load_glb(chemin, FOV_DEG_ESSAI)
 		if not r.get("ok", false):
 			fail_test("%s : %s" % [chemin, r.get("error", "")])
 			continue
@@ -112,13 +112,13 @@ func test_un_glb_tronque_ou_absent_est_une_erreur_lisible() -> void:
 	var L = need(S)
 	if L == null:
 		return
-	assert_false(L.load_glb(zone_path() + "/assets/trees/n_existe_pas.glb").get("ok", true))
+	assert_false(L.load_glb(zone_path() + "/assets/trees/n_existe_pas.glb", FOV_DEG_ESSAI).get("ok", true))
 	var src := FileAccess.get_file_as_bytes(zone_path() + "/assets/trees/09_mature.glb")
 	var chemin := "user://tronque.glb"
 	var f := FileAccess.open(chemin, FileAccess.WRITE)
 	f.store_buffer(src.slice(0, 200))
 	f.close()
-	var r: Dictionary = L.load_glb(ProjectSettings.globalize_path(chemin))
+	var r: Dictionary = L.load_glb(ProjectSettings.globalize_path(chemin), FOV_DEG_ESSAI)
 	assert_false(r.get("ok", true), "un .glb tronqué ne doit pas être accepté")
 	assert_ne(str(r.get("error", "")), "")
 
@@ -137,5 +137,5 @@ func test_un_glb_sans_msft_lod_est_refuse() -> void:
 	f.store_buffer(js)
 	f.store_buffer(src.slice(20 + json_len))
 	f.close()
-	var r: Dictionary = L.load_glb(ProjectSettings.globalize_path(chemin))
+	var r: Dictionary = L.load_glb(ProjectSettings.globalize_path(chemin), FOV_DEG_ESSAI)
 	assert_false(r.get("ok", true), "trois niveaux exigés : pas de repli silencieux sur un seul")

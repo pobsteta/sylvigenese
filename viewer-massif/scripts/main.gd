@@ -46,15 +46,15 @@ func _ready() -> void:
 		var s: Dictionary = view.stats
 		print("SELFTEST " + JSON.stringify({
 			"blocks": s["blocks"], "trees": s["trees"], "generic_trees": s["generic_trees"], "cw_zero_trees": s["cw_zero_trees"], "non_cale_trees": s["non_cale_trees"],
-			"grass_instances": s["grass_instances"], "seedlings": s["seedlings"], "truncated": s["truncated"], "seedlings_truncated": s["seedlings_truncated"],
+			"grass_instances": s["grass_instances"], "seedlings": s["seedlings"], "seedling_generic_species": s["seedling_generic_species"], "truncated": s["truncated"], "seedlings_truncated": s["seedlings_truncated"],
 		}))
 		get_tree().quit(0)
 		return
-	_build_environment(view)
+	_build_environment(view, cfg["data"])
 	_build_hud(view, a, here["block_id"], cfg["data"])
 
 
-func _build_environment(view: Node3D) -> void:
+func _build_environment(view: Node3D, cfg: Dictionary) -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = Sky.new()
@@ -64,7 +64,7 @@ func _build_environment(view: Node3D) -> void:
 	we.environment = env
 	view.add_child(we)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
+	sun.rotation_degrees = Vector3(-float(cfg["sun"]["elevation_deg"]), float(cfg["sun"]["azimuth_deg"]), 0.0)
 	view.add_child(sun)
 
 
@@ -73,21 +73,22 @@ func _build_hud(view: Node3D, a: Dictionary, block_id: String, cfg: Dictionary) 
 	add_child(layer)
 	var top := Label.new()
 	top.text = view.banner_text(block_id)
-	top.position = Vector2(12, 8)
-	top.add_theme_font_size_override("font_size", 22)
-	top.add_theme_color_override("font_color", Color(1, 0.85, 0.2))
-	top.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	top.add_theme_constant_override("outline_size", 6)
+	var h: Dictionary = cfg["hud"]
+	top.position = Vector2(float(h["margin_px"]), float(h["top_margin_px"]))
+	top.add_theme_font_size_override("font_size", int(h["title_font_size"]))
+	top.add_theme_color_override("font_color", Color(str(h["title_color"])))
+	top.add_theme_color_override("font_outline_color", Color(str(h["outline_color"])))
+	top.add_theme_constant_override("outline_size", int(h["title_outline_px"]))
 	layer.add_child(top)
 	var bottom := Label.new()
 	bottom.name = "etat"
-	bottom.add_theme_font_size_override("font_size", 14)
-	bottom.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	bottom.add_theme_constant_override("outline_size", 4)
+	bottom.add_theme_font_size_override("font_size", int(h["state_font_size"]))
+	bottom.add_theme_color_override("font_outline_color", Color(str(h["outline_color"])))
+	bottom.add_theme_constant_override("outline_size", int(h["state_outline_px"]))
 	bottom.anchor_top = 1.0
 	bottom.anchor_bottom = 1.0
-	bottom.offset_left = 12
-	bottom.offset_top = -160
+	bottom.offset_left = float(h["margin_px"])
+	bottom.offset_top = -float(h["state_height_px"])
 	var mention := str(cfg["mention"])
 	var lines := [mention.substr(0, 1).to_upper() + mention.substr(1)]
 	if view.stats["non_cale_trees"] > 0:

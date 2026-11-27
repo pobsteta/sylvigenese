@@ -66,9 +66,11 @@ fn ligne_regen(species: Option<&str>, groupe: Option<&str>, term: &str, value: f
     }
 }
 
-/// Les onze termes du contrat, en `toutes_essences`, valeurs d'essai.
+/// Les onze termes du contrat, en `toutes_essences`, valeurs d'essai. kernel_scale_m = 7 m (forme 1) :
+/// d99 = 46,5 m, couvert par K = 2 cellules de 25 m (mission 080 : K doit couvrir d99 ; avec 30 m,
+/// d99 = 199 m exigerait K = 8). Le test à K = 1 met 3 m (d99 = 19,9 m).
 fn lignes_d_essai() -> Vec<LigneRegeneration> {
-    let valeurs = [30.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
+    let valeurs = [7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {
         lignes.push(ligne_regen(None, Some("toutes_essences"), terme, valeurs[rang], unite));
@@ -443,7 +445,7 @@ fn un_terme_est_cherche_dans_l_essence_puis_le_groupe_puis_toutes_essences() {
     lignes.push(ligne_regen(Some("09"), None, "kernel_scale_m", 77.0, "m"));
     assert_eq!(semis::parametres_de(&lignes, "09", &referentiel).unwrap().echelle_noyau_m, 77.0);
     assert_eq!(semis::parametres_de(&lignes, "03", &referentiel).unwrap().echelle_noyau_m, 55.0);
-    assert_eq!(semis::parametres_de(&lignes, "61", &referentiel).unwrap().echelle_noyau_m, 30.0);
+    assert_eq!(semis::parametres_de(&lignes, "61", &referentiel).unwrap().echelle_noyau_m, 7.0);
 }
 
 #[test]
@@ -636,6 +638,11 @@ fn une_trouee_sans_semencier_a_portee_est_signalee_des_t0() {
     // la colonne 6 de ses arbres (sans changer sa H_dom), si bien que la colonne 7 n'a plus de
     // semencier à portée.
     let mut entrees = zone_cohortes(2);
+    for ligne in entrees.regeneration.iter_mut() {
+        if ligne.term == "kernel_scale_m" {
+            ligne.value = 3.0; // d99 = 19,9 m, couvert par K = 1 (25 m)
+        }
+    }
     entrees.recrutement = ModeRecrutement::Cohortes(ReglagesRegeneration {
         demi_largeur_noyau: 1,
         seuil_zero: 1e-9,
@@ -720,4 +727,61 @@ fn la_config_sans_recruitment_est_refusee_et_cohorts_exige_son_bloc() {
     ))
     .unwrap();
     assert_eq!(direct.recrutement().unwrap(), ModeRecrutement::IfnDirect);
+}
+
+// ------------------------------------------------------------------------------------------
+// Portée du noyau : K couvre la distance à 99 % (mission 080)
+
+#[test]
+fn d99_exact_vaut_la_forme_fermee_des_cas_simples() {
+    // b = 2 (gaussienne 2D) : P(1, u) = 1 − exp(−u) = 0,99 → u = ln 100, d99 = a √(ln 100).
+    for echelle in [3.0, 30.0, 120.0] {
+        let attendu = echelle * 100.0_f64.ln().sqrt();
+        let d99 = dispersion::distance_a_99_pourcent(echelle, 2.0);
+        assert!((d99 - attendu).abs() < 1e-9 * attendu, "b = 2, a = {echelle} : {d99} contre {attendu}");
+    }
+    // b = 1 (exponentielle 2D) : P(2, u) = 1 − (1 + u) exp(−u) = 0,99 → u = 6,638352…
+    let u = 6.638_352_2_f64;
+    assert!((1.0 - (1.0 + u) * (-u).exp() - 0.99).abs() < 1e-7);
+    let d99 = dispersion::distance_a_99_pourcent(30.0, 1.0);
+    assert!((d99 - 30.0 * u).abs() < 1e-5, "b = 1 : {d99}");
+    // b = 0,5 : P(4, u) = 1 − exp(−u) (1 + u + u²/2 + u³/6) ; le rayon rend bien 0,99.
+    let d99 = dispersion::distance_a_99_pourcent(10.0, 0.5);
+    let u = (d99 / 10.0_f64).sqrt();
+    let part = 1.0 - (-u).exp() * (1.0 + u + u * u / 2.0 + u * u * u / 6.0);
+    assert!((part - 0.99).abs() < 1e-12, "b = 0,5 : part {part}");
+    // La part est croissante et vaut 0,99 au d99 (b quelconque, branche série et fraction continue).
+    for (echelle, forme) in [(5.0, 0.7), (20.0, 1.5), (40.0, 3.0)] {
+        let d99 = dispersion::distance_a_99_pourcent(echelle, forme);
+        assert!((dispersion::part_dans_le_rayon(echelle, forme, d99) - 0.99).abs() < 1e-12);
+        assert!(dispersion::part_dans_le_rayon(echelle, forme, 0.5 * d99) < 0.99);
+    }
+}
+
+#[test]
+fn un_k_qui_ne_couvre_pas_d99_est_refuse_et_nomme() {
+    // a = 30 m, b = 1 : d99 = 199,2 m ; K = 7 couvre 175 m (refusé), K = 8 couvre 200 m (admis).
+    let erreur = dispersion::verifier_portee("62", 30.0, 1.0, 25.0, 7).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    for mot in ["62", "d99 = 199.2 m", "kernel_truncation_cells = 7", "au moins 8 cellules"] {
+        assert!(erreur.message.contains(mot), "« {mot} » absent de : {}", erreur.message);
+    }
+    dispersion::verifier_portee("62", 30.0, 1.0, 25.0, 8).unwrap();
+    dispersion::verifier_portee("62", 30.0, 1.0, 25.0, 40).unwrap();
+}
+
+#[test]
+fn la_zone_massif_refuse_un_k_trop_court_avant_toute_ecriture() {
+    // Le contrat d'essai (7 m) est couvert par K = 2 ; avec 30 m (d99 = 199 m), K = 2 est trop court.
+    let mut entrees = zone_cohortes(1);
+    for ligne in entrees.regeneration.iter_mut() {
+        if ligne.term == "kernel_scale_m" {
+            ligne.value = 30.0;
+        }
+    }
+    let dossier = dossier_neuf("cohortes-k-court");
+    let erreur = sorties::simuler_et_ecrire(&entrees, &lancement(1), &dossier).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    assert!(erreur.message.contains("d99") && erreur.message.contains("kernel_truncation_cells = 2"), "{}", erreur.message);
+    assert!(!dossier.exists());
 }

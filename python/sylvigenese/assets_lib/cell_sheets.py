@@ -168,10 +168,18 @@ def _run_of(zone: Path) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# Massif simulé en cohortes (mission 078) : post le refuse (le tarif n'est pas validé sur ces trajectoires), donc
+# les fiches ne peuvent pas porter de volume ni de carbone ; elles le disent au lieu de « viendront de post ».
+NOTE_VOLUME_COHORTS = ("volume et carbone non calculés pour un massif simulé en cohortes : post le refuse, le tarif "
+                       "n'est pas validé sur ces trajectoires (décision à reprendre en M5b)")
+
+
 def notes_v2_for(run: dict | None) -> list[str]:
-    """NOTES_V2, la note des semis dite selon sim/run.json."""
+    """NOTES_V2, la note des semis et celle du volume dites selon sim/run.json (mode cohorts : voir 078)."""
     notes = list(NOTES_V2)
     notes[2] = seedling_note(run)
+    if run and run.get("recruitment") == "cohorts":
+        notes[1] = NOTE_VOLUME_COHORTS
     return notes
 
 

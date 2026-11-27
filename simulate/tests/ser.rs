@@ -364,7 +364,8 @@ fn l_estimation_du_niveau_ser_est_la_formule_fermee() {
 // Le niveau SER de bout en bout, sur la zone d'essai en mémoire
 
 fn lignes_regeneration() -> Vec<LigneRegeneration> {
-    let valeurs = [30.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
+    // kernel_scale_m = 7 m : d99 = 46,5 m, couvert par K = 2 cellules de 25 m (mission 080).
+    let valeurs = [7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {
         lignes.push(LigneRegeneration {
@@ -534,6 +535,26 @@ fn le_niveau_ser_refuse_ifn_direct_et_une_memoire_trop_faible() {
     let erreur = simulate::sorties::simuler_et_ecrire(&entrees, &lancement(1), &dossier.join("sim")).unwrap_err();
     assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
     assert!(erreur.message.contains("cohorts"), "{}", erreur.message);
+    let _ = std::fs::remove_dir_all(&dossier);
+}
+
+#[test]
+fn le_niveau_ser_refuse_un_k_qui_ne_couvre_pas_d99_avant_toute_ecriture() {
+    // kernel_scale_m = 30 m (forme 1) : d99 = 199,2 m ; K = 2 couvre 50 m (mission 080).
+    let dossier = dossier_neuf("ser-k-court");
+    std::fs::create_dir_all(&dossier).unwrap();
+    let mut entrees = zone_ser(1, 1, &dossier);
+    for ligne in entrees.regeneration.iter_mut() {
+        if ligne.term == "kernel_scale_m" {
+            ligne.value = 30.0;
+        }
+    }
+    let erreur = simulate::sorties::simuler_et_ecrire(&entrees, &lancement(1), &dossier.join("sim")).unwrap_err();
+    assert_eq!(erreur.code, CodeSortie::EntreeRefusee);
+    for mot in ["03", "d99 = 199.2 m", "kernel_truncation_cells = 2"] {
+        assert!(erreur.message.contains(mot), "« {mot} » absent de : {}", erreur.message);
+    }
+    assert!(!dossier.join("sim").exists(), "rien n'est écrit");
     let _ = std::fs::remove_dir_all(&dossier);
 }
 

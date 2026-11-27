@@ -561,6 +561,13 @@ def build_tarif_rows(directory: Path, espar_mapping: dict[str, list[str]]) -> tu
                 add(espar, None, "domaine", term, op(base["value"], factor["value"]), unit,
                     f"{source(base)} ; {source(factor)} (domaine de la table de tarif-nemeton)",
                     f"{base['source_biblio']} ; {factor['source_biblio']}")
+    # Les facteurs de la règle des feuillus sont écrits eux aussi (groupe feuillu, modèle domaine), pour que `post`
+    # les LISE et les dise au rapport au lieu de les écrire en dur (mission 076). Seulement si un domaine de
+    # feuillu a été dérivé avec eux.
+    if hw_group and any(k[2] == "domaine" and k[3] in ("dbh_min", "dbh_max", "h_min", "h_max") for k in rows):
+        for term in DOMAIN_HARDWOOD_GROUP:
+            r = hw_group[term]
+            add(None, "feuillu", "domaine", term, r["value"], tarif_unit(r["unit"]), source(r), r["source_biblio"])
     softwood = sorted({r["essence"] for r in rows.values() if r["modele"] == "profil_tige_resineux" and r["essence"]})
     if softwood:
         absent = [t for t in DOMAIN_SOFTWOOD if t not in sw_group]

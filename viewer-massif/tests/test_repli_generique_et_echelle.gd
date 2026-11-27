@@ -177,7 +177,7 @@ func test_les_generiques_de_la_fixture_ont_1_m_de_haut_et_la_vue_les_accepte() -
 	if L == null:
 		return
 	for n in ["generique_resineux", "generique_feuillu"]:
-		var r: Dictionary = L.load_glb(zone_path(STADE_MANQUANT) + "/assets/trees/" + n + ".glb")
+		var r: Dictionary = L.load_glb(zone_path(STADE_MANQUANT) + "/assets/trees/" + n + ".glb", FOV_DEG_ESSAI)
 		assert_true(r.get("ok", false), str(r.get("error", "")))
 		assert_almost_eq(float(r["height_m"]), 1.0, 0.001, n + " : 1 m de haut")
 
