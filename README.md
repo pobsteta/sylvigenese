@@ -119,10 +119,48 @@ doute, on publie.
 
 Jamais de push direct sur `main` : tout passe par une pull request.
 
+### Le numéro de la release : deux sources (mission 087)
+
+Décision de Pascal du 27/11/2026 : chaque paquet et chaque sortie de `simulate` disent de quelle
+release ils viennent.
+
+- **L'étiquette git** `vAAAA.MM.N`, posée par `release.yml`, est la référence. `simulate` la lit
+  **à la compilation** (`simulate/build.rs`, `git describe --tags --dirty`) et l'écrit dans
+  `sim/run.json`, clé `release`, et par `simulate --version` :
+  - `v2026.11.18` : compilé sur le commit de la release ;
+  - `v2026.11.18-3-gabc1234` : trois commits après elle (`gabc1234` : l'empreinte du commit) ;
+  - suivi de `-dirty` : compilé avec des modifications non validées ;
+  - sans git ni étiquette (copie `git archive`, archive de release, clone sans étiquettes) : la
+    variable d'environnement `SYLVIGENESE_RELEASE` si elle est posée (même forme, sinon la
+    compilation échoue), sinon `inconnue`. Les deux cas sont signalés (avertissement de cargo ;
+    pour `inconnue`, un message sur stderr à chaque exécution). Git, quand il répond, prime sur
+    la variable (une variable différente est signalée et ignorée). Le numéro des manifestes
+    n'est jamais pris à la place : il dit la release visée, pas celle du code compilé.
+- **Les manifestes** `simulate/Cargo.toml` (et `simulate/Cargo.lock`), `python/pyproject.toml` et
+  `DESCRIPTION` portent `AAAA.MM.N`, sans le `v` (forme admise par semver, PEP 440 et R). Ceux des
+  bancs (`bench/`) ne sont pas concernés.
+
+**Le geste dans chaque PR qui change le produit** : à jour des étiquettes (`git fetch --tags`),
+lancer
+
+```bash
+.github/scripts/aligner-version.sh
+```
+
+qui met les manifestes au numéro de la prochaine release (celui de `version-calendaire.sh`), et
+valider le changement avec la PR. Le script refuse si les étiquettes locales sont en retard sur
+celles de `origin`.
+
+**La garde** : avant de poser l'étiquette, `release.yml` lance
+[`.github/scripts/verifier-version.sh`](.github/scripts/verifier-version.sh). Si un manifeste ne
+porte pas le numéro calculé, l'étape échoue en le nommant et **aucune étiquette n'est posée** ;
+il faut alors une PR qui relance `aligner-version.sh`. Le cas « pas de release nécessaire » ne
+passe pas par la garde.
+
 Tester les scripts en local :
 
 ```bash
-.github/scripts/test-version-calendaire.sh
+.github/scripts/test-version-calendaire.sh   # lance aussi test-aligner-version.sh
 .github/scripts/test-release-necessaire.sh
 ```
 

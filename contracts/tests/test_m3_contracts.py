@@ -61,6 +61,33 @@ def test_run_json_faulty_counts_are_refused(change, pattern, tmp_path, capsys):
     assert code == 3 and re.search(pattern, out), out
 
 
+# ------------------------------------------------------------------ run.json, release (mission 087)
+
+@pytest.mark.parametrize("release", ["v2026.11.17", "v2026.11.17-dirty", "v2026.11.17-3-gabc1234",
+                                     "v2026.11.17-107-gb452f8c-dirty", "v2026.12.1", "inconnue"])
+def test_run_json_with_a_release_is_conform(release, tmp_path, capsys):
+    data = h.run_json()
+    data["release"] = release
+    code, out = check(capsys, "run", h.write_json(tmp_path / "run.json", data))
+    assert code == 0, out
+
+
+def test_run_json_without_release_written_before_mission_087_stays_conform(tmp_path, capsys):
+    data = h.run_json()
+    assert "release" not in data
+    code, out = check(capsys, "run", h.write_json(tmp_path / "run.json", data))
+    assert code == 0, out
+
+
+@pytest.mark.parametrize("release", ["0.0.1", "2026.11.18", "v2026.11", "v2026.13.1", "v2026.11.5-rc1",
+                                     "v2026.11.17-3", "v2026.11.17-3-gABC1234", "", "unknown", 2026])
+def test_run_json_with_a_faulty_release_is_refused(release, tmp_path, capsys):
+    data = h.run_json()
+    data["release"] = release
+    code, out = check(capsys, "run", h.write_json(tmp_path / "run.json", data))
+    assert code == 3 and "release" in out, out
+
+
 # ------------------------------------------------------------------ sim.cells, semis facultatifs
 
 def cells_without_seedlings():
