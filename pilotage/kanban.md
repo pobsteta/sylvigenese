@@ -40,6 +40,11 @@ _Modèle de carte :_
 
 ## Planifié
 
+- [087](missions/087-version-release.md) · depuis le cycle 15
+  - Homme : `dev`
+  - Mission : numéro de la release dans run.json et dans les manifestes, garde de release
+  - Moyens : branche claude/youthful-allen-b094t9
+
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
 - M6b (sur le PC de Pascal : aspect, images par seconde, rendu Compatibility, chemin « calé » sur le massif réel) · depuis le cycle 10
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
