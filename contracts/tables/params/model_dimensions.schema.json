@@ -1,0 +1,91 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "Dimensions de référence des exemplaires, repli (params/model_dimensions.csv, M6a, mission 068)",
+  "description": "Repli de la décision Q6 (26/11/2026) : pour une essence que sim/trees ne peuple pas assez, les dimensions d'un exemplaire par essence du générateur et par stade, écrites à la main avec une source par ligne. Ce **ne sont pas des réglages d'affichage** : ce sont des valeurs dendrométriques, donc sourcées et `provisoire` jusqu'à validation (spec §10). **Ce contrat ne contient aucune valeur** et la mission 068 n'écrit aucun fichier de valeurs : le fichier reste à sourcer (acquéreur, Pascal) ; sans lui, une essence trop peu présente est signalée et dessinée par le modèle générique (Q3), jamais complétée par une valeur devinée. Format long : une ligne par (essence, stade, terme). `essence` = colonne tarif_nemeton_code de species.csv (le générateur travaille par essence, pas par code espar). Termes : D_cm (diamètre, cm), H_m (hauteur, m), hbh_m (hauteur de la base du houppier, m), Rh_m (rayon du houppier, m), b_cible (exposant b visé, sans unité). Les quatre premiers viennent de sim/trees quand l'essence est assez présente ; hbh_m, Rh_m et b_cible de la calibration de tarif-nemeton (synth_calage.py, bornes_dimensions.csv) quand elle existe.",
+  "x-schema-version": "0.1",
+  "x-names-fixed-by": "mission 068 (plan m6a §3 ligne B, décision Q6)",
+  "fieldsMatch": "equal",
+  "primaryKey": [
+    "essence",
+    "stage",
+    "term"
+  ],
+  "fields": [
+    {
+      "name": "essence",
+      "type": "string",
+      "description": "essence du générateur (tarif_nemeton_code de species.csv, ex. Genre_espece)",
+      "constraints": {
+        "required": true,
+        "pattern": "[A-Z][a-z]+_[a-z]+"
+      }
+    },
+    {
+      "name": "stage",
+      "type": "string",
+      "description": "stade (énumération stage)",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "young",
+          "pole",
+          "mature",
+          "old"
+        ]
+      }
+    },
+    {
+      "name": "term",
+      "type": "string",
+      "description": "terme dimensionnel (liste fermée)",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "D_cm",
+          "H_m",
+          "hbh_m",
+          "Rh_m",
+          "b_cible"
+        ]
+      }
+    },
+    {
+      "name": "value",
+      "type": "number",
+      "description": "valeur du terme, dans l'unité de la colonne unit",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "unit",
+      "type": "string",
+      "description": "unité : cm, m ou 1 (sans unité)",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "cm",
+          "m",
+          "1"
+        ]
+      }
+    },
+    {
+      "name": "provisoire",
+      "type": "boolean",
+      "description": "vrai tant que la valeur n'est pas sourcée et validée (spec §10)",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "source citée de la valeur ; jamais vide",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    }
+  ]
+}

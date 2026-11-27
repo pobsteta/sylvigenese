@@ -98,3 +98,101 @@ puis le nombre d'essences et de classes. Pour garder aussi le temps de chaque an
 
 Renvoyez `bench/results/m5_mesures_pc.csv` et les `mesure_stderr.txt` copiés. Si le script s'arrête, joignez la
 sortie du terminal et le fichier `data/<zone>/mesure_stderr.txt`.
+
+## M6 : refaire les mesures de la vue massif et la lancer sur votre PC (mission 074)
+
+Cette section a deux usages, à ne pas confondre. **A** : refaire sur votre PC les mesures sans carte graphique de
+`M6.md` (6 minutes dans le conteneur ; sur le PC, **estimation** de 4 à 8 minutes, non mesurée). **B** : lancer la
+vue Godot **pour de vrai**, avec l'écran, c'est le début de M6b. Seul B donne des images par seconde ; A n'en donne
+aucune (Godot y tourne sans rendu).
+
+Machine visée : PC Linux, i7-4940MX, 31 Go, **Vulkan incertain** (la vue a un repli, voir B.3).
+
+### Prérequis (en plus de ceux du banc)
+
+- `R` (`Rscript`), `cargo`, `make`, `python3` avec `numpy`, `pyarrow`, `pyyaml` et `rasterio` : ce sont ceux de la
+  chaîne du dépôt (`make prepare … assets`).
+- **Godot 4.6.3**, version Linux 64 bits, **pas la version « mono »** :
+
+      mkdir -p ~/godot && cd ~/godot
+      curl -LO https://github.com/godotengine/godot-builds/releases/download/4.6.3-stable/Godot_v4.6.3-stable_linux.x86_64.zip
+      echo "a035258da32b77f966a5376f9fa29c30a6adde826a85ba918e1605bd1fc9823eba7d85f1dd5e748956bd2ba72827c0025ffa11bb82aec91128c407a2e723c99c  Godot_v4.6.3-stable_linux.x86_64.zip" | sha512sum -c -
+      unzip Godot_v4.6.3-stable_linux.x86_64.zip && chmod +x Godot_v4.6.3-stable_linux.x86_64
+
+  `sha512sum -c` doit répondre `OK` ; sinon n'ouvrez pas le binaire et renvoyez-moi la ligne. Godot ne demande aucune
+  installation : le binaire se lance de là.
+- **Pour le jeu de contrôle réel seulement** : le dépôt `tarif-nemeton` sur la branche `claude/export-exemplaires` (PR
+  n° 7, **à fusionner par vous** ; tant qu'elle ne l'est pas, se placer sur cette branche) : les vrais arbres sont
+  produits chez vous ou ici, jamais dans le dépôt public (Q1). Sans lui, le script s'arrête en le disant.
+- Place libre : **moins de 0,5 Go** (zones d'essai de 60 à 81 Mo chacune dans le conteneur, plus 140 Mo pour Godot).
+
+### A. Refaire les mesures sans carte graphique
+
+    cd <dépôt sylvigenese>
+    python3 bench/m6/mesurer.py --godot ~/godot/Godot_v4.6.3-stable_linux.x86_64 \
+        --tarif-nemeton <dépôt tarif-nemeton> --sortie bench/results/m6_pc --garder
+
+- `--sortie bench/results/m6_pc` écrit les 13 CSV `m6_*.csv` à part et **n'écrase pas** ceux du conteneur.
+- `--garder` laisse sous `data/` les zones `m6_essai`, `m6_cohorts` et `m6_reel_zone`, dont B a besoin.
+- Un seul script ; le code de sortie est 0 si tout est mesuré, 2 s'il manque un prérequis (la cause est dite), 3 si un
+  contrôle échoue (voir `m6_reel_controle.csv`). Ne lancez rien d'autre pendant la mesure.
+- **Renvoyez** le dossier `bench/results/m6_pc/` et la sortie du terminal si le script s'est arrêté sur un message.
+
+### B. Lancer la vue, avec l'écran
+
+**B.1 La commande.** C'est celle que donne la fiche web d'une cellule (décision Q7) ; ici pour le point d'essai. Depuis
+la racine du dépôt :
+
+    GODOT=~/godot/Godot_v4.6.3-stable_linux.x86_64 tools/viewer-massif -- --zone data/m6_cohorts --x 700250 --y 6500250 --year 2037
+
+- `data/m6_cohorts` : jeu fictif avec **semis** (réglages synthétiques) et exemplaires de la fixture.
+  `data/m6_reel_zone` : jeu fictif dessiné avec les **vrais exemplaires** (sans semis, `ifn_direct`).
+  `data/m6_essai` : jeu fictif, fixture, sans semis. Années disponibles : 2022, 2032 et 2037.
+- Commandes : clic pour capturer la souris, Échap pour la rendre, W A S D (Z Q S D) pour avancer, Q et E pour monter et
+  descendre, Maj pour aller vite.
+- Si la vue refuse de partir, elle dit pourquoi en français et sort avec un code : 2 arguments, 3 `config.yml`
+  introuvable, 4 zone, année ou point, 5 modèles ou blocs.
+
+**B.2 Le test des dix secondes (afficheur).** Lancez la commande, **regardez l'écran dix secondes sans toucher à rien**,
+puis répondez de mémoire :
+
+1. **Où suis-je ?** La zone, l'année et le bloc sont écrits en bas à gauche (« Zone m6_cohorts, année 2037, bloc
+   t_700000_6500000 »).
+2. **Est-ce prouvé ?** La première ligne en jaune, en haut, dit « PROVISOIRE : trajectoire non validée écologiquement » ;
+   en bas, la mention dit que l'apparence de l'herbe, du feuillage et des niveaux de détail est une illustration.
+3. **Qu'est-ce qui manque ou qui est approximatif ?** Les lignes du bandeau : « Semis non simulés » (en `ifn_direct`
+   seulement), « N arbres dessinés par un modèle générique », « N arbre(s) non calé(s) », le sol à 25 m.
+4. **Où est le nord ?** Devant vous au départ (le point d'essai est au coin de quatre cellules).
+
+Le test est **réussi** si vous donnez de mémoire les points 1, 2 et 3 en dix secondes. Sinon, notez ce que vous avez
+regardé en premier et ce que vous n'avez pas vu : c'est l'écran qui est à reprendre, pas vous. Les repères de lecture
+(échantillon terrain : 4 arbres aux quatre bords du bloc, une cellule sans herbe, une cellule à semis) sont au plan,
+`docs/plans/m6a.md` §9.
+
+**B.3 Si Vulkan manque ou si la fenêtre ne s'ouvre pas.** Le projet demande le rendu `forward_plus` (Vulkan) et
+retombe sur OpenGL 3 si le pilote n'a pas Vulkan. Pour **forcer** le repli Compatibility, appelez Godot directement ; le
+lanceur met tout ce qui suit `--` du côté de la vue, donc `--rendering-method` va **avant** `--` :
+
+    ~/godot/Godot_v4.6.3-stable_linux.x86_64 --path viewer-massif --rendering-method gl_compatibility \
+        -- --zone "$PWD/data/m6_cohorts" --x 700250 --y 6500250 --year 2037
+
+Depuis la racine du dépôt (la zone en chemin absolu). Pour savoir quelle carte et quel pilote Godot a pris, ajoutez
+`--verbose` et gardez les lignes qui parlent du renderer et du GPU. **Dans le conteneur, seul le passage des arguments
+a été éprouvé** (le `--selftest` sort à 0 avec ce drapeau, sans rendu) ; **le rendu Compatibility lui-même est à
+prouver chez vous** : c'est un des critères de M6b.
+
+**B.4 Les images par seconde (M6b).** Godot sait les afficher dans le terminal : ajoutez `--print-fps` (et
+`--disable-vsync` pour ne pas être plafonné à l'écran). Relevez, pour chaque zone et à trois endroits (au point d'essai,
+en vous éloignant de 200 m, en regardant le sol), la valeur stable au bout de 30 secondes. Ces drapeaux sont ceux de
+Godot (`godot --help`) ; ils n'ont pas été lancés avec un écran. **Le BRIEF ne fixe aucun seuil de fluidité pour la
+vue massif** : sans lui, on relève, on ne juge pas.
+
+À savoir avant de juger : dans le conteneur, les **semis** (zone `m6_cohorts`) sont dessinés sans niveau de détail ni
+plafond, et leur effectif vient de réglages synthétiques (283 428 dans le rayon, `M6.md` §4 et §6). Une lenteur sur
+`m6_cohorts` et pas sur `m6_reel_zone` est donc attendue ; **elle ne dit rien d'une forêt réelle**.
+
+### Ce qu'il faut renvoyer (B)
+
+Pour chacune des trois zones : les images par seconde relevées, une capture d'écran au point d'essai, le résultat du test
+des dix secondes (réussi ou non, et ce qui a manqué), la ligne du renderer donnée par `--verbose`, et la mention si
+vous avez dû passer au repli Compatibility.

@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 9 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 10 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -27,6 +27,9 @@ _Modèle de carte :_
 - M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
 - M5b · mentions Q2 et Q3 : aujourd'hui en signalements de t0 (sim/flags.parquet) ; à porter au rapport de simulation quand il existera · depuis le cycle 8
 - M5b · suites des questions n° 12 à 17 (journal du 26/11/2026) : limite de Gaudio dite au rapport de params/regeneration (n° 13) ; obtenir S1 de Lososová pour la dispersion (n° 17) ; contrôle de la dimension critique de Gaudio pour 52 (n° 14) ; clé external.* pour le Data Sheet et la thèse (n° 12) · depuis le cycle 9
+- M6b · constantes d'affichage de la vue massif (rayon des blocs voisins, hauteur des yeux, champ de vision, couleur du sol, vitesse de la caméra) à déplacer des scripts vers le bloc viewer de config.yml ; densité d'herbe, fondu entre niveaux et retour en Lambert-93 (0,5 m) à juger sur le PC de Pascal · depuis le cycle 9
+- M6b · semis dessinés par un générique : échelle uniforme (rayon = h), à mettre à (r, h, r) faute de cw des semis ; essence à semis sans modèle young non dite dans les notes de l'index · depuis le cycle 9
+- M6b · ajouter le scénario 2022 (stade sans exemplaire) à bench/m6/mesurer.py, pour que m6_selftest.csv ne garde pas de lignes écrites à la main · depuis le cycle 9
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
@@ -36,11 +39,16 @@ _Modèle de carte :_
 
 - Reprises mineures de la relecture de post (facteurs du domaine lus et non écrits en dur, chemin local dans ifn-g-tiges.csv, docstring exclude_incomplete, rejeu du CSV prouvé) · depuis le cycle 8
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
-- M6a (vue Godot) · depuis le cycle 9
+- M6b (sur le PC de Pascal : aspect, images par seconde, rendu Compatibility, chemin « calé » sur le massif réel) · depuis le cycle 10
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
 
 
 ## Terminé
+
+- [067](missions/067-referentiel-generateur-godot.md) à [075](missions/075-reprises-relecture-m6a.md) · depuis le cycle 10
+  - Homme : `acquereur`, `dev`, `testeur`, `afficheur`, `analyste`, `archiviste`, relus par `relecteur` (2 relectures), critiqué par `contradicteur`
+  - Mission : M6a validé le 2026-11-27 (décision de Pascal) : arbres du générateur de tarif-nemeton en .glb à trois niveaux dans iTowns et dans la vue massif Godot 4.6.3, testés sans GPU en CI (import, GUT, export Linux, autotest, glTF-Validator) et rejoués hors dépôt sur 19 vrais exemplaires (tous non calés)
+  - Moyens : PR pobsteta/sylvigenese#12, PR pobsteta/tarif-nemeton#7 (à fusionner par Pascal)
 
 - [059](missions/059-referentiel-regeneration.md) à [066](missions/066-reprises-relecture-m5a.md) · depuis le cycle 9
   - Homme : `acquereur`, `dev`, `testeur`, `analyste`, relus par `relecteur` (2 relectures)
@@ -138,3 +146,4 @@ l'inscrit avec ce qu'elle nous apprend._
 - cycle 7 · livraison : suite de M4a, la vue iTowns fait défiler les années simulées (curseur, fiche d'évolution avec la hauteur dominante face au plafond, carte de surface terrière à échelle fixe) · pour Pascal · on voit pour la première fois le futur simulé, cellule par cellule ; mauvaise nouvelle : sans carte graphique, la dernière année (402 437 arbres) ne se relève pas, le rendu réel se jugera sur le portable de Pascal (M4 b)
 - cycle 8 · livraison : post calcule le volume aérien total et le carbone aérien de chaque cellule et de chaque année avec le tarif NEMETON v5, et la vue les montre, « volume partiel » compris · pour Pascal · le futur simulé se lit en m³ et en tC, sans extrapolation ; mauvaise nouvelle : avec le tarif réel, 78 % de la surface terrière du jeu fictif est hors domaine à t0, et les quantiles IFN confirment que le jeu fictif est trop dense (91 m²/ha contre une médiane de 23,6)
 - cycle 9 · livraison : M5a, les semis s'installent et recolonisent les trouées par cohortes (mode cohorts, aux deux niveaux), et la SER entière se simule en espérance ; mesure et extrapolation à C20 · pour Pascal · on sait que la SER C20 tient en temps sur son PC (marge 3 à 7) et en mémoire sous quatre conditions ; mauvaise nouvelle : ces quatre conditions (essences, classes de semis, emprise, forêt seule) sont inconnues du dépôt, et le disque demande 178 à 466 Go
+- cycle 10 · livraison : M6a, les arbres du générateur de tarif-nemeton entrent dans les deux vues, et la vue massif Godot s'ouvre depuis la fiche web avec herbe et semis autour de la caméra · pour Pascal · on peut regarder le futur simulé de l'intérieur, arbre par arbre, chaque stade avec son modèle ; mauvaise nouvelle : les 19 vrais exemplaires sont tous « non calés » (dimensions du jeu fictif hors plage de calage), et ni l'aspect ni la fluidité ne sont prouvés sans le PC de Pascal

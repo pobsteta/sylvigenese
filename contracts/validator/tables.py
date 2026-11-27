@@ -11,7 +11,7 @@ code 2, plutôt que d'être contrôlé à moitié) :
   exclusiveMinimum, exclusiveMaximum ;
 - niveau table : fieldsMatch (equal, subset), primaryKey, missingValues ;
 - extensions de sylvigenese : x-optional (colonne qui peut manquer), x-extent, x-allow-empty, x-require-one-of,
-  x-schema-version, x-geopackage, x-csv.
+  x-schema-version, x-geopackage, x-csv, x-metadata (métadonnées du fichier Parquet, voir parquet_files).
 
 Règles propres au projet (contracts/README.md) : un nombre NaN ou infini est toujours
 refusé ; une table vide est refusée sauf `x-allow-empty: true`.
@@ -43,7 +43,7 @@ CONSTRAINT_KEYS = {"required", "unique", "minLength", "pattern", "enum", "minimu
                    "maximum", "exclusiveMinimum", "exclusiveMaximum"}
 SCHEMA_KEYS = {"$schema", "fields", "fieldsMatch", "primaryKey", "missingValues", "title",
                "description", "x-schema-version", "x-extent", "x-allow-empty",
-               "x-require-one-of", "x-geopackage", "x-csv", "x-names-fixed-by"}
+               "x-require-one-of", "x-geopackage", "x-csv", "x-names-fixed-by", "x-metadata"}
 TYPES = {"string", "integer", "number", "boolean", "date"}
 TYPE_LABELS = {"string": "chaîne", "integer": "entier", "number": "nombre",
                "boolean": "booléen", "date": "date"}

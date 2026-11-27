@@ -13,6 +13,7 @@ lots de `tables.BATCH_ROWS` lignes au plus (`ParquetFile.iter_batches`, un group
 partition ajoutée à chaque lot ; un dossier partitionné est lu fichier par fichier. Une erreur
 de lecture, même au dernier lot, rend le fichier illisible, avec le seul message de lecture.
 """
+import math
 import re
 from pathlib import Path
 
@@ -20,7 +21,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from . import tables
-from .report import Findings, Unreadable
+from .report import Findings, Unreadable, show_value
 
 PARTITION = re.compile(r"^year=(\d{4})$")
 
@@ -105,6 +106,8 @@ def check(path, schema, options):
             if options.get("partition") == "year":
                 add_partition_year(file, source, findings)
             tables.check_source(schema, source, findings)
+            if "x-metadata" in schema:
+                check_metadata(file, source, schema["x-metadata"], findings)
         except Unreadable as exc:
             # illisible, même au dernier lot : le seul message est celui de la lecture
             findings = Findings()
@@ -126,3 +129,50 @@ def add_partition_year(file, source, findings):
                        f"n'est que dans le nom du dossier year={year}")
     source.set_partition_year(year)
     return source
+
+
+def check_metadata(file, source, rule, findings):
+    """Métadonnées du fichier (paires clé-valeur du pied de page), pour un Parquet qui dit son
+    repère et sa provenance (exemplaires, mission 068). Règle `x-metadata` du schéma :
+    `required` (clés présentes et non vides), `equals` (valeur fixée), `enum` (liste fermée),
+    `positive` (nombre fini > 0), `finite` (nombre fini), `integer` (entier), `name` (nom du
+    fichier, `{clé}` remplacées par les valeurs des métadonnées)."""
+    raw = source.file.schema_arrow.metadata or {}
+    meta = {k.decode("utf-8", "replace"): v.decode("utf-8", "replace") for k, v in raw.items()}
+    for key in rule.get("required", []):
+        if not meta.get(key, "").strip():
+            findings.error(f"métadonnée Parquet obligatoire absente ou vide : {key}")
+    for key, exemption in rule.get("required_unless", {}).items():
+        # obligatoire, sauf si une autre métadonnée a la valeur d'exemption (ex. calage = « non calé »)
+        exempt = any(meta.get(k) == v for k, v in exemption.items())
+        if not exempt and not meta.get(key, "").strip():
+            conditions = " ou ".join(f"{k} = {show_value(v)}" for k, v in exemption.items())
+            findings.error(f"métadonnée Parquet obligatoire absente ou vide : {key} "
+                           f"(facultative seulement si {conditions})")
+    for key, expected in rule.get("equals", {}).items():
+        if key in meta and meta[key] != expected:
+            findings.error(f"métadonnée {key} : valeur {show_value(meta[key])} refusée, "
+                           f"{show_value(expected)} attendu")
+    for key, allowed in rule.get("enum", {}).items():
+        if key in meta and meta[key] not in allowed:
+            findings.error(f"métadonnée {key} : valeur {show_value(meta[key])} hors de la liste "
+                           f"fermée ({', '.join(allowed)})")
+    for key in rule.get("positive", []) + rule.get("finite", []):
+        if key not in meta:
+            continue
+        try:
+            number = float(meta[key])
+        except ValueError:
+            number = float("nan")
+        if not math.isfinite(number) or (key in rule.get("positive", []) and number <= 0):
+            findings.error(f"métadonnée {key} : nombre {'fini et positif' if key in rule.get('positive', []) else 'fini'} "
+                           f"attendu, trouvé {show_value(meta[key])}")
+    for key in rule.get("integer", []):
+        if key in meta and not re.fullmatch(r"-?[0-9]+", meta[key]):
+            findings.error(f"métadonnée {key} : entier attendu, trouvé {show_value(meta[key])}")
+    pattern = rule.get("name")
+    if pattern and all(not k or k in meta for k in re.findall(r"{(\w+)}", pattern)):
+        expected = pattern.format(**meta) + ".parquet"
+        if Path(file).name != expected:
+            findings.error(f"nom de fichier {Path(file).name} : {expected} attendu d'après les "
+                           f"métadonnées")

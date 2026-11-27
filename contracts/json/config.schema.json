@@ -5,86 +5,402 @@
   "description": "Réglages d'une exécution (spec §1, §2, §6, §7, §9 ; ADR 0001). Une clé inconnue est refusée : une faute de frappe ne passe pas en silence.",
   "x-schema-version": "0.1",
   "type": "object",
-  "required": ["schema_version", "zone", "crs", "grid", "management"],
+  "required": [
+    "schema_version",
+    "zone",
+    "crs",
+    "grid",
+    "management"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": {"description": "version du format de config.yml", "const": 1},
-    "zone": {"description": "nom de la zone : les données sont sous data/<zone>/", "type": "string", "pattern": "^[a-z0-9_]+$"},
-    "crs": {"description": "système de coordonnées unique (spec §7)", "const": "EPSG:2154"},
+    "schema_version": {
+      "description": "version du format de config.yml",
+      "const": 1
+    },
+    "zone": {
+      "description": "nom de la zone : les données sont sous data/<zone>/",
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "crs": {
+      "description": "système de coordonnées unique (spec §7)",
+      "const": "EPSG:2154"
+    },
     "grid": {
       "type": "object",
-      "required": ["resolution_m"],
+      "required": [
+        "resolution_m"
+      ],
       "additionalProperties": false,
       "properties": {
-        "resolution_m": {"description": "maille de la grille de simulation, 25 m (ADR 0001 ; contracts/geotiff_profile.json, variante grille)", "const": 25}
+        "resolution_m": {
+          "description": "maille de la grille de simulation, 25 m (ADR 0001 ; contracts/geotiff_profile.json, variante grille)",
+          "const": 25
+        }
       }
     },
-    "management": {"description": "gestion sylvicole : aucune en v1 (spec §6)", "const": "none"},
+    "management": {
+      "description": "gestion sylvicole : aucune en v1 (spec §6)",
+      "const": "none"
+    },
     "external": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "tarif_nemeton_dir": {"description": "dossier de tarif-nemeton, hors dépôt, lu par import_tarif seul (spec §3)", "type": "string", "minLength": 1},
-        "raf20_grid": {"description": "chemin de la grille RAF20 de conversion d'altitude (spec §9)", "type": "string", "minLength": 1}
+        "tarif_nemeton_dir": {
+          "description": "dossier de tarif-nemeton, hors dépôt, lu par import_tarif seul (spec §3)",
+          "type": "string",
+          "minLength": 1
+        },
+        "raf20_grid": {
+          "description": "chemin de la grille RAF20 de conversion d'altitude (spec §9)",
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "simulate": {
       "description": "réglages de simulate ; level, seed, t0 et years sont tous exigés (aucune valeur par défaut silencieuse : simulate refuse sans bloc ou clé, code 2) ; threads est facultatif",
       "type": "object",
-      "required": ["level", "seed", "t0", "years"],
+      "required": [
+        "level",
+        "seed",
+        "t0",
+        "years"
+      ],
       "additionalProperties": false,
       "properties": {
-        "level": {"description": "niveau de simulation (spec §1)", "enum": ["massif", "ser"]},
-        "seed": {"description": "graine du générateur à compteur (spec §6 ; bench/SPEC.md AM2)", "type": "integer", "minimum": 0, "maximum": 9007199254740991},
-        "t0": {"description": "année de départ de la simulation (état initial = année t0) ; jeu fictif : 2022, année du vol le plus récent de chm_date.tif ; l'état initial est celui de la fin de l'année t0, la hauteur ne se recule pas", "type": "integer"},
-        "years": {"description": "horizon en années (défaut du BRIEF §8 : 100)", "type": "integer", "minimum": 1},
-        "threads": {"description": "nombre de fils", "type": "integer", "minimum": 1},
+        "level": {
+          "description": "niveau de simulation (spec §1)",
+          "enum": [
+            "massif",
+            "ser"
+          ]
+        },
+        "seed": {
+          "description": "graine du générateur à compteur (spec §6 ; bench/SPEC.md AM2)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "t0": {
+          "description": "année de départ de la simulation (état initial = année t0) ; jeu fictif : 2022, année du vol le plus récent de chm_date.tif ; l'état initial est celui de la fin de l'année t0, la hauteur ne se recule pas",
+          "type": "integer"
+        },
+        "years": {
+          "description": "horizon en années (défaut du BRIEF §8 : 100)",
+          "type": "integer",
+          "minimum": 1
+        },
+        "threads": {
+          "description": "nombre de fils",
+          "type": "integer",
+          "minimum": 1
+        },
         "recruitment": {
           "description": "mode de recrutement (M5a, décision de Pascal Q4 du 26/11/2026, mission 060). `ifn_direct` : le recrutement de M3a, flux du modèle IFN tiré par arrondi aléatoire, sans semis (référence tests/m3/reference/nominal.json). `cohorts` : régénération par cohortes de semis, un seul module pour les deux niveaux ; le bloc `regeneration` est alors exigé. Le schéma ne l'impose pas à tout config.yml (les configs de M3a et des autres modules restent conformes) : c'est `simulate` qui s'arrête (code 2) sans cette clé, aucune valeur par défaut silencieuse.",
-          "enum": ["ifn_direct", "cohorts"]
+          "enum": [
+            "ifn_direct",
+            "cohorts"
+          ]
         },
         "regeneration": {
           "description": "réglages numériques, non écologiques, de la régénération par cohortes ; exigé quand recruitment vaut `cohorts`. Les paramètres écologiques (noyau, maturité, fécondité…) sont dans params/regeneration.parquet, jamais ici.",
           "type": "object",
-          "required": ["kernel_truncation_cells", "zero_threshold"],
+          "required": [
+            "kernel_truncation_cells",
+            "zero_threshold"
+          ],
           "additionalProperties": false,
           "properties": {
-            "kernel_truncation_cells": {"description": "demi-largeur, en cellules de 25 m, du noyau de dispersion tronqué ; c'est aussi la largeur de la zone tampon (source de graines seulement, bord absorbant, spec §7). Réglage numérique : il change les résultats, le rapport le dit.", "type": "integer", "minimum": 1},
-            "zero_threshold": {"description": "seuil relatif de la règle |Q| (spec §6) : une valeur de dispersion |Q| < zero_threshold × max|Q| est mise à zéro et comptée (run.json zeroed_values) ; une valeur négative au-delà du seuil arrête le moteur (code 3). Strictement entre 0 et 1.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+            "kernel_truncation_cells": {
+              "description": "demi-largeur, en cellules de 25 m, du noyau de dispersion tronqué ; c'est aussi la largeur de la zone tampon (source de graines seulement, bord absorbant, spec §7). Réglage numérique : il change les résultats, le rapport le dit.",
+              "type": "integer",
+              "minimum": 1
+            },
+            "zero_threshold": {
+              "description": "seuil relatif de la règle |Q| (spec §6) : une valeur de dispersion |Q| < zero_threshold × max|Q| est mise à zéro et comptée (run.json zeroed_values) ; une valeur négative au-delà du seuil arrête le moteur (code 3). Strictement entre 0 et 1.",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1
+            }
           }
         },
         "ser": {
           "description": "réglages du niveau SER (ADR 0006, projet) ; exigé quand level vaut `ser`. Largeur et nombre de classes sont des réglages numériques qui changent les résultats : le rapport le dit.",
           "type": "object",
-          "required": ["diameter_class_width_cm", "diameter_classes", "write_step"],
+          "required": [
+            "diameter_class_width_cm",
+            "diameter_classes",
+            "write_step"
+          ],
           "additionalProperties": false,
           "properties": {
-            "diameter_class_width_cm": {"description": "largeur d'une classe de diamètre, en cm ; la première classe commence au seuil de recrutement du modèle IFN (C13 = 0,235 m, soit 7,48 cm) ; la dernière est ouverte", "type": "number", "exclusiveMinimum": 0},
-            "diameter_classes": {"description": "nombre de classes de diamètre K, dernière ouverte comprise ; au moins 2", "type": "integer", "minimum": 2},
-            "write_step": {"description": "une année écrite sur N dans sim/cells et sim/cohorts : t0, t0 + N, t0 + 2N… et toujours la dernière année simulée (même règle que assets.year_step)", "type": "integer", "minimum": 1}
+            "diameter_class_width_cm": {
+              "description": "largeur d'une classe de diamètre, en cm ; la première classe commence au seuil de recrutement du modèle IFN (C13 = 0,235 m, soit 7,48 cm) ; la dernière est ouverte",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "diameter_classes": {
+              "description": "nombre de classes de diamètre K, dernière ouverte comprise ; au moins 2",
+              "type": "integer",
+              "minimum": 2
+            },
+            "write_step": {
+              "description": "une année écrite sur N dans sim/cells et sim/cohorts : t0, t0 + N, t0 + 2N… et toujours la dernière année simulée (même règle que assets.year_step)",
+              "type": "integer",
+              "minimum": 1
+            }
           }
         }
       },
       "allOf": [
         {
           "description": "recruitment = cohorts exige le bloc regeneration (aucune valeur par défaut)",
-          "if": {"required": ["recruitment"], "properties": {"recruitment": {"const": "cohorts"}}},
-          "then": {"required": ["regeneration"]}
+          "if": {
+            "required": [
+              "recruitment"
+            ],
+            "properties": {
+              "recruitment": {
+                "const": "cohorts"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "regeneration"
+            ]
+          }
         },
         {
           "description": "level = ser exige le bloc ser (aucune valeur par défaut)",
-          "if": {"required": ["level"], "properties": {"level": {"const": "ser"}}},
-          "then": {"required": ["ser"]}
+          "if": {
+            "required": [
+              "level"
+            ],
+            "properties": {
+              "level": {
+                "const": "ser"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "ser"
+            ]
+          }
         }
       ]
     },
     "assets": {
-      "description": "réglages de assets (plan m4a-suite-temps §3, T1) ; exigé dès que sim/ existe : sans lui, assets s'arrête (code 2), aucune valeur par défaut silencieuse. Le schéma ne peut pas savoir si sim/ existe : c'est assets qui refuse.",
+      "description": "réglages de assets (plan m4a-suite-temps §3, T1) ; exigé dès que sim/ existe : sans lui, assets s'arrête (code 2), aucune valeur par défaut silencieuse. Le schéma ne peut pas savoir si sim/ existe : c'est assets qui refuse. Mission 068 (M6a) : bloc facultatif `models` (réglages de construction des .glb), exigé par assets dès qu'il bâtit des modèles du générateur.",
       "type": "object",
-      "required": ["year_step"],
+      "required": [
+        "year_step"
+      ],
       "additionalProperties": false,
       "properties": {
-        "year_step": {"description": "une année retenue sur N : t0, t0 + N, t0 + 2N… et toujours la dernière année simulée ; le dépôt écrit 10 ; 1 = toutes les années", "type": "integer", "minimum": 1}
+        "year_step": {
+          "description": "une année retenue sur N : t0, t0 + N, t0 + 2N… et toujours la dernière année simulée ; le dépôt écrit 10 ; 1 = toutes les années",
+          "type": "integer",
+          "minimum": 1
+        },
+        "models": {
+          "description": "réglages d'affichage de la construction des modèles .glb (plan m6a T3, mission 068) : provisoire, « illustration, non mesurée », aucun n'est lu par le moteur (Q4). Ne contient AUCUNE dimension dendrométrique : D, H, hbh, Rh, b_cible d'un exemplaire viennent des quantiles de sim/trees et de la calibration de tarif-nemeton, avec repli sur params/model_dimensions.csv (Q6). Le schéma ne fixe aucune valeur.",
+          "type": "object",
+          "required": [
+            "provisoire",
+            "triangle_budgets",
+            "screencoverage"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "provisoire": {
+              "type": "boolean"
+            },
+            "exemplars_dir": {
+              "description": "dossier des exemplaires Parquet (contrat assets.exemplars), hors dépôt sur une zone réelle ; à défaut, assets lit <external.tarif_nemeton_dir>/resultats/synth_arbres/exemplaires ; sans l'un ni l'autre, assets le dit et s'arrête (code 2) ou dessine tout en générique, signalé : à fixer par la mission D",
+              "type": "string",
+              "minLength": 1
+            },
+            "triangle_budgets": {
+              "description": "plafond de triangles par niveau de détail (LOD0 > LOD1 > LOD2, non vérifié par le schéma)",
+              "type": "object",
+              "required": [
+                "lod0",
+                "lod1",
+                "lod2"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "lod0": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "lod1": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "lod2": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "screencoverage": {
+              "description": "extras.MSFT_screencoverage écrit dans chaque .glb : part de l'écran à partir de laquelle chaque niveau sert (LOD0, LOD1, LOD2), strictement décroissante, comme le validateur de .glb l'exige",
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "viewer": {
+      "description": "constantes d'affichage de viewer-massif (plan m6a T8, T13 ; décisions de Pascal Q2 et Q4 du 26/11/2026, mission 068) : herbe, feuillage, bascule des niveaux de détail. Provisoires, « illustration, non mesurée », signalées dans la vue, jamais lues par le moteur. Le nombre de brins et de semis vient des sorties (couvert, semis), pas d'ici. Le schéma ne fixe aucune valeur.",
+      "type": "object",
+      "required": [
+        "provisoire",
+        "mention",
+        "grass",
+        "seedlings",
+        "foliage",
+        "lod"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "provisoire": {
+          "type": "boolean"
+        },
+        "mention": {
+          "description": "texte affiché par la vue, qui contient « illustration, non mesurée »",
+          "type": "string",
+          "pattern": "illustration, non mesurée"
+        },
+        "grass": {
+          "type": "object",
+          "required": [
+            "radius_m",
+            "recenter_distance_m",
+            "max_instances",
+            "blade_height_m",
+            "blades_per_m2_at_full_cover",
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "radius_m": {
+              "description": "rayon autour de la caméra où l'herbe est dessinée",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "recenter_distance_m": {
+              "description": "déplacement de la caméra qui relance le calcul",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "max_instances": {
+              "description": "plafond d'instances ; quand il tronque, la vue le dit",
+              "type": "integer",
+              "minimum": 1
+            },
+            "blade_height_m": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "blades_per_m2_at_full_cover": {
+              "description": "brins par m² à herb_cover = 1 ; le nombre réel est proportionnel à herb_cover de la cellule",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9a-f]{6}$"
+            }
+          }
+        },
+        "seedlings": {
+          "description": "dessin des semis autour de la caméra (illustration, non mesurée, provisoire) : les effectifs viennent de sim/cells, seul le plafond de dessin est ici",
+          "type": "object",
+          "required": [
+            "max_instances"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "max_instances": {
+              "description": "plafond d'instances de semis dessinées ; quand il tronque, la vue le dit",
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "foliage": {
+          "type": "object",
+          "required": [
+            "card_size_m",
+            "color_by_group"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "card_size_m": {
+              "description": "côté d'une carte de feuillage (Q2)",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "color_by_group": {
+              "description": "couleur unie par groupe de species.csv, repli quand l'essence n'a pas la sienne",
+              "type": "object",
+              "required": [
+                "feuillu",
+                "resineux"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "feuillu": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                },
+                "resineux": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                }
+              }
+            },
+            "color_by_essence": {
+              "description": "couleur unie par essence du générateur (tarif_nemeton_code) ; facultatif",
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Z][a-z]+_[a-z]+$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^#[0-9a-f]{6}$"
+              }
+            }
+          }
+        },
+        "lod": {
+          "type": "object",
+          "required": [
+            "fade_margin_m"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "fade_margin_m": {
+              "description": "marge de fondu entre deux niveaux de détail (visibility_range_*_margin)",
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
       }
     }
   }

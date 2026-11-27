@@ -1,0 +1,11 @@
+etape,secondes,code,memoire_residente_octets
+"make prepare (jeu fictif, 15 ans, ifn_direct)",25.73,0,410456064
+"make biomes (jeu fictif, 15 ans, ifn_direct)",5.82,0,264785920
+"make trees (jeu fictif, 15 ans, ifn_direct)",20.38,0,768270336
+"make dynamics (jeu fictif, 15 ans, ifn_direct)",16.34,0,346152960
+"make simulate (jeu fictif, 15 ans, ifn_direct)",4.37,0,288976896
+"simulate (cohorts, 15 ans)",5.24,0,308977664
+"assets (ifn_direct, exemplaires de la fixture)",21.66,0,347353088
+"assets (cohorts, exemplaires de la fixture)",23.69,0,342274048
+"assets (ifn_direct, exemplaires du contrôle réel)",22.25,0,436084736
+godot --headless --import (viewer-massif),4.18,0,663625728

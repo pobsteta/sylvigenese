@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:tree_model_extras",
+  "title": "Extras d'un modèle d'arbre .glb (assets/trees/*.glb, M6a, mission 068, ADR 0007 projet)",
+  "description": "Ce que porte `extras` à la racine du glTF d'un modèle d'arbre, lu par le validateur de .glb (validator/gltf.py) sur un objet {extras} tiré du bloc JSON (l'extension MSFT_lod dans extensionsUsed est contrôlée par le validateur). Deux formes. Modèle du générateur (tarif-nemeton, repris par fichiers, Q1) : essence, stade, `source_commit` (commit du dépôt tarif-nemeton qui a écrit l'exemplaire), dimensions de l'exemplaire (D_cm, H_m, hbh_m, Rh_m, b_cible, graine ; `b_cible` facultatif si `calage` = « non calé »), `calage` (« calé » | « non calé », obligatoire) et `calage_raisons` (facultatif) et de référence du modèle (H_ref_m, rayon_houppier_ref_m, en mètres, dans le repère y-up du glTF), `provisoire` et `synthetique` vrais (« arbre synthétique ; ne valide aucun tarif », BRIEF §9), `feuillage` (Q2 : cartes, couleur unie). Modèle générique (repli signalé, Q3) : `generique` vrai et `groupe`. Aucune valeur écologique dans ce schéma : seulement des types et des signes (une dimension est strictement positive). Les règles qui croisent le nom du fichier et species.csv (essence, alias, essence du générateur) sont dans le validateur.",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": ["extras"],
+  "properties": {
+    "extras": {
+      "type": "object",
+      "required": ["provisoire", "synthetique"],
+      "properties": {
+        "provisoire": {"const": true},
+        "synthetique": {"const": true}
+      },
+      "if": {"required": ["generique"], "properties": {"generique": {"const": true}}},
+      "then": {
+        "required": ["generique", "groupe", "provisoire", "synthetique"],
+        "additionalProperties": false,
+        "properties": {
+          "generique": {}, "provisoire": {}, "synthetique": {},
+          "groupe": {"description": "groupe de species.csv (colonne groupe)", "enum": ["feuillu", "resineux"]}
+        }
+      },
+      "else": {
+        "required": ["species", "stage", "source_commit", "essence_generateur", "D_cm", "H_m", "hbh_m", "Rh_m", "graine", "H_ref_m", "rayon_houppier_ref_m", "provisoire", "synthetique", "feuillage", "calage"],
+        "if": {"required": ["calage"], "properties": {"calage": {"const": "non calé"}}},
+        "else": {"required": ["b_cible"]},
+        "additionalProperties": false,
+        "properties": {
+          "provisoire": {}, "synthetique": {},
+          "species": {"description": "code espar du fichier (le premier de l'essence : les autres codes sont des alias)", "type": "string", "pattern": "^[0-9]{2}[A-Z0-9]{0,3}$"},
+          "stage": {"$ref": "urn:sylvigenese:enum:stage"},
+          "source_commit": {"description": "commit de tarif-nemeton qui a écrit l'exemplaire (métadonnée du Parquet source_commit)", "type": "string", "pattern": "^[0-9a-f]{7,40}$"},
+          "essence_generateur": {"description": "essence du générateur = colonne tarif_nemeton_code de species.csv", "type": "string", "pattern": "^[A-Z][a-z]+_[a-z]+$"},
+          "D_cm": {"description": "diamètre de l'exemplaire, cm", "type": "number", "exclusiveMinimum": 0},
+          "H_m": {"description": "hauteur de l'exemplaire, m", "type": "number", "exclusiveMinimum": 0},
+          "hbh_m": {"description": "hauteur de la base du houppier de l'exemplaire, m", "type": "number", "exclusiveMinimum": 0},
+          "Rh_m": {"description": "rayon du houppier de l'exemplaire, m", "type": "number", "exclusiveMinimum": 0},
+          "b_cible": {"description": "exposant b visé par le générateur (sans unité) ; obligatoire sauf si calage = « non calé » (un résineux n'a aucun b observé : la clé est alors absente ; jamais NaN ni inventé), comme dans exemplars", "type": "number"},
+          "calage": {"description": "marquage décidé par Pascal le 26/11/2026, même énumération que la métadonnée `calage` de exemplars : « non calé » pour un résineux du générateur (densité des rameaux tirée, stades jeune et perche extrapolés) ; obligatoire pour un modèle du générateur, interdit pour le modèle générique", "enum": ["calé", "non calé"]},
+          "calage_raisons": {"description": "raisons du « non calé », facultatif ; texte libre (une chaîne) ou liste de chaînes", "oneOf": [{"type": "string", "minLength": 1}, {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}]},
+          "graine": {"description": "graine du tirage de l'exemplaire", "type": "integer"},
+          "H_ref_m": {"description": "hauteur de référence du modèle, m : l'étendue du LOD0 en +Y (le validateur la contrôle à 1 %) ; l'instance est mise à l'échelle de h / H_ref_m", "type": "number", "exclusiveMinimum": 0},
+          "rayon_houppier_ref_m": {"description": "rayon de houppier de référence du modèle, m ; l'instance est mise à l'échelle de cw / (2 × cette valeur)", "type": "number", "exclusiveMinimum": 0},
+          "feuillage": {
+            "description": "Q2 (26/11/2026) : cartes simples, couleur unie par essence ; illustration, aucune densité ni indice foliaire",
+            "type": "object", "required": ["type", "couleur"], "additionalProperties": false,
+            "properties": {
+              "type": {"const": "cartes_couleur_unie"},
+              "couleur": {"description": "couleur d'affichage, #rrggbb ; constante du bloc viewer de config.yml, pas une mesure", "type": "string", "pattern": "^#[0-9a-f]{6}$"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

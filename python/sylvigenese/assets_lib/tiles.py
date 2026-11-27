@@ -12,8 +12,12 @@ point A ; `EXT_mesh_gpu_instancing` lue par three). Missions 028 (état initial)
 - La racine n'a pas de contenu ; sa `boundingVolume` est une `region` (longitude, latitude,
   hauteur) qui contient toutes les tuiles. Pas de niveaux de détail en v1 : `refine: ADD`,
   erreur géométrique 0 pour les tuiles de contenu.
-- Contenu : un nœud glTF par groupe d'essences, avec `EXT_mesh_gpu_instancing` (TRANSLATION,
-  SCALE). Une instance par arbre : translation = pied de l'arbre, échelle = (r, h, r).
+- Contenu : un nœud glTF par modèle employé (un modèle par essence et stade du générateur, ou le modèle générique
+  du groupe, Q3), avec `EXT_mesh_gpu_instancing` (TRANSLATION, SCALE). Une instance par arbre : translation = pied
+  de l'arbre, échelle = (r / r_ref, h / h_ref, r / r_ref) du modèle (mission 070 ; (r, h, r) pour un générique,
+  qui mesure 1 m sur 1 m). Le maillage de chaque nœud est le niveau LOD2 du `.glb` du même modèle : les MÊMES
+  sommets (plan T1), écrits par la même fonction (`models.add_level_mesh`). Les niveaux LOD0 et LOD1 ne servent
+  qu'à la vue Godot : iTowns lit LOD2.
 - Rayon r : état initial, disque de même surface que `crown_area` ; années simulées (mission 047,
   plan T4), r = cw / 2 de `sim/trees`, t0 compris. `etat` des extras : `initial` ou `simulé`.
 """
@@ -53,6 +57,7 @@ def build_tile(x_west: int, y_south: int, trees: dict[str, np.ndarray], z_ellips
     """Prépare une tuile : repère local, positions et échelles par groupe, volume englobant.
 
     `trees` ne contient que les arbres de la tuile ; `z_ellipsoid` : hauteur ellipsoïdale du pied ;
+    `groups` : nom du modèle de chaque arbre (`<espar>_<stade>` ou `generique_<groupe>`, sans .glb) ;
     `radius` : rayon du houppier (m) ; sans lui, celui du disque de surface `crown_area`.
     """
     xc, yc = x_west + size / 2.0, y_south + size / 2.0
@@ -68,25 +73,34 @@ def build_tile(x_west: int, y_south: int, trees: dict[str, np.ndarray], z_ellips
             "groups": groups, "box": (center, half), "n": int(len(h))}
 
 
-def write_content(directory: Path, tile: dict, year: int, state: str = "initial") -> Path:
-    """Écrit `<tuile>.gltf` et `<tuile>.bin` ; rend le chemin du .gltf."""
+def write_content(directory: Path, tile: dict, year: int, registry: models.ModelRegistry, state: str = "initial") -> Path:
+    """Écrit `<tuile>.gltf` et `<tuile>.bin` ; rend le chemin du .gltf.
+
+    Un nœud par modèle employé, dans l'ordre des noms ; son maillage est le LOD2 du `.glb` du modèle."""
     name = tile["name"]
     doc, buffer = models.empty_document(f"{name}.bin"), models.Buffer()
     gltf = local_to_gltf(tile["enu"]).astype("float32")
-    scale = np.column_stack([tile["r"], tile["h"], tile["r"]]).astype("float32")
-    for group in models.GROUPS:
-        selected = tile["groups"] == group
-        if not selected.any():
-            continue
-        mesh = models.add_mesh(buffer, doc, group, group)
+    stems = np.asarray(tile["groups"])
+    h_ref, r_ref = registry.scale(stems)
+    scale = np.column_stack([tile["r"] / r_ref, tile["h"] / h_ref, tile["r"] / r_ref]).astype("float32")
+    used = sorted(set(stems.tolist()))
+    for stem in used:
+        selected = stems == stem
+        model = registry.model(stem)
+        mesh = models.add_level_mesh(buffer, doc, model.levels[2], models.add_materials(doc, model), stem)
         a_t = buffer.add(gltf[selected], None, "VEC3", FLOAT_COMPONENT)
         a_s = buffer.add(scale[selected], None, "VEC3", FLOAT_COMPONENT)
-        doc["nodes"].append({"name": f"{group}_instances", "mesh": mesh,
+        doc["nodes"].append({"name": stem, "mesh": mesh,
                              "extensions": {"EXT_mesh_gpu_instancing": {"attributes": {"TRANSLATION": a_t, "SCALE": a_s}}},
-                             "extras": {"instances": int(selected.sum())}})
+                             "extras": {"instances": int(selected.sum()), "modele": stem, "niveau_de_detail": "LOD2"}})
         doc["scenes"][0]["nodes"].append(len(doc["nodes"]) - 1)
     doc["extensionsUsed"] = doc["extensionsRequired"] = ["EXT_mesh_gpu_instancing"]
-    doc["extras"] = {**models.GENERIC_EXTRAS, "annee": year, "etat": state, "tuile": name,
+    # Contrat assets.gltf : `generique` est vrai seulement si au moins un modèle générique sert dans cette tuile ;
+    # `modeles` liste les modèles employés ; `provisoire` dit « illustration provisoire ».
+    doc["extras"] = {"generique": any(stem.startswith("generique_") for stem in used), "provisoire": True, "annee": year, "etat": state, "tuile": name,
+                     "modeles": used,
+                     "echelle": "instance mise à l'échelle (rayon du houppier / r_ref, hauteur / h_ref, rayon / r_ref) "
+                                "du modèle ; générique : (r, h, r)",
                      "repere": "glTF Y haut ; local est-nord-haut (e, n, u) -> (e, u, -n) ; origine et orientation : transform de la tuile dans tileset.json",
                      "instances": tile["n"]}
     path = directory / f"{name}.gltf"

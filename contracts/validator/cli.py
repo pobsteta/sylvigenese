@@ -113,7 +113,7 @@ def check_path(name, path, grid=None):
     if kind == "geopackage":
         return geopackage.check(path, [catalog.load_schema(s) for s in spec["schemas"]])
     if kind in ("yaml", "json"):
-        return json_docs.check(path, spec["schema"], kind)
+        return json_docs.check(path, spec["schema"], kind, options.get("extra_checks", ()))
     if kind == "geotiff":
         return geotiff.check(path, options, grid_path=grid)
     if kind == "glb":

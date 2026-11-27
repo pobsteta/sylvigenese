@@ -252,12 +252,27 @@ contracts:
     paths: [zone.yml]
     required: false
 
+  # dimensions de référence des exemplaires, repli de la décision Q6 (mission 068) : contrat seul, aucun fichier de valeurs
+  params.model_dimensions:
+    aliases: [model_dimensions]
+    kind: csv
+    schema: tables/params/model_dimensions.schema.json
+    paths: [params/model_dimensions.csv]
+    required: false
+
   # ------------------------------------------------------------ biomes
   biomes.biome:
     aliases: [biome]
     kind: yaml
     schema: json/biome.schema.json
     paths: [biomes/*.yml]
+  # seuils des stades, fichier unique du dépôt lu par biomes (R) et assets (Python) (mission 068, Q8) :
+  # biomes/stades/stage_breaks.yml, hors zone
+  biomes.stage_breaks:
+    aliases: [stage_breaks]
+    kind: yaml
+    schema: json/stage_breaks.schema.json
+    options: {extra_checks: [increasing_breaks]}
   biomes.vegetation_map:
     aliases: [vegetation_map]
     kind: geotiff
@@ -323,6 +338,18 @@ contracts:
     paths: [sim/post.json]
 
   # ------------------------------------------------------------ assets
+  # exemplaires du générateur (tarif-nemeton), lus par fichiers (M6a, mission 068, décision de Pascal Q1) :
+  # segments en Parquet, repère z-up dit dans les métadonnées ; hors de la zone du massif en général
+  # (dossier `assets.models.exemplars_dir` de config.yml), copiés sous la zone seulement pour un essai
+  assets.exemplars:
+    aliases: [exemplars]
+    kind: parquet
+    schema: tables/assets/exemplars.schema.json
+    paths: [assets/exemplars/*.parquet]
+    required: false
+  # modèles d'arbres .glb (M6a, mission 068) : <espar>_<stade>.glb, un fichier par (essence, stade), trois
+  # niveaux de détail par MSFT_lod ; les codes d'une même essence partagent le fichier du premier (alias, pas
+  # de doublon) ; generique_<groupe>.glb pour une essence sans modèle (repli signalé, Q3)
   assets.tree_model:
     aliases: [tree_model]
     kind: glb
@@ -364,11 +391,21 @@ contracts:
     schema: json/tiles_index.schema.json
     paths: [tiles/index.json]
     required: false
+  # bloc de la vue massif (version 1 : arbres ; version 2, mission 068 : terrain, couverts, semis, mentions) :
+  # massif/<année>/<bloc>.json (v1 : massif/<bloc>.json restait contrôlable par son nom de contrat)
   assets.massif_block:
     aliases: [massif_block]
     kind: json
     schema: json/massif_block.schema.json
-    paths: [massif/*.json]
+    options: {extra_checks: [ground_size]}
+    paths: [massif/*/*.json]
+  # index de la vue massif (mission 068) : années, blocs et emprises, modèle utilisé par essence
+  assets.massif_index:
+    aliases: [massif_index]
+    kind: json
+    schema: json/massif_index.schema.json
+    paths: [massif/index.json]
+    required: false
 
   # ------------------------------------------------------------ référentiels du dépôt
   species:

@@ -1,0 +1,36 @@
+cle,valeur,note
+demande_dimensions_secondes,0.83,
+demande_couples_essence_stade,19,"D et H (quantile 0,5 de sim/trees du jeu fictif, au moins 30 arbres)"
+demande_essences,5,
+demande_signalements_sous_le_minimum,1,couples sans dimension demandée : modèle générique (Q3)
+export_1_code_de_sortie,0,0 tout écrit ; 2 entrée inutilisable ; 3 au moins un exemplaire refusé
+export_1_secondes,5.72,
+export_2_code_de_sortie,0,0 tout écrit ; 2 entrée inutilisable ; 3 au moins un exemplaire refusé
+export_2_secondes,5.41,
+export_fichiers_ecrits,19,
+export_fichiers_identiques_entre_deux_exports,19 sur 19,"octets du Parquet, deux exécutions de l'export"
+export_refus,0,lignes de refus ou d'erreur de l'export
+export_couples_demandes_et_exportes,19 sur 19,
+export_segments_au_total,895242,
+export_calage_cale,0,
+export_calage_non_cale,19,"dimensions du jeu fictif hors de la plage de D du calage de tarif-nemeton, ou résineux (b non observé)"
+export_non_cale_dont_D_hors_plage_de_calage,19,
+export_non_cale_dont_D_au_dessus_du_D_max_du_generateur,4,
+export_octets_parquet,51769847,
+sensibilite_quantile_0.25_exemplaires_ecrits_et_cales,"19 écrits, 2 calés",code de sortie de l'export : 0
+sensibilite_quantile_0.75_exemplaires_ecrits_et_cales,"19 écrits, 2 calés",code de sortie de l'export : 0
+rejeu_code_de_sortie,0,0 tout conforme et identique ; 2 impossible ; 3 non conforme ou non identique
+rejeu_secondes,2.28,"lecture, deux constructions de tous les .glb, validateur sur chaque fichier"
+rejeu_memoire_residente_octets,353226752,
+rejeu_identite_des_octets_entre_deux_ecritures,oui,
+rejeu_contrat_assets_exemplars_code,0,0 = les exemplaires tiennent le contrat
+rejeu_contrat_assets_tree_model_code,0,0 = les .glb tiennent le contrat
+rejeu_fichiers_conformes_exemplars,19,
+rejeu_fichiers_conformes_tree_model,21,
+modeles_du_generateur,19,
+modeles_generiques,2,
+modeles_sous_budget_de_triangles,21 sur 21,
+arbres_reels_traites,19,"un exemplaire exporté = un arbre réel du générateur construit, validé en .glb"
+segments_traites,895242,
+alias_de_codes_espar,4,"codes espar qui partagent un .glb (02 et 03), sans emprunt"
+controles_en_echec,0,

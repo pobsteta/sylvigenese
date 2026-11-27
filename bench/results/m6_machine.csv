@@ -1,0 +1,15 @@
+cle,valeur
+date,2026-11-26
+processeur,Intel(R) Xeon(R) Processor @ 2.10GHz
+coeurs_logiques,4
+memoire_octets,16868675584
+systeme,Linux-6.18.44-fc-v880-x86_64-with-glibc2.39
+python,3.13.18
+numpy,2.5.3
+pyarrow,26.0.1
+godot,4.6.3.stable.official.7d41c59c4
+sylvigenese_commit,17f5784
+tarif_nemeton_branche,claude/export-exemplaires
+tarif_nemeton_commit,4b0032a
+repetitions,5
+point_de_vue_x_y,700250 6500250

@@ -364,9 +364,34 @@ CASES = {
     "assets.massif_block": (document("b_0_0.json", h.massif_block,
                                      lambda d: d["trees"][0].update(stage="adulte"),
                                      h.write_json), r"stage"),
+    "assets.massif_index": (lambda tmp, fault: _m6a("massif_index", tmp, fault), r"alias_of"),
+    "assets.exemplars": (lambda tmp, fault: _m6a("exemplars", tmp, fault), r"frame"),
+    "params.model_dimensions": (lambda tmp, fault: _m6a("model_dimensions", tmp, fault), r"source"),
+    "biomes.stage_breaks": (lambda tmp, fault: _m6a("stage_breaks", tmp, fault), r"strictement croissants"),
     "species": (species, r"espar"),
     "geotiff_profile": (raster("a.tif", {"compress": "zstd"}), r"ZSTD"),
 }
+
+
+def _m6a(kind, tmp, fault):
+    """Cas des contrats de M6a (mission 068) : le détail est dans test_m6a_contracts.py."""
+    import test_m6a_contracts as m
+    if kind == "massif_index":
+        index = m.massif_index()
+        if fault:
+            index["models"][1].pop("alias_of")
+        return h.write_json(tmp / "index.json", index)
+    if kind == "exemplars":
+        return m.exemplar(tmp, metadata={"frame": "y-up"} if fault else None)
+    if kind == "model_dimensions":
+        rows = [list(r) for r in m.GOOD_ROWS]
+        if fault:
+            rows[0][6] = ""
+        return m.dimensions(tmp, rows)
+    document = m.breaks_document()
+    if fault:
+        document["breaks"] = [0.6, 0.25, 0.9]
+    return h.write_yaml(tmp / "stage_breaks.yml", document)
 
 
 def build(name, tmp, fault):

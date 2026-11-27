@@ -26,12 +26,18 @@
 #            massif rebâti des entrées figées de M3a, sans chaîne R ; simulate compilé d'abord en release (ses
 #            tests tournent sans réseau, et la mémoire résidente est mesurée sur le binaire compilé) ; N = 1 000
 #            seulement (T10 du plan m5a : N = 2 000 et 4 000 restent hors CI, mission 064)
+#   m6       tests d'acceptation de M6a (mission 073 ; pytest tests/m6) : assets avec les exemplaires de la fixture, massif/,
+#            modèles .glb, et la commande de la fiche web dans le navigateur (Node, Playwright et Chromium requis, comme
+#            pour m4 ; R pour la zone simulée) ; simulate compilé d'abord en release. Les tests de la vue Godot (import,
+#            GUT, export, --selftest) ne sont PAS ici : ils demandent Godot et tournent dans le job « m6 » de la CI,
+#            en étapes à part (.github/workflows/ci.yml), comme le glTF-Validator de Khronos sur les .glb
+#            (mission 075 : tools/ci/valider_gltf.mjs et tools/ci/zone_gltf_m6.py).
 #   validate le validateur sur le jeu fictif
 # Chaque section écrit sa durée (sortie standard et, en CI, résumé du job).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-ALL_SECTIONS=(r rust python web contrats m1 m2 m4 m3 post m5 validate)
+ALL_SECTIONS=(r rust python web contrats m1 m2 m4 m3 post m5 m6 validate)
 
 out="$(mktemp)"
 current=""
@@ -95,6 +101,7 @@ run_section() {
     m3)       build_simulate; run_pytest tests/m3 ;;
     post)     build_simulate; run_pytest tests/post ;;
     m5)       build_simulate; run_pytest tests/m5 ;;
+    m6)       build_simulate; run_pytest tests/m6 ;;
     validate) make validate ZONE=zone_fictive ;;
     *)
       echo "run_tests.sh : section inconnue « $1 » (attendu : ${ALL_SECTIONS[*]})." >&2

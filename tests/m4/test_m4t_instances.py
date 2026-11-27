@@ -94,14 +94,21 @@ def test_t0_et_les_annees_simulees_ont_le_rayon_cw_sur_2(temps_instances):
         assert np.allclose(d["z"], 1.0, rtol=1e-5), f"modèle {mod} : SCALE n'est pas (r, h, r)"
 
 
-def test_les_deux_groupes_ont_chacun_leur_modele(temps_instances):
-    groupe = H.species_group()
+def test_chaque_classe_essence_stade_a_son_modele_apres_simulation(temps_instances, temps):
+    # M6a (mission 069) : comme test_m4_instances, sur la dernière année simulée ; stade de l'arbre = h / h_pot (Q8).
     e = temps_instances[ANNEES[-1]]
     ok = e["match"]["tree_of"] >= 0
-    g = np.array([groupe[str(s)] for s in e["trees"]["species"][e["match"]["tree_of"][ok]]])
+    t = e["trees"]
+    idx = e["match"]["tree_of"][ok]
+    cl, franc = H.model_classes(temps["dir"], t["species"][idx], t["x"][idx], t["y"][idx], t["h"][idx])
     mo = e["inst"]["model"][ok]
-    par = {gr: set(mo[g == gr].tolist()) for gr in ("feuillu", "resineux")}
-    assert all(len(v) == 1 for v in par.values()) and par["feuillu"] != par["resineux"], par
+    par = {}
+    for c, f, k in zip(cl, franc, mo):
+        if f:
+            par.setdefault(c, set()).add(k)
+    assert all(len(v) == 1 for v in par.values()), {c: len(v) for c, v in par.items() if len(v) > 1}
+    modeles = [next(iter(v)) for v in par.values()]
+    assert len(set(modeles)) == len(modeles), "deux classes différentes partagent un modèle"
 
 
 def test_les_essences_de_sim_sont_au_referentiel(temps_instances):

@@ -142,13 +142,73 @@ def write_json(path, data):
     return Path(path)
 
 
-def glb(path, *, version=2, asset_version="2.0"):
-    body = json.dumps({"asset": {"version": asset_version}}).encode()
+def glb(path, *, version=2, asset_version="2.0", species="09", stage="mature", counts=(12, 6, 2),
+        mutate=None, binary_nan=False, truncate=0, extras=None, h_ref=25.0):
+    """Modèle d'arbre .glb conforme (mission 068) : trois niveaux de détail par MSFT_lod, sommets
+    en y-up de y = 0 à y = h_ref, extras du générateur. `mutate(gltf)` abîme le JSON, `extras`
+    le remplace, `truncate` coupe le fichier de ce nombre d'octets, `binary_nan` écrit un sommet NaN."""
+    views, accessors, meshes, nodes = [], [], [], []
+    blob = bytearray()
+
+    def add_view(data):
+        while len(blob) % 4:
+            blob.append(0)
+        views.append({"buffer": 0, "byteOffset": len(blob), "byteLength": len(data)})
+        blob.extend(data)
+        return len(views) - 1
+
+    for level, count in enumerate(counts):
+        vertices = []
+        for t in range(count):  # un triangle isolé par face, tous dans la boîte [0, h_ref]
+            top = h_ref if t == 0 else h_ref * (t % 5 + 1) / 6
+            vertices += [(0.0, 0.0, 0.0), (1.0 + t, 0.0, 0.5), (0.0, top, 0.0)]
+        flat = [c for v in vertices for c in v]
+        low = [min(flat[k::3]) for k in range(3)]
+        high = [max(flat[k::3]) for k in range(3)]
+        if binary_nan and level == 0:
+            flat[-2] = float("nan")
+        pos_view = add_view(struct.pack(f"<{len(flat)}f", *flat))
+        idx_view = add_view(struct.pack(f"<{len(vertices)}H", *range(len(vertices))))
+        accessors.append({"bufferView": pos_view, "componentType": 5126, "count": len(vertices),
+                          "type": "VEC3", "min": low, "max": high})
+        accessors.append({"bufferView": idx_view, "componentType": 5123, "count": len(vertices),
+                          "type": "SCALAR"})
+        meshes.append({"primitives": [{"attributes": {"POSITION": 2 * level},
+                                       "indices": 2 * level + 1, "mode": 4}]})
+        nodes.append({"name": f"LOD{level}", "mesh": level})
+    nodes[0]["extensions"] = {"MSFT_lod": {"ids": [1, 2]}}
+    nodes[0]["extras"] = {"MSFT_screencoverage": [0.3, 0.05, 0.005]}
+    while len(blob) % 4:
+        blob.append(0)
+    essence = {"09": "Fagus_sylvatica", "02": "Quercus_spec", "61": "Abies_alba"}.get(species, "Fagus_sylvatica")
+    gltf = {"asset": {"version": asset_version}, "scene": 0, "scenes": [{"nodes": [0, 1, 2]}],
+            "nodes": nodes, "meshes": meshes, "accessors": accessors, "bufferViews": views,
+            "buffers": [{"byteLength": len(blob)}],
+            "extensionsUsed": ["MSFT_lod"],
+            "extras": extras if extras is not None else {
+                "species": species, "stage": stage, "source_commit": "4ee122c", "essence_generateur": essence,
+                "D_cm": 40.0, "H_m": 28.0, "hbh_m": 12.6, "Rh_m": 5.6, "b_cible": 1.8, "calage": "calé", "graine": 1,
+                "H_ref_m": h_ref, "rayon_houppier_ref_m": 5.6, "provisoire": True, "synthetique": True,
+                "feuillage": {"type": "cartes_couleur_unie", "couleur": "#4f7a32"}}}
+    if mutate:
+        mutate(gltf)
+    return write_glb(path, gltf, bytes(blob), version=version, truncate=truncate)
+
+
+def write_glb(path, gltf, blob, *, version=2, truncate=0):
+    body = json.dumps(gltf).encode()
     body += b" " * (-len(body) % 4)
-    data = struct.pack("<III", 0x46546C67, version, 12 + 8 + len(body))
+    data = struct.pack("<III", 0x46546C67, version, 12 + 8 + len(body) + 8 + len(blob))
     data += struct.pack("<II", len(body), 0x4E4F534A) + body
-    Path(path).write_bytes(data)
+    data += struct.pack("<II", len(blob), 0x004E4942) + blob
+    Path(path).write_bytes(data[: len(data) - truncate] if truncate else data)
     return Path(path)
+
+
+def generic_glb(path, group="feuillu", **kw):
+    """Modèle générique (repli signalé, Q3) : mêmes niveaux, extras réduits."""
+    return glb(path, extras={"generique": True, "groupe": group, "provisoire": True,
+                             "synthetique": True}, **kw)
 
 
 # --------------------------------------------------------------- contenus conformes
@@ -337,7 +397,7 @@ def gltf_json():
             "buffers": [{"uri": "feuillu.bin", "byteLength": 36}],
             "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36}],
             "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}],
-            "extras": {"generique": True, "provisoire": True}}
+            "extras": {"generique": True, "provisoire": True, "modeles": ["generique_feuillu"]}}
 
 
 def cell_sheet():

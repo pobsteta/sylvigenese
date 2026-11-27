@@ -144,12 +144,13 @@ def test_la_fiche_dit_que_volume_et_carbone_ne_sont_pas_calcules(vue):
 def test_la_fiche_donne_la_commande_viewer_massif_aux_bonnes_coordonnees(vue):
     for cid in vue["cells"]:
         txt = vue["sheets"][str(cid)]["text"]
-        m = re.search(r"viewer-massif\s+--\s+--x\s+(\d+(?:[.,]\d+)?)\s+--y\s+(\d+(?:[.,]\d+)?)\s+--year\s+(\d{4})", txt)
-        assert m, f"fiche {cid} : commande « viewer-massif -- --x <X> --y <Y> --year <A> » absente :\n{txt}"
+        m = re.search(r"tools/viewer-massif\s+--\s+--zone\s+(\S+)\s+--x\s+(\d+(?:[.,]\d+)?)\s+--y\s+(\d+(?:[.,]\d+)?)\s+--year\s+(\d{4})", txt)
+        assert m, f"fiche {cid} : commande « tools/viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A> » absente :\n{txt}"
         x, y = H.cell_centre(cid)
-        assert abs(float(m.group(1).replace(",", ".")) - x) <= 1.0 and abs(float(m.group(2).replace(",", ".")) - y) <= 1.0, \
-            f"fiche {cid} : commande en ({m.group(1)}, {m.group(2)}), centre attendu ({x}, {y})"
-        assert int(m.group(3)) == int(H.find_tilesets(H.ZONE)[0].parent.name)
+        assert m.group(1).rstrip("/") == f"data/{H.ZONE_NAME}", f"fiche {cid} : --zone {m.group(1)}, attendu data/{H.ZONE_NAME}"
+        assert abs(float(m.group(2).replace(",", ".")) - x) <= 1.0 and abs(float(m.group(3).replace(",", ".")) - y) <= 1.0, \
+            f"fiche {cid} : commande en ({m.group(2)}, {m.group(3)}), centre attendu ({x}, {y})"
+        assert int(m.group(4)) == int(H.find_tilesets(H.ZONE)[0].parent.name)
 
 
 def test_la_vue_compte_une_instance_de_moins_sur_la_zone_sans_un_arbre(zone_sans_arbre):

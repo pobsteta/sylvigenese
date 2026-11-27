@@ -19,7 +19,9 @@ env:
   RUST_VERSION: "1.97.0"
   PYTHON_VERSION: "3.13.14"  # dernière 3.13 téléchargeable par uv 0.11.32
   NODE_VERSION: "22.23.5"
-  GODOT_VERSION: "4.6-stable"
+  GODOT_VERSION: "4.6.3-stable"  # mission 073 ; empreintes SHA-512 publiées par la release (docs/referentiels/godot-gut.md)
+  GODOT_ZIP_SHA512: "a035258da32b77f966a5376f9fa29c30a6adde826a85ba918e1605bd1fc9823eba7d85f1dd5e748956bd2ba72827c0025ffa11bb82aec91128c407a2e723c99c"  # Godot_v4.6.3-stable_linux.x86_64.zip
+  GODOT_TPZ_SHA512: "da606b61c10157844f8300172df374472665f95015495cb1a7cd132c40ede404faa96cc1016a4b9662db9909ddea69632c4948b2cd11163438dad4808881fb68"  # Godot_v4.6.3-stable_export_templates.tpz (pas la version mono)
   PLAYWRIGHT_VERSION: "1.65.1"
 
 jobs:
@@ -690,7 +692,223 @@ jobs:
           bash tools/ci/run_tests.sh m5
 
 
-  # Vérifie seulement que Godot 4.6 et Playwright s'installent (spec §11, M0).
+  # Acceptation de M6a (missions 069 à 073) : vue massif Godot. Godot 4.6.3 et GUT 9.6.1 figés (plan m6a T10) ; import,
+  # tests GUT, export Linux seul (Q5) puis --selftest sur le binaire exporté, sans carte graphique (T9) ; ensuite
+  # pytest tests/m6 (run_tests.sh m6 : chaîne R, simulate, assets, fiche web dans Chromium). Le seul hôte contacté en
+  # plus des dépôts de paquets est github.com (Godot) ; GUT est versionné dans viewer-massif/addons/gut/.
+  # Délai : 30 min proposé, HYPOTHÈSE à relever à la première exécution (1,26 Go de modèles à froid ; durées à froid et
+  # à chaud écrites dans le résumé du job, à reporter au journal). Les 20 min du plan (T10) ne tenaient pas compte de R.
+  m6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Chronomètre du job et dossiers de Godot
+        run: |
+          echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+          # Godot et ses modèles vivent sous ce dossier ; XDG_DATA_HOME fait chercher les modèles d'export à Godot
+          # dans $XDG_DATA_HOME/godot/export_templates/<version>/ (donc dans le cache, pas dans ~).
+          # Chemins SANS « .. » (ni liens) : avec « workspace/../godot-ci », le user:// de Godot est mal résolu et
+          # l'import écrit « ERROR: Could not create ObjectDB Snapshots directory » (reproduit en local, mission 073).
+          echo "GODOT_CI=$RUNNER_TEMP/godot-ci" >> "$GITHUB_ENV"
+          echo "XDG_DATA_HOME=$RUNNER_TEMP/godot-ci/xdg" >> "$GITHUB_ENV"
+
+      # Cache : le binaire (72 Mo) et le SEUL gabarit linux_release extrait du .tpz (pas les 1,26 Go). Clé : version
+      # de Godot. GitHub purge les entrées sans accès depuis 7 jours : le cas « à froid » revient et il compte.
+      - name: Cache de Godot et du gabarit linux_release
+        id: cache-godot
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/godot-ci
+          key: godot-${{ env.GODOT_VERSION }}-linux-release-v1
+
+      # À froid : télécharge (github.com seul, redirigé par lui vers ses propres serveurs de fichiers), vérifie le
+      # SHA-512 publié par la release, puis n'extrait du .tpz que linux_release et version.txt (unzip lit
+      # l'annuaire de l'archive : rien d'autre n'est décompressé). L'archive est supprimée aussitôt.
+      - name: Godot (téléchargement, empreintes, extraction du gabarit)
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          ver_dir="${GODOT_VERSION/-/.}"   # 4.6.3-stable -> 4.6.3.stable (nom du dossier des modèles)
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
+          zip="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          tpz="Godot_v${GODOT_VERSION}_export_templates.tpz"
+          tmp="$RUNNER_TEMP/godot-dl"; mkdir -p "$tmp" "$GODOT_CI/bin" "$XDG_DATA_HOME/godot/export_templates/$ver_dir"
+
+          curl -fsSL --retry 3 -o "$tmp/$zip" "$base/$zip"
+          echo "${GODOT_ZIP_SHA512}  $tmp/$zip" | sha512sum -c -
+          unzip -q -o "$tmp/$zip" -d "$GODOT_CI/bin"
+          chmod +x "$GODOT_CI/bin/Godot_v${GODOT_VERSION}_linux.x86_64"
+
+          curl -fsSL --retry 3 -o "$tmp/$tpz" "$base/$tpz"
+          echo "${GODOT_TPZ_SHA512}  $tmp/$tpz" | sha512sum -c -
+          # Noms des membres lus dans l'annuaire ; exactement un de chaque, sinon échec (jamais d'extraction à l'aveugle).
+          rel="$(unzip -Z1 "$tmp/$tpz" | grep -E '(^|/)linux_release\.x86_64$')"
+          ver="$(unzip -Z1 "$tmp/$tpz" | grep -E '(^|/)version\.txt$')"
+          [ "$(printf '%s\n' "$rel" | wc -l)" -eq 1 ] && [ "$(printf '%s\n' "$ver" | wc -l)" -eq 1 ]
+          unzip -q -o -j "$tmp/$tpz" "$rel" "$ver" -d "$XDG_DATA_HOME/godot/export_templates/$ver_dir"
+          rm -rf "$tmp"
+          [ "$(cat "$XDG_DATA_HOME/godot/export_templates/$ver_dir/version.txt")" = "$ver_dir" ]
+          # Empreintes de ce qui est mis en cache : relues à chaque passage à chaud.
+          ( cd "$GODOT_CI" && find bin xdg -type f -print0 | sort -z | xargs -0 sha512sum > cache.sha512 )
+          du -sh "$GODOT_CI"
+
+      - name: Godot (relecture du cache, version)
+        run: |
+          set -euo pipefail
+          ver_dir="${GODOT_VERSION/-/.}"
+          ( cd "$GODOT_CI" && sha512sum -c cache.sha512 )
+          test -f "$XDG_DATA_HOME/godot/export_templates/$ver_dir/linux_release.x86_64"
+          GODOT="$GODOT_CI/bin/Godot_v${GODOT_VERSION}_linux.x86_64"
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+          v="$("$GODOT" --headless --version)"
+          echo "Godot : $v"
+          case "$v" in "$ver_dir"*) ;; *) echo "version inattendue : $v (attendu $ver_dir)" >&2; exit 1 ;; esac
+          grep -q '^version="9.6.1"' viewer-massif/addons/gut/plugin.cfg   # GUT 9.6.1, versionné par la mission 072
+          {
+            echo "### Outils de la vue massif"
+            echo "- Godot : $v (cache : ${{ steps.cache-godot.outputs.cache-hit == 'true' && 'à chaud' || 'à froid' }})"
+            echo "- GUT : 9.6.1 (viewer-massif/addons/gut/)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Godot (import du projet)
+        run: |
+          set -euo pipefail
+          "$GODOT" --headless --path viewer-massif --import 2>&1 | tee "$RUNNER_TEMP/import.log"
+          # Code 0 et aucune ligne ERROR (plan m6a §6).
+          ! grep -E '^(ERROR|SCRIPT ERROR)' "$RUNNER_TEMP/import.log"
+
+      - name: Tests GUT (sans carte graphique)
+        run: |
+          set -euo pipefail
+          "$GODOT" --headless --path viewer-massif -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit 2>&1 | tee "$RUNNER_TEMP/gut.log"
+          # Un test sauté sans le dire n'est pas un test passé : « Risky/Pending » non nul est un échec.
+          ! grep -Eq 'Risky/Pending:?[[:space:]]+[1-9]|Pending:?[[:space:]]+[1-9]' "$RUNNER_TEMP/gut.log"
+
+      # Export Linux seul (Q5). Les modèles manquent : l'export échoue, il n'est jamais sauté.
+      - name: Export Linux
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/export"
+          "$GODOT" --headless --path viewer-massif --export-release "Linux" "$RUNNER_TEMP/export/viewer-massif.x86_64"
+          test -s "$RUNNER_TEMP/export/viewer-massif.x86_64"
+          chmod +x "$RUNNER_TEMP/export/viewer-massif.x86_64"
+          # Le binaire exporté cherche config.yml (bloc viewer) dans la zone, dans le dossier courant, puis À CÔTÉ DE
+          # LUI (viewer_config.gd:candidates) ; « res://../config.yml » n'existe que dans l'éditeur. Copie voulue,
+          # pas un repli : même fichier que la racine du dépôt.
+          cp config.yml "$RUNNER_TEMP/export/config.yml"
+          echo "VIEWER_BIN=$RUNNER_TEMP/export/viewer-massif.x86_64" >> "$GITHUB_ENV"
+          ls -l "$RUNNER_TEMP/export"
+
+      # Le binaire exporté, sur la zone d'essai versionnée, avec les arguments de la fiche web (--zone --x --y --year).
+      - name: Exécuter --selftest sur le binaire exporté
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          pwd; ls config.yml
+          "$VIEWER_BIN" --headless -- --selftest --zone "$PWD/viewer-massif/tests/fixtures/zone_m6" --x 700250 --y 6500250 --year 2022 2>&1 | tee "$RUNNER_TEMP/selftest.log"
+          grep '^SELFTEST ' "$RUNNER_TEMP/selftest.log" | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            viewer-web/package-lock.json
+            tools/ci/package-lock.json
+
+      - name: Dépendances Node
+        run: npm ci
+        working-directory: viewer-web
+
+      # Test croisé (Q7) : la commande de la fiche web, découpée, est acceptée par la vraie vue exportée.
+      - name: La commande de la fiche est acceptée par la vue exportée
+        run: node --test test/commande_massif.test.ts
+        working-directory: viewer-web
+        env:
+          SYLVIGENESE_VIEWER_BIN: ${{ env.VIEWER_BIN }}
+
+      # --- chaîne de tests/m6 : même préparation que le job m4 (R, Rust, Python, Chromium) ---
+      - name: R (r2u)
+        uses: eddelbuettel/github-actions/r2u-setup@a28627a3e114057d4d27a04cd22c03d3edcb7259 # master au 2026-11-24
+
+      - name: Paquets R (testthat, yaml, terra, sf, targets)
+        run: Rscript -e 'install.packages(c("testthat", "yaml", "terra", "sf", "targets", "arrow"))'
+
+      - name: Rust (rustup)
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc --version
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            simulate/target
+          key: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('simulate/Cargo.lock') }}
+          restore-keys: cargo-${{ github.job }}-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      - name: Python (uv)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            contracts/requirements*.lock
+            python/pyproject.toml
+
+      - name: Dépendances Python
+        run: |
+          uv venv .venv
+          uv pip install --python .venv/bin/python --require-hashes -r contracts/requirements-tests.lock
+          uv pip install --python .venv/bin/python --no-deps -e python
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Navigateur des tests de la vue (Chromium)
+        run: npx playwright install --with-deps chromium
+        working-directory: viewer-web
+
+      # glTF-Validator de Khronos (mission 075 ; plan m6a T4 et §6) : paquet npm « gltf-validator » figé à 2.0.0-dev.3.10
+      # par tools/ci/package.json et package-lock.json (npm ci), licence Apache-2.0 (champ « license » du paquet
+      # téléchargé, relevé dans le résumé). Les .glb du jeu fictif (modèles génériques) et ceux de la fixture de
+      # tests/m6 (exemplaires) sont construits comme le font les tests (tools/ci/zone_gltf_m6.py), puis validés :
+      # une erreur (severity 0) fait échouer ; les avertissements sont comptés dans le résumé, jamais filtrés.
+      - name: glTF-Validator (installation, version figée)
+        run: npm ci --ignore-scripts
+        working-directory: tools/ci
+
+      - name: glTF-Validator (tests du script)
+        run: node --test tools/ci/valider_gltf.test.mjs
+
+      - name: glTF-Validator sur les .glb du jeu fictif et de la fixture
+        run: |
+          set -euo pipefail
+          python3 tools/ci/zone_gltf_m6.py
+          node tools/ci/valider_gltf.mjs data/m6_gltf_base data/m6_gltf_a
+          python3 tools/ci/zone_gltf_m6.py --nettoyer
+
+      - name: Tests (run_tests.sh m6)
+        run: |
+          echo "### Durées des sections (m6)" >> "$GITHUB_STEP_SUMMARY"
+          bash tools/ci/run_tests.sh m6
+
+      # Durée de tout le job, à froid ou à chaud : à reporter au journal (relever le délai, jamais en silence).
+      - name: Durée du job (résumé)
+        if: always()
+        run: |
+          s=$(( $(date +%s) - JOB_START ))
+          echo "- Durée du job m6 (cache Godot : ${{ steps.cache-godot.outputs.cache-hit == 'true' && 'à chaud' || 'à froid' }}) : $((s / 60)) min $((s % 60)) s (délai du job : 30 min, hypothèse)" >> "$GITHUB_STEP_SUMMARY"
+
+
+  # Vérifie seulement que Godot 4.6.3 et Playwright s'installent (spec §11, M0).
   # Non bloquant : un échec ici ne fait pas échouer la CI, donc ne bloque pas la release.
   outils-optionnels:
     runs-on: ubuntu-latest

@@ -50,7 +50,7 @@ test("v3 : volume aérien total et carbone aérien de chaque année, rangés, sa
   assert.equal(f.headline, "2022 : volume aérien total 312,4 m³/ha · carbone aérien 85,1 tC/ha, provisoires");
   assert.match(f.context, /^2022 : G 30,0 m²\/ha · H_dom 26,9 m/);
   assert.equal(f.mentions, MENTIONS_COURTES);
-  assert.equal(f.command, "viewer-massif -- --x 700012.5 --y 6500987.5 --year 2022");
+  assert.equal(f.command, "tools/viewer-massif -- --x 700012.5 --y 6500987.5 --year 2022");
   assert.equal(f.table[0]!.stems, "400"); // colonnes de la v2 gardées
 });
 

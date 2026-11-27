@@ -1,0 +1,12 @@
+{
+  "name": "sylvigenese-gltf-validator-ci",
+  "version": "0.0.1",
+  "private": true,
+  "description": "glTF-Validator de Khronos pour le job m6 de la CI (mission 075) : version figée, installée par npm ci.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "dependencies": {
+    "gltf-validator": "2.0.0-dev.3.10"
+  }
+}

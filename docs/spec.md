@@ -33,8 +33,9 @@
    cellule : station, type de végétation, composition, volume, carbone, et la mention
    « provisoire » le cas échéant.
 5. La fiche affiche une commande à copier,
-   `viewer-massif -- --x <X> --y <Y> --year <A>`, qui ouvre la vue massif aux mêmes
-   coordonnées. Un navigateur ne peut pas lancer une application locale.
+   `tools/viewer-massif -- --zone data/<zone> --x <X> --y <Y> --year <A>`, à coller depuis
+   la racine du dépôt, qui ouvre la vue massif aux mêmes coordonnées (ADR 0007, choix 12 ;
+   mise à jour du 27/11/2026). Un navigateur ne peut pas lancer une application locale.
 
 **À l'échelle d'une SER**, le parcours est le même, avec `simulate --level ser`.
 
@@ -49,9 +50,9 @@
 | `dynamics` | R (`mgcv`) | `ifn/` | `params/{growth,mortality,recruitment,height_curve}.parquet`, `rapport_dynamics.html` |
 | `simulate` | Rust (ADR 0001) | ce qui précède, `config.yml` | `sim/trees/year=AAAA/*.parquet`, `sim/cells/year=AAAA/*.parquet`, `sim/run.json` |
 | `post` | Python | `sim/`, `params/tarif.parquet` | `sim/summary.parquet`, avec la clé (cellule, année, essence) |
-| `assets` | Python | `sim/` ; à défaut (état initial) `trees_init/` ; `grid.tif`, `dtm.tif`, `h0.tif`, `chm_date.tif`, `station_type.tif`, `vegetation_map.tif` (+ `.csv`), `contracts/species.csv`, `zone.yml` ; segments de tarif-nemeton (s'ils existent) | `assets/trees/*.gltf` (génériques jusqu'à M6, puis `*.glb` du générateur), `tiles/<year>/tileset.json` (contenu `.gltf` instancié), `web/cells/<tuile>.json`, `web/rasters/*.tif` (COG), `massif/<bloc>.json` |
+| `assets` | Python | `sim/` ; à défaut (état initial) `trees_init/` ; `grid.tif`, `dtm.tif`, `h0.tif`, `chm_date.tif`, `station_type.tif`, `vegetation_map.tif` (+ `.csv`), `contracts/species.csv`, `zone.yml` ; exemplaires du générateur de tarif-nemeton, lus par fichiers (Parquet, repère z-up dit ; ADR 0007 projet) ; `biomes/stades/stage_breaks.yml` | `assets/trees/<espar>_<stade>.glb` (trois niveaux de détail par `MSFT_lod`) et `assets/trees/generique_<groupe>.glb`, `tiles/<year>/tileset.json` (contenu `.gltf` instancié), `web/cells/<tuile>.json`, `web/rasters/*.tif` (COG), `massif/index.json` et `massif/<année>/<bloc>.json` |
 | `viewer-web` | TypeScript, iTowns | `tiles/`, `web/`, `dtm.tif` (terrain) | page web locale |
-| `viewer-massif` | Godot 4.6.x, GDScript | `massif/`, `assets/trees/` | application |
+| `viewer-massif` | Godot 4.6.x, GDScript | `massif/`, `assets/trees/` (les résultats de `sim/` lui parviennent par `assets` : il ne lit ni Parquet ni `sim/`) | application |
 
 **Règles :**
 - Aucun module n'importe le code d'un autre. Les outils transverses sans logique métier
@@ -278,14 +279,14 @@
 - **Parquet** : partitions `year=AAAA`. Dans `sim/cells`, les colonnes de semis sont facultatives
   jusqu'à M5 (« semis non simulés », décision de Pascal du 25/11/2026, M3a, question 3 ; §2).
 - **3D** :
-  - glTF 2.0, un fichier par niveau de détail ;
+  - glTF 2.0 : **un fichier `.glb` par (essence, stade), avec ses trois niveaux de détail** (extension `MSFT_lod` et `extras.MSFT_screencoverage`), conformément au BRIEF §4 ; l'ancienne formule « un fichier par niveau de détail » est abandonnée (ADR 0007 projet, T2) ; les tuiles restent en `.gltf` + `.bin` (niveau LOD2 seul) ;
   - 3D Tiles 1.1 avec instanciation, ou i3dm en repli, selon l'examen du code d'iTowns (mission
     de M0) ;
   - conversion de l'altitude NGF-IGN69 en hauteur ellipsoïdale avec la grille RAF20, dont le
     chemin est donné dans `config.yml`. Si elle manque : erreur, sauf pour un jeu fictif déclaré
     par `zone.yml` (`fictive: true`), où l'ondulation vaut 0 et le tileset le dit (décision du
     25/11/2026) ;
-  - `massif/*.json` reste en NGF-IGN69, avec son origine locale.
+  - `massif/index.json` et `massif/<année>/<bloc>.json` restent en NGF-IGN69, avec leur origine locale ; contrats `massif_index` et `massif_block` (versions 1 et 2).
 - **Rasters web** : COG avec aperçus.
 - **Fiche de cellule** : `web/cells/<tuile>.json`. La fiche v1 (état initial) et la fiche v2 (vue dans le
   temps : une entrée par année retenue, `h_dom_m`, `h_ceiling_m`, composition, signalements) sont décrites par
@@ -300,7 +301,7 @@
 
 - Chaque paramètre porte `provisoire` et sa source.
 - `run.json` donne la part des paramètres provisoires.
-- Les vues affichent « résultat provisoire » dès qu'un paramètre utilisé l'est.
+- Les vues affichent « résultat provisoire » dès qu'un paramètre utilisé l'est. Les constantes d'affichage des vues (blocs `assets.models` et `viewer` de `config.yml`, mission 068) sont `provisoire: true`, « illustration, non mesurée », et la vue le dit ; le moteur ne les lit pas.
 - Toute diffusion hors du dépôt est réservée à Pascal.
 
 ## 11. Critères d'acceptation

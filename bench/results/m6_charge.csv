@@ -1,0 +1,34 @@
+scenario,composante,instances,triangles
+fictif_ifn_direct_2022,"arbres, niveau de détail 0, tous les arbres du massif chargé au niveau 0",14080,33246500
+fictif_ifn_direct_2022,"arbres, niveau de détail 1, tous les arbres du massif chargé au niveau 1",14080,18018364
+fictif_ifn_direct_2022,"arbres, niveau de détail 2, tous les arbres du massif chargé au niveau 2",14080,341546
+fictif_ifn_direct_2022,"arbres, niveau de détail 0, dans sa plage de visibilité au point de vue",180,595440
+fictif_ifn_direct_2022,"arbres, niveau de détail 1, dans sa plage de visibilité au point de vue",3588,6429696
+fictif_ifn_direct_2022,"arbres, niveau de détail 2, dans sa plage de visibilité au point de vue",10312,243578
+fictif_ifn_direct_2022,"herbe (maillage du niveau 0, aucune plage de visibilité)",200000,800000
+fictif_ifn_direct_2037,"arbres, niveau de détail 0, tous les arbres du massif chargé au niveau 0",60620,157557640
+fictif_ifn_direct_2037,"arbres, niveau de détail 1, tous les arbres du massif chargé au niveau 1",60620,85377992
+fictif_ifn_direct_2037,"arbres, niveau de détail 2, tous les arbres du massif chargé au niveau 2",60620,1497028
+fictif_ifn_direct_2037,"arbres, niveau de détail 0, dans sa plage de visibilité au point de vue",308,1018864
+fictif_ifn_direct_2037,"arbres, niveau de détail 1, dans sa plage de visibilité au point de vue",11396,20421632
+fictif_ifn_direct_2037,"arbres, niveau de détail 2, dans sa plage de visibilité au point de vue",48916,1192724
+fictif_ifn_direct_2037,"herbe (maillage du niveau 0, aucune plage de visibilité)",200000,800000
+fictif_cohorts_2037,"arbres, niveau de détail 0, tous les arbres du massif chargé au niveau 0",69242,186509536
+fictif_cohorts_2037,"arbres, niveau de détail 1, tous les arbres du massif chargé au niveau 1",69242,101061464
+fictif_cohorts_2037,"arbres, niveau de détail 2, tous les arbres du massif chargé au niveau 2",69242,1721992
+fictif_cohorts_2037,"arbres, niveau de détail 0, dans sa plage de visibilité au point de vue",314,1038712
+fictif_cohorts_2037,"arbres, niveau de détail 1, dans sa plage de visibilité au point de vue",11463,20541696
+fictif_cohorts_2037,"arbres, niveau de détail 2, dans sa plage de visibilité au point de vue",57465,1415790
+fictif_cohorts_2037,"herbe (maillage du niveau 0, aucune plage de visibilité)",200000,800000
+fictif_cohorts_2037,"semis_03 (maillage du niveau 0, aucune plage de visibilité)",398,1316584
+fictif_cohorts_2037,"semis_09 (maillage du niveau 0, aucune plage de visibilité)",282616,934893728
+fictif_cohorts_2037,"semis_61 (maillage du niveau 0, aucune plage de visibilité)",138,456504
+fictif_cohorts_2037,"semis_62 (maillage du niveau 0, aucune plage de visibilité)",122,5856
+fictif_cohorts_2037,"semis_64 (maillage du niveau 0, aucune plage de visibilité)",154,7392
+controle_reel_ifn_direct_2037,"arbres, niveau de détail 0, tous les arbres du massif chargé au niveau 0",60620,877694628
+controle_reel_ifn_direct_2037,"arbres, niveau de détail 1, tous les arbres du massif chargé au niveau 1",60620,101264716
+controle_reel_ifn_direct_2037,"arbres, niveau de détail 2, tous les arbres du massif chargé au niveau 2",60620,1576120
+controle_reel_ifn_direct_2037,"arbres, niveau de détail 0, dans sa plage de visibilité au point de vue",313,5304588
+controle_reel_ifn_direct_2037,"arbres, niveau de détail 1, dans sa plage de visibilité au point de vue",8390,14087088
+controle_reel_ifn_direct_2037,"arbres, niveau de détail 2, dans sa plage de visibilité au point de vue",51917,1349842
+controle_reel_ifn_direct_2037,"herbe (maillage du niveau 0, aucune plage de visibilité)",200000,800000

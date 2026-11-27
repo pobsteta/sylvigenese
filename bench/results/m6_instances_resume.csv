@@ -1,0 +1,5 @@
+scenario,grandeur,cellules,cellules_avec_couvert_connu,cellules_a_zero,min,mediane,p95,max,somme
+fictif_cohorts_2037,"brins d'herbe par cellule (formule de la vue, sans plafond ni rayon)",1600,1536,0,18750,21875,25000,25000,32325000
+fictif_cohorts_2037,semis par cellule (formule de la vue),1600,1536,4,0,21215,28943,33293,31699879
+fictif_ifn_direct_2037,"brins d'herbe par cellule (formule de la vue, sans plafond ni rayon)",1600,1536,0,18750,21875,25000,25000,32325000
+fictif_ifn_direct_2037,"semis par cellule (formule de la vue ; 0 par construction en ifn_direct, semis non simulés)",1600,1536,1600,0,0,0,0,0

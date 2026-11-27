@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sylvigenese:stage_breaks",
+  "title": "Seuils des stades (biomes/stades/stage_breaks.yml, mission 068, ADR 0007 projet)",
+  "description": "Fichier unique des seuils du rapport hauteur / plafond (h / h_pot) qui séparent les quatre stades `young`, `pole`, `mature`, `old` (énumération stage). Lu par biomes (R) pour le stade d'une cellule (H0 / h_pot, BRIEF §6) et par assets (Python) pour le stade d'un arbre (h / h_pot de l'arbre, extension de BRIEF §6, décision de Pascal Q8 du 26/11/2026) : une seule copie des valeurs, sinon elles dériveraient. Ce schéma ne fixe aucune valeur : les seuils sont dans le fichier, marqués provisoire et sourcés. Un rapport est dans stage k si seuil[k-1] <= rapport < seuil[k] (borne basse incluse, comme findInterval de R) ; le dernier stade est ouvert. Que les seuils croissent strictement est contrôlé par le validateur.",
+  "x-schema-version": "0.1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "provisoire",
+    "source",
+    "ratio",
+    "stages",
+    "breaks"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "provisoire": {
+      "description": "vrai tant que les seuils n'ont pas de source citée (spec §10)",
+      "type": "boolean"
+    },
+    "source": {
+      "description": "d'où viennent les seuils ; jamais vide",
+      "type": "string",
+      "minLength": 1
+    },
+    "ratio": {
+      "description": "ce qu'on compare aux seuils",
+      "const": "h / h_pot"
+    },
+    "stages": {
+      "description": "les quatre stades, du plus jeune au plus âgé",
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "urn:sylvigenese:enum:stage"
+      }
+    },
+    "breaks": {
+      "description": "trois seuils, rapport h / h_pot, strictement croissants (valeurs sans dimension dans le fichier)",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      }
+    }
+  }
+}

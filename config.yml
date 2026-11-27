@@ -46,3 +46,32 @@ simulate:
 # tuile et une fiche pour t0 puis toutes les `year_step` années ; sans ce bloc, il s'arrête (code 2).
 assets:
   year_step: 10           # une année sur 10 (BRIEF §9 : « pas de 5 ou 10 ans »)
+  # Modèles d'arbres .glb (M6a, mission 068, plan m6a T3) : réglages d'AFFICHAGE, provisoires, « illustration,
+  # non mesurée », jamais lus par le moteur. Les dimensions d'un exemplaire (D, H, hbh, Rh, b_cible) ne sont
+  # pas ici : sim/trees, calibration de tarif-nemeton, repli params/model_dimensions.csv (décision Q6).
+  models:
+    provisoire: true
+    # exemplars_dir: /chemin/vers/exemplaires   # dossier Parquet (contrat assets.exemplars) ; à fixer par la mission D
+    triangle_budgets: {lod0: 20000, lod1: 2000, lod2: 200}   # plan T3 ; à mesurer (mission H)
+    screencoverage: [0.30, 0.05, 0.005]                       # MSFT_screencoverage écrit dans chaque .glb
+
+# Constantes d'affichage de viewer-massif (M6a, mission 068 ; décisions de Pascal Q2 et Q4 du 26/11/2026).
+# PROVISOIRE : illustration, non mesurée ; signalées dans la vue ; aucune n'est lue par le moteur. Le nombre de
+# brins d'herbe suit herb_cover de la cellule et le nombre de semis suit sim/cells : seule l'apparence est ici.
+viewer:
+  provisoire: true
+  mention: "apparence de l'herbe, du feuillage et des niveaux de détail : illustration, non mesurée"
+  grass:
+    radius_m: 40
+    recenter_distance_m: 10
+    max_instances: 200000
+    blade_height_m: 0.35
+    blades_per_m2_at_full_cover: 100
+    color: "#5b7f3a"
+  seedlings:
+    max_instances: 20000   # plafond de dessin des semis (illustration, non mesurée) ; les effectifs restent ceux de sim/cells
+  foliage:
+    card_size_m: 0.6
+    color_by_group: {feuillu: "#4f7a32", resineux: "#2f5a3a"}
+  lod:
+    fade_margin_m: 5

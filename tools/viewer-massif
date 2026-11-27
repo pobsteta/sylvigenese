@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Lanceur de la vue massif (Godot) : ouvre le projet viewer-massif/ avec les arguments de la fiche web.
+# Plan m6a T7, décision Q7 de Pascal (26/11/2026) : la fiche donne la commande complète à copier,
+#   tools/viewer-massif -- --zone <dossier> --x <X> --y <Y> --year <A>
+# Le « -- » de tête est facultatif ici. Le dossier de la zone est lu depuis l'endroit où vous lancez la
+# commande (la racine du dépôt pour « data/<zone> ») ; il est passé à la vue en chemin absolu.
+# Moteur : variable GODOT, sinon « godot » du PATH (Godot 4.6.3 : voir le README).
+# À lancer depuis la RACINE du dépôt (mission 075) : la commande de la fiche web se colle telle quelle.
+# Sous le seul nom « viewer-massif » : ajouter tools/ au PATH.
+set -euo pipefail
+
+racine="$(cd "$(dirname "$0")/.." && pwd)"
+godot="${GODOT:-godot}"
+if ! command -v "$godot" >/dev/null 2>&1; then
+  echo "viewer-massif : moteur Godot introuvable (« $godot »). Installer Godot 4.6.3 ou donner son chemin : GODOT=/chemin/godot tools/viewer-massif ..." >&2
+  exit 127
+fi
+
+if [ "${1:-}" = "--" ]; then shift; fi
+
+args=()
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--zone" ] && [ "$#" -ge 2 ]; then
+    if [ ! -d "$2" ]; then
+      echo "viewer-massif : dossier de zone introuvable : $2 (lancer depuis la racine du dépôt pour « data/<zone> »)." >&2
+      exit 2
+    fi
+    args+=("--zone" "$(cd "$2" && pwd)")
+    shift 2
+  else
+    args+=("$1")
+    shift
+  fi
+done
+
+# Les chemins de zone sont déjà absolus : on se place à la racine du dépôt, où est config.yml.
+cd "$racine"
+exec "$godot" --path "$racine/viewer-massif" -- "${args[@]}"

@@ -156,6 +156,32 @@ def read_cells(zone: Path, t0: int, years: int) -> pa.Table:
     return pa.concat_tables(parts)
 
 
+def read_seedlings(zone: Path, year: int) -> dict[int, list[dict]]:
+    """Semis de `sim/cells/year=AAAA/` (mode `cohorts`, M5a) : {cell_id: [{species, seedlings_ha, h_mean_m}]}.
+
+    Seules les lignes à semis (seedlings_ha > 0) sont rendues, triées par essence. Une colonne de semis absente,
+    ou des semis sans hauteur moyenne, sont refusés : la hauteur d'un semis ne se devine pas (mission 070)."""
+    out: dict[int, list[dict]] = {}
+    for path in _partition_files(zone, "cells", year):
+        names = pq.read_schema(path).names
+        missing = [c for c in ("seedlings_ha", "seedling_h_mean") if c not in names]
+        if missing:
+            raise ModuleError(f"{path} : colonne(s) {', '.join(missing)} absente(s) alors que le mode de recrutement "
+                              "est cohorts ; sim/ et run.json ne viennent pas du même run")
+        table = pq.ParquetFile(path).read(columns=["cell_id", "species", "seedlings_ha", "seedling_h_mean"])
+        for cell, species, count, height in zip(*(table.column(n).to_pylist() for n in table.column_names)):
+            if count is None or not count > 0:
+                continue
+            if height is None or not np.isfinite(height) or height <= 0:
+                raise ModuleError(f"{path} : cellule {cell}, essence {species} : seedlings_ha = {count} sans hauteur "
+                                  "moyenne (seedling_h_mean) ; la hauteur des semis ne se devine pas")
+            out.setdefault(int(cell), []).append({"species": str(species), "seedlings_ha": float(count),
+                                                  "h_mean_m": float(height)})
+    for items in out.values():
+        items.sort(key=lambda r: r["species"])
+    return out
+
+
 def basal_area_scale(cells: pa.Table, forest_cells: set[int]) -> tuple[float, float]:
     """Échelle fixe de la carte de G (Q3) : min et max, sur TOUTES les années simulées, de la surface terrière
     par cellule telle que la carte la montre (somme des essences ; 0 pour une cellule forestière sans ligne)."""

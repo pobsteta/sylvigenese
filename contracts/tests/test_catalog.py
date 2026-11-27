@@ -21,6 +21,8 @@ CONTRACTS = Path(__file__).resolve().parents[1]
 TABLE_SCHEMAS = sorted((CONTRACTS / "tables").rglob("*.schema.json"))
 # version du schéma par fichier quand elle n'est pas la 0.1 (summary : version 0.2, mission 051)
 SCHEMA_VERSIONS = {"summary.schema.json": "0.2", "regeneration.schema.json": "0.3"}  # regeneration 0.2 : maturité en hauteur (062) ; 0.3 : stress_mortality (066)
+# version du schéma JSON par fichier quand elle n'est pas la 0.1 (massif_index 0.2 : stage_models, mission 075)
+JSON_SCHEMA_VERSIONS = {"massif_index.schema.json": "0.2"}
 JSON_SCHEMAS = sorted((CONTRACTS / "json").glob("*.json")) + sorted(
     (CONTRACTS / "json" / "enums").glob("*.json"))
 
@@ -40,7 +42,7 @@ def test_table_schema_is_valid_v2(path):
 def test_json_schema_is_valid(path):
     schema = json.loads(path.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator.check_schema(schema)
-    assert schema.get("x-schema-version") == "0.1"
+    assert schema.get("x-schema-version") == JSON_SCHEMA_VERSIONS.get(path.name, "0.1")
 
 
 def test_vendored_cesium_schemas_are_valid_and_licensed():

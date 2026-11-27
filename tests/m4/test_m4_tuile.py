@@ -115,7 +115,15 @@ def test_chaque_tuile_contient_ses_instances_dans_son_volume(chaine, instances):
         assert ok.all(), f"{c['uri']} : {int((~ok).sum())} instances hors du volume englobant de leur tuile"
 
 
-def test_un_modele_par_groupe_d_essences_au_plus(chaine, instances):
-    # Spec fiche 028 : modèles génériques par groupe (feuillu, résineux) ; pas un modèle par arbre.
-    inst = instances["inst"]
-    assert 2 <= len(set(inst["model"])) <= 4, f"modèles distincts : {len(set(inst['model']))} (attendu : feuillu, résineux)"
+def test_un_modele_par_classe_essence_stade_pas_par_arbre(chaine, instances, oracle):
+    # M6a (mission 069) : un modèle par (essence, stade) quand un exemplaire existe, sinon le générique du groupe
+    # (feuillu, résineux). Remplace l'ancienne épingle « feuillu et résineux » : 2 classes sans exemplaires configurés.
+    inst, m = instances["inst"], instances["match"]
+    ok = m["tree_of"] >= 0
+    idx = m["tree_of"][ok]
+    cl, franc = H.model_classes(H.ZONE, oracle.trees["species"][idx], oracle.trees["x"][idx], oracle.trees["y"][idx], oracle.trees["h"][idx])
+    models = inst["model"][ok]
+    classes = set(c for c, f in zip(cl, franc) if f)
+    employes = set(models[franc].tolist())
+    assert len(classes) >= 2
+    assert len(employes) == len(classes), f"{len(employes)} modèles pour {len(classes)} classes (essence, stade) : {sorted(classes)}"

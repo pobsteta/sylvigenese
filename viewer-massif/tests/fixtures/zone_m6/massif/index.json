@@ -1,0 +1,76 @@
+{
+ "schema_version": 1,
+ "zone": "zone_m6",
+ "fictive": true,
+ "crs": "EPSG:2154",
+ "vertical_datum": "NGF-IGN69",
+ "source": "trees_init",
+ "block_size_m": 500,
+ "provisoire": true,
+ "notes": [
+  "trajectoire technique, non validée écologiquement",
+  "jeu fictif : valeurs synthétiques",
+  "1 arbre(s) dessiné(s) par un modèle générique"
+ ],
+ "models": [
+  {
+   "species": "09",
+   "model": "09",
+   "kind": "own"
+  },
+  {
+   "species": "62",
+   "model": "generique_resineux",
+   "kind": "generic"
+  }
+ ],
+ "stage_models": [
+  {
+   "species": "09",
+   "stage": "mature",
+   "file": "09_mature.glb",
+   "kind": "own"
+  },
+  {
+   "species": "09",
+   "stage": "old",
+   "file": "09_old.glb",
+   "kind": "own"
+  },
+  {
+   "species": "09",
+   "stage": "young",
+   "file": "09_young.glb",
+   "kind": "own"
+  },
+  {
+   "species": "62",
+   "stage": "mature",
+   "file": "generique_resineux.glb",
+   "kind": "generic"
+  }
+ ],
+ "years": [
+  {
+   "year": 2022,
+   "trees": 4,
+   "trees_by_kind": {
+    "own": 3,
+    "alias": 0,
+    "generic": 1
+   },
+   "blocks": [
+    {
+     "block_id": "t_700000_6500000",
+     "file": "2022/t_700000_6500000.json",
+     "sw": {
+      "x": 700000.0,
+      "y": 6500000.0
+     },
+     "size_m": 500,
+     "trees": 4
+    }
+   ]
+  }
+ ]
+}

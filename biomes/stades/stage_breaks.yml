@@ -1,0 +1,11 @@
+# Seuils des stades, fichier unique (mission 068, ADR 0007 projet, décision de Pascal Q8 du 26/11/2026).
+# Contrat : contracts/json/stage_breaks.schema.json. Lu par biomes (R) et par assets (Python) ;
+# R/biomes.R garde, jusqu'à la reprise de R par la mission « D/R », sa copie BIOMES_STAGE_BREAKS
+# (mêmes valeurs ; un test de contracts/tests/ les compare).
+# Ce fichier est dans un sous-dossier : le catalogue des biomes (biomes/*.yml, lu par R) ne le voit pas.
+schema_version: 1
+provisoire: true
+source: "valeurs posées pour le jeu fictif (mission 020), reprises de BIOMES_STAGE_BREAKS dans R/biomes.R ; aucune source citée"
+ratio: "h / h_pot"
+stages: [young, pole, mature, old]
+breaks: [0.25, 0.60, 0.90]
