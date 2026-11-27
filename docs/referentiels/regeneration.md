@@ -554,3 +554,53 @@ Ce `WebFetch` n'a pas résolu `envidat.ch`, `gitlabext.wsl.ch` ni `creativecommo
 1. **Sources et emplacements : coché, avec réserves.** Licences citées avec fichier et champ ou ligne ; pages du PDF données par rang dans le PDF. Non coché : `WebFetch` n'a atteint aucun hôte, donc rien de nouveau n'a été téléchargé ; CC BY-SA 4.0 / GPL-3 non lu ; version 4.0 déduite de l'URL ; je n'ai pas relu `TreeMigDocu_23_Code.pdf` ni `InfosSettingsControlFileAndGUI.pdf` au-delà des pages de la passe 3 (α peut y être).
 2. **Décomptes complets : coché.** 30 lignes de `TreePars2.txt` = 22 + 5 + 3 ; 195 − 30 = 165 absents ; CSV : 212 lignes de données.
 3. **Termes exacts : coché.** `klighs`, `kligha`, `lighs`, `ligha`, `sType/N`, « Sapling light parameter: shadetolerant [1] to shade-intolerant [9] », `license_id`, `license_title`, `license_url`.
+
+
+## 15. Sixième passe (27/11/2026, mission 083) : correspondance Niinemets → klighs et loi lumière-seuil (éq. 29)
+
+**Décision éclairée :** comment obtenir un `klighs` (1 à 9, TreeMig) pour les 140 taxons lus dans Niinemets (0 à 5), afin de passer l'ombre des semis de M5b à la forme de TreeMig (décisions de Pascal du 27/11/2026 : Niinemets en tolérance, `klighs` lu hors dépôt pour l'ajustement seulement, correspondance provisoire, erreur dite). **Aucune valeur de `klighs` ni de Niinemets par essence n'entre au dépôt** ; seuls la méthode, l'effectif, les coefficients et l'erreur. Le détail par essence est écrit hors dépôt (`data/sources/regeneration/derive/`) par le script.
+
+### 15.1 Méthode et rejeu
+
+- Script : `bench/m5b/correspondance_klighs.py` (`python3 -I bench/m5b/correspondance_klighs.py`, numpy et scipy). Il lit hors dépôt l'annexe A de Niinemets, `TreePars2.txt` et la documentation de TreeMig, **vérifie leurs sha256 de `data/sources/regeneration/INDEX.md` et refuse de tourner** si un fichier manque ou diffère.
+- Appariement par **code de `contracts/species.csv`** : la correspondance T02-ESP (§14.5), 30 essences, 30 codes, chacune avec sa ligne Niinemets. Les 30 sont appariées des deux côtés.
+- **Jeu principal : 27 essences** (22 au même nom, dont 52 et 09 par orthographe ancienne, et 5 sur un code infraspécifique : 63, 13B, 33N, 03, 23SO, ramenées au rang de l'espèce). **Analyse de sensibilité : 30**, avec les 3 synonymes à valider (60, 37, 18M), qui ne sont **pas** dans l'ajustement principal tant que Pascal n'a pas tranché la question n° 3.
+- Trois modèles, tous monotones : **régression linéaire**, **régression isotone** (PAV, non croissante), **logistique bornée à [1, 9]** (`klighs = 1 + 8 / (1 + exp(-(a + b·N)))`). Erreur : RMSE d'ajustement, résidu maximal, et validation croisée par exclusion d'une essence (RMSE et résidu maximal hors échantillon).
+
+### 15.2 Résultats (27 essences ; entre parenthèses, 30 essences avec les 3 synonymes)
+
+| Modèle | Coefficients | RMSE | résidu max | RMSE par exclusion d'une essence | résidu max par exclusion |
+|---|---|---|---|---|---|
+| **linéaire** | pente -1,238 ; ordonnée 9,091 (30 : -1,311 ; 9,328) | 1,01 (0,99) | 2,46 (2,43) | **1,09 (1,05)** | 2,56 (2,52) |
+| isotone | 8 paliers (30 : 9) | 0,86 (0,86) | 2,29 (2,29) | 1,21 (1,19) | 2,67 (2,67) |
+| logistique bornée | a = 2,148 ; b = -0,649 (30 : 2,289 ; -0,693) | 1,01 (0,99) | 2,44 (2,41) | 1,09 (1,06) | 2,55 (2,51) |
+
+- Corrélation de rang de Spearman entre Niinemets et `klighs` : -0,75 (27) ; -0,73 (30). Le sens est inverse, comme prévu (§3).
+- Les valeurs de Niinemets du jeu principal vont de 1,46 à 4,60 (26 valeurs distinctes) ; celles de `klighs`, de 2 à 8 (7 classes). La correspondance n'est donc **pas testée** hors de 1,5 à 4,6 (aucune essence de tolérance Niinemets très basse ou très haute) : les extrapolations sont à dire au rapport.
+- **Essences les plus mal prédites** (par exclusion d'une essence, linéaire, par code) : **59, 15P, 17C, 25B, 62** (mêmes cinq pour la logistique ; l'isotone ajoute 31 avec les 30). Résidu maximal d'environ 2,5 classes : **la correspondance donne la classe à ± 1 classe en moyenne quadratique, et jusqu'à ± 2,5 pour les cas extrêmes.**
+
+### 15.3 Choix : la régression linéaire (provisoire)
+
+- L'isotone ajuste mieux (0,86) mais **généralise moins bien** (1,21 contre 1,09 par exclusion d'une essence) : elle épouse le bruit sur 27 points et 7 classes. La logistique bornée **ne gagne rien** (RMSE identiques à 0,01 près) parce que les données restent au milieu de l'échelle : la borne n'est jamais active sur l'intervalle ajusté.
+- La droite a deux coefficients, est monotone par construction, se lit sans ambiguïté et se rejoue. **Règle d'emploi :** `klighs = clamp(9,091 - 1,238 × N, 1, 9)` avec N la tolérance de Niinemets (0 à 5), **provisoire** (`provisoire: true`), à signaler au rapport (« klighs dérivé de Niinemets, erreur ± 1,1 classe »). Le résultat est **continu** : `klighs` n'est pas entier (TreeMig attend une classe entière dans le fichier, mais les deux branches de la loi ci-dessous acceptent une valeur réelle ; à confirmer dans le code de TreeMig, non lu).
+- Ce qui peut changer le choix : une réponse de Pascal sur les 3 synonymes (le jeu à 30 donne -1,311 et 9,328, écart de 0,1 à 0,3 classe), ou l'arrivée des `klighs` d'autres essences (165 codes sur 195 n'en ont pas) pour valider hors échantillon.
+
+### 15.4 Loi lumière-seuil de TreeMig (Docu p. 14, après l'éq. 29)
+
+Lue dans `TreeMigDocu_251218_Model.pdf` p. 14 (sha256 dans INDEX.md). La loi **n'a pas de numéro propre** : elle suit l'éq. (29) de l'établissement β_s et précède l'éq. (30) ; le document la rattache à la routine `GetSpc`. Avec `shadesens_sap,s = klighs` de l'essence s (p. 17, sous l'éq. 43) :
+
+- `l_thresh = 0,1 × klighs − 0,4` si `klighs ≥ 5` ;
+- `l_thresh = max(0, 0,025 × (klighs − 1))` si `klighs < 5`.
+
+`l_thresh` est une **lumière relative** (0 à 1, 1 = pleine lumière). La loi est **continue** en `klighs = 5` (0,1 des deux côtés) ; elle va de 0 (`klighs` = 1) à 0,5 (`klighs` = 9). Elle sert ensuite, dans le même passage, à l'éq. (30) : `f_Lgerm(l) = gl1 + (l_thresh − 1)/8 × (gl9 − gl1)`, interpolation entre deux formes extrêmes de lumière (`gl1` et `gl9`, exponentielles saturantes ; constantes imprimées p. 14, **non recopiées ici**). Les bornes des 10 classes de lumière et le coefficient d'extinction `alpha` **ne sont pas dans les pages lues** (voir T02-LUM).
+
+- **Réserve de droits :** la documentation de TreeMig ne dit aucune licence dans les pages lues (§14.1). Les constantes de la loi (0,1 ; 0,4 ; 0,025 ; 5) sont recopiées parce que la mission les demande et qu'elles décrivent la **forme**, non une valeur d'essence ; Pascal peut demander de les retirer (question n° 21).
+- **Ce qui manque** : les classes de lumière (bornes) et `alpha` ; le code de `GetSpc` (non lu) pour savoir si `klighs` est arrondi avant l'emploi ; la mesure qui justifie la forme (Lischke et al. 2006, non lu) ; aucune validation hors des 30 essences.
+
+### 15.5 Question de sens pour Pascal (une seule, n° 21)
+
+**Les constantes de la loi p. 14 (0,1 ; 0,4 ; 0,025 ; seuil 5) peuvent-elles figurer dans le dépôt, la documentation de TreeMig n'ayant pas de licence dite ?** Proposition de l'IA : oui, ce sont des constantes d'une forme publiée et citée avec sa page, au même titre que les formes d'éq. (13) à (49) déjà décrites. Si non, M5b les lit hors dépôt, comme `klighs`.
+
+### 15.6 Ligne de journal proposée
+
+`2026-11-27 · analyste · 083 · correspondance Niinemets → klighs (bench/m5b/correspondance_klighs.py, sha256 vérifiés) : 30 essences appariées par code, 27 dans le jeu principal (3 synonymes à valider en sensibilité) ; linéaire retenue, klighs = clamp(9,091 − 1,238 N, 1, 9), RMSE 1,01, 1,09 par exclusion d'une essence, résidu max 2,5 classes, codes les plus mal prédits 59, 15P, 17C, 25B, 62 ; isotone et logistique bornée n'améliorent pas hors échantillon ; non testée hors N de 1,5 à 4,6 ; loi p. 14 : seuil = 0,1 klighs − 0,4 (klighs ≥ 5), max(0, 0,025 (klighs − 1)) sinon ; manquent bornes des classes de lumière et alpha ; question n° 21 (constantes au dépôt).`
