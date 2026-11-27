@@ -1,12 +1,15 @@
 # ADR 0007 — les arbres du générateur entrent par fichiers, en `.glb` à trois niveaux de détail, et la vue massif ne lit que `massif/` et `assets/trees/`
 
 - **Date :** 2026-11-26
-- **Statut :** proposée (mission 068, avant tout code ; à trancher par l'orchestrateur, par délégation, sauf le point « Licence » ci-dessous, qui revient à Pascal)
+- **Statut :** acceptée le 27/11/2026 par l'orchestrateur, par délégation de Pascal, après deux relectures de la PR n° 12 ; le point « Licence » a été tranché par Pascal (Q1 du 26/11/2026 : vrais exemplaires et .glb réels hors dépôt) ; Pascal peut la défaire
 - **Proposée par :** `dev` de la mission 068 (plan `docs/plans/m6a.md` §3 ligne B, §4 et §5, choix T1, T2, T5, T6, T7, T11, T13, T14 ; réponses de Pascal Q1 à Q8 du 26/11/2026)
 - **Tranchée par :** — (en attente)
 - **Mise à jour du 26/11/2026** (mission 075, d'après le journal du 26/11/2026 : décisions de Pascal, choix
   tranchés par délégation par l'orchestrateur, relecture de la PR n° 12) : choix 1, 4, 5, 7, 11, 12, 13 et
   « Conséquences » précisés ; le sens des décisions de Pascal (Q1 à Q8, résineux non calés) n'est pas changé.
+- **Mise à jour du 27/11/2026** (seconde relecture de la PR n° 12, mineurs ; journal du 27/11/2026) : choix 4, 7 et
+  10 complétés (`stage_models`, modèle par essence et stade, convention du modèle générique, refus des clés de
+  dimension absentes, arbre de cw nul) ; rien de ce qui précède n'est effacé ni son sens changé.
 
 ## La décision en une phrase
 
@@ -67,7 +70,10 @@ empruntée. Les formats sont fixés par les contrats de la mission 068 (`contrac
    (`trees_by_kind`), jamais empruntée à une essence voisine (Q3). **Le modèle est dit par essence et par
    stade** : une essence peut avoir un modèle propre à certains stades et le **repli générique** à d'autres
    (relecture de la PR n° 12, journal du 26/11/2026) ; la mission 075 (partie A) l'écrit dans
-   `massif/index.json`, **le détail est fixé par le contrat** (`contracts/`), pas ici. Le validateur de `.glb` refuse un code
+   `massif/index.json`, **le détail est fixé par le contrat** (`contracts/`), pas ici. *Ajout du 27/11/2026 :* c'est fait, la clé **`stage_models`** de
+   `massif/index.json` (contrat `massif_index` 0.2) dit, par couple (essence, stade), le fichier de modèle et sa
+   sorte (`own`, `alias`, `generic`) ; la vue la lit telle quelle, un couple absent est un arrêt nommé (code 5).
+   Le validateur de `.glb` refuse un code
    alias, un code sans modèle propre, et un `extras` qui ne redit pas le nom.
 5. **Extras des `.glb`.** `species`, `stage`, **`source_commit`** (commit de `tarif-nemeton`),
    `essence_generateur`, `D_cm`, `H_m`, `hbh_m`, `Rh_m`, `b_cible`, `graine`, `H_ref_m`,
@@ -79,8 +85,8 @@ empruntée. Les formats sont fixés par les contrats de la mission 068 (`contrac
    y = `H_ref_m` à 1 %. Dans `massif/` : x est, y nord, z haut, positions relatives à l'origine du bloc
    (EPSG:2154, NGF-IGN69). **Repère de Godot** : x est, y haut, z = −nord (conversion par la vue). Le
    terrain est le MNT de la grille à 25 m, pas le LiDAR : le sol est lisse, dit à l'écran.
-7. **Disposition de `massif/` (T5).** `massif/index.json` (années, blocs, emprises, modèle par essence,
-   comptes) et `massif/<année>/<bloc>.json`, bloc = tuile de 500 m de `tiles/` (`t_<x>_<y>`). Version 2
+7. **Disposition de `massif/` (T5).** `massif/index.json` (années, blocs, emprises, **modèle par essence et
+   stade** (`stage_models`, ajout du 27/11/2026 ; `models` garde le modèle par essence), comptes) et `massif/<année>/<bloc>.json`, bloc = tuile de 500 m de `tiles/` (`t_<x>_<y>`). Version 2
    du bloc : arbres, `ground` (altitudes aux nœuds de 25 m), `cells[]` (biome, `herb_cover`,
    `shrub_cover`, `seedlings[]` si et seulement si `cohorts`), `mentions[]`, `provisoire`. **`hcb` peut être nul** (absent de `trees_init`) : jamais 0, la **mention est
    obligatoire** et comptée par bloc (journal du 26/11/2026, 070). L'herbe et les semis sont dessinés sous un
@@ -104,6 +110,13 @@ empruntée. Les formats sont fixés par les contrats de la mission 068 (`contrac
     `bornes_dimensions.csv`) ; repli = `params/model_dimensions.csv` (contrat écrit, **fichier de valeurs
     non écrit** : à sourcer), `provisoire`, une source par ligne. Chaque arbre est mis à l'échelle de sa
     hauteur simulée (et de sa largeur de houppier, échelle non uniforme, dite).
+    *Ajout du 27/11/2026 (seconde relecture de la PR n° 12 ; choix accepté par délégation) :*
+    - **Modèle générique** : 1 m × 1 m, mis à l'échelle (r, h, r) avec r = cw / 2, **dans les deux vues**
+      (Godot et iTowns) ; la hauteur ne remplace jamais le rayon.
+    - **Modèle du générateur** : une clé de dimension absente (`H_ref_m`, `rayon_houppier_ref_m`) ou un rayon
+      nul ou non positif est **refusé et nommé** ; aucune valeur de repli, la hauteur n'est pas substituée.
+    - **Arbre de cw nul** : non dessiné, **compté** (`cw_zero_trees`) et **dit à l'écran** (choix accepté par
+      délégation le 27/11/2026).
 11. **Réglages d'affichage (Q2, Q4).** Blocs `assets.models` (budgets de triangles, `MSFT_screencoverage`,
     `exemplars_dir`) et `viewer` (herbe, feuillage, fondu) de `config.yml`, `provisoire: true`,
     « illustration, non mesurée », jamais lus par le moteur. **`config.yml` est cherché sans valeur de repli** : introuvable, la vue sort avec le

@@ -33,8 +33,9 @@
    cellule : station, type de végétation, composition, volume, carbone, et la mention
    « provisoire » le cas échéant.
 5. La fiche affiche une commande à copier,
-   `viewer-massif -- --x <X> --y <Y> --year <A>`, qui ouvre la vue massif aux mêmes
-   coordonnées. Un navigateur ne peut pas lancer une application locale.
+   `tools/viewer-massif -- --zone data/<zone> --x <X> --y <Y> --year <A>`, à coller depuis
+   la racine du dépôt, qui ouvre la vue massif aux mêmes coordonnées (ADR 0007, choix 12 ;
+   mise à jour du 27/11/2026). Un navigateur ne peut pas lancer une application locale.
 
 **À l'échelle d'une SER**, le parcours est le même, avec `simulate --level ser`.
 
