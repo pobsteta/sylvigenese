@@ -531,3 +531,45 @@ def test_demande_de_dimensions_par_la_ligne_de_commande(sim_zone, tmp_path, monk
     assert assets.main(["--config", str(cfg), "--demande-dimensions", str(out)]) == 0
     assert out.is_file() and out.read_text(encoding="utf-8").startswith("essence,stage,term,value,unit,provisoire,source")
     assert assets.main(["--config", str(cfg), "--demande-dimensions", str(out), "--quantile", "1.5"]) == 2
+
+
+class _RegistryStub:
+    """Registre minimal : `resolve` rend le générique du groupe (aucun exemplaire)."""
+    species = {}
+
+    def resolve(self, code, stage):
+        return f"generique_{'feuillu' if code == '09' else 'resineux'}", "generic"
+
+
+def test_massif_index_dit_l_essence_a_semis_sans_modele_young():
+    """Une essence à semis sans modèle young (pas d'exemplaire, générique non servi par un arbre) est dite dans les
+    notes de l'index : nom et nombre de semis non dessinés. Une essence servie par un générique employé ne l'est pas."""
+    from sylvigenese.assets_lib import massif
+    writer = massif.MassifWriter.__new__(massif.MassifWriter)
+    writer.registry = _RegistryStub()
+    writer.stage_models = {("09", "mature"): ("generique_feuillu", "generic")}   # le générique feuillu est servi, pas le résineux
+    writer.seedling_species = {"09", "62"}
+    writer.seedling_peak = {"09": 12.0, "62": 7.6}                                # effectifs attendus (valeurs d'essai)
+    entries = writer._stage_models_index()
+    assert {(m["species"], m["stage"]) for m in entries} == {("09", "mature"), ("09", "young")}
+    notes = writer.unserved_seedling_notes()
+    assert len(notes) == 1
+    assert "62" in notes[0] and "8 semis" in notes[0] and "non dessinés" in notes[0] and "young" in notes[0]
+    assert "09" not in notes[0]
+
+
+def test_massif_index_sans_semis_non_dessines_ne_dit_rien():
+    from sylvigenese.assets_lib import massif
+    writer = massif.MassifWriter.__new__(massif.MassifWriter)
+    writer.registry = _RegistryStub()
+    writer.stage_models = {("62", "mature"): ("generique_resineux", "generic")}
+    writer.seedling_species = {"62"}
+    writer.seedling_peak = {"62": 3.0}
+    writer._stage_models_index()
+    assert writer.unserved_seedling_notes() == []
+
+
+def test_massif_cohorts_notes_de_l_index_sans_essence_non_dessinee(cohort_zone):
+    """Dans la zone d'essai toutes les essences à semis ont un modèle young : aucune ligne « non dessinés »."""
+    index = json.loads((cohort_zone["dir"] / "massif" / "index.json").read_text(encoding="utf-8"))
+    assert not any("non dessinés" in n for n in index["notes"])

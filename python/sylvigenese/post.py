@@ -32,6 +32,8 @@ FORMULES (D = d130 en cm, H = h en m ; formes décrites dans le contrat `import_
   ou rho(D) = (rho_moyenne + rho_pente_10cm · (D − D_ref)/pas_D) × facteur_arbre_entier ;
 - carbone aérien (tC) = biomasse aérienne × fraction de carbone du groupe (feuillu ou résineux) ;
 - racines (tC) = carbone aérien × rapport `racines` du groupe (colonne à part, jamais additionnée).
+Refus (mission 078) : un massif dont `sim/run.json` dit `recruitment: cohorts` (M5a) est refusé, code 2 : le tarif
+n'est pas validé sur ces trajectoires, décision à reprendre en M5b ; `ifn_direct` est inchangé.
 `post` n'importe ni `simulate` ni `assets` : il ne lit que leurs fichiers.
 """
 
@@ -76,6 +78,9 @@ MENTION_ECO = "valeurs techniques : trajectoire non validée écologiquement (M3
 NEMETON_PROFILE = ("k0", "k1", "beta", "lam", "a", "x0", "sx")
 NEMETON_PROFILE_SHARED = {"h_ref": "m", "D_ref": "cm", "n_points": None, "marge_sommet": "m", "u_min": "sans_unite"}
 SYNTH_PROFILE = ("synth_p1", "synth_p2")
+# Facteurs de la règle des feuillus (décision de Pascal du 26/11/2026), écrits par import_tarif au groupe feuillu,
+# modèle domaine ; post les lit et les dit au rapport, il n'en écrit aucune valeur (mission 076)
+HARDWOOD_RULE_TERMS = {"facteur_D_min": "sans_unite", "facteur_D_max": "sans_unite", "marge_H": "m"}
 
 
 def say(message: str) -> None:
@@ -149,8 +154,25 @@ class Tarif:
                               "(rien n'est pris par défaut)")
         if "fraction_carbone" not in self.models:
             raise ModuleError(f"{path} : modèle fraction_carbone absent : le carbone ne peut pas être calculé")
+        self.hardwood_rule = self._hardwood_rule()
         with_volume = sorted({sp for (sp, m) in self.by_species if m in VOLUME_MODELS})
         self.species = {sp: self._species_model(sp) for sp in with_volume}
+
+    def _hardwood_rule(self) -> dict[str, float] | None:
+        """Facteurs de la règle des feuillus lus au groupe feuillu (modèle domaine) ; None s'il n'y en a aucun ;
+        un jeu incomplet ou d'une autre unité est refusé (rien n'est complété)."""
+        terms = self.by_group.get(("feuillu", "domaine"), {})
+        found = [t for t in HARDWOOD_RULE_TERMS if t in terms]
+        if not found:
+            return None
+        if len(found) != len(HARDWOOD_RULE_TERMS):
+            raise ModuleError(f"{self.path} : règle des feuillus incomplète au groupe feuillu (modèle domaine) : "
+                              f"{', '.join(found)} donné(s), {', '.join(HARDWOOD_RULE_TERMS)} attendus ensemble")
+        for t, unit in HARDWOOD_RULE_TERMS.items():
+            if terms[t][1] != unit:
+                raise ModuleError(f"{self.path} : domaine.{t} du groupe feuillu en « {terms[t][1]} », « {unit} » attendu "
+                                  "(unité douteuse : rien n'est converti)")
+        return {t: terms[t][0] for t in HARDWOOD_RULE_TERMS}
 
     # --- lecture d'un terme : l'essence d'abord, puis son groupe (contracts/species.csv)
     def term(self, sp: str, model: str, term: str, unit: str | None = None, required: bool = True) -> float | None:
@@ -249,7 +271,8 @@ class Tarif:
                 raise ModuleError(f"{self.path} : le modèle racines existe mais n'a pas de rapport pour le groupe "
                                   f"{self.groups[sp]} (essence {sp}) : la colonne carbon_roots serait en partie vide")
             m["roots"] = self.term(sp, "racines", "ratio", "sans_unite")
-        self._check_known(sp, "domaine", {t for lo, hi, _ in DOMAIN_TERMS.values() for t in (lo, hi)})
+        self._check_known(sp, "domaine", {t for lo, hi, _ in DOMAIN_TERMS.values() for t in (lo, hi)}
+                          | set(HARDWOOD_RULE_TERMS))
         m["domain"] = {}
         for name, (lo, hi, unit) in DOMAIN_TERMS.items():
             m["domain"][name] = (self.term(sp, "domaine", lo, unit, required=False),
@@ -334,6 +357,26 @@ def first_reason(m: dict, d: np.ndarray, h: np.ndarray) -> np.ndarray:
 
 
 # ------------------------------------------------------------------ lecture de sim/ et des rasters
+RECRUITMENT_MODES = ("ifn_direct", "cohorts")
+
+
+def refuse_cohorts(run: dict, run_path: Path) -> None:
+    """Refus nommé d'un massif simulé en cohortes (mission 078, kanban M5b, relecture de M5a).
+
+    Le tarif NEMETON v5 a été calé sur des arbres mesurés, pas sur les trajectoires du mode `cohorts` (semis
+    recrutés par cohortes, M5a) : son domaine et ses formes n'y sont pas validés. Tant que M5b n'a pas repris la
+    décision, post ne calcule ni volume ni carbone pour un tel massif, et aucune option ne contourne ce refus.
+    `ifn_direct`, et un run.json de M3a sans clé `recruitment`, passent sans changement."""
+    mode = run.get("recruitment")
+    if mode == "cohorts":
+        raise ModuleError(f"{run_path} dit recruitment: cohorts : post refuse ce massif. Le tarif de volume et de carbone "
+                          "n'est pas validé sur les trajectoires simulées en cohortes (M5a) ; la décision est à reprendre "
+                          "en M5b. Rien n'est calculé ni publié ; simulate en ifn_direct donne un massif que post accepte")
+    if mode is not None and mode not in RECRUITMENT_MODES:
+        raise ModuleError(f"{run_path} : recruitment = {mode!r}, « {' » ou « '.join(RECRUITMENT_MODES)} » attendu : "
+                          "post ne devine pas le mode")
+
+
 def check_run(zone: Path, config_path: Path) -> tuple[dict, list[int]]:
     sim = zone / "sim"
     if not sim.is_dir():
@@ -349,6 +392,7 @@ def check_run(zone: Path, config_path: Path) -> tuple[dict, list[int]]:
     if run.get("config_sha256") != expected:
         raise ModuleError(f"l'empreinte sha256 de config.yml ({expected[:12]}…) diffère de config_sha256 de sim/run.json "
                           f"({str(run.get('config_sha256'))[:12]}…) : sim/ vient d'un autre réglage ; relancer simulate")
+    refuse_cohorts(run, run_path)
     base = sim / "trees"
     years = sorted(int(m.group(1)) for d in (base.iterdir() if base.is_dir() else []) if (m := PARTITION.match(d.name)))
     t0, horizon = run.get("t0"), run.get("years")
@@ -677,6 +721,29 @@ def bound_text(value: float | None) -> str:
     return "non borné" if value is None else f"{value:g}"
 
 
+def number_fr(value: float) -> str:
+    return f"{value:g}".replace(".", ",")
+
+
+def rule_paragraph(tarif: Tarif) -> str:
+    """Règle des feuillus (décision de Pascal du 26/11/2026), avec les facteurs LUS dans params/tarif.parquet
+    (mission 076) : un tarif qui ne les écrit pas le dit, aucune valeur n'est complétée ici."""
+    rule = tarif.hardwood_rule
+    if rule is None:
+        return ("<p><strong>Règle des feuillus (décision de Pascal du 26/11/2026)</strong> : ce tarif n'écrit pas les "
+                "facteurs de la règle (modèle domaine du groupe feuillu : facteur_D_min, facteur_D_max, marge_H) ; "
+                "post ne les devine pas. Les bornes des feuillus ci-dessous sont lues telles qu'écrites, sans que le "
+                "rapport dise comment elles ont été élargies.</p>")
+    f_min, f_max, margin = (number_fr(rule[t]) for t in HARDWOOD_RULE_TERMS)
+    return ("<p><strong>Règle des feuillus (décision de Pascal du 26/11/2026)</strong> : le domaine élargi de la table de "
+            "tarif-nemeton est gardé, tel quel : les bornes de calage du v0 sont multipliées par "
+            f"{f_min} (minimum) et {f_max} (maximum) en diamètre, et élargies de {margin} m en hauteur "
+            f"(moins {margin} m au minimum, plus {margin} m au maximum). Ces trois facteurs sont lus dans "
+            "params/tarif.parquet (modèle domaine, groupe feuillu). La règle est appliquée par import_tarif quand il "
+            "écrit params/tarif.parquet depuis tarif-nemeton ; post ne fait que lire les bornes écrites, quelle que "
+            "soit leur source (dite ci-dessous).</p>")
+
+
 def domain_section(tarif: Tarif, acc: Accumulator) -> list[str]:
     """Le domaine du tarif, écrit pour Pascal (mission 056) : la règle des feuillus (décision de Pascal du
     26/11/2026), la règle H/D des résineux, la limite du profil NEMETON et les bornes de chaque essence. Toutes les
@@ -696,11 +763,7 @@ def domain_section(tarif: Tarif, acc: Accumulator) -> list[str]:
            "il est compté dans « Ce qui n'est pas calculé ». Les bornes ci-dessous sont lues dans params/tarif.parquet "
            f"(modèle domaine, source_commit {e(tarif.commit)}) ; post ne les recalcule pas et n'en choisit aucune. Une "
            "borne absente veut dire que la source ne borne pas cette grandeur.</p>",
-           "<p><strong>Règle des feuillus (décision de Pascal du 26/11/2026)</strong> : le domaine élargi de la table de "
-           "tarif-nemeton est gardé, tel quel : les bornes de calage du v0 sont multipliées par 0,9 (minimum) et 1,1 "
-           "(maximum) en diamètre, et élargies de 2 m en hauteur (moins 2 m au minimum, plus 2 m au maximum). "
-           "Elle est appliquée par import_tarif quand il écrit params/tarif.parquet depuis tarif-nemeton ; post ne fait "
-           "que lire les bornes écrites, quelle que soit leur source (dite ci-dessous).</p>"]
+           rule_paragraph(tarif)]
     if hardwoods:
         out.append(f"<p>Sur ce tarif, les bornes des feuillus ({e(', '.join(hardwoods))}) ont pour source "
                    f"{e(quoted_sources(rows_of(hardwoods)))} (colonne source_biblio).</p>")

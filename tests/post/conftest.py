@@ -171,6 +171,15 @@ def _run_json_autre_config(zdir):
     p.write_text(json.dumps(run, indent=1, sort_keys=True), encoding="utf-8")
 
 
+def _run_json_cohorts(zdir):
+    """Massif simulé en cohortes (M5a) : post le refuse tant que le tarif n'y est pas validé (mission 078)."""
+    import json
+    p = zdir / "sim" / "run.json"
+    run = json.loads(p.read_text(encoding="utf-8"))
+    run["recruitment"] = "cohorts"
+    p.write_text(json.dumps(run, indent=1, sort_keys=True), encoding="utf-8")
+
+
 def _partition_rows(fn):
     """Réécrit les partitions de sim/trees (écrites par l'aide, jamais des liens)."""
     def f(zdir):
@@ -206,6 +215,7 @@ REFUS = {
     "sim_absent": (_sim_absent, ("sim",), 2),
     "run_json_absent": (_run_json_absent, ("run.json",), 2),
     "run_json_d_une_autre_config": (_run_json_autre_config, ("empreinte", "sha256", "run.json", "differe"), 2),
+    "massif_en_cohortes": (_run_json_cohorts, ("cohorts", "cohortes"), 2),
     "essence_hors_referentiel": (_partition_rows(_essence_99), ("99",), None),
     "tree_id_en_double": (_partition_rows(_tree_id_double), ("tree_id", "double", "doublon", "unique"), None),
 }

@@ -1,12 +1,18 @@
-## Constantes d'affichage de la vue : bloc `viewer:` de config.yml (mission 068 ; décisions Q2 et Q4 du 26/11/2026).
+## Constantes d'affichage de la vue : bloc `viewer:` de config.yml (mission 068 ; décisions Q2 et Q4 du 26/11/2026 ; mission 077 :
+## étendue, caméra, sol, soleil, textes à l'écran).
 ## PROVISOIRE, « illustration, non mesurée » : seule l'apparence est là ; le nombre de brins suit le couvert du bloc et le
 ## nombre de semis suit sim/cells. Aucune valeur de repli : si config.yml est introuvable ou incomplet, la vue s'arrête
 ## et dit où elle a cherché. Lecteur minimal du sous-ensemble de YAML employé par ce bloc (cartes imbriquées par
 ## indentation, cartes en ligne `{a: b, c: d}`, nombres, booléens, chaînes entre guillemets).
 extends RefCounted
 
-const REQUIRED := ["grass.radius_m", "grass.recenter_distance_m", "grass.max_instances", "grass.blade_height_m",
-	"grass.blades_per_m2_at_full_cover", "grass.color", "seedlings.max_instances", "foliage.color_by_group", "lod.fade_margin_m", "mention", "provisoire"]
+const REQUIRED := [
+	"provisoire", "mention", "view.radius_m",
+	"camera.eye_height_m", "camera.fov_deg", "camera.far_m", "camera.speed_m_s", "camera.fast_factor", "camera.mouse_sensitivity", "camera.pitch_limit_rad",
+	"ground.color", "sun.elevation_deg", "sun.azimuth_deg",
+	"hud.title_font_size", "hud.title_color", "hud.state_font_size", "hud.title_outline_px", "hud.state_outline_px", "hud.outline_color", "hud.state_height_px", "hud.margin_px", "hud.top_margin_px",
+	"grass.radius_m", "grass.recenter_distance_m", "grass.max_instances", "grass.blade_height_m", "grass.blades_per_m2_at_full_cover", "grass.color", "grass.wind_noise_frequency",
+	"seedlings.max_instances", "foliage.card_size_m", "foliage.color_by_group", "lod.fade_margin_m", "lod.chunk_m"]
 
 
 static func candidates(zone_dir: String) -> Array:
@@ -28,6 +34,18 @@ static func load_for_zone(zone_dir: String) -> Dictionary:
 			return r
 		tried.append(p)
 	return {"ok": false, "error": "config.yml introuvable (bloc viewer des constantes d'affichage) ; cherché dans : " + ", ".join(tried), "data": {}}
+
+
+## Valeur sans le commentaire de fin de ligne (« # … » hors des guillemets) : `20000   # plafond` vaut `20000`.
+static func _strip_comment(s: String) -> String:
+	var quoted := false
+	for i in range(s.length()):
+		var c := s.substr(i, 1)
+		if c == "\"":
+			quoted = not quoted
+		elif c == "#" and not quoted:
+			return s.substr(0, i).strip_edges()
+	return s.strip_edges()
 
 
 static func _scalar(s: String) -> Variant:
@@ -77,7 +95,7 @@ static func parse_text(text: String) -> Dictionary:
 		if kv.size() != 2:
 			return {"ok": false, "error": "ligne illisible dans le bloc viewer : " + stripped, "data": {}}
 		var key := kv[0].strip_edges()
-		var val := kv[1].strip_edges()
+		var val := _strip_comment(kv[1])
 		var cur: Dictionary = stack[-1]["map"]
 		if val == "":
 			var sub := {}

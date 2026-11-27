@@ -582,13 +582,13 @@ def godot_measures(args, godot: Path, scenarios: list[dict]) -> list[dict]:
         FAILURES.append("import de Godot en échec ou avec des lignes ERROR")
     for sc in scenarios:
         zone = ROOT / "data" / sc["zone"]
-        for run_no in range(1, args.repetitions + 1):
+        for run_no in range(1, sc.get("essais", args.repetitions) + 1):
             r = run([godot, *selftest_args(zone, sc["year"], sc.get("extra"))], env=env, timeout=900)
             m = re.search(r"SELFTEST (\{.*\})", r["out"])
             st = json.loads(m.group(1)) if m else {}
             errs = [l for l in (r["out"] + r["err"]).splitlines() if "ERROR" in l]
-            selftest.append({"scenario": sc["name"], "essai": run_no, "code": r["rc"], "secondes_processus_entier": f"{r['s']:.3f}",
-                             "memoire_residente_octets": r["rss"], "lignes_ERROR": len(errs), "blocs": st.get("blocks", ""),
+            selftest.append({"scenario": sc["name"], "essai": run_no, "code": r["rc"], "secondes_processus_entier": "" if sc.get("sans_temps") else f"{r['s']:.3f}",
+                             "memoire_residente_octets": "" if sc.get("sans_temps") else r["rss"], "lignes_ERROR": len(errs), "blocs": st.get("blocks", ""),
                              "arbres": st.get("trees", ""), "generiques": st.get("generic_trees", ""), "non_cales": st.get("non_cale_trees", ""),
                              "brins_d_herbe": st.get("grass_instances", ""), "semis": st.get("seedlings", ""), "tronque": st.get("truncated", "")})
             if r["rc"] != 0 or not m:
@@ -633,10 +633,13 @@ def godot_measures(args, godot: Path, scenarios: list[dict]) -> list[dict]:
                                       "brins_d_herbe": c["grass"], "semis_total": c["seedlings_total"],
                                       "semis_par_essence": " ".join(f"{k}:{v}" for k, v in sorted(c["seedlings"].items()))})
     write_csv("m6_selftest.csv", list(selftest[0]), selftest)
-    write_csv("m6_phases.csv", list(phases[0]), phases)
-    write_csv("m6_blocs.csv", list(blocs[0]), blocs)
-    write_csv("m6_charge.csv", ["scenario", "composante", "instances", "triangles"], charge)
-    write_csv("m6_instances_cellule.csv", list(cells[0]), cells)
+    # un lot de scénarios sans phases (par exemple les seuls scénarios de la reprise 075) n'écrit pas de CSV de phases vide
+    if phases:
+        write_csv("m6_phases.csv", list(phases[0]), phases)
+        write_csv("m6_blocs.csv", list(blocs[0]), blocs)
+        write_csv("m6_charge.csv", ["scenario", "composante", "instances", "triangles"], charge)
+    if cells:
+        write_csv("m6_instances_cellule.csv", list(cells[0]), cells)
     for name in sorted({c["scenario"] for c in cells}):
         sub = [c for c in cells if c["scenario"] == name]
         for col, label in (("brins_d_herbe", "brins d'herbe par cellule (formule de la vue, sans plafond ni rayon)"),
@@ -649,7 +652,8 @@ def godot_measures(args, godot: Path, scenarios: list[dict]) -> list[dict]:
             summary.append({"scenario": name, "grandeur": label, "cellules": len(sub), "cellules_avec_couvert_connu": n_cover,
                             "cellules_a_zero": sum(1 for x in v if x == 0), "min": v[0], "mediane": int(statistics.median(v)),
                             "p95": v[min(len(v) - 1, int(0.95 * len(v)))], "max": v[-1], "somme": sum(v)})
-    write_csv("m6_instances_resume.csv", list(summary[0]), summary)
+    if summary:
+        write_csv("m6_instances_resume.csv", list(summary[0]), summary)
     shutil.rmtree(tmp, ignore_errors=True)
     return meta
 
@@ -727,6 +731,12 @@ def main(argv=None) -> int:
         {"name": "controle_reel_ifn_direct_2037", "zone": "m6_reel_zone", "year": 2037},
         {"name": "fictif_cohorts_2037_repli_gl_compatibility", "zone": "m6_cohorts", "year": 2037,
          "extra": ["--rendering-method", "gl_compatibility"], "phases": False},
+        # reprise 075 (mission 077) : un stade sans exemplaire d'une essence qui en a d'autres (épicéa mature, 1 arbre en 2022)
+        # est dessiné par le générateur générique d'après stage_models ; un seul essai, ni durée ni mémoire (comptes seulement)
+        {"name": "controle_reel_ifn_direct_2022_reprise_075", "zone": "m6_reel_zone", "year": 2022, "essais": 1, "sans_temps": True,
+         "phases": False},
+        {"name": "controle_reel_ifn_direct_2032_reprise_075", "zone": "m6_reel_zone", "year": 2032, "essais": 1, "sans_temps": True,
+         "phases": False},
     ]
     timings += godot_measures(args, godot, scenarios)
     write_csv("m6_temps.csv", ["etape", "secondes", "code", "memoire_residente_octets"], timings)

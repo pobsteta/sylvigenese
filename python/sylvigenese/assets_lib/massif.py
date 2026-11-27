@@ -120,6 +120,8 @@ class MassifWriter:
         self.fallbacks: dict[str, set[str]] = {}
         self.stage_models: dict[tuple[str, str], tuple[str, str]] = {}   # (essence, stade) -> (nom du modèle, genre)
         self.seedling_species: set[str] = set()
+        self.seedling_peak: dict[str, float] = {}        # essence -> plus grand effectif attendu de semis sur une année
+        self.seedling_unserved: list[str] = []           # essences à semis sans modèle young, dites dans les notes
         self.without_hcb = 0
 
     # ------------------------------------------------------------------ grilles
@@ -222,8 +224,13 @@ class MassifWriter:
         names = np.array([tiles.tile_name(int(a), int(b)) for a, b in zip(x_west, y_south)], dtype=object)
         z_ngf = altitude.read_ngf_altitude(self.zone / "dtm.tif", trees["x"], trees["y"])
         self._seedlings[year] = sim_state.read_seedlings(self.zone, year) if self.cohorts else {}
+        expected: dict[str, float] = {}
         for rows in self._seedlings[year].values():
             self.seedling_species |= {r["species"] for r in rows}
+            for r in rows:
+                expected[r["species"]] = expected.get(r["species"], 0.0) + r["seedlings_ha"] * CELL_M * CELL_M / 10000.0
+        for code, n in expected.items():
+            self.seedling_peak[code] = max(self.seedling_peak.get(code, 0.0), n)
         for code, stage, stem, kind in {(c, g, s, k) for c, g, s, k in
                                         zip(trees["species"].tolist(), stages.tolist(), stems.tolist(), kinds.tolist())}:
             if self.stage_models.setdefault((code, stage), (stem, kind)) != (stem, kind):
@@ -279,12 +286,15 @@ class MassifWriter:
         emploient) ; sinon la vue dit « pas de modèle » pour ces semis, rien n'est deviné."""
         found = dict(self.stage_models)
         used_generic = {stem for stem, kind in found.values() if kind == "generic"}
+        self.seedling_unserved = []
         for code in sorted(self.seedling_species):
             if (code, "young") in found:
                 continue
             stem, kind = self.registry.resolve(code, "young")
             if kind != "generic" or stem in used_generic:
                 found[(code, "young")] = (stem, kind)
+            else:
+                self.seedling_unserved.append(code)
         out = []
         for (code, stage), (stem, kind) in sorted(found.items()):
             entry = {"species": code, "stage": stage, "file": f"{stem}.glb", "kind": kind}
@@ -292,6 +302,14 @@ class MassifWriter:
                 entry["alias_of"] = stem.rpartition("_")[0]
             out.append(entry)
         return out
+
+    def unserved_seedling_notes(self) -> list[str]:
+        """Une ligne par essence qui a des semis et aucun modèle young (ni exemplaire, ni générique servi) : la vue ne
+        les dessine pas, l'index le dit (nom de l'essence, nombre de semis non dessinés : le plus grand effectif attendu
+        sur une année, `seedlings_ha` x aire de la cellule, additionné sur les cellules, arrondi)."""
+        return [f"semis de l'essence {code} non dessinés : aucun modèle young (ni exemplaire, ni générique servi) ; "
+                f"{round(self.seedling_peak.get(code, 0.0))} semis au plus sur une année (effectif attendu de sim/cells)"
+                for code in self.seedling_unserved]
 
     def finish(self, tile_names: list[str]) -> dict:
         """Écrit les blocs vides manquants (même liste de tuiles chaque année que `tiles/index.json`), puis
@@ -321,6 +339,7 @@ class MassifWriter:
                 entry = {"species": code, "model": f"generique_{species[code].group}", "kind": "generic"}
             models.append(entry)
         stage_models = self._stage_models_index()
+        notes.extend(self.unserved_seedling_notes())
         if self.without_hcb:
             notes.append(MENTION_HCB.format(n=self.without_hcb) + " (arbre-années)")
         generic = sum(y["trees_by_kind"]["generic"] for y in self.years)

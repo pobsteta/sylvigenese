@@ -72,7 +72,10 @@ def test_index_cohorts_dit_les_semis_simules_techniques_non_valides():
     assert not any("semis non simulés" in n for n in notes)
     assert "semis simulés par cohortes" in notes[-1] and "non validée" in notes[-1]
     assert "sous-bois, gibier et fructification non simulés" in notes[-1]
-    assert "volume et carbone non calculés" in notes[-1]            # v2 : le reste de la note ne change pas
+    # v2 : le volume et le carbone sont non calculés, et la note dit pourquoi (mission 078) : post refuse les cohortes
+    assert "volume et carbone non calculés (post refuse un massif en cohortes" in notes[-1]
+    assert "tarif non validé sur ces trajectoires" in notes[-1] and "M5b" in notes[-1]
+    assert "après M4a" not in notes[-1]
     assert notes[:-1] == assets.INDEX_NOTES_SIM[:-1]
 
 
@@ -113,5 +116,10 @@ def test_notes_v2_for_ne_change_que_la_note_des_semis():
     coh = cell_sheets.notes_v2_for(RUN_COHORTS)
     assert len(coh) == len(base)
     assert coh[2] == cell_sheets.seedling_note(RUN_COHORTS)
-    assert coh[:2] + coh[3:] == base[:2] + base[3:]
+    # mission 078 : en cohortes, la fiche dit aussi pourquoi le volume et le carbone ne sont pas calculés
+    assert coh[1] == cell_sheets.NOTE_VOLUME_COHORTS
+    assert "volume et carbone non calculés" in coh[1] and "post le refuse" in coh[1] and "M5b" in coh[1]
+    assert "viendront de post" not in coh[1]
+    assert coh[:1] + coh[3:] == base[:1] + base[3:]
+    assert base[1] == cell_sheets.NOTES_V2[1] and "viendront de post" in base[1]      # ifn_direct : inchangé
     assert cell_sheets.NOTES_V2[2] == "semis non simulés (jusqu'à M5)"   # la constante n'est pas modifiée

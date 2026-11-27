@@ -4,6 +4,8 @@
 extends GutTest
 
 const FIXTURES := "res://tests/fixtures/"
+## Champ de vision (degrés) passé au chargeur dans les tests : la vue le lit dans config.yml (viewer.camera.fov_deg), ici une valeur d'essai.
+const FOV_DEG_ESSAI := 75.0
 
 
 ## Chemin absolu (système de fichiers) d'une zone d'essai : tests/fixtures porte un .gdignore, hors de l'importeur.
