@@ -508,7 +508,12 @@ TERMS = [("kernel_scale_m", "m"), ("kernel_shape", "1"), ("maturity_height_m", "
          ("fecundity_seeds_per_m2_ba_yr", "graines/m2/an"), ("establishment_share", "1"),
          ("seedling_height_growth_m_yr", "m/an"), ("shade_tolerance", "1"),
          ("light_extinction_coef", "1"), ("seedling_survival_full_light_yr", "1"),
-         ("passage_height_m", "m"), ("stress_mortality", "1/an")]
+         ("passage_height_m", "m"), ("stress_mortality", "1/an"),
+         # mission 084b : correspondance Niinemets -> klighs, loi lumiere-seuil, classes de lumiere (version 0.4)
+         ("klighs_intercept", "1"), ("klighs_per_shade_tolerance", "1"), ("klighs_min", "1"), ("klighs_max", "1"),
+         ("light_threshold_klighs_break", "1"), ("light_threshold_high_slope", "1"),
+         ("light_threshold_high_intercept", "1"), ("light_threshold_low_slope", "1"),
+         ("light_threshold_low_klighs_origin", "1"), ("light_class_count", "1")]
 
 
 def regeneration_params():

@@ -96,16 +96,34 @@ par les contrats `cohorts_init`, `sim.cohorts`, `params/regeneration`, `config` 
 12. **Refus de `ifn_direct` au niveau SER (mission 063).** Le niveau SER avance des espérances sans tirage (choix 5), alors que
     le recrutement direct du modèle IFN (`ifn_direct`) arrondit au hasard des arbres entiers : `simulate.recruitment:
     ifn_direct` avec `level: ser` est refusé, code 2 ; motif confirmé par Pascal le 26/11/2026 : à cette échelle il n'y a pas d'arbres suivis un par un, donc rien à quoi appliquer un recrutement d'arbres entiers ; `ifn_direct` reste au massif, avec la référence de M3a (Q4). Le niveau SER n'a que le mode `cohorts`.
-13. **Survie des semis, forme de TreeMig (mission 062, terme ajouté en 066).** Ombre o = `light_extinction_coef`
-    × indice de couvert de la cellule ; seuil = `shade_tolerance` (échelle 0 à 5 de Niinemets et Valladares
-    2006, sans règle de conversion vers l'échelle de TreeMig : le coefficient d'extinction, provisoire, porte
-    l'ombre sur cette échelle) ; mortalité de stress μ̃ = 1 si o > seuil, 0 sinon (éq. 39, une seule classe de
-    lumière par cellule), comptée pour `stress_mortality` × μ̃ (éq. 40, p. 16) ; survie s = max(0,
-    `seedling_survival_full_light_yr` − `stress_mortality` × μ̃) (éq. 37). `stress_mortality` est un terme du
-    contrat `params/regeneration` (version 0.3, décision de Pascal du 26/11/2026) : la constante 0,184 de
-    TreeMig n'est plus dans le code, le jeu fictif l'écrit à 0,184 (`provisoire`), son absence arrête
-    `simulate` (code 2) en mode `cohorts`. Les résultats `cohorts` du jeu fictif sont identiques à ceux d'avant
-    (test d'identité sur les octets, `tests/m5/test_m5_stress_mortality.py`).
+13. **Survie des semis, forme de TreeMig (mission 062, terme ajouté en 066, ombre reprise en 084b).** Lumière
+    relative de la cellule l = exp(−k × couvert projeté), k = `light_extinction_coef` (provisoire) ; le couvert
+    projeté (surface des houppiers projetés sur surface de la cellule) tient la place de l'indice foliaire de
+    TreeMig (décision de Pascal du 27/11/2026, provisoire, dite au rapport). La lumière est rangée dans
+    `light_class_count` classes de largeur égale sur [0, 1] (10 ; décision de Pascal du 27/11/2026, provisoire et
+    sans source : TreeMig n'imprime pas ses bornes). Seuil de lumière par essence : la tolérance de Niinemets et
+    Valladares 2006 (`shade_tolerance`, 0 à 5) donne klighs par la droite de la mission 083, klighs = borné entre
+    `klighs_min` et `klighs_max` de `klighs_intercept` + `klighs_per_shade_tolerance` × N (provisoire, erreur
+    ± 1,1 classe, `docs/referentiels/regeneration.md` §15), puis la loi de TreeMig (TreeMigDocu p. 14, après
+    l'éq. 29) : seuil = `light_threshold_high_slope` × klighs + `light_threshold_high_intercept` si klighs ≥
+    `light_threshold_klighs_break`, sinon max(0, `light_threshold_low_slope` × (klighs −
+    `light_threshold_low_klighs_origin`)). Part d'une classe [l_low, l_up] sous le seuil (éq. 39, p. 16) : 0 si
+    l_low > seuil, 1 si l_up < seuil, (seuil − l_low) / (l_up − l_low) sinon ; mortalité de stress de la classe
+    = `stress_mortality` × part (éq. 40) ; mortalité de la cellule = moyenne des classes pondérée par la part de la
+    lumière de la cellule dans chaque classe ; survie s = max(0, `seedling_survival_full_light_yr` − mortalité de
+    stress) (éq. 37). **Une seule lumière par cellule** : TreeMig répartit la lumière d'une cellule sur les classes
+    par une loi (normale de l'indice foliaire) que le dépôt n'a pas ; avec une seule valeur l, la part est 1 pour
+    la classe qui contient l et 0 ailleurs (une borne va à la classe du dessus, l = 1 à la dernière), et la
+    fraction de l'éq. 39 ne joue que dans la classe qui contient l, si le seuil y tombe : c'est la forme publiée
+    appliquée à notre lumière unique, non une répartition inventée. Une répartition plus riche est une question de
+    sens pour Pascal, non décidée. Les dix termes nouveaux (constantes de la correspondance, de la loi, bornes de
+    klighs, nombre de classes) sont des termes de `params/regeneration` (contrat 0.4), cherchés comme les autres à
+    l'essence, au groupe, puis dans `toutes_essences` : aucun dans le code, absent = code 2 ; nombre de classes
+    non entier, `klighs_min` > `klighs_max`, seuil hors de 0 à 1 = code 2. `stress_mortality` (0,184, éq. 40) est
+    un terme du contrat depuis la version 0.3 (décision de Pascal du 26/11/2026). Mode `cohorts` : `flags.parquet`
+    porte aussi le signalement `classes_lumiere_et_extinction_provisoires`, qui dit les réglages provisoires et
+    sans source. Les résultats `cohorts` ont changé avec 084b (nouvelle référence
+    `tests/m5/reference/cohorts_ombre_treemig.json`) ; `ifn_direct` est inchangé (`tests/m3/reference/nominal.json`).
 14. **Essences candidates prises dans `cohorts_init` (mission 063).** Au niveau SER, les essences simulées
     sont celles de `cohorts_init` ; parmi elles, sont candidates au recrutement celles qui ont les quatre jeux
     de paramètres (T6). Une essence qui n'a que des lignes propres dans `params/` sans cohorte dans la SER

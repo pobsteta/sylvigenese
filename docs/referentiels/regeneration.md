@@ -643,6 +643,8 @@ Lue dans `TreeMigDocu_251218_Model.pdf` p. 14 (sha256 dans INDEX.md). La loi **n
 - Pour M5b, une classe unique par cellule (cas actuel, §14.6) n'a besoin que d'une borne : la lumière de la cellule, comparée à l_thresh. Ce qui reste de l'éq. (39) est alors un 0 ou un 1, sans la fraction.
 - α reste le seul coefficient à poser pour passer d'un indice foliaire à une lumière relative. Tant qu'il est absent, il se pose par un fichier de paramètres `provisoire: true`, avec sa source dite absente. Pascal tranche.
 
+**Suite (mission 084b, 27/11/2026) :** la forme de TreeMig (loi lumière-seuil, correspondance du §15, comparaison par classe de l'éq. 39, × 0,184) est reprise dans `simulate/src/semis.rs` avec des classes de lumière de largeur égale et une seule lumière par cellule (décisions de Pascal du 27/11/2026) ; voir l'ADR 0006, choix 13. Les dix constantes sont des termes de `params/regeneration` (contrat 0.4).
+
 ### 16.4 URL à télécharger, sans présumer de leur contenu
 
 Aucun fichier n'a été téléchargé à cette passe (pas de shell). Une recherche web a donné les adresses suivantes, **non ouvertes** :

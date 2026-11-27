@@ -365,7 +365,10 @@ fn l_estimation_du_niveau_ser_est_la_formule_fermee() {
 
 fn lignes_regeneration() -> Vec<LigneRegeneration> {
     // kernel_scale_m = 7 m : d99 = 46,5 m, couvert par K = 2 cellules de 25 m (mission 080).
-    let valeurs = [7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184];
+    let valeurs = [
+        7.0, 1.0, 10.0, 1000.0, 0.5, 0.4, 3.0, 0.5, 0.9, 1.3, 0.184, 9.091, -1.238, 1.0, 9.0, 5.0, 0.1, -0.4, 0.025, 1.0,
+        10.0,
+    ];
     let mut lignes = Vec::new();
     for (rang, (terme, unite)) in semis::TERMES.iter().enumerate() {
         lignes.push(LigneRegeneration {
@@ -575,7 +578,7 @@ fn un_nan_injecte_au_niveau_ser_est_un_controle_echoue() {
 fn au_niveau_ser_une_cellule_ombragee_n_est_pas_bornee_la_premiere_annee() {
     // Reprise de 062 : le stock initial « en régime » est l'état stationnaire à la survie de la
     // cellule, ombre du couvert de t0 comprise. Avec un coefficient d'extinction d'essai très fort,
-    // l'ombre de toute cellule qui a des adultes dépasse la tolérance (3) : survie 0,9 − 0,184.
+    // la lumière de toute cellule qui a des adultes tombe dans la classe 0, sous le seuil de lumière : survie 0,9 − 0,184.
     let dossier = dossier_neuf("ser-ombre-premiere-annee");
     std::fs::create_dir_all(&dossier).unwrap();
     let mut entrees = zone_ser(1, 1, &dossier);

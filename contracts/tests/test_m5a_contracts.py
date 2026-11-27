@@ -128,7 +128,7 @@ def test_regeneration_params_conform(tmp_path, capsys):
     assert code == 0, out
 
 
-def test_regeneration_params_have_a_closed_list_of_eleven_terms():
+def test_regeneration_params_have_a_closed_list_of_twenty_one_terms():
     schema = catalog.load_schema("tables/params/regeneration.schema.json")
     term = next(f for f in schema["fields"] if f["name"] == "term")
     assert [t for t, _ in h.TERMS] == term["constraints"]["enum"]
@@ -140,7 +140,7 @@ def test_regeneration_maturity_is_a_height_and_the_diameter_term_is_gone(tmp_pat
     term = next(f for f in schema["fields"] if f["name"] == "term")
     assert "maturity_height_m" in term["constraints"]["enum"]
     assert "maturity_d130_cm" not in term["constraints"]["enum"]
-    assert schema["x-schema-version"] == "0.3"
+    assert schema["x-schema-version"] == "0.4"
     data = h.regeneration_params()
     data["term"][data["term"].index("maturity_height_m")] = "maturity_d130_cm"
     code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
@@ -152,13 +152,28 @@ def test_regeneration_stress_mortality_is_a_term_of_the_contract(tmp_path, capsy
     schéma ; sans lui le contrat reste conforme (c'est simulate qui arrête, code 2, en mode cohorts)."""
     schema = catalog.load_schema("tables/params/regeneration.schema.json")
     term = next(f for f in schema["fields"] if f["name"] == "term")
-    assert "stress_mortality" in term["constraints"]["enum"] and schema["x-schema-version"] == "0.3"
+    assert "stress_mortality" in term["constraints"]["enum"] and schema["x-schema-version"] == "0.4"
     for mot in ("stress_mortality", "éq. 40", "1/an", "code 2"):
         assert mot in schema["description"], mot
     assert "0,184" not in schema["description"] and "0.184" not in schema["description"]
     data = h.regeneration_params()
     assert "stress_mortality" in data["term"]
     code, out = check(capsys, "regeneration", regeneration_file(tmp_path, data))
+    assert code == 0, out
+
+
+def test_regeneration_light_terms_are_documented_without_values(tmp_path, capsys):
+    """Mission 084b : les dix termes de l'ombre des semis (klighs, loi lumière-seuil, classes de lumière) sont au contrat
+    (version 0.4) ; le schéma cite la loi et les équations, sans aucune des valeurs (elles viennent des fichiers)."""
+    schema = catalog.load_schema("tables/params/regeneration.schema.json")
+    term = next(f for f in schema["fields"] if f["name"] == "term")
+    nouveaux = [t for t, _ in h.TERMS][11:]
+    assert len(nouveaux) == 10 and all(t in term["constraints"]["enum"] for t in nouveaux)
+    for mot in nouveaux + ["éq. 39", "p. 14", "TreeMigDocu_251218_Model.pdf", "Niinemets", "code 2"]:
+        assert mot in schema["description"], mot
+    for valeur in ("9,091", "9.091", "1,238", "1.238", "0,025", "0.025"):
+        assert valeur not in schema["description"], valeur
+    code, out = check(capsys, "regeneration", regeneration_file(tmp_path, h.regeneration_params()))
     assert code == 0, out
 
 
@@ -189,9 +204,9 @@ def test_regeneration_schema_holds_no_value_but_the_nominal_ones_in_its_text():
     (lambda d: d["value"].__setitem__(0, None), r"value"),
     (lambda d: d["species"].__setitem__(0, "9"), r"species"),
     (lambda d: (d["species"].__setitem__(0, None), d["species_group"].__setitem__(0, None)), r"species"),
-    (lambda d: d["species_group"].__setitem__(11, "arbustes"), r"species_group"),
+    (lambda d: d["species_group"].__setitem__(-1, "arbustes"), r"species_group"),
     (lambda d: d["term"].__setitem__(1, "kernel_scale_m"), r"doublon"),
-    (lambda d: d.update(model=["x"] * 12), r"model"),
+    (lambda d: d.update(model=["x"] * len(d["term"])), r"model"),
     (lambda d: d.pop("unit"), r"unit"),
 ], ids=["terme-hors-liste", "source-vide", "source-absente", "provisoire-absent", "unite-vide",
         "valeur-nan", "valeur-absente", "essence-sans-zero", "ni-essence-ni-groupe",

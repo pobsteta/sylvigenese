@@ -20,7 +20,7 @@ from validator.report import Refused
 CONTRACTS = Path(__file__).resolve().parents[1]
 TABLE_SCHEMAS = sorted((CONTRACTS / "tables").rglob("*.schema.json"))
 # version du schéma par fichier quand elle n'est pas la 0.1 (summary : version 0.2, mission 051)
-SCHEMA_VERSIONS = {"summary.schema.json": "0.2", "regeneration.schema.json": "0.3"}  # regeneration 0.2 : maturité en hauteur (062) ; 0.3 : stress_mortality (066)
+SCHEMA_VERSIONS = {"summary.schema.json": "0.2", "regeneration.schema.json": "0.4"}  # regeneration 0.2 : maturité en hauteur (062) ; 0.3 : stress_mortality (066) ; 0.4 : ombre des semis à la forme de TreeMig (084b)
 # version du schéma JSON par fichier quand elle n'est pas la 0.1 (massif_index 0.2 : stage_models, mission 075)
 JSON_SCHEMA_VERSIONS = {"massif_index.schema.json": "0.2"}
 JSON_SCHEMAS = sorted((CONTRACTS / "json").glob("*.json")) + sorted(
