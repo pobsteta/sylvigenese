@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 10 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 11 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -30,6 +30,8 @@ _Modèle de carte :_
 - M6b · constantes d'affichage de la vue massif (rayon des blocs voisins, hauteur des yeux, champ de vision, couleur du sol, vitesse de la caméra) à déplacer des scripts vers le bloc viewer de config.yml ; densité d'herbe, fondu entre niveaux et retour en Lambert-93 (0,5 m) à juger sur le PC de Pascal · depuis le cycle 9
 - M6b · semis dessinés par un générique : échelle uniforme (rayon = h), à mettre à (r, h, r) faute de cw des semis ; essence à semis sans modèle young non dite dans les notes de l'index · depuis le cycle 9
 - M6b · ajouter le scénario 2022 (stade sans exemplaire) à bench/m6/mesurer.py, pour que m6_selftest.csv ne garde pas de lignes écrites à la main · depuis le cycle 9
+- M5b · coût du noyau sur données réelles : K de 20 à 60 cellules pour les classes 5 et 6 de Lososová (zone tampon jusqu'à 1,5 km), mémoire et durée à mesurer · depuis le cycle 11
+- Mineurs du cycle 11 : docstring de tests/m5/test_m5_stress_mortality.py (référence relevée pour 080) ; réimporter le tarif réel (facteurs du domaine) ; citation des coefficients de Lanczos (Godfrey) ; branche de réflexion de la gamma non testée · depuis le cycle 11
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
@@ -37,13 +39,17 @@ _Modèle de carte :_
 
 ## Planifié
 
-- Reprises mineures de la relecture de post (facteurs du domaine lus et non écrits en dur, chemin local dans ifn-g-tiges.csv, docstring exclude_incomplete, rejeu du CSV prouvé) · depuis le cycle 8
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
 - M6b (sur le PC de Pascal : aspect, images par seconde, rendu Compatibility, chemin « calé » sur le massif réel) · depuis le cycle 10
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
 
 
 ## Terminé
+
+- [076](missions/076-reprises-mineures-post.md) à [080](missions/080-noyau-couvre-d99.md) · depuis le cycle 11
+  - Homme : `dev` ×2, `afficheur`, `acquereur`, relus par `relecteur`
+  - Mission : reprises de post, refus des cohortes par post, constantes d'affichage de la vue, noyau couvrant le d99, licence de TreePars (non établie)
+  - Moyens : PR pobsteta/sylvigenese#13
 
 - [067](missions/067-referentiel-generateur-godot.md) à [075](missions/075-reprises-relecture-m6a.md) · depuis le cycle 10
   - Homme : `acquereur`, `dev`, `testeur`, `afficheur`, `analyste`, `archiviste`, relus par `relecteur` (2 relectures), critiqué par `contradicteur`
@@ -147,3 +153,4 @@ l'inscrit avec ce qu'elle nous apprend._
 - cycle 8 · livraison : post calcule le volume aérien total et le carbone aérien de chaque cellule et de chaque année avec le tarif NEMETON v5, et la vue les montre, « volume partiel » compris · pour Pascal · le futur simulé se lit en m³ et en tC, sans extrapolation ; mauvaise nouvelle : avec le tarif réel, 78 % de la surface terrière du jeu fictif est hors domaine à t0, et les quantiles IFN confirment que le jeu fictif est trop dense (91 m²/ha contre une médiane de 23,6)
 - cycle 9 · livraison : M5a, les semis s'installent et recolonisent les trouées par cohortes (mode cohorts, aux deux niveaux), et la SER entière se simule en espérance ; mesure et extrapolation à C20 · pour Pascal · on sait que la SER C20 tient en temps sur son PC (marge 3 à 7) et en mémoire sous quatre conditions ; mauvaise nouvelle : ces quatre conditions (essences, classes de semis, emprise, forêt seule) sont inconnues du dépôt, et le disque demande 178 à 466 Go
 - cycle 10 · livraison : M6a, les arbres du générateur de tarif-nemeton entrent dans les deux vues, et la vue massif Godot s'ouvre depuis la fiche web avec herbe et semis autour de la caméra · pour Pascal · on peut regarder le futur simulé de l'intérieur, arbre par arbre, chaque stade avec son modèle ; mauvaise nouvelle : les 19 vrais exemplaires sont tous « non calés » (dimensions du jeu fictif hors plage de calage), et ni l'aspect ni la fluidité ne sont prouvés sans le PC de Pascal
+- cycle 11 · livraison : reprises techniques avant M6b et M5b (simulate refuse un noyau trop court pour la dispersion d'une essence, post refuse les cohortes, la vue lit toutes ses constantes dans config.yml) · pour Pascal · moins de cas silencieux ; mauvaise nouvelle : sur données réelles, les essences à longue portée demanderont K = 20 à 60 cellules, coût non mesuré, et TreeMig ne couvre que 30 essences sur 195
