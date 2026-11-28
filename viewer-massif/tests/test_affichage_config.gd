@@ -130,6 +130,33 @@ func test_des_semis_dessines_par_un_generique_sont_comptes_et_la_mention_est_dit
 	assert_string_contains(note, "largeur non connue")
 	assert_string_contains(note, "rayon = 0,25 x la hauteur")
 	assert_string_contains(note, "illustration, non mesurée")
+	assert_string_contains(note, "sans source")   # mission 092 : comme config.yml, la note ne laisse pas croire à une valeur sourcée
+
+
+## Mission 092 : la vérification de 1 m de haut d'un modèle générique vaut aussi pour les semis (comme pour les arbres).
+func test_un_generique_de_semis_qui_ne_mesure_pas_1_m_est_refuse_en_code_5_et_nomme() -> void:
+	var zone := _copie("zone_m6_stade_manquant", "zone_semis_generique_haut")
+	_avec_semis(zone)
+	# le fichier du générique feuillu (young du hêtre) devient un modèle de ~12 m : arbre y01 le dessine sans erreur (extras sans
+	# « generique »), mais l'index le dit générique : la vérification des semis le refuse
+	_ecrire(zone + "/assets/trees/generique_feuillu.glb", FileAccess.get_file_as_bytes(zone_path("zone_m6_stade_manquant") + "/assets/trees/09_mature.glb"))
+	var r := _selftest(zone)
+	assert_eq(r["code"], 5, r["texte"])
+	assert_string_contains(r["texte"], "semis de l'essence 09")
+	assert_string_contains(r["texte"], "un modèle générique mesure 1 m")
+
+
+func test_la_verification_de_taille_du_generique_est_la_meme_pour_arbres_et_semis() -> void:
+	var V = need("res://scripts/massif_view.gd")
+	if V == null:
+		return
+	assert_eq(V.generic_size_error(1.0, "x"), "")
+	assert_eq(V.generic_size_error(1.005, "x"), "", "dans la tolérance de 1 cm")
+	var e: String = V.generic_size_error(12.0, "semis de l'essence 09")
+	assert_string_contains(e, "semis de l'essence 09")
+	assert_string_contains(e, "12.000 m")
+	var arbre: Dictionary = V.instance_scale({"generique": true}, 12.0, 12.0, 4.0, "semis de l'essence 09")
+	assert_eq(arbre["error"], e, "même message pour un arbre")
 
 
 ## Mission 091 : un semis générique est mis à (r, h, r), r = h x rapport de config.yml (le bloc ne donne pas de cw) ; un semis du

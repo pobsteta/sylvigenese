@@ -128,3 +128,59 @@ fn hors_de_git_la_release_n_est_pas_lue() {
     assert!(erreur.contains("n'est pas la racine"), "{erreur}");
     let _ = fs::remove_dir_all(&autre);
 }
+
+/// Mission 092 : le vrai `build.rs` (et le vrai `src/release.rs`) relancent la compilation quand
+/// une étiquette ou la tête de git change. Banc : une crate minuscule, sans dépendance, dans un
+/// dépôt git temporaire hors de l'arbre (rien n'est écrit dans le dépôt du projet) ; sa racine
+/// de dépôt est le parent de la crate, comme pour `simulate/`.
+#[test]
+fn le_build_rs_recompile_quand_une_etiquette_ou_la_tete_change() {
+    let racine = depot_neuf("recompilation");
+    let crate_ = racine.join("mini");
+    fs::create_dir_all(crate_.join("src")).unwrap();
+    let manifeste = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    fs::copy(manifeste.join("build.rs"), crate_.join("build.rs")).unwrap();
+    fs::copy(manifeste.join("src/release.rs"), crate_.join("src/release.rs")).unwrap();
+    fs::write(
+        crate_.join("Cargo.toml"),
+        "[package]\nname = \"mini\"\nversion = \"0.0.0\"\nedition = \"2021\"\n\n[workspace]\n",
+    )
+    .unwrap();
+    fs::write(
+        crate_.join("src/main.rs"),
+        "fn main() { println!(\"{}\", env!(\"SYLVIGENESE_RELEASE_COMPILEE\")); }\n",
+    )
+    .unwrap();
+    git(&racine, &["add", "-A"]);
+    git(&racine, &["commit", "-q", "-m", "mini"]);
+    git(&racine, &["tag", "v2026.11.1"]);
+
+    let cible = racine.join("cible");
+    let compiler_et_lire = || -> String {
+        let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+        let sortie = Command::new(&cargo)
+            .current_dir(&crate_)
+            .args(["run", "-q", "--offline"])
+            .env("CARGO_TARGET_DIR", &cible)
+            .env_remove(release::VARIABLE)
+            .output()
+            .unwrap();
+        assert!(sortie.status.success(), "{}", String::from_utf8_lossy(&sortie.stderr));
+        String::from_utf8_lossy(&sortie.stdout).trim().to_string()
+    };
+
+    assert_eq!(compiler_et_lire(), "v2026.11.1");
+    // Nouveau commit : tête déplacée, commits depuis l'étiquette.
+    fs::write(racine.join("a.txt"), "2\n").unwrap();
+    git(&racine, &["commit", "-q", "-am", "deux"]);
+    let empreinte = git(&racine, &["rev-parse", "--short", "HEAD"]);
+    assert_eq!(compiler_et_lire(), format!("v2026.11.1-1-g{empreinte}"));
+    // Étiquette posée sur ce même commit (la tête ne bouge pas) : la release compilée change.
+    git(&racine, &["tag", "v2026.11.2"]);
+    assert_eq!(compiler_et_lire(), "v2026.11.2");
+    // Modification indexée : la marque -dirty apparaît (l'index est surveillé).
+    fs::write(racine.join("a.txt"), "3\n").unwrap();
+    git(&racine, &["add", "a.txt"]);
+    assert_eq!(compiler_et_lire(), "v2026.11.2-dirty");
+    let _ = fs::remove_dir_all(&racine);
+}

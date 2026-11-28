@@ -139,6 +139,14 @@ const GENERIC_SIZE_M := 1.0
 const GENERIC_TOLERANCE_M := 0.01
 
 
+## Refus nommé d'un modèle générique qui ne mesure pas 1 m de haut ; chaîne vide s'il convient. Commun aux arbres et aux semis :
+## la même convention, le même seuil, le même message.
+static func generic_size_error(model_height_m: float, label: String) -> String:
+	if absf(model_height_m - GENERIC_SIZE_M) > GENERIC_TOLERANCE_M:
+		return "%s : un modèle générique mesure %.0f m de haut (convention de assets), celui-ci %.3f m" % [label, GENERIC_SIZE_M, model_height_m]
+	return ""
+
+
 ## Échelle d'une instance : {ok, error, sxz, sy}. Générique (`extras.generique`) : (r, h, r) d'un modèle de 1 m x 1 m, hauteur
 ## mesurée vérifiée. Modèle du générateur : (cw / 2 / rayon_houppier_ref_m, h / hauteur mesurée, idem) ; une clé de dimension
 ## absente (H_ref_m, rayon_houppier_ref_m) ou une dimension d'arbre non positive est refusée, jamais remplacée par la hauteur.
@@ -148,8 +156,9 @@ static func instance_scale(extras: Dictionary, model_height_m: float, tree_h: fl
 		fail["error"] = "%s : h = %s et cw = %s : deux dimensions strictement positives sont exigées, la vue ne devine pas" % [label, str(tree_h), str(tree_cw)]
 		return fail
 	if bool(extras.get("generique", false)):
-		if absf(model_height_m - GENERIC_SIZE_M) > GENERIC_TOLERANCE_M:
-			fail["error"] = "%s : un modèle générique mesure %.0f m de haut (convention de assets), celui-ci %.3f m" % [label, GENERIC_SIZE_M, model_height_m]
+		var refus := generic_size_error(model_height_m, label)
+		if refus != "":
+			fail["error"] = refus
 			return fail
 		return {"ok": true, "error": "", "sxz": tree_cw / 2.0 / GENERIC_SIZE_M, "sy": tree_h / GENERIC_SIZE_M}
 	for k in ["H_ref_m", "rayon_houppier_ref_m"]:
@@ -374,6 +383,11 @@ func _load_seedling_models(zone_dir: String) -> Dictionary:
 				var res := _load_model(mf["path"])
 				if not res["ok"]:
 					return {"ok": false, "error": res["error"]}
+				if str(mf["kind"]) == "generic":
+					# l'échelle (r, h, r) d'un semis suppose un modèle de 1 m x 1 m : comme pour les arbres, sinon refus nommé
+					var refus := generic_size_error(float(res["height_m"]), "semis de l'essence %s (%s)" % [sp, str(mf["path"]).get_file()])
+					if refus != "":
+						return {"ok": false, "error": refus}
 				seedling_models[sp] = {"path": mf["path"], "res": res, "kind": str(mf["kind"])}
 				if str(mf["kind"]) == "generic":
 					stats["seedling_generic_species"] += 1

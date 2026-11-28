@@ -37,6 +37,7 @@ static func scale(is_generic: bool, h_mean_m: float, model_height_m: float, radi
 	return Vector3(h_mean_m * radius_over_height, sy, h_mean_m * radius_over_height)
 
 
-## Ligne de l'écran quand des semis sont dessinés par un générique : dit que la largeur est inventée pour l'affichage.
+## Ligne de l'écran quand des semis sont dessinés par un générique : dit que la largeur est inventée pour l'affichage, sans source
+## (comme `config.yml`).
 static func generic_note(radius_over_height: float) -> String:
-	return "semis génériques : largeur non connue, rayon = %s x la hauteur (illustration, non mesurée)" % ("%.2f" % radius_over_height).replace(".", ",")
+	return "semis génériques : largeur non connue, rayon = %s x la hauteur (illustration, non mesurée, sans source)" % ("%.2f" % radius_over_height).replace(".", ",")

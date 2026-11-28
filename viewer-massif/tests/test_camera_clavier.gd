@@ -59,3 +59,13 @@ func test_configure_lit_la_vitesse_de_rotation_dans_config() -> void:
 	assert_gt(cam.key_turn_rad_s, 0.0)
 	assert_eq(cam.key_turn_rad_s, float(r["data"]["camera"]["key_turn_rad_s"]))
 	cam.free()
+
+
+## Mission 092 : le README dit « touches physiques » (la touche garde sa place, pas sa lettre : AZERTY lit Z Q S D, A descend).
+## Garde : la caméra lit les touches par `is_physical_key_pressed`, jamais par le caractère (`is_key_pressed`, `keycode`).
+func test_la_camera_lit_les_touches_par_position_physique_pas_par_caractere() -> void:
+	var src := FileAccess.get_file_as_string("res://scripts/camera_fly.gd")
+	assert_string_contains(src, "Input.is_physical_key_pressed(k)")
+	assert_false(src.contains("Input.is_key_pressed("), "lecture par caractère : le README AZERTY serait faux")
+	var readme := FileAccess.get_file_as_string("res://README.md")
+	assert_string_contains(readme, "| Descendre | Q | **A** |")

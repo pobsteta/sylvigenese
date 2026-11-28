@@ -1,4 +1,5 @@
-## Caméra libre de la vue (souris + ZQSD/WASD, A/E ou Q/E pour monter et descendre, Maj pour aller vite ; flèches pour tourner
+## Caméra libre de la vue (souris + touches lues par position physique : W A S D sur QWERTY = Z Q S D sur AZERTY, E monte, Q descend
+## sur QWERTY = A sur AZERTY, Maj pour aller vite ; flèches pour tourner
 ## la tête sans souris, mission 091). Clic pour capturer la
 ## souris, Échap pour la rendre. Sans effet en --selftest (aucune entrée). Réglages : bloc `viewer.camera` de config.yml
 ## (provisoires, « illustration, non mesurée »), donnés par `configure` ; aucune valeur par défaut ici.
@@ -31,7 +32,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 ## Direction de déplacement (repère de la caméra : x droite, y haut, -z devant) d'après l'ensemble des touches physiques tenues.
-## Touches physiques : W A S D donnent Z Q S D sur un clavier AZERTY, sans changement.
+## Touches physiques (`Input.is_physical_key_pressed` : position sur un clavier QWERTY, pas le caractère). Sur AZERTY : W = Z,
+## A = Q, S = S, D = D, E = E (monte), Q = A (descend) ; voir viewer-massif/README.md.
 static func move_direction(held: Dictionary) -> Vector3:
 	var dir := Vector3.ZERO
 	if held.get(KEY_W, false):

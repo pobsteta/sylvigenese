@@ -10,7 +10,13 @@
 //! Recompilation : quand `SYLVIGENESE_RELEASE`, la tête de git, l'index, les étiquettes ou les
 //! fichiers de `simulate/` changent. Limite : une modification non indexée hors de `simulate/`
 //! ne relance pas ce script, la marque `-dirty` peut alors manquer jusqu'au prochain `git add`
-//! ou commit (le code de `simulate` compilé, lui, est bien celui du dépôt).
+//! ou commit (le code de `simulate` compilé, lui, est bien celui du dépôt). Corriger cette
+//! limite demanderait de surveiller tout l'arbre de travail du dépôt (donc de relancer ce script
+//! à chaque modification de n'importe quel fichier) : on la dit, on ne la corrige pas.
+//!
+//! Test : `tests/release.rs` (`le_build_rs_recompile_quand_une_etiquette_ou_la_tete_change`)
+//! compile ce `build.rs` tel quel dans une crate minuscule d'un dépôt git temporaire et vérifie
+//! que la release compilée suit une étiquette, un commit et l'index.
 
 #[allow(dead_code)]
 #[path = "src/release.rs"]
