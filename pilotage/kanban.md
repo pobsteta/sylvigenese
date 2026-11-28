@@ -24,20 +24,27 @@ _Modèle de carte :_
 - M5b · refus de post pour un massif simulé en `cohorts` (tant que le tarif n'est pas validé sur ces trajectoires) · depuis le cycle 8
 - M5b · clé `external.*` pour Niinemets (non recopié) ; mise à jour de BRIEF §7.3 · depuis le cycle 8
 - M5b · ombre des semis (décision de Pascal du 27/11/2026, après la passe 5) : forme de TreeMig (lumière relative en classes, seuil par essence), tolérance de Niinemets, klighs hors dépôt en contrôle sur 30 essences ; licence de TreePars à établir (zip EnviDat de 1,6 Go, compatibilité CC-BY-SA et GPL-3) ; questions n° 20 (indice foliaire ou couvert projeté) à poser · depuis le cycle 11
-- M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
 - M5b · mentions Q2 et Q3 : aujourd'hui en signalements de t0 (sim/flags.parquet) ; à porter au rapport de simulation quand il existera · depuis le cycle 8
 - M5b · suites des questions n° 12 à 17 (journal du 26/11/2026) : limite de Gaudio dite au rapport de params/regeneration (n° 13) ; obtenir S1 de Lososová pour la dispersion (n° 17) ; contrôle de la dimension critique de Gaudio pour 52 (n° 14) ; clé external.* pour le Data Sheet et la thèse (n° 12) · depuis le cycle 9
 - M6b · régénérer bench/results/m6_selftest.csv par un run complet de bench/m6/mesurer.py (scénario fictif 2022 ajouté par 091 ; le run complet exige data/m6_reel, données réelles) · depuis le cycle 17
 - M6b · à l'œil de Pascal (091) : densité d'herbe, fondu entre niveaux, feuillage en aplats sur la Quadro, perches peu branchues, résolution, retour en Lambert-93 ; silhouette des semis génériques au rapport 0,25 (sans source, captures data/captures_091/) · depuis le cycle 17
 - M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
 - Réimporter le tarif réel (facteurs du domaine, mission 076) : chez Pascal ou quand le tarif réel est ici · depuis le cycle 11
-- Version · mineurs de la relecture de la PR 19 : marque -dirty de build.rs imprécise hors simulate/ (sans effet sur le code compilé) ; pas de test automatique de la recompilation quand une étiquette change ; inputs_sha256.sim_run de post change à chaque commit (à savoir avant de comparer des sorties de post entre releases) ; échantillon terrain : simulate --version et la clé release de sim/run.json au prochain run de Pascal sur le massif test · depuis le cycle 15
-- Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
 
 
 ## Planifié
+
+- [092](missions/092-mineurs-cycle-17.md) · depuis le cycle 17
+  - Homme : `dev`
+  - Mission : mineurs des PR 19 et 23 (AZERTY, taille du générique des semis, « sans source » à l'écran, build.rs)
+  - Moyens : branche claude/youthful-allen-b094t9
+
+- [093](missions/093-fft-entre-machines-banc-ser.md) · depuis le cycle 17
+  - Homme : `dev`
+  - Mission : identité de la FFT entre AVX, SSE et scalaire ; banc SER (forêt seule, S × K à N = 2 000)
+  - Moyens : PC de Pascal, copie du dépôt
 
 - [090](missions/090-forme-numero-version.md) · depuis le cycle 17
   - Homme : `dev`
