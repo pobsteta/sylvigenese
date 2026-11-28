@@ -45,7 +45,7 @@ _Modèle de carte :_
 - [088](missions/088-mesure-fps-carte-graphique.md) · depuis le cycle 16
   - Homme : `dev`
   - Mission : images par seconde de la vue web mesurées par script sur la carte graphique (critère b de M4)
-  - Moyens : branche claude/youthful-allen-b094t9, PC de Pascal (Quadro K5100M)
+  - Moyens : branche claude/youthful-allen-b094t9, PC de Pascal (Quadro K5100M) ; rendue, en relecture
 
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
 - M6b (sur le PC de Pascal : aspect, images par seconde, rendu Compatibility, chemin « calé » sur le massif réel) · depuis le cycle 10
