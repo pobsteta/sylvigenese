@@ -1,7 +1,7 @@
 Package: sylvigenese
 Type: Package
 Title: Modules R de sylvigenese : prepare, biomes, dynamics
-Version: 2026.11.18
+Version: 2026.11.19
 Description: Squelette (mission 012). Chaque module lit config.yml et appelle le
     validateur des contrats ; aucune logique métier pour l'instant (BRIEF §12, spec §2).
 License: GPL-3
