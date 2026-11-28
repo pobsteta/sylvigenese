@@ -1,6 +1,6 @@
 {
   "name": "sylvigenese-viewer-web",
-  "version": "2026.11.19",
+  "version": "2026.11.20",
   "private": true,
   "description": "Vue web de sylvigenese (TypeScript, iTowns). Squelette de la mission 012 : lit config.yml et appelle le validateur.",
   "license": "GPL-3.0-only",

@@ -1,6 +1,6 @@
 [package]
 name = "simulate"
-version = "2026.11.19"
+version = "2026.11.20"
 edition = "2021"
 rust-version = "1.97"
 description = "Moteur de simulation de sylvigenese (ADR 0001). Squelette : lit config.yml et appelle le validateur."
