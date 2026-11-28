@@ -2,7 +2,9 @@
 # Met les manifestes au numéro de la prochaine release (mission 087, décision de Pascal du 27/11/2026).
 # Usage : aligner-version.sh [AAAA.MM]   (défaut : mois courant, UTC ; lancé depuis le dépôt)
 # Le numéro est celui de version-calendaire.sh, sans le « v » (ex. v2026.11.18 -> 2026.11.18) ; il est écrit dans
-# simulate/Cargo.toml, simulate/Cargo.lock (ligne du paquet simulate), python/pyproject.toml et DESCRIPTION.
+# simulate/Cargo.toml, simulate/Cargo.lock (ligne du paquet simulate), python/pyproject.toml, DESCRIPTION et, pour
+# tools/ci et viewer-web (mission 089), package.json et package-lock.json (champ « version » seulement : en tête
+# et dans packages[""], jamais une dépendance).
 # Geste à faire dans chaque PR qui change le produit : release.yml refuse de poser l'étiquette si les manifestes
 # ne portent pas le numéro qu'il calcule (verifier-version.sh).
 # Refus (code 1, rien n'est écrit) : un manifeste sans ligne de version lisible, ou des étiquettes locales en
@@ -44,6 +46,11 @@ ecrire simulate/Cargo.toml "1,/^version = /s/^version = \".*\"$/version = \"$VER
 ecrire python/pyproject.toml "1,/^version = /s/^version = \".*\"$/version = \"$VERSION\"/"
 ecrire simulate/Cargo.lock "/^name = \"simulate\"$/{n;s/^version = \".*\"$/version = \"$VERSION\"/;}"
 ecrire DESCRIPTION "s/^Version: .*$/Version: $VERSION/"
+for p in tools/ci viewer-web; do
+  ecrire "$p/package.json" "1,/^  \"version\": /s/^  \"version\": \".*\"/  \"version\": \"$VERSION\"/"
+  ecrire "$p/package-lock.json" "1,/^  \"version\": /s/^  \"version\": \".*\"/  \"version\": \"$VERSION\"/"
+  ecrire "$p/package-lock.json" "/^    \"\": {\$/,/^      \"version\"/s/^      \"version\": \".*\"/      \"version\": \"$VERSION\"/"
+done
 
 for f in $MANIFESTES; do
   if [ "$(version_de "$f")" != "$VERSION" ]; then

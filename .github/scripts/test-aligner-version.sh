@@ -14,7 +14,7 @@ contient() { # nom motif texte
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir "$T/depot" && cd "$T/depot" && git init -q . && git config user.email t@t && git config user.name t
 git config commit.gpgsign false; git config tag.gpgsign false
-mkdir -p simulate python
+mkdir -p simulate python tools/ci viewer-web
 cat > simulate/Cargo.toml <<'F'
 [package]
 name = "simulate"
@@ -45,6 +45,11 @@ version = "0.0.1"
 version = "9.9.9"
 F
 printf 'Package: sylvigenese\nVersion: 0.0.1\nLicense: GPL-3\n' > DESCRIPTION
+# Paquets Node (mission 089) : la version de tête et celle de packages[""] changent, pas celles des dépendances.
+for p in tools/ci viewer-web; do
+  printf '{\n  "name": "x",\n  "version": "0.0.1",\n  "dependencies": {\n    "dep": "1.0.0"\n  }\n}\n' > $p/package.json
+  printf '{\n  "name": "x",\n  "version": "0.0.1",\n  "lockfileVersion": 3,\n  "packages": {\n    "": {\n      "name": "x",\n      "version": "0.0.1",\n      "dependencies": {\n        "dep": "1.0.0"\n      }\n    },\n    "node_modules/dep": {\n      "version": "0.0.1"\n    }\n  }\n}\n' > $p/package-lock.json
+done
 git add -A && git commit -q -m init
 git tag v2026.11.16; git tag v2026.11.17; git tag v2026.10.30
 
@@ -69,7 +74,12 @@ verifie "aligner : Cargo.lock, serde intact" 'version = "1.0.229"' "$(sed -n 3p 
 verifie "aligner : pyproject" 'version = "2026.11.18"' "$(sed -n 3p python/pyproject.toml)"
 verifie "aligner : pyproject, autre table intacte" 'version = "9.9.9"' "$(sed -n 6p python/pyproject.toml)"
 verifie "aligner : DESCRIPTION" 'Version: 2026.11.18' "$(sed -n 2p DESCRIPTION)"
-verifie "aligner : rien d'autre ne bouge" "4" "$(git diff --numstat | wc -l | tr -d ' ')"
+verifie "aligner : package.json de viewer-web" '  "version": "2026.11.18",' "$(sed -n 3p viewer-web/package.json)"
+verifie "aligner : package.json, dépendance intacte" '    "dep": "1.0.0"' "$(sed -n 5p viewer-web/package.json)"
+verifie "aligner : package-lock de tools/ci, tête" '  "version": "2026.11.18",' "$(sed -n 3p tools/ci/package-lock.json)"
+verifie "aligner : package-lock de tools/ci, packages[\"\"]" '      "version": "2026.11.18",' "$(sed -n 8p tools/ci/package-lock.json)"
+verifie "aligner : package-lock, version d'une dépendance intacte" '      "version": "0.0.1"' "$(sed -n 14p viewer-web/package-lock.json)"
+verifie "aligner : rien d'autre ne bouge" "8" "$(git diff --numstat | wc -l | tr -d ' ')"
 AVANT=$(git diff); "$A" 2026.11 >/dev/null 2>&1
 verifie "aligner : relancé, même résultat" "$AVANT" "$(git diff)"
 
@@ -84,6 +94,12 @@ case "$SORTIE" in *Cargo.toml*) verifie "garde : les autres ne sont pas nommés"
 # Une PR passée entre-temps : la release calculée est .19, les manifestes disent .18 -> refus.
 "$A" 2026.11 >/dev/null 2>&1; git commit -qam aligne; git tag v2026.11.18
 "$G" "$("$D/version-calendaire.sh" 2026.11)" >/dev/null 2>&1; verifie "garde : release passée entre-temps, code 1" 1 "$?"
+# package-lock dont packages[""] diverge de la tête : refus nommé.
+sed '8s/2026.11.18/2026.11.17/' viewer-web/package-lock.json > L.tmp && mv L.tmp viewer-web/package-lock.json
+SORTIE=$("$G" v2026.11.18 2>&1); CODE=$?
+verifie "garde : package-lock divergent, code 1" 1 "$CODE"
+contient "garde : package-lock divergent nommé" "viewer-web/package-lock.json porte « 2026.11.18 / 2026.11.17 »" "$SORTIE"
+git checkout -q -- viewer-web/package-lock.json
 # Manifeste sans version : alignement refusé, rien n'est écrit.
 sed '/^Version:/d' DESCRIPTION > D.tmp && mv D.tmp DESCRIPTION
 "$A" 2026.11 >/dev/null 2>&1; verifie "aligner : DESCRIPTION sans version, code 1" 1 "$?"
