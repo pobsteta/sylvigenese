@@ -196,3 +196,59 @@ plafond, et leur effectif vient de réglages synthétiques (283 428 dans le rayo
 Pour chacune des trois zones : les images par seconde relevées, une capture d'écran au point d'essai, le résultat du test
 des dix secondes (réussi ou non, et ce qui a manqué), la ligne du renderer donnée par `--verbose`, et la mention si
 vous avez dû passer au repli Compatibility.
+
+## M4b : images par seconde de la vue web sur la carte graphique (mission 088)
+
+Critère b de M4 (BRIEF §11) : 100 000 instances affichées, images par seconde mesurées **par script**, sur votre
+machine et votre navigateur. Les tests de m4 et `capture.cjs` forcent le rendu logiciel (SwiftShader, sans écran) pour
+tourner pareil en CI : sur votre PC ils donnent 0,2 à 1,8 image par seconde, ce qui mesure le processeur et non la
+carte. Ce relevé-ci ouvre Chromium de Playwright **à l'écran**, avec l'accélération matérielle.
+
+### Prérequis
+
+- Les dépendances du dépôt (Node 22.18 ou plus, `npm ci` dans `viewer-web`, Chromium de Playwright, `python3` de la
+  chaîne) et une session graphique (variable `DISPLAY`).
+- Les sorties de `make prepare biomes trees` sur le jeu fictif (elles y sont après `bash tools/ci/run_tests.sh m4`).
+  La zone de charge `data/m4_charge/` (100 013 puis 100 000 arbres, synthétique, hors dépôt) est **refaite à chaque
+  relevé** par le script (`viewer-web/scripts/preparer_charge.py`, mêmes aides que les tests de m4 ; quelques
+  secondes) : on ne sert jamais une zone laissée là par autre chose. `--garder-zone` permet de garder l'existante ; le
+  JSON le dit (`zone_refaite_pour_ce_releve: false`).
+
+### Commande
+
+    cd <dépôt sylvigenese>
+    node viewer-web/scripts/releve_gpu.cjs --carte nvidia          # la Quadro
+    node viewer-web/scripts/releve_gpu.cjs --carte integree        # la carte Intel, pour comparer
+
+Une fenêtre Chromium s'ouvre, parcourt les deux années, puis se ferme (quelques minutes). Ne la cachez pas pendant
+la mesure. Ctrl-C arrête proprement le serveur et le navigateur, sans écrire de chiffre. Pour chaque année : une
+**mesure de chauffe jetée** (`--chauffe`, 3000 ms), puis **3 mesures retenues** (`--mesures`) de `--duree` ms (5000).
+Autres options : `--zone`, `--sortie <fichier.json>`, `--garder-zone`, `--sans-borne` (relever
+aussi sans synchronisation verticale, même si la première série n'est pas près de 60 images par seconde ; sinon la
+série sans borne n'est faite que si une valeur tombe entre 55 et 62).
+
+Le choix de la carte pose les variables PRIME (`__NV_PRIME_RENDER_OFFLOAD`, `__GLX_VENDOR_LIBRARY_NAME`) et le fichier
+EGL du fabricant (`__EGL_VENDOR_LIBRARY_FILENAMES`, dossier `/usr/share/glvnd/egl_vendor.d/`). Chromium est lancé avec
+`--use-angle=gl-egl` : sans cette option, avec la Quadro, il retombe **en silence** sur SwiftShader.
+
+### Ce que le script refuse (code 2, aucun chiffre écrit)
+
+Il lit le moteur de rendu réel (`WEBGL_debug_renderer_info`) avant et après la mesure. Il s'arrête en le nommant si le
+moteur est logiciel (SwiftShader, llvmpipe, « software »…), illisible, différent de la carte demandée, ou s'il a changé
+pendant la mesure ; de même sans écran, ou si le fichier EGL de la carte demandée est introuvable.
+
+### Comment lire les chiffres
+
+Pour chaque année, le JSON donne `fps` (la **médiane** des mesures retenues), `min`, `max`, `mesures_retenues`,
+`chauffe_jetee` et `ecart_relatif` = (max - min) / médiane. La chauffe est écrite mais n'entre pas dans la médiane : la
+première année, mesurée juste après le chargement, est plus lente tant que la carte et le navigateur ne sont pas
+installés (un relevé sans chauffe a donné 35 au lieu de 50). **Si `ecart_relatif` dépasse 0,10**, l'année est marquée
+`instable`, le champ `instable` du JSON passe à vrai et le script l'écrit sur stderr : ne vous fiez pas à ce chiffre,
+relancez la commande sans rien faire d'autre sur le PC. Les chiffres valent pour **cette fenêtre** (`fenetre`, 1280 par 800,
+imitée par Playwright : ce n'est pas la résolution de l'écran réel).
+
+### Ce qu'il faut renvoyer
+
+Le fichier `data/releves_m4/gpu_<carte>_<date>.json` (moteur de rendu, carte demandée, fenêtre, instances et images
+par seconde pour chaque année, avec et sans synchronisation verticale). Vous devez y retrouver `Quadro K5100M`. Le
+BRIEF ne fixe aucun seuil d'images par seconde : on relève, on ne juge pas.
