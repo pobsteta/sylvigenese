@@ -27,12 +27,10 @@ _Modèle de carte :_
 - M5b · identité de rustfft entre machines (avx/sse) à établir · depuis le cycle 8
 - M5b · mentions Q2 et Q3 : aujourd'hui en signalements de t0 (sim/flags.parquet) ; à porter au rapport de simulation quand il existera · depuis le cycle 8
 - M5b · suites des questions n° 12 à 17 (journal du 26/11/2026) : limite de Gaudio dite au rapport de params/regeneration (n° 13) ; obtenir S1 de Lososová pour la dispersion (n° 17) ; contrôle de la dimension critique de Gaudio pour 52 (n° 14) ; clé external.* pour le Data Sheet et la thèse (n° 12) · depuis le cycle 9
-- M6b · constantes d'affichage de la vue massif (rayon des blocs voisins, hauteur des yeux, champ de vision, couleur du sol, vitesse de la caméra) à déplacer des scripts vers le bloc viewer de config.yml ; densité d'herbe, fondu entre niveaux et retour en Lambert-93 (0,5 m) à juger sur le PC de Pascal · depuis le cycle 9
-- M6b · semis dessinés par un générique : échelle uniforme (rayon = h), à mettre à (r, h, r) faute de cw des semis ; essence à semis sans modèle young non dite dans les notes de l'index · depuis le cycle 9
-- M6b · ajouter le scénario 2022 (stade sans exemplaire) à bench/m6/mesurer.py, pour que m6_selftest.csv ne garde pas de lignes écrites à la main · depuis le cycle 9
+- M6b · régénérer bench/results/m6_selftest.csv par un run complet de bench/m6/mesurer.py (scénario fictif 2022 ajouté par 091 ; le run complet exige data/m6_reel, données réelles) · depuis le cycle 17
+- M6b · à l'œil de Pascal (091) : densité d'herbe, fondu entre niveaux, feuillage en aplats sur la Quadro, perches peu branchues, résolution, retour en Lambert-93 ; silhouette des semis génériques au rapport 0,25 (sans source, captures data/captures_091/) · depuis le cycle 17
 - M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
 - Réimporter le tarif réel (facteurs du domaine, mission 076) : chez Pascal ou quand le tarif réel est ici · depuis le cycle 11
-- M6b · défauts vus sur les captures du 27/11/2026 (rendu logiciel) : troncs colorés comme le feuillage (material_override sur tout le maillage, déjà relevé par la relecture de M6a) ; cartes de feuillage en blocs hachés noirs et verts (rendu logiciel ou vrai défaut, à trancher sur le PC de Pascal) ; arbres en perches peu branchues ; ligne « non calés » du bandeau coupée à droite ; aucune indication du nord ; caméra figée vers le nord sans clavier ; résolution 1280×720 · depuis le cycle 13
 - Version · mineurs de la relecture de la PR 19 : marque -dirty de build.rs imprécise hors simulate/ (sans effet sur le code compilé) ; pas de test automatique de la recompilation quand une étiquette change ; inputs_sha256.sim_run de post change à chaque commit (à savoir avant de comparer des sorties de post entre releases) ; échantillon terrain : simulate --version et la clé release de sim/run.json au prochain run de Pascal sur le massif test · depuis le cycle 15
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
@@ -44,12 +42,12 @@ _Modèle de carte :_
 - [090](missions/090-forme-numero-version.md) · depuis le cycle 17
   - Homme : `dev`
   - Mission : numéro des manifestes sans zéro en tête du mois (Cargo, semver), mineurs de 088 et 089, proposition de protection de branche
-  - Moyens : branche claude/youthful-allen-b094t9
+  - Moyens : PR pobsteta/sylvigenese#23 ; relue, prête
 
 - [091](missions/091-vue-massif-bac-a-sable.md) · depuis le cycle 17
   - Homme : `dev`
   - Mission : cartes M6b du bac à sable faisables sans données réelles (semis, essence sans young, banc 2022, clavier)
-  - Moyens : branche claude/youthful-allen-b094t9, PC de Pascal (Quadro)
+  - Moyens : PR pobsteta/sylvigenese#23, PC de Pascal (Quadro) ; relue, prête
 
 - [089](missions/089-controle-version-pr.md) · depuis le cycle 16
   - Homme : `dev`
