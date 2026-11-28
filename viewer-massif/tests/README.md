@@ -16,6 +16,8 @@ Toute fonction est `static` (appelée sur le script chargé), sauf `RequestGate`
 | `tree_model_loader.gd` | `load_glb(chemin_absolu, fov_deg)` (champ de vision de `viewer.camera.fov_deg`, sans valeur par défaut, mission 077) | `{ok, error, extras: Dictionary, levels: [3 x {mesh: Mesh, triangles: int, visibility_range_begin: float, visibility_range_end: float}]}` ; 0 = sans fin pour `end` du dernier niveau |
 | `grass.gd` | `positions(zone, cell_id, cx, cy, cell_size, herb_cover, params)` ; `build(zone, cells, cell_size, params)` | `PackedVector2Array` (x est, y nord, relatifs au bloc) ; `build` : `{positions, truncated: bool, message: String}` ; `params` : `blades_per_m2_at_full_cover`, `max_instances` (clés de `config.yml` `viewer.grass`) |
 | `seedlings.gd` | `count(zone, cell_id, species, seedlings_ha, cell_area_ha)` | `int`, arrondi aléatoire à espérance exacte, déterministe |
+| `seedlings.gd` | `scale(is_generic, h_mean_m, model_height_m, radius_over_height)`, `generic_note(radius_over_height)` | `Vector3` (r, h, r) pour un générique, uniforme sinon ; ligne d'écran |
+| `camera_fly.gd` | `move_direction(held)`, `turned(yaw, pitch, held, rate_rad_s, pitch_limit, delta)` | direction `Vector3` ; `Vector2(lacet, tangage)` borné |
 | `request_gate.gd` | `new()`, `next_id() -> int`, `accept(id) -> bool` | seule la dernière requête est acceptée |
 | `banner.gd` | `text(block: Dictionary, index: Dictionary)` | `String` : « provisoire », « semis non simulés » (si `seedlings_simulated` faux), « générique » et leur nombre, « stade de l'arbre », « 25 m » |
 

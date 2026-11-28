@@ -226,7 +226,8 @@ def config_without(tmp_path, *path):
 
 
 @pytest.mark.parametrize("path", [("view", "radius_m"), ("camera", "eye_height_m"), ("camera", "fov_deg"),
-                                  ("camera", "speed_m_s"), ("ground", "color"), ("sun", "elevation_deg"),
+                                  ("camera", "speed_m_s"), ("camera", "key_turn_rad_s"),
+                                  ("seedlings", "generic_radius_over_height"), ("ground", "color"), ("sun", "elevation_deg"),
                                   ("hud", "title_font_size"), ("grass", "wind_noise_frequency"), ("lod", "chunk_m"),
                                   ("view",), ("camera",), ("ground",), ("sun",), ("hud",)],
                          ids=lambda p: ".".join(p))
@@ -249,6 +250,10 @@ def test_a_missing_display_key_is_refused_by_the_config_contract(tmp_path, capsy
     (lambda v: v["lod"].update(chunk_m=0), "chunk_m"),
     (lambda v: v["view"].update(rayon=3), "clé inconnue"),
     (lambda v: v["camera"].update(vitesse=3), "clé inconnue"),
+    # mission 091 : rotation au clavier et rapport rayon/hauteur des semis génériques
+    (lambda v: v["camera"].update(key_turn_rad_s=0), "key_turn_rad_s"),
+    (lambda v: v["seedlings"].update(generic_radius_over_height=0), "generic_radius_over_height"),
+    (lambda v: v["seedlings"].update(generic_radius_over_height="un quart"), "generic_radius_over_height"),
 ])
 def test_a_wrong_display_value_is_refused_by_the_config_contract(tmp_path, capsys, mutate, word):
     config = yaml.safe_load((ROOT / "config.yml").read_text(encoding="utf-8"))

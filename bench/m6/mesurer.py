@@ -560,9 +560,37 @@ def get_godot(args) -> Path:
     return Path(g)
 
 
-def selftest_args(zone: Path, year: int, extra: list[str] | None = None) -> list[str]:
-    return ["--headless", "--path", "viewer-massif", *(extra or []), "--", "--zone", str(zone), "--x", f"{POINT[0]:.0f}",
-            "--y", f"{POINT[1]:.0f}", "--year", str(year), "--selftest"]
+def selftest_args(zone: Path, year: int, extra: list[str] | None = None, point: tuple[float, float] = POINT) -> list[str]:
+    return ["--headless", "--path", "viewer-massif", *(extra or []), "--", "--zone", str(zone), "--x", f"{point[0]:.0f}",
+            "--y", f"{point[1]:.0f}", "--year", str(year), "--selftest"]
+
+
+# zone versionnée du stade sans exemplaire (hêtre 09 aux stades mature et old seulement + un hêtre young : générique) : le même cas
+# que celui de l'épicéa réel de 2022, mais SANS donnée réelle ; rejouable partout (mission 091)
+ZONE_STADE_MANQUANT = ROOT / "viewer-massif" / "tests" / "fixtures" / "zone_m6_stade_manquant"
+
+
+def scenarios() -> list[dict]:
+    """Scénarios du --selftest de la vue (étape 4). Seuls ceux dont la zone vient d'une donnée réelle (m6_reel_zone) exigent le
+    contrôle réel ; `fictif_stade_sans_exemplaire_2022` est rejouable sur le seul dépôt (mission 091)."""
+    return [
+        {"name": "fictif_ifn_direct_2022", "zone": "m6_essai", "year": 2022},
+        {"name": "fictif_ifn_direct_2037", "zone": "m6_essai", "year": 2037, "cells": True},
+        {"name": "fictif_cohorts_2037", "zone": "m6_cohorts", "year": 2037, "cells": True},
+        {"name": "controle_reel_ifn_direct_2037", "zone": "m6_reel_zone", "year": 2037},
+        {"name": "fictif_cohorts_2037_repli_gl_compatibility", "zone": "m6_cohorts", "year": 2037,
+         "extra": ["--rendering-method", "gl_compatibility"], "phases": False},
+        # scénario 2022 du stade sans exemplaire, sur la zone versionnée (5 arbres dont 2 génériques : 62 sans exemplaire et le
+        # hêtre young) : un seul essai, ni durée ni mémoire (comptes seulement) ; le point est dans le bloc t_700000_6500000
+        {"name": "fictif_stade_sans_exemplaire_2022", "zone_dir": ZONE_STADE_MANQUANT, "year": 2022, "essais": 1, "sans_temps": True,
+         "phases": False, "point": (700250.0, 6500250.0)},
+        # reprise 075 (mission 077) : un stade sans exemplaire d'une essence qui en a d'autres (épicéa mature, 1 arbre en 2022)
+        # est dessiné par le générateur générique d'après stage_models ; un seul essai, ni durée ni mémoire (comptes seulement)
+        {"name": "controle_reel_ifn_direct_2022_reprise_075", "zone": "m6_reel_zone", "year": 2022, "essais": 1, "sans_temps": True,
+         "phases": False},
+        {"name": "controle_reel_ifn_direct_2032_reprise_075", "zone": "m6_reel_zone", "year": 2032, "essais": 1, "sans_temps": True,
+         "phases": False},
+    ]
 
 
 def godot_measures(args, godot: Path, scenarios: list[dict]) -> list[dict]:
@@ -581,9 +609,9 @@ def godot_measures(args, godot: Path, scenarios: list[dict]) -> list[dict]:
     if res["rc"] != 0 or imp_err:
         FAILURES.append("import de Godot en échec ou avec des lignes ERROR")
     for sc in scenarios:
-        zone = ROOT / "data" / sc["zone"]
+        zone = Path(sc["zone_dir"]) if "zone_dir" in sc else ROOT / "data" / sc["zone"]
         for run_no in range(1, sc.get("essais", args.repetitions) + 1):
-            r = run([godot, *selftest_args(zone, sc["year"], sc.get("extra"))], env=env, timeout=900)
+            r = run([godot, *selftest_args(zone, sc["year"], sc.get("extra"), sc.get("point", POINT))], env=env, timeout=900)
             m = re.search(r"SELFTEST (\{.*\})", r["out"])
             st = json.loads(m.group(1)) if m else {}
             errs = [l for l in (r["out"] + r["err"]).splitlines() if "ERROR" in l]
@@ -724,21 +752,8 @@ def main(argv=None) -> int:
     generation_times(ROOT / "data" / "m6_reel" / "exemplaires", base_cfg, "controle_reel", args.repetitions, gen)
     write_csv("m6_generation.csv", list(gen[0]), gen)
     # Godot sans rendu
-    scenarios = [
-        {"name": "fictif_ifn_direct_2022", "zone": "m6_essai", "year": 2022},
-        {"name": "fictif_ifn_direct_2037", "zone": "m6_essai", "year": 2037, "cells": True},
-        {"name": "fictif_cohorts_2037", "zone": "m6_cohorts", "year": 2037, "cells": True},
-        {"name": "controle_reel_ifn_direct_2037", "zone": "m6_reel_zone", "year": 2037},
-        {"name": "fictif_cohorts_2037_repli_gl_compatibility", "zone": "m6_cohorts", "year": 2037,
-         "extra": ["--rendering-method", "gl_compatibility"], "phases": False},
-        # reprise 075 (mission 077) : un stade sans exemplaire d'une essence qui en a d'autres (épicéa mature, 1 arbre en 2022)
-        # est dessiné par le générateur générique d'après stage_models ; un seul essai, ni durée ni mémoire (comptes seulement)
-        {"name": "controle_reel_ifn_direct_2022_reprise_075", "zone": "m6_reel_zone", "year": 2022, "essais": 1, "sans_temps": True,
-         "phases": False},
-        {"name": "controle_reel_ifn_direct_2032_reprise_075", "zone": "m6_reel_zone", "year": 2032, "essais": 1, "sans_temps": True,
-         "phases": False},
-    ]
-    timings += godot_measures(args, godot, scenarios)
+    scenarios_ = scenarios()
+    timings += godot_measures(args, godot, scenarios_)
     write_csv("m6_temps.csv", ["etape", "secondes", "code", "memoire_residente_octets"], timings)
     ctl.append({"cle": "controles_en_echec", "valeur": len(FAILURES), "note": " ; ".join(FAILURES)})
     write_csv("m6_reel_controle.csv", ["cle", "valeur", "note"], ctl)

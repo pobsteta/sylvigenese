@@ -316,7 +316,8 @@
             "speed_m_s",
             "fast_factor",
             "mouse_sensitivity",
-            "pitch_limit_rad"
+            "pitch_limit_rad",
+            "key_turn_rad_s"
           ],
           "additionalProperties": false,
           "properties": {
@@ -356,6 +357,11 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "maximum": 1.5707963
+            },
+            "key_turn_rad_s": {
+              "description": "vitesse de rotation de la tête aux flèches du clavier, en radians par seconde (illustration, non mesurée)",
+              "type": "number",
+              "exclusiveMinimum": 0
             }
           }
         },
@@ -517,7 +523,8 @@
           "description": "dessin des semis autour de la caméra (illustration, non mesurée, provisoire) : les effectifs viennent de sim/cells, seul le plafond de dessin est ici",
           "type": "object",
           "required": [
-            "max_instances"
+            "max_instances",
+            "generic_radius_over_height"
           ],
           "additionalProperties": false,
           "properties": {
@@ -525,6 +532,11 @@
               "description": "plafond d'instances de semis dessinées ; quand il tronque, la vue le dit",
               "type": "integer",
               "minimum": 1
+            },
+            "generic_radius_over_height": {
+              "description": "semis dessiné par un modèle générique : rayon du houppier = hauteur x ce rapport. Le bloc massif ne donne aucune largeur de houppier de semis : valeur d'illustration SANS SOURCE, provisoire, dite à l'écran",
+              "type": "number",
+              "exclusiveMinimum": 0
             }
           }
         },

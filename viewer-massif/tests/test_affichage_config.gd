@@ -67,7 +67,7 @@ func test_une_cle_d_affichage_retiree_est_nommee() -> void:
 	if C == null:
 		return
 	# clés dont le nom est unique dans le bloc : la ligne retirée est la seule de ce nom
-	for chemin in ["camera.eye_height_m", "camera.speed_m_s", "camera.fast_factor", "camera.mouse_sensitivity", "camera.pitch_limit_rad",
+	for chemin in ["camera.eye_height_m", "camera.speed_m_s", "camera.fast_factor", "camera.mouse_sensitivity", "camera.pitch_limit_rad", "camera.key_turn_rad_s", "seedlings.generic_radius_over_height",
 			"sun.elevation_deg", "hud.title_font_size", "hud.state_height_px", "hud.margin_px", "grass.wind_noise_frequency", "lod.chunk_m"]:
 		var feuille := str(chemin).get_slice(".", 1)
 		var lignes := []
@@ -122,12 +122,43 @@ func test_des_semis_dessines_par_un_generique_sont_comptes_et_la_mention_est_dit
 	assert_eq(r["code"], 0, r["texte"])
 	assert_eq(int(r["comptes"].get("seedling_generic_species", -1)), 1, "le modèle young du hêtre est le générique")
 	assert_gt(int(r["comptes"].get("seedlings", 0)), 0, "des semis sont dessinés")
-	var V = need("res://scripts/massif_view.gd")
-	if V == null:
+	var S = need("res://scripts/seedlings.gd")
+	if S == null:
 		return
-	assert_string_contains(V.SEEDLING_GENERIC_NOTE, "semis génériques")
-	assert_string_contains(V.SEEDLING_GENERIC_NOTE, "largeur non connue")
-	assert_string_contains(V.SEEDLING_GENERIC_NOTE, "échelle de la hauteur")
+	var note: String = S.generic_note(0.25)
+	assert_string_contains(note, "semis génériques")
+	assert_string_contains(note, "largeur non connue")
+	assert_string_contains(note, "rayon = 0,25 x la hauteur")
+	assert_string_contains(note, "illustration, non mesurée")
+
+
+## Mission 091 : un semis générique est mis à (r, h, r), r = h x rapport de config.yml (le bloc ne donne pas de cw) ; un semis du
+## générateur garde sa forme (échelle uniforme h / hauteur du modèle).
+func test_l_echelle_d_un_semis_generique_est_r_h_r_et_celle_d_un_exemplaire_est_uniforme() -> void:
+	var S = need("res://scripts/seedlings.gd")
+	if S == null:
+		return
+	var g: Vector3 = S.scale(true, 0.5, 1.0, 0.25)
+	assert_almost_eq(g.y, 0.5, 1e-6, "hauteur = h (modèle générique de 1 m)")
+	assert_almost_eq(g.x, 0.125, 1e-6, "rayon = h x rapport = 0,5 x 0,25")
+	assert_almost_eq(g.z, g.x, 1e-6)
+	var e: Vector3 = S.scale(false, 0.5, 2.0, 0.25)
+	assert_eq(e, Vector3(0.25, 0.25, 0.25), "exemplaire : h / hauteur du modèle sur les trois axes, le rapport ne sert pas")
+
+
+func test_le_rapport_des_semis_generiques_vient_de_config_yml_et_est_marque_non_mesure() -> void:
+	var C = need("res://scripts/viewer_config.gd")
+	if C == null:
+		return
+	var texte := _config_du_depot()
+	var r: Dictionary = C.parse_text(texte)
+	assert_true(r["ok"], str(r["error"]))
+	var rapport := float(r["data"]["seedlings"]["generic_radius_over_height"])
+	assert_gt(rapport, 0.0)
+	for l in texte.split("\n"):
+		if l.strip_edges().begins_with("generic_radius_over_height:"):
+			assert_string_contains(l, "non mesurée")
+			assert_string_contains(l, "SANS SOURCE")
 
 
 func test_des_semis_dessines_par_un_exemplaire_ne_disent_pas_generique() -> void:

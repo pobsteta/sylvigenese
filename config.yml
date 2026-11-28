@@ -72,6 +72,7 @@ viewer:
     fast_factor: 5
     mouse_sensitivity: 0.003
     pitch_limit_rad: 1.5
+    key_turn_rad_s: 1.2     # rotation au clavier (flèches), en radians par seconde
   ground:                   # illustration, non mesurée
     color: "#5c543d"
   sun:                      # illustration, non mesurée
@@ -100,6 +101,7 @@ viewer:
     wind_noise_frequency: 0.05   # illustration, non mesurée
   seedlings:
     max_instances: 20000   # plafond de dessin des semis (illustration, non mesurée) ; les effectifs restent ceux de sim/cells
+    generic_radius_over_height: 0.25   # semis dessiné par un générique : rayon = h x ce rapport (illustration, non mesurée, SANS SOURCE : le bloc ne donne pas de largeur de houppier de semis)
   wood:                     # illustration, non mesurée
     color: "#5b4a38"        # tronc et branches : une couleur de bois, distincte du feuillage
   foliage:
