@@ -1,7 +1,8 @@
 #!/bin/sh
 # Met les manifestes au numéro de la prochaine release (mission 087, décision de Pascal du 27/11/2026).
 # Usage : aligner-version.sh [AAAA.MM]   (défaut : mois courant, UTC ; lancé depuis le dépôt)
-# Le numéro est celui de version-calendaire.sh, sans le « v » (ex. v2026.11.18 -> 2026.11.18) ; il est écrit dans
+# Le numéro est celui de version-calendaire.sh, converti par numero-manifeste.sh : sans le « v » et sans zéro en tête
+# du mois (v2026.11.18 -> 2026.11.18 ; v2027.01.1 -> 2027.1.1, que Cargo et semver acceptent) ; il est écrit dans
 # simulate/Cargo.toml, simulate/Cargo.lock (ligne du paquet simulate), python/pyproject.toml, DESCRIPTION et, pour
 # tools/ci et viewer-web (mission 089), package.json et package-lock.json (champ « version » seulement : en tête
 # et dans packages[""], jamais une dépendance).
@@ -16,13 +17,14 @@ D="$(cd "$(dirname "$0")" && pwd)"
 cd "$(git rev-parse --show-toplevel)"
 
 TAG=$("$D/version-calendaire.sh" "$@")
-VERSION=${TAG#v}
-MOIS=${VERSION%.*}
+ETIQ=${TAG#v}
+MOIS=${ETIQ%.*}
+VERSION=$("$D/numero-manifeste.sh" "$TAG") || { echo "aligner-version : conversion de l'étiquette $TAG impossible. Rien n'est écrit." >&2; exit 1; }
 
 # Étiquettes de origin : le numéro calculé ne doit pas déjà y être pris.
 if DISTANTES=$(git ls-remote --tags origin "refs/tags/v$MOIS.*" 2>/dev/null); then
   DERNIER=$(printf '%s\n' "$DISTANTES" | sed -n "s|^[0-9a-f]*[[:space:]]*refs/tags/v$MOIS\.\([0-9][0-9]*\)$|\1|p" | sort -n | tail -n 1)
-  if [ -n "$DERNIER" ] && [ "$DERNIER" -ge "${VERSION##*.}" ]; then
+  if [ -n "$DERNIER" ] && [ "$DERNIER" -ge "${ETIQ##*.}" ]; then
     echo "aligner-version : origin porte déjà v$MOIS.$DERNIER, les étiquettes locales sont en retard : faire « git fetch --tags » puis relancer. Rien n'est écrit." >&2
     exit 1
   fi

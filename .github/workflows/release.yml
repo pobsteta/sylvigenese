@@ -50,8 +50,10 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Version calculée : $TAG"
 
-      # Garde (mission 087) : simulate/Cargo.toml, simulate/Cargo.lock, python/pyproject.toml et DESCRIPTION du
-      # commit testé doivent porter ce numéro (sans le v), mis par .github/scripts/aligner-version.sh dans la PR.
+      # Garde (mission 087) : les 8 manifestes de .github/scripts/manifestes-version.sh (simulate/Cargo.toml et
+      # Cargo.lock, python/pyproject.toml, DESCRIPTION, package.json et package-lock.json de tools/ci et de
+      # viewer-web) du commit testé doivent porter ce numéro sans le v et sans zéro en tête du mois (v2027.01.1 ->
+      # 2027.1.1, .github/scripts/numero-manifeste.sh), mis par .github/scripts/aligner-version.sh dans la PR.
       # Sinon l'étape échoue en nommant chaque manifeste en retard, et aucune étiquette n'est posée.
       - name: Garde de release (manifestes au numéro calculé)
         if: steps.decision.outputs.necessaire == 'true'

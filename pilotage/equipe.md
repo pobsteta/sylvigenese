@@ -39,6 +39,15 @@
   a, sur le jeu fictif) et la **fusion vers `main`** de leurs PR, release publique automatique
   comprise, passent à l'orchestrateur, avec la CI verte et la relecture du `relecteur` comme
   conditions. La correction du 2026-11-24 sur la fusion est levée par cette parole.
+- **Parole de Pascal (28/11/2026), recopiée mot pour mot :** « continue le dev en validant tout
+  jusqu'à ce que tu sois bloqué par le fait de devoir te fournir les données tests. Fais moi un
+  point toutes les 15 min. Le reste c'est toi qui gère au mieux les réponses à tes questions. »
+  Portée confirmée et étendue : l'orchestrateur répond à sa place aux questions qu'il lui
+  préparait (forme du numéro de version, mineurs, choix d'outil), valide et fusionne, jusqu'à ce
+  que le travail demande les données réelles. Restent réservés : ce qui touche l'extérieur et ne
+  se défait pas (liste ci-dessous) ; les réglages du dépôt GitHub (protection de branche) sont
+  préparés et proposés, pas appliqués. Chaque décision est inscrite au journal et dite à Pascal
+  au point de 15 minutes.
 - **Jusqu'à :** la v1, c'est-à-dire les jalons M0 à M6 du BRIEF §11 remplis, ou le premier
   retour de Pascal qui la reprend ou la restreint.
 - **Réservé à Pascal :**

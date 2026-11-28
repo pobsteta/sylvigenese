@@ -1,6 +1,6 @@
 {
   "name": "sylvigenese-gltf-validator-ci",
-  "version": "2026.11.20",
+  "version": "2026.11.21",
   "private": true,
   "description": "glTF-Validator de Khronos pour le job m6 de la CI (mission 075) : version figée, installée par npm ci.",
   "license": "GPL-3.0-only",

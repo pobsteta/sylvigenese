@@ -22,8 +22,6 @@ const GRASS_TEXTURE := preload("res://textures/grassbushcc008.png")
 ## sol, etc.) viennent du bloc `viewer` de config.yml (`cfg`), sans valeur par défaut ici : voir viewer_config.gd.
 ## Surface d'un hectare (m2), pour l'aire de cellule en ha.
 const M2_PER_HA := 10000.0
-## Ligne de l'écran quand des semis sont dessinés par un modèle générique.
-const SEEDLING_GENERIC_NOTE := "semis génériques : largeur non connue, échelle de la hauteur"
 
 var zone := ""
 var year := 0
@@ -381,8 +379,8 @@ func _load_seedling_models(zone_dir: String) -> Dictionary:
 					stats["seedling_generic_species"] += 1
 	if int(stats["seedling_generic_species"]) > 0:
 		# le contrat massif_block ne donne aucune largeur de houppier pour un semis (species, seedlings_ha, h_mean_m seulement) :
-		# l'échelle est celle de la hauteur sur les trois axes, jamais une largeur inventée ; dit à l'écran
-		notes.append(SEEDLING_GENERIC_NOTE)
+		# le rayon est un rapport de la hauteur (viewer.seedlings.generic_radius_over_height, sans source) ; dit à l'écran
+		notes.append(SeedLib.generic_note(float(cfg["seedlings"]["generic_radius_over_height"])))
 	return {"ok": true, "error": ""}
 
 
@@ -461,7 +459,8 @@ func _compute(id: int, center: Vector2) -> Dictionary:
 			if n <= 0:
 				break
 			var res: Dictionary = seedling_models[sp]["res"]
-			var sc_h := float(s["h_mean_m"]) / float(res["height_m"])
+			var sc_h := float(s["h_mean_m"]) / float(res["height_m"])   # échelle en hauteur : sert aux distances de visibilité
+			var sc_v := SeedLib.scale(str(seedling_models[sp]["kind"]) == "generic", float(s["h_mean_m"]), float(res["height_m"]), float(cfg["seedlings"]["generic_radius_over_height"]))
 			if not seedlings.has(sp):
 				seedlings[sp] = {}
 			for p in SeedLib.positions(zone, int(c["cell_id"]), sc["cx"], sc["cy"], cell_size, sp, n):
@@ -469,7 +468,7 @@ func _compute(id: int, center: Vector2) -> Dictionary:
 				var ck := "%d,%d" % [floori((p.x + float(ref_origin["x"])) / chunk_m), floori((p.y + float(ref_origin["y"])) / chunk_m)]
 				if not seedlings[sp].has(ck):
 					seedlings[sp][ck] = {"items": [], "scale_sum": 0.0}
-				seedlings[sp][ck]["items"].append(Transform3D(Basis.from_scale(Vector3(sc_h, sc_h, sc_h)), Vector3(p.x - center.x, 0.0 if is_nan(h2) else h2, -(p.y - center.y))))
+				seedlings[sp][ck]["items"].append(Transform3D(Basis.from_scale(sc_v), Vector3(p.x - center.x, 0.0 if is_nan(h2) else h2, -(p.y - center.y))))
 				seedlings[sp][ck]["scale_sum"] += sc_h
 			seedling_total += n
 		if seedling_truncated:

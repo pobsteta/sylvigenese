@@ -5,7 +5,7 @@
 // Usage : node viewer-web/scripts/releve_gpu.cjs [--carte nvidia|integree|auto] [--zone m4_charge] [--duree 5000]
 //                                                [--sortie data/releves_m4/gpu_<carte>_<date>.json] [--sans-borne]
 //   --carte      nvidia (Quadro, par défaut), integree (Intel/AMD) ou auto (le choix du système)
-//   --zone       zone servie par `make viewer` (par défaut m4_charge ; elle est préparée si absente)
+//   --zone       zone servie par `make viewer` (par défaut m4_charge, refaite à chaque relevé sauf --garder-zone ; une autre zone doit exister)
 //   --duree      durée de chaque mesure en ms (mesurerFps de la page)
 //   --sans-borne relever aussi sans synchronisation verticale, même si la première mesure n'est pas près de 60
 //   --chauffe    durée (ms) de la mesure de chauffe, jetée, avant chaque année (3000 par défaut)
@@ -243,14 +243,27 @@ function preparerZone(opts) {
   return true;
 }
 
+// Codes de sortie d'une interruption, convention des shells : 128 + numéro du signal (SIGINT 2, SIGTERM 15).
+const CODES_SIGNAUX = { SIGINT: 130, SIGTERM: 143 };
+
+// Sur Ctrl-C ou SIGTERM : arrêter serveur et navigateur, n'écrire aucun chiffre, sortir avec le code du signal.
+// `proc`, `arreter` et `sortir` sont injectables pour le test.
+function installerArretSignaux(proc = process, arreter = arreterTout, sortir = (c) => process.exit(c)) {
+  for (const [sig, code] of Object.entries(CODES_SIGNAUX)) {
+    proc.on(sig, async () => {
+      console.error(`\nInterrompu (${sig}) : arrêt du serveur et du navigateur ; aucun chiffre n'est écrit.`);
+      await arreter();
+      sortir(code);
+    });
+  }
+}
+
 async function main() {
   const opts = lireArguments(process.argv.slice(2));
   if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new gpu.ErreurGpu("Aucun écran (ni DISPLAY ni WAYLAND_DISPLAY) : ce relevé ouvre Chromium à l'écran, à lancer depuis la session graphique.");
   }
-  for (const sig of ["SIGINT", "SIGTERM"]) {
-    process.on(sig, async () => { console.error(`\nInterrompu (${sig}) : arrêt du serveur et du navigateur ; aucun chiffre n'est écrit.`); await arreterTout(); process.exit(130); });
-  }
+  installerArretSignaux();
   const { res, sortie } = await executer(opts);
   console.log(JSON.stringify({ moteur: res.moteur_de_rendu.renderer, fenetre: res.fenetre, instable: res.instable, mesures: res.mesures, sortie }, null, 1));
 }
@@ -263,4 +276,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { lireArguments, executer, preparerZone };
+module.exports = { lireArguments, executer, preparerZone, installerArretSignaux, CODES_SIGNAUX };

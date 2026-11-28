@@ -8,11 +8,11 @@ extends RefCounted
 
 const REQUIRED := [
 	"provisoire", "mention", "view.radius_m",
-	"camera.eye_height_m", "camera.fov_deg", "camera.far_m", "camera.speed_m_s", "camera.fast_factor", "camera.mouse_sensitivity", "camera.pitch_limit_rad",
+	"camera.eye_height_m", "camera.fov_deg", "camera.far_m", "camera.speed_m_s", "camera.fast_factor", "camera.mouse_sensitivity", "camera.pitch_limit_rad", "camera.key_turn_rad_s",
 	"ground.color", "sun.elevation_deg", "sun.azimuth_deg",
 	"hud.title_font_size", "hud.title_color", "hud.state_font_size", "hud.title_outline_px", "hud.state_outline_px", "hud.outline_color", "hud.state_height_px", "hud.margin_px", "hud.top_margin_px", "hud.north_size_px", "hud.north_color", "hud.listed_models",
 	"grass.radius_m", "grass.recenter_distance_m", "grass.max_instances", "grass.blade_height_m", "grass.blades_per_m2_at_full_cover", "grass.color", "grass.wind_noise_frequency",
-	"seedlings.max_instances", "wood.color", "foliage.card_size_m", "foliage.color_by_group", "lod.fade_margin_m", "lod.chunk_m"]
+	"seedlings.max_instances", "seedlings.generic_radius_over_height", "wood.color", "foliage.card_size_m", "foliage.color_by_group", "lod.fade_margin_m", "lod.chunk_m"]
 
 
 static func candidates(zone_dir: String) -> Array:

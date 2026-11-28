@@ -3,19 +3,15 @@
 # Usage : verifier-version.sh vAAAA.MM.N   (lancé depuis le dépôt, sur le commit à étiqueter)
 # Code 0 si les manifestes de manifestes-version.sh (dont les package.json, mission 089) portent AAAA.MM.N.
 # Code 1 sinon, chaque manifeste en retard nommé avec sa valeur (release.yml ne pose alors aucune étiquette).
-# Code 2 si l'étiquette n'a pas la forme vAAAA.MM.N.
+# Le numéro attendu est celui de numero-manifeste.sh (mois sans zéro en tête : v2027.01.1 -> 2027.1.1).
+# Code 2 si l'étiquette n'a pas la forme vAAAA.MM.N (MM de 01 à 12).
 set -eu
 D="$(cd "$(dirname "$0")" && pwd)"
 . "$D/manifestes-version.sh"
 TAG="${1:-}"
-case "$TAG" in
-  v[0-9][0-9][0-9][0-9].[0-1][0-9].[0-9]*) ;;
-  *) echo "garde de release : étiquette invalide '$TAG' (attendu vAAAA.MM.N)" >&2; exit 2 ;;
-esac
-case "${TAG#v????.??.}" in
-  *[!0-9]*) echo "garde de release : étiquette invalide '$TAG' (attendu vAAAA.MM.N)" >&2; exit 2 ;;
-esac
-VERSION=${TAG#v}
+if ! VERSION=$("$D/numero-manifeste.sh" "$TAG" 2>/dev/null); then
+  echo "garde de release : étiquette invalide '$TAG' (attendu vAAAA.MM.N, MM de 01 à 12)" >&2; exit 2
+fi
 cd "$(git rev-parse --show-toplevel)"
 
 EN_RETARD=""

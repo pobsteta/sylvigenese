@@ -137,7 +137,12 @@ release ils viennent.
     la variable (une variable différente est signalée et ignorée). Le numéro des manifestes
     n'est jamais pris à la place : il dit la release visée, pas celle du code compilé.
 - **Les manifestes** `simulate/Cargo.toml` (et `simulate/Cargo.lock`), `python/pyproject.toml` et
-  `DESCRIPTION` portent `AAAA.MM.N`, sans le `v` (forme admise par semver, PEP 440 et R), ainsi que
+  `DESCRIPTION` portent le numéro de l'étiquette **sans le `v` et sans zéro en tête du mois** :
+  `v2026.11.19` donne `2026.11.19`, `v2027.01.1` donne `2027.1.1` (mission 090). Cargo refuse
+  `2027.01.1` (« invalid leading zero »), npm (semver strict) aussi, et PEP 440 le réécrit en
+  `2027.1.1` ; R l'accepte. Le numéro sans zéro est accepté par les quatre outils toute l'année. La
+  conversion est faite en un seul endroit,
+  [`.github/scripts/numero-manifeste.sh`](.github/scripts/numero-manifeste.sh). Même règle pour
   (mission 089) `tools/ci/` et `viewer-web/` : leur `package.json` et leur `package-lock.json`
   (champ `version` seulement, en tête et dans `packages[""]`). Ceux des bancs (`bench/`) ne sont pas
   concernés.
@@ -162,7 +167,9 @@ sinon il calcule le numéro (`version-calendaire.sh`) et vérifie les manifestes
 En cas d'écart, l'échec nomme chaque manifeste en retard. **Le geste** : `git fetch --tags`, puis
 `.github/scripts/aligner-version.sh`, puis valider le changement dans la PR. **Changement de mois, ou
 une autre release passée entre-temps** : une PR alignée en novembre et fusionnée en décembre est
-refusée à la relance de sa CI ; relancer `aligner-version.sh` donne le nouveau numéro. Si le numéro
+refusée dès que sa CI est relancée ; rien ne la relance seule (ni le changement de mois, ni la
+fusion d'une autre PR) : il faut relancer la CI à la main ou mettre la branche à jour, puis
+`aligner-version.sh` donne le nouveau numéro. Si le numéro
 ne peut pas être calculé (clone sans étiquettes), le contrôle échoue de même, sans rien deviner.
 
 **La garde** : avant de poser l'étiquette, `release.yml` lance
@@ -174,7 +181,7 @@ passe pas par la garde.
 Tester les scripts en local :
 
 ```bash
-.github/scripts/test-version-calendaire.sh   # lance aussi test-aligner-version.sh et test-controler-version-pr.sh
+.github/scripts/test-version-calendaire.sh   # lance aussi test-numero-manifeste.sh, test-aligner-version.sh et test-controler-version-pr.sh
 .github/scripts/test-release-necessaire.sh
 ```
 

@@ -9,9 +9,10 @@ verifie() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "ECHEC $1 : atten
 contient() { case "$3" in *"$2"*) echo "ok   $1";; *) echo "ECHEC $1 : '$2' absent de '$3'"; ECHECS=$((ECHECS+1));; esac; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir "$T/scripts" && cp "$D"/aligner-version.sh "$D"/manifestes-version.sh "$D"/release-necessaire.sh \
-  "$D"/verifier-version.sh "$D"/version-calendaire.sh "$D"/controler-version-pr.sh "$T/scripts/"
+  "$D"/verifier-version.sh "$D"/version-calendaire.sh "$D"/numero-manifeste.sh "$D"/controler-version-pr.sh "$T/scripts/"
 C="$T/scripts/controler-version-pr.sh"
 MOIS=$(date -u +%Y.%m)
+NUMMOIS=$("$D/numero-manifeste.sh" "v$MOIS.1" | sed 's/\.[0-9]*$//')   # le mois sans zéro en tête, comme les manifestes
 
 mkdir "$T/depot" && cd "$T/depot" && git init -q . && git config user.email t@t && git config user.name t
 git config commit.gpgsign false; git config tag.gpgsign false
@@ -45,7 +46,7 @@ contient "PR sans produit : dit rien à vérifier" "rien à vérifier" "$SORTIE"
 echo 'a <- 2' > R/a.R; git add -A; git commit -q -m produit
 SORTIE=$("$C" 2>&1); CODE=$?
 verifie "PR produit en retard : code 1" 1 "$CODE"
-contient "PR en retard : numéro attendu" "$MOIS.2" "$SORTIE"
+contient "PR en retard : numéro attendu" "$NUMMOIS.2" "$SORTIE"
 contient "PR en retard : Cargo.toml nommé" "simulate/Cargo.toml porte « 0.0.1 »" "$SORTIE"
 contient "PR en retard : DESCRIPTION nommé" "DESCRIPTION porte « 0.0.1 »" "$SORTIE"
 contient "PR en retard : package.json de viewer-web nommé" "viewer-web/package.json porte « 0.0.1 »" "$SORTIE"
@@ -57,7 +58,7 @@ contient "PR en retard : changement de mois dit" "un mois a changé" "$SORTIE"
 "$T/scripts/aligner-version.sh" >/dev/null 2>&1; git add -A; git commit -q -m aligne
 SORTIE=$("$C" 2>&1); CODE=$?
 verifie "PR produit alignée : code 0" 0 "$CODE"
-contient "PR alignée : numéro dit" "$MOIS.2" "$SORTIE"
+contient "PR alignée : numéro dit" "$NUMMOIS.2" "$SORTIE"
 
 # 5. Changement de mois : alignée sur un mois passé, la relance de la CI refuse.
 for f in simulate/Cargo.toml python/pyproject.toml; do sed -i 's/^version = ".*"/version = "2020.01.4"/' $f; done
@@ -75,6 +76,16 @@ printf '#!/bin/sh\necho "boum" >&2; exit 2\n' > "$T/scripts/version-calendaire.s
 SORTIE=$("$C" 2>&1); CODE=$?
 verifie "numéro incalculable : code 1" 1 "$CODE"
 contient "numéro incalculable : nommé" "numéro de la prochaine release incalculable" "$SORTIE"
+
+# 6b. verifier-version.sh sort en code 2 (étiquette de forme inattendue) : message propre à ce cas, pas « manifestes en retard ».
+git checkout -q -- . 2>/dev/null; cp "$D/version-calendaire.sh" "$T/scripts/version-calendaire.sh"
+printf '#!/bin/sh\necho "garde : étiquette bizarre" >&2; exit 2\n' > "$T/scripts/verifier-version.sh"
+SORTIE=$("$C" 2>&1); CODE=$?
+verifie "garde en code 2 : code 1" 1 "$CODE"
+contient "garde en code 2 : cause nommée" "autre raison que des manifestes en retard (code 2)" "$SORTIE"
+contient "garde en code 2 : sortie de la garde reprise" "étiquette bizarre" "$SORTIE"
+case "$SORTIE" in *"Manifestes en retard :"*) verifie "garde en code 2 : pas de faux « manifestes en retard »" non oui;; *) verifie "garde en code 2 : pas de faux « manifestes en retard »" oui oui;; esac
+cp "$D/verifier-version.sh" "$T/scripts/verifier-version.sh"
 
 # 7. Hors dépôt git : refus nommé.
 cd "$T" && mkdir hors && cd hors
