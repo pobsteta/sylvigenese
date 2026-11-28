@@ -24,6 +24,7 @@
 //!
 //! Options (voir `main.rs`) : `--config`, `--threads` (sinon `simulate.threads` de config.yml,
 //! sinon 1), et pour les tests `--memoire-disponible <octets>` et `--inject-nan [année]`.
+//! `--version` affiche la release dont vient le binaire ([`RELEASE`], mission 087).
 //!
 //! Règle de lisibilité (CLAUDE.md) : pas de macros maison ni de génériques avancés.
 
@@ -44,6 +45,7 @@ pub mod mortalite;
 pub mod parametres;
 pub mod pas;
 pub mod recrutement;
+pub mod release;
 pub mod semis;
 pub mod ser;
 pub mod sorties;
@@ -57,6 +59,30 @@ use erreurs::Erreur;
 pub const SORTIE_OK: i32 = 0;
 /// Code de sortie : l'exécution est impossible (entrée refusée, message sur stderr).
 pub const SORTIE_IMPOSSIBLE: i32 = 2;
+
+/// La release dont vient ce binaire, lue à la compilation par `build.rs` (module [`release`]) :
+/// `git describe` (par exemple `v2026.11.17-3-gabc1234`), sinon `SYLVIGENESE_RELEASE`, sinon
+/// `inconnue`. Écrite dans `run.json` (clé `release`) et par `simulate --version`.
+pub const RELEASE: &str = env!("SYLVIGENESE_RELEASE_COMPILEE");
+
+/// Le texte de `simulate --version` : `simulate <release>`.
+pub fn texte_version() -> String {
+    format!("simulate {RELEASE}")
+}
+
+/// Le signalement à écrire sur stderr quand la release est inconnue (`None` sinon).
+pub fn signalement_release() -> Option<String> {
+    if RELEASE == release::INCONNUE {
+        Some(format!(
+            "[simulate] signalement : release inconnue (compilé sans git ni étiquette, et sans {}) ; \
+             run.json dira release = « {} »",
+            release::VARIABLE,
+            release::INCONNUE
+        ))
+    } else {
+        None
+    }
+}
 
 /// Nom du dossier temporaire d'écriture, dans le dossier de la zone.
 pub const DOSSIER_EN_COURS: &str = ".sim_en_cours";
@@ -150,6 +176,9 @@ pub fn dossier_zone(racine: &Path, zone: &str) -> Result<PathBuf, Erreur> {
 
 /// Exécute `simulate` et rend le code de sortie (0 à 4) ; le message va sur stderr.
 pub fn executer(options: &Options) -> i32 {
+    if let Some(signalement) = signalement_release() {
+        eprintln!("{signalement}");
+    }
     match executer_sans_code(options) {
         Ok(bilan) => {
             eprintln!(

@@ -30,7 +30,8 @@
 //!   dernière ; [`ecrire_annee_ser`]), en fichiers d'au plus [`LIGNES_PAR_FICHIER`] lignes ; la
 //!   simulation elle-même est dans [`crate::ser`] ;
 //! - `flags.parquet` : les signalements du pas ([`crate::controles`]) puis ceux de ce module ;
-//! - `run.json` : réglages, mémoire estimée, durée, empreinte de `config.yml`, comptes ; depuis M5a
+//! - `run.json` : release dont vient le binaire (`release`, mission 087), réglages, mémoire
+//!   estimée, durée, empreinte de `config.yml`, comptes ; depuis M5a
 //!   ([`run_json_m5`]) le mode de recrutement, ce qui n'est pas simulé (`not_simulated` : semis,
 //!   sous-bois, gibier et fructification en `ifn_direct` ; sous-bois, gibier et fructification en
 //!   `cohorts`, décision de Pascal Q3), la plus grande estimation de mémoire, le pic de mémoire
@@ -1206,6 +1207,7 @@ pub fn run_json(
     }
     let valeur = serde_json::json!({
         "schema_version": 1,
+        "release": crate::RELEASE,
         "level": niveau,
         "seed": reglages.seed,
         "t0": reglages.t0,

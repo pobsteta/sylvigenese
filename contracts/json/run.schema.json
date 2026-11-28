@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sylvigenese:run",
   "title": "sim/run.json (simulate)",
-  "description": "Compte rendu d'une exécution de simulate : graine, horizon, fils, mémoire estimée, durée, empreinte de config.yml, valeurs mises à zéro (spec §6), part des paramètres provisoires (spec §10) et comptes de ce que le moteur a dû borner, signaler ou tirer (plan M3a, mission 033). Tous les comptes sont des entiers sur toute la simulation (de t0 à t0 + years), sans valeur par défaut : un compte à zéro s'écrit 0, un compte absent est une erreur. Ils alimentent rapport_simulation.html.",
+  "description": "Compte rendu d'une exécution de simulate : release dont vient le binaire (mission 087), graine, horizon, fils, mémoire estimée, durée, empreinte de config.yml, valeurs mises à zéro (spec §6), part des paramètres provisoires (spec §10) et comptes de ce que le moteur a dû borner, signaler ou tirer (plan M3a, mission 033). Tous les comptes sont des entiers sur toute la simulation (de t0 à t0 + years), sans valeur par défaut : un compte à zéro s'écrit 0, un compte absent est une erreur. Ils alimentent rapport_simulation.html.",
   "x-schema-version": "0.1",
   "type": "object",
   "required": [
@@ -14,6 +14,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {"const": 1},
+    "release": {"description": "release dont vient le binaire de simulate (mission 087, décision de Pascal du 27/11/2026), lue à la compilation : git describe --tags --dirty (vAAAA.MM.N sur le commit étiqueté, vAAAA.MM.N-K-g<empreinte> K commits plus loin, suivi de -dirty si l'arbre de travail était modifié), sinon la variable SYLVIGENESE_RELEASE au même format, sinon « inconnue » (signalé, jamais remplacé par le numéro des manifestes). Écrite par simulate depuis la mission 087 ; un run.json plus ancien, sans cette clé, reste conforme.", "type": "string", "pattern": "^(inconnue|v[0-9]{4}\\.(0[1-9]|1[0-2])\\.[0-9]+(-[0-9]+-g[0-9a-f]{4,})?(-dirty)?)$"},
     "level": {"enum": ["massif", "ser"]},
     "seed": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
     "t0": {"type": "integer"},

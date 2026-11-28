@@ -35,4 +35,8 @@ verifie "describe : dernier tag calendaire" v2026.12.1 "$(git describe --tags --
 verifie "release-necessaire : base calendaire" "release: 1 fichier(s) du produit changé(s) depuis v2026.12.1" \
   "$("$R" HEAD "" "$(git rev-parse HEAD)" | sed 's/ (ex\..*//')"
 
+# Alignement des manifestes et garde de release (mission 087), lancés d'ici car ci.yml appelle ce script.
+echo "-- test-aligner-version.sh"
+"$D/test-aligner-version.sh" || ECHECS=$((ECHECS+1))
+
 if [ "$ECHECS" -eq 0 ]; then echo "Tous les tests passent."; else echo "$ECHECS échec(s)."; exit 1; fi

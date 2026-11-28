@@ -41,12 +41,32 @@ jobs:
           esac
           echo "### Release : $RES" >> "$GITHUB_STEP_SUMMARY"
 
-      # Version calendaire vAAAA.MM.N (N = compteur du mois, UTC, repart à 1 chaque mois) ; tag annoté sur head_sha.
-      - name: Calculer la version et poser le tag
-        id: tag
+      # Version calendaire vAAAA.MM.N (N = compteur du mois, UTC, repart à 1 chaque mois).
+      - name: Calculer la version
+        id: version
         if: steps.decision.outputs.necessaire == 'true'
         run: |
           TAG=$(.github/scripts/version-calendaire.sh)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Version calculée : $TAG"
+
+      # Garde (mission 087) : simulate/Cargo.toml, simulate/Cargo.lock, python/pyproject.toml et DESCRIPTION du
+      # commit testé doivent porter ce numéro (sans le v), mis par .github/scripts/aligner-version.sh dans la PR.
+      # Sinon l'étape échoue en nommant chaque manifeste en retard, et aucune étiquette n'est posée.
+      - name: Garde de release (manifestes au numéro calculé)
+        if: steps.decision.outputs.necessaire == 'true'
+        run: |
+          if ! .github/scripts/verifier-version.sh "${{ steps.version.outputs.tag }}"; then
+            echo "### Release refusée : les manifestes ne portent pas ${{ steps.version.outputs.tag }} (voir le journal de l'étape)" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      # Tag annoté sur head_sha.
+      - name: Poser le tag
+        id: tag
+        if: steps.decision.outputs.necessaire == 'true'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "$TAG" "${{ github.event.workflow_run.head_sha }}"

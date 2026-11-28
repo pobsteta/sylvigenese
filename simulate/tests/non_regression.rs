@@ -721,6 +721,7 @@ fn run_json_porte_tous_les_comptes_et_les_signalements_disent_les_semis() {
             "provisional_share",
             "recruitment",
             "recruits",
+            "release",
             "schema_version",
             "seed",
             "t0",
@@ -741,6 +742,8 @@ fn run_json_porte_tous_les_comptes_et_les_signalements_disent_les_semis() {
         run["config_sha256"],
         "5c9536c0f64193f535c425baf9f2c7431b89eb46bab5fb85d4bfcffabb565f43"
     );
+    // Mission 087 : la release dont vient le binaire, celle de `simulate --version`.
+    assert_eq!(run["release"], simulate::RELEASE);
     assert_eq!(run["level"], "massif");
     assert_eq!(run["seed"], 20_261_125);
     assert_eq!(run["t0"], T0);
