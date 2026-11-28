@@ -5,6 +5,7 @@
 # verifier-version.sh sans dupliquer leur logique.
 # Usage : controler-version-pr.sh   (lancé dans le clone de la PR, étiquettes et historique présents : fetch-depth: 0)
 # Code 0 : aucun fichier du produit ne change depuis la dernière étiquette, ou les manifestes sont alignés.
+# Le numéro des manifestes se déduit de l'étiquette par numero-manifeste.sh (mois sans zéro en tête, mission 090).
 # Code 1 : manifestes en retard (chacun nommé, avec la commande à lancer), ou numéro de release incalculable.
 # La tête testée est HEAD (sur GitHub, le commit de fusion de la PR) : la tête de main n'est pas consultée.
 set -u
@@ -27,19 +28,21 @@ case "$DECISION" in
 esac
 
 TAG=$("$D/version-calendaire.sh" 2>/dev/null) || TAG=""
-case "$TAG" in
-  v[0-9][0-9][0-9][0-9].[0-1][0-9].[1-9]*) ;;
-  *) refus "numéro de la prochaine release incalculable (version-calendaire.sh n'a pas rendu de vAAAA.MM.N : « $TAG »)." ;;
-esac
+NUM=$("$D/numero-manifeste.sh" "$TAG" 2>/dev/null) || \
+  refus "numéro de la prochaine release incalculable (version-calendaire.sh n'a pas rendu de vAAAA.MM.N : « $TAG »)."
 
-if SORTIE=$("$D/verifier-version.sh" "$TAG" 2>&1); then
-  echo "contrôle de version : $DECISION ; les manifestes portent déjà le numéro de la prochaine release ($TAG)."
-  exit 0
-fi
+SORTIE=$("$D/verifier-version.sh" "$TAG" 2>&1); CODE=$?
+case "$CODE" in
+  0)
+    echo "contrôle de version : $DECISION ; les manifestes portent déjà le numéro de la prochaine release ($NUM, étiquette $TAG)."
+    exit 0 ;;
+  1) ;;
+  *) refus "la garde verifier-version.sh a échoué pour une autre raison que des manifestes en retard (code $CODE) : $SORTIE" ;;
+esac
 RETARD=$(printf '%s\n' "$SORTIE" | grep '^  - ')
 cat >&2 <<MSG
 contrôle de version : refus : cette PR change le produit ($DECISION),
-mais les manifestes ne portent pas le numéro de la prochaine release ${TAG#v} ($TAG). Manifestes en retard :
+mais les manifestes ne portent pas le numéro de la prochaine release $NUM (étiquette $TAG). Manifestes en retard :
 $RETARD
 À faire dans la PR : « git fetch --tags », puis
   .github/scripts/aligner-version.sh

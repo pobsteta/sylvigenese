@@ -166,3 +166,31 @@ test("mesure réussie : JSON écrit avec toutes les mesures, la zone refaite et 
   assert.equal(lu.fenetre.largeur, 1);
   assert.equal("ecran" in (lu.fenetre ?? {}), false);
 });
+
+// ------------------------------------------------------------------ interruption : codes de sortie des signaux (mission 090)
+test("SIGINT sort en 130 et SIGTERM en 143, après l'arrêt du serveur et du navigateur", async () => {
+  const ecouteurs: Record<string, () => Promise<void>> = {};
+  const proc = { on: (sig: string, f: () => Promise<void>) => { ecouteurs[sig] = f; } };
+  const journal: string[] = [];
+  releve.installerArretSignaux(proc, async () => { journal.push("arret"); }, (c: number) => { journal.push(`sortie ${c}`); });
+  assert.deepEqual(Object.keys(ecouteurs).sort(), ["SIGINT", "SIGTERM"]);
+  const muet = console.error; console.error = () => {};
+  try {
+    await ecouteurs.SIGINT();
+    await ecouteurs.SIGTERM();
+  } finally { console.error = muet; }
+  assert.deepEqual(journal, ["arret", "sortie 130", "arret", "sortie 143"]);
+});
+
+test("vrai processus : SIGTERM -> code 143, SIGINT -> code 130", async () => {
+  const { spawn } = await import("node:child_process");
+  const script = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), "../scripts/releve_gpu.cjs");
+  for (const [sig, code] of [["SIGTERM", 143], ["SIGINT", 130]] as const) {
+    const enfant = spawn(process.execPath, ["-e", `const r = require(${JSON.stringify(script)}); r.installerArretSignaux(); console.log("pret"); setInterval(() => {}, 1000);`], { stdio: ["ignore", "pipe", "pipe"] });
+    await new Promise<void>((ok, ko) => { enfant.stdout.on("data", (d) => { if (String(d).includes("pret")) ok(); }); enfant.on("error", ko); enfant.on("exit", () => ko(new Error("sorti avant d'être prêt"))); });
+    enfant.removeAllListeners("exit");
+    const fin = new Promise<number | null>((ok) => enfant.on("exit", (c) => ok(c)));
+    enfant.kill(sig);
+    assert.equal(await fin, code, `${sig} doit sortir en ${code}`);
+  }
+});

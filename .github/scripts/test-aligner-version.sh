@@ -61,6 +61,8 @@ contient "garde : DESCRIPTION nommé" "DESCRIPTION porte « 0.0.1 »" "$SORTIE"
 contient "garde : aucune étiquette posée" "aucune étiquette posée" "$SORTIE"
 "$G" 2026.11.18 >/dev/null 2>&1; verifie "garde : étiquette sans v, code 2" 2 "$?"
 "$G" v2026.11.x >/dev/null 2>&1; verifie "garde : étiquette non numérique, code 2" 2 "$?"
+"$G" v2026.13.1 >/dev/null 2>&1; verifie "garde : mois 13, code 2" 2 "$?"
+"$G" v2026.00.1 >/dev/null 2>&1; verifie "garde : mois 00, code 2" 2 "$?"
 
 # Alignement sans origin : signalé, sur les étiquettes locales.
 SORTIE=$("$A" 2026.11 2>&1); CODE=$?
@@ -121,5 +123,25 @@ SORTIE=$("$A" 2026.11 2>&1); CODE=$?
 verifie "aligner : après fetch, code 0" 0 "$CODE"
 contient "aligner : après fetch, numéro suivant" "alignés sur 2026.11.20" "$SORTIE"
 case "$SORTIE" in *"origin illisible"*) verifie "aligner : origin lisible, pas de signalement" non oui;; *) verifie "aligner : origin lisible, pas de signalement" oui oui;; esac
+
+# Janvier et octobre (mission 090) : l'étiquette garde le zéro (v2027.01.1), les manifestes non (2027.1.1).
+git tag v2027.01.1   # v2026.10.30 existe déjà (début du fichier)
+SORTIE=$("$A" 2027.01 2>&1); CODE=$?
+verifie "janvier : aligner, code 0" 0 "$CODE"
+contient "janvier : numéro sans zéro du mois" "alignés sur 2027.1.2 (prochaine release v2027.01.2)" "$SORTIE"
+verifie "janvier : Cargo.toml" 'version = "2027.1.2"' "$(sed -n 3p simulate/Cargo.toml)"
+verifie "janvier : DESCRIPTION" 'Version: 2027.1.2' "$(sed -n 2p DESCRIPTION)"
+verifie "janvier : package-lock, packages[\"\"]" '      "version": "2027.1.2",' "$(sed -n 8p tools/ci/package-lock.json)"
+"$G" v2027.01.2 >/dev/null 2>&1; verifie "janvier : garde passe sur l'étiquette v2027.01.2" 0 "$?"
+sed 's/^Version: .*/Version: 2027.01.2/' DESCRIPTION > D.tmp && mv D.tmp DESCRIPTION
+SORTIE=$("$G" v2027.01.2 2>&1); CODE=$?
+verifie "janvier : manifeste avec le zéro du mois, refusé" 1 "$CODE"
+contient "janvier : manifeste avec zéro nommé" "DESCRIPTION porte « 2027.01.2 »" "$SORTIE"
+git checkout -q -- DESCRIPTION 2>/dev/null; sed 's/^Version: .*/Version: 2027.1.2/' DESCRIPTION > D.tmp && mv D.tmp DESCRIPTION
+SORTIE=$("$A" 2026.10 2>&1); CODE=$?
+verifie "octobre : aligner, code 0" 0 "$CODE"
+contient "octobre : le zéro final du mois est gardé" "alignés sur 2026.10.31 (prochaine release v2026.10.31)" "$SORTIE"
+verifie "octobre : Cargo.toml" 'version = "2026.10.31"' "$(sed -n 3p simulate/Cargo.toml)"
+"$G" v2026.10.31 >/dev/null 2>&1; verifie "octobre : garde passe" 0 "$?"
 
 if [ "$ECHECS" -eq 0 ]; then echo "Tous les tests passent."; else echo "$ECHECS échec(s)."; exit 1; fi
