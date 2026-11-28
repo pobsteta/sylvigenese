@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sylvigenese"
-version = "2026.11.20"
+version = "2026.11.21"
 description = "Modules Python de sylvigenese : import_tarif, post, assets (squelette, mission 012)"
 requires-python = ">=3.13"
 license = { text = "GPL-3.0-only" }
