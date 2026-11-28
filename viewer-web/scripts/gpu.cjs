@@ -86,7 +86,21 @@ function peutEtreBorneeParVsync(fps) {
   return typeof fps === "number" && fps >= 55 && fps <= 62;
 }
 
+const ECART_MAX = 0.10;
+
+// Résumé de plusieurs mesures retenues d'une même année : médiane, extrêmes, écart relatif (max - min) / médiane.
+// `instable` si l'écart dépasse ECART_MAX (10 %) : à signaler, jamais à cacher.
+function resumerMesures(valeurs) {
+  const v = valeurs.filter((x) => typeof x === "number" && Number.isFinite(x)).sort((a, b) => a - b);
+  if (v.length < 2 || v.length !== valeurs.length) throw new ErreurGpu("Il faut au moins deux mesures valides par année.");
+  const m = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+  const ecart = m > 0 ? (v[v.length - 1] - v[0]) / m : Infinity;
+  return { fps: Math.round(m * 100) / 100, min: v[0], max: v[v.length - 1], ecart_relatif: Number.isFinite(ecart) ? Math.round(ecart * 1000) / 1000 : null,
+           instable: !(ecart <= ECART_MAX) };
+}
+
 module.exports = {
+  ECART_MAX, resumerMesures,
   ErreurGpu, CARTES, LOGICIEL, normaliserCarte, fichierEgl, environnementCarte, optionsChromium, verifierMoteur,
   peutEtreBorneeParVsync,
 };

@@ -209,8 +209,10 @@ carte. Ce relevé-ci ouvre Chromium de Playwright **à l'écran**, avec l'accél
 - Les dépendances du dépôt (Node 22.18 ou plus, `npm ci` dans `viewer-web`, Chromium de Playwright, `python3` de la
   chaîne) et une session graphique (variable `DISPLAY`).
 - Les sorties de `make prepare biomes trees` sur le jeu fictif (elles y sont après `bash tools/ci/run_tests.sh m4`).
-  La zone de charge `data/m4_charge/` (100 013 puis 100 000 arbres, synthétique, hors dépôt) est préparée par le
-  script s'il ne la trouve pas (`viewer-web/scripts/preparer_charge.py`, mêmes aides que les tests de m4).
+  La zone de charge `data/m4_charge/` (100 013 puis 100 000 arbres, synthétique, hors dépôt) est **refaite à chaque
+  relevé** par le script (`viewer-web/scripts/preparer_charge.py`, mêmes aides que les tests de m4 ; quelques
+  secondes) : on ne sert jamais une zone laissée là par autre chose. `--garder-zone` permet de garder l'existante ; le
+  JSON le dit (`zone_refaite_pour_ce_releve: false`).
 
 ### Commande
 
@@ -218,8 +220,10 @@ carte. Ce relevé-ci ouvre Chromium de Playwright **à l'écran**, avec l'accél
     node viewer-web/scripts/releve_gpu.cjs --carte nvidia          # la Quadro
     node viewer-web/scripts/releve_gpu.cjs --carte integree        # la carte Intel, pour comparer
 
-Une fenêtre Chromium s'ouvre, parcourt les deux années, puis se ferme (environ une minute). Ne la cachez pas pendant
-la mesure. Options : `--zone`, `--duree <ms>` (5000 par défaut), `--sortie <fichier.json>`, `--sans-borne` (relever
+Une fenêtre Chromium s'ouvre, parcourt les deux années, puis se ferme (quelques minutes). Ne la cachez pas pendant
+la mesure. Ctrl-C arrête proprement le serveur et le navigateur, sans écrire de chiffre. Pour chaque année : une
+**mesure de chauffe jetée** (`--chauffe`, 3000 ms), puis **3 mesures retenues** (`--mesures`) de `--duree` ms (5000).
+Autres options : `--zone`, `--sortie <fichier.json>`, `--garder-zone`, `--sans-borne` (relever
 aussi sans synchronisation verticale, même si la première série n'est pas près de 60 images par seconde ; sinon la
 série sans borne n'est faite que si une valeur tombe entre 55 et 62).
 
@@ -233,8 +237,18 @@ Il lit le moteur de rendu réel (`WEBGL_debug_renderer_info`) avant et après la
 moteur est logiciel (SwiftShader, llvmpipe, « software »…), illisible, différent de la carte demandée, ou s'il a changé
 pendant la mesure ; de même sans écran, ou si le fichier EGL de la carte demandée est introuvable.
 
+### Comment lire les chiffres
+
+Pour chaque année, le JSON donne `fps` (la **médiane** des mesures retenues), `min`, `max`, `mesures_retenues`,
+`chauffe_jetee` et `ecart_relatif` = (max - min) / médiane. La chauffe est écrite mais n'entre pas dans la médiane : la
+première année, mesurée juste après le chargement, est plus lente tant que la carte et le navigateur ne sont pas
+installés (un relevé sans chauffe a donné 35 au lieu de 50). **Si `ecart_relatif` dépasse 0,10**, l'année est marquée
+`instable`, le champ `instable` du JSON passe à vrai et le script l'écrit sur stderr : ne vous fiez pas à ce chiffre,
+relancez la commande sans rien faire d'autre sur le PC. Les chiffres valent pour **cette fenêtre** (`fenetre`, 1280 par 800,
+imitée par Playwright : ce n'est pas la résolution de l'écran réel).
+
 ### Ce qu'il faut renvoyer
 
-Le fichier `data/releves_m4/gpu_<carte>_<date>.json` (moteur de rendu, carte demandée, résolution, instances et images
+Le fichier `data/releves_m4/gpu_<carte>_<date>.json` (moteur de rendu, carte demandée, fenêtre, instances et images
 par seconde pour chaque année, avec et sans synchronisation verticale). Vous devez y retrouver `Quadro K5100M`. Le
 BRIEF ne fixe aucun seuil d'images par seconde : on relève, on ne juge pas.
