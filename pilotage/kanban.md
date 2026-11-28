@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 14 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 15 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -33,6 +33,8 @@ _Modèle de carte :_
 - M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
 - Réimporter le tarif réel (facteurs du domaine, mission 076) : chez Pascal ou quand le tarif réel est ici · depuis le cycle 11
 - M6b · défauts vus sur les captures du 27/11/2026 (rendu logiciel) : troncs colorés comme le feuillage (material_override sur tout le maillage, déjà relevé par la relecture de M6a) ; cartes de feuillage en blocs hachés noirs et verts (rendu logiciel ou vrai défaut, à trancher sur le PC de Pascal) ; arbres en perches peu branchues ; ligne « non calés » du bandeau coupée à droite ; aucune indication du nord ; caméra figée vers le nord sans clavier ; résolution 1280×720 · depuis le cycle 13
+- Version · contrôle des PR dans ci.yml (verifier-version.sh contre le numéro calculé), pour refuser avant la fusion ; d'ici là, chaque PR du produit lance .github/scripts/aligner-version.sh, sinon release.yml est rouge sur main sans étiquette (relecture de la PR 19) ; aligner aussi tools/ci/package.json et viewer-web/package.json · depuis le cycle 15
+- Version · mineurs de la relecture de la PR 19 : marque -dirty de build.rs imprécise hors simulate/ (sans effet sur le code compilé) ; pas de test automatique de la recompilation quand une étiquette change ; inputs_sha256.sim_run de post change à chaque commit (à savoir avant de comparer des sorties de post entre releases) ; échantillon terrain : simulate --version et la clé release de sim/run.json au prochain run de Pascal sur le massif test · depuis le cycle 15
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
 
 ## Validé
@@ -40,17 +42,17 @@ _Modèle de carte :_
 
 ## Planifié
 
-- [087](missions/087-version-release.md) · depuis le cycle 15
-  - Homme : `dev`
-  - Mission : numéro de la release dans run.json et dans les manifestes, garde de release
-  - Moyens : branche claude/youthful-allen-b094t9
-
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
 - M6b (sur le PC de Pascal : aspect, images par seconde, rendu Compatibility, chemin « calé » sur le massif réel) · depuis le cycle 10
 - M3b (vraisemblance de la dynamique) : attend les données réelles et Pascal
 
 
 ## Terminé
+
+- [087](missions/087-version-release.md) · depuis le cycle 15
+  - Homme : `dev`
+  - Mission : numéro de la release dans run.json et dans les manifestes, garde de release
+  - Moyens : PR pobsteta/sylvigenese#19
 
 - [086](missions/086-mineurs-cycle-13.md) · depuis le cycle 14
   - Homme : `dev`
