@@ -6,7 +6,7 @@
 > colonne ; on change ce numéro chaque fois qu'elle change de colonne.
 > **Une carte qui ne bouge pas est souvent la mauvaise nouvelle à dire tout de suite.**
 
-**Dernier cycle :** 15 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
+**Dernier cycle :** 16 _(augmenté de 1 à la fin de chaque `/boucle`, même quand elle n'a
 rien lancé. Une carte est immobile quand dernier cycle − N ≥ 2.)_
 
 _Modèle de carte :_
@@ -41,6 +41,11 @@ _Modèle de carte :_
 
 
 ## Planifié
+
+- [088](missions/088-mesure-fps-carte-graphique.md) · depuis le cycle 16
+  - Homme : `dev`
+  - Mission : images par seconde de la vue web mesurées par script sur la carte graphique (critère b de M4)
+  - Moyens : branche claude/youthful-allen-b094t9, PC de Pascal (Quadro K5100M)
 
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
 - M6b (sur le PC de Pascal : aspect, images par seconde, rendu Compatibility, chemin « calé » sur le massif réel) · depuis le cycle 10
