@@ -1,7 +1,7 @@
 #!/bin/sh
 # Garde de release (mission 087) : les manifestes portent-ils le numéro de l'étiquette à poser ?
 # Usage : verifier-version.sh vAAAA.MM.N   (lancé depuis le dépôt, sur le commit à étiqueter)
-# Code 0 si simulate/Cargo.toml, simulate/Cargo.lock, python/pyproject.toml et DESCRIPTION portent AAAA.MM.N.
+# Code 0 si les manifestes de manifestes-version.sh (dont les package.json, mission 089) portent AAAA.MM.N.
 # Code 1 sinon, chaque manifeste en retard nommé avec sa valeur (release.yml ne pose alors aucune étiquette).
 # Code 2 si l'étiquette n'a pas la forme vAAAA.MM.N.
 set -eu

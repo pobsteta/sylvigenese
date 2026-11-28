@@ -38,5 +38,8 @@ verifie "release-necessaire : base calendaire" "release: 1 fichier(s) du produit
 # Alignement des manifestes et garde de release (mission 087), lancés d'ici car ci.yml appelle ce script.
 echo "-- test-aligner-version.sh"
 "$D/test-aligner-version.sh" || ECHECS=$((ECHECS+1))
+# Contrôle de version sur les PR (mission 089).
+echo "-- test-controler-version-pr.sh"
+"$D/test-controler-version-pr.sh" || ECHECS=$((ECHECS+1))
 
 if [ "$ECHECS" -eq 0 ]; then echo "Tous les tests passent."; else echo "$ECHECS échec(s)."; exit 1; fi

@@ -45,6 +45,32 @@ jobs:
         run: .github/scripts/test-version-calendaire.sh
 
 
+  # Contrôle de version (mission 089) : une PR qui change le produit doit porter dans les manifestes le numéro de la
+  # prochaine release, sinon la garde de release.yml refuserait l'étiquette après la fusion. Seulement sur les PR ;
+  # la logique est dans .github/scripts/controler-version-pr.sh (qui réutilise release-necessaire.sh,
+  # version-calendaire.sh et verifier-version.sh). fetch-depth: 0 : étiquettes et historique nécessaires.
+  controle-version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Manifestes au numéro de la prochaine release
+        run: |
+          if ! .github/scripts/controler-version-pr.sh 2>"$RUNNER_TEMP/controle-version.txt"; then
+            cat "$RUNNER_TEMP/controle-version.txt"
+            {
+              echo "### Contrôle de version : PR refusée"
+              echo '```'
+              cat "$RUNNER_TEMP/controle-version.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
   # R (testthat). Python sert au validateur appelé par les tests R.
   r:
     runs-on: ubuntu-latest

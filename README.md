@@ -137,8 +137,10 @@ release ils viennent.
     la variable (une variable différente est signalée et ignorée). Le numéro des manifestes
     n'est jamais pris à la place : il dit la release visée, pas celle du code compilé.
 - **Les manifestes** `simulate/Cargo.toml` (et `simulate/Cargo.lock`), `python/pyproject.toml` et
-  `DESCRIPTION` portent `AAAA.MM.N`, sans le `v` (forme admise par semver, PEP 440 et R). Ceux des
-  bancs (`bench/`) ne sont pas concernés.
+  `DESCRIPTION` portent `AAAA.MM.N`, sans le `v` (forme admise par semver, PEP 440 et R), ainsi que
+  (mission 089) `tools/ci/` et `viewer-web/` : leur `package.json` et leur `package-lock.json`
+  (champ `version` seulement, en tête et dans `packages[""]`). Ceux des bancs (`bench/`) ne sont pas
+  concernés.
 
 **Le geste dans chaque PR qui change le produit** : à jour des étiquettes (`git fetch --tags`),
 lancer
@@ -151,6 +153,18 @@ qui met les manifestes au numéro de la prochaine release (celui de `version-cal
 valider le changement avec la PR. Le script refuse si les étiquettes locales sont en retard sur
 celles de `origin`.
 
+**Le contrôle de la PR** (mission 089) : la CI refuse une PR vers `main` qui change le produit si
+les manifestes ne portent pas le numéro de la prochaine release. Le job `controle-version` de
+`ci.yml` (PR seulement) lance
+[`.github/scripts/controler-version-pr.sh`](.github/scripts/controler-version-pr.sh) : si seuls
+`pilotage/`, `docs/`, `*.md`, les badges ou des tests changent depuis la dernière étiquette, il passe ;
+sinon il calcule le numéro (`version-calendaire.sh`) et vérifie les manifestes (`verifier-version.sh`).
+En cas d'écart, l'échec nomme chaque manifeste en retard. **Le geste** : `git fetch --tags`, puis
+`.github/scripts/aligner-version.sh`, puis valider le changement dans la PR. **Changement de mois, ou
+une autre release passée entre-temps** : une PR alignée en novembre et fusionnée en décembre est
+refusée à la relance de sa CI ; relancer `aligner-version.sh` donne le nouveau numéro. Si le numéro
+ne peut pas être calculé (clone sans étiquettes), le contrôle échoue de même, sans rien deviner.
+
 **La garde** : avant de poser l'étiquette, `release.yml` lance
 [`.github/scripts/verifier-version.sh`](.github/scripts/verifier-version.sh). Si un manifeste ne
 porte pas le numéro calculé, l'étape échoue en le nommant et **aucune étiquette n'est posée** ;
@@ -160,7 +174,7 @@ passe pas par la garde.
 Tester les scripts en local :
 
 ```bash
-.github/scripts/test-version-calendaire.sh   # lance aussi test-aligner-version.sh
+.github/scripts/test-version-calendaire.sh   # lance aussi test-aligner-version.sh et test-controler-version-pr.sh
 .github/scripts/test-release-necessaire.sh
 ```
 
