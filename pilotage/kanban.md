@@ -33,7 +33,6 @@ _Modèle de carte :_
 - M5b · coût du noyau mesuré sur la SER fictive (082, bench/results/M5_noyau.md) : K = 20 et 60 ne changent pas le verdict de C20 ; à revoir sur la SER pilote (couronne des blocs = K cellules) · depuis le cycle 12
 - Réimporter le tarif réel (facteurs du domaine, mission 076) : chez Pascal ou quand le tarif réel est ici · depuis le cycle 11
 - M6b · défauts vus sur les captures du 27/11/2026 (rendu logiciel) : troncs colorés comme le feuillage (material_override sur tout le maillage, déjà relevé par la relecture de M6a) ; cartes de feuillage en blocs hachés noirs et verts (rendu logiciel ou vrai défaut, à trancher sur le PC de Pascal) ; arbres en perches peu branchues ; ligne « non calés » du bandeau coupée à droite ; aucune indication du nord ; caméra figée vers le nord sans clavier ; résolution 1280×720 · depuis le cycle 13
-- Version · contrôle des PR dans ci.yml (verifier-version.sh contre le numéro calculé), pour refuser avant la fusion ; d'ici là, chaque PR du produit lance .github/scripts/aligner-version.sh, sinon release.yml est rouge sur main sans étiquette (relecture de la PR 19) ; aligner aussi tools/ci/package.json et viewer-web/package.json · depuis le cycle 15
 - Version · mineurs de la relecture de la PR 19 : marque -dirty de build.rs imprécise hors simulate/ (sans effet sur le code compilé) ; pas de test automatique de la recompilation quand une étiquette change ; inputs_sha256.sim_run de post change à chaque commit (à savoir avant de comparer des sorties de post entre releases) ; échantillon terrain : simulate --version et la clé release de sim/run.json au prochain run de Pascal sur le massif test · depuis le cycle 15
 - M4b · mineurs de la relecture de la PR 20 : en-tête de viewer-web/scripts/releve_gpu.cjs:8 (« préparée si absente » alors que la zone est refaite à chaque relevé) ; SIGTERM sort en 130 au lieu de 143 ; origine du plafond vers 50 images/s sur la Quadro non cherchée ; la garde lit le moteur sur un canvas neuf, pas celui de la page · depuis le cycle 16
 - Analyste · mesurer la forêt seule (option de part forestière) ; S × K à N = 2 000 · depuis le cycle 8
@@ -42,6 +41,11 @@ _Modèle de carte :_
 
 
 ## Planifié
+
+- [089](missions/089-controle-version-pr.md) · depuis le cycle 16
+  - Homme : `dev`
+  - Mission : refuser avant la fusion une PR du produit dont les manifestes ne portent pas la prochaine release ; package.json alignés
+  - Moyens : branche claude/youthful-allen-b094t9, après la PR #21
 
 - Critère b de post (V de l'IFN sur la SER pilote, décision de Pascal) : attend les données réelles · depuis le cycle 8
 - M6b (sur le PC de Pascal : aspect, images par seconde, rendu Compatibility, chemin « calé » sur le massif réel) · depuis le cycle 10
